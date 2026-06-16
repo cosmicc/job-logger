@@ -18,6 +18,11 @@ All recorded changes to Job Logger are documented in this file.
   making end fields optional only while the job is active.
 - Added a mobile active-job save action for ticket number, client name, and current
   summary notes so edits can be saved before pressing End Work.
+- Added a read-only Autotask discovery script for role IDs, billing code IDs, and
+  ticket status picklist IDs using local `.env` configuration without printing
+  credentials.
+- Added Docker-configurable faster-whisper CPU threads and app memory limit
+  defaults of 8 threads and 8g for local transcription.
 - Updated the mobile workflow so recording is now `Record -> Pause/Resume -> Submit`
   with submit-based transcription upload, added 15-minute review time increment
   controls for start/end times, and added review-side editable client name field.

@@ -17,9 +17,11 @@ def test_faster_whisper_provider_is_selected_from_environment(monkeypatch) -> No
     monkeypatch.setenv("FASTER_WHISPER_LOCAL_FILES_ONLY", "true")
     monkeypatch.setenv("FASTER_WHISPER_LANGUAGE", "en")
     monkeypatch.setenv("FASTER_WHISPER_BEAM_SIZE", "5")
+    monkeypatch.setenv("FASTER_WHISPER_CPU_THREADS", "8")
 
     provider = get_transcription_provider(load_settings())
 
     assert isinstance(provider, FasterWhisperTranscriptionProvider)
     assert provider.provider_name == "faster_whisper"
     assert provider.application_settings.faster_whisper_local_files_only is True
+    assert provider.application_settings.faster_whisper_cpu_threads == 8

@@ -3,6 +3,9 @@ services:
     build:
       context: .
     restart: unless-stopped
+    # FASTER_WHISPER_MEMORY_LIMIT caps the app container because local model
+    # transcription is the memory-heavy path in this service.
+    mem_limit: ${FASTER_WHISPER_MEMORY_LIMIT:-8g}
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-job_logger}:${POSTGRES_PASSWORD:-job_logger_password}@db:5432/${POSTGRES_DB:-job_logger}
       APP_HOST: 0.0.0.0
@@ -22,6 +25,7 @@ services:
       FASTER_WHISPER_LOCAL_FILES_ONLY: ${FASTER_WHISPER_LOCAL_FILES_ONLY:-false}
       FASTER_WHISPER_LANGUAGE: ${FASTER_WHISPER_LANGUAGE:-en}
       FASTER_WHISPER_BEAM_SIZE: ${FASTER_WHISPER_BEAM_SIZE:-5}
+      FASTER_WHISPER_CPU_THREADS: ${FASTER_WHISPER_CPU_THREADS:-8}
       AUTOTASK_PROVIDER: ${AUTOTASK_PROVIDER:-mock}
       AUTOTASK_BASE_URL: ${AUTOTASK_BASE_URL:-}
       AUTOTASK_USERNAME: ${AUTOTASK_USERNAME:-}

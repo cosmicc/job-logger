@@ -98,6 +98,7 @@ class FasterWhisperTranscriptionProvider(BaseTranscriptionProvider):
                 self.application_settings.faster_whisper_model,
                 device=self.application_settings.faster_whisper_device,
                 compute_type=self.application_settings.faster_whisper_compute_type,
+                cpu_threads=self.application_settings.faster_whisper_cpu_threads,
                 download_root=str(model_cache_path),
                 local_files_only=self.application_settings.faster_whisper_local_files_only,
             )

@@ -226,12 +226,18 @@ Set these variables for local transcription:
 - `FASTER_WHISPER_LOCAL_FILES_ONLY`
 - `FASTER_WHISPER_LANGUAGE`
 - `FASTER_WHISPER_BEAM_SIZE`
+- `FASTER_WHISPER_CPU_THREADS`
+- `FASTER_WHISPER_MEMORY_LIMIT`
 
 The Docker Compose stack stores faster-whisper model files in the
 `faster_whisper_models` volume mounted at `/models/faster-whisper`. This keeps
 the model local and avoids redownloading it on every container restart.
 Set `FASTER_WHISPER_LOCAL_FILES_ONLY=true` after the model exists locally if the
 container should not attempt any model download.
+`FASTER_WHISPER_CPU_THREADS` defaults to `8` and is passed directly to
+faster-whisper's local model loader. `FASTER_WHISPER_MEMORY_LIMIT` defaults to
+`8g` and controls the Docker Compose memory limit for the app container, where
+local transcription runs.
 
 `TRANSCRIPTION_PROVIDER=mock` proves the upload path without loading a local
 model. `TRANSCRIPTION_PROVIDER=disabled` rejects transcription attempts.

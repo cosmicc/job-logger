@@ -109,6 +109,9 @@ class Settings:
     # FASTER_WHISPER_BEAM_SIZE controls local decoding quality and CPU cost.
     faster_whisper_beam_size: int
 
+    # FASTER_WHISPER_CPU_THREADS controls faster-whisper CPU worker threads.
+    faster_whisper_cpu_threads: int
+
     # AUTOTASK_PROVIDER selects mock mode or the live Autotask REST client.
     autotask_provider: str
 
@@ -194,6 +197,7 @@ def load_settings() -> Settings:
         faster_whisper_local_files_only=_get_boolean("FASTER_WHISPER_LOCAL_FILES_ONLY", False),
         faster_whisper_language=os.getenv("FASTER_WHISPER_LANGUAGE") or "en",
         faster_whisper_beam_size=_get_integer("FASTER_WHISPER_BEAM_SIZE", 5),
+        faster_whisper_cpu_threads=_get_integer("FASTER_WHISPER_CPU_THREADS", 8),
         autotask_provider=os.getenv("AUTOTASK_PROVIDER", "mock").strip().lower(),
         autotask_base_url=os.getenv("AUTOTASK_BASE_URL") or None,
         autotask_username=os.getenv("AUTOTASK_USERNAME") or None,
