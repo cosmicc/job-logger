@@ -66,13 +66,11 @@ class Settings:
     # DATABASE_URL points SQLAlchemy at PostgreSQL in Docker or SQLite in tests.
     database_url: str
 
-    # APP_USERNAME is the single local app account used in addition to Cloudflare Access.
+    # APP_USERNAME is the single local app account name.
     app_username: str
 
-    # APP_PASSWORD_HASH is the preferred Argon2 password verifier.
-    app_password_hash: str | None
-
-    # APP_PASSWORD is allowed only for local bootstrap/dev deployments.
+    # APP_PASSWORD is the password for the single local application account.
+    # It must be provided through a secret environment file or secret store.
     app_password: str | None
 
     # APP_SESSION_COOKIE_SECURE should be true when served through HTTPS/Cloudflare.
@@ -183,7 +181,6 @@ def load_settings() -> Settings:
             "postgresql+psycopg://job_logger:job_logger_password@db:5432/job_logger",
         ),
         app_username=os.getenv("APP_USERNAME", "admin"),
-        app_password_hash=os.getenv("APP_PASSWORD_HASH") or None,
         app_password=os.getenv("APP_PASSWORD") or None,
         session_cookie_secure=_get_boolean("APP_SESSION_COOKIE_SECURE", False),
         allowed_hosts=_get_csv("APP_ALLOWED_HOSTS", "localhost,127.0.0.1,app"),

@@ -9,7 +9,6 @@ services:
       APP_ENV: ${APP_ENV:-development}
       APP_SECRET_KEY: ${APP_SECRET_KEY:-development-only-change-me}
       APP_USERNAME: ${APP_USERNAME:-admin}
-      APP_PASSWORD_HASH: ${APP_PASSWORD_HASH:-}
       APP_PASSWORD: ${APP_PASSWORD:-admin}
       APP_SESSION_COOKIE_SECURE: ${APP_SESSION_COOKIE_SECURE:-false}
       APP_ALLOWED_HOSTS: ${APP_ALLOWED_HOSTS:-localhost,127.0.0.1,app}

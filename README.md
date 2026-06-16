@@ -12,7 +12,7 @@ and submitting accepted jobs to Autotask.
 - PostgreSQL stores jobs, review fields, submission attempts, and audit events.
 - Alembic manages database migrations.
 - Cloudflare Tunnel publishes the app without opening an inbound firewall port.
-- Cloudflare Access should protect the public hostname before the app login page.
+- Cloudflare Access can protect the public hostname before the app login page.
 - Configurable providers support mock or live speech-to-text and Autotask modes.
 
 Cloudflare documents Tunnel as an outbound `cloudflared` connector and Access as
@@ -35,20 +35,11 @@ Autotask REST API references used by this app:
    cp .env.example .env
    ```
 
-2. Generate a password hash:
+2. Set `APP_USERNAME` and `APP_PASSWORD` in `.env`.
 
-   ```bash
-   python -m venv .venv
-   . .venv/bin/activate
-   pip install -e ".[dev]"
-   python -m job_logger.security hash-password 'replace-this-password'
-   ```
+3. Replace `APP_SECRET_KEY` with a long random value.
 
-3. Put the generated hash in `.env` as `APP_PASSWORD_HASH`.
-
-4. Replace `APP_SECRET_KEY` with a long random value.
-
-5. Start the stack:
+4. Start the stack:
 
    ```bash
    docker compose up -d --build
@@ -60,7 +51,7 @@ Autotask REST API references used by this app:
    docker compose up -d --build app db nginx
    ```
 
-6. Open the local troubleshooting URL at:
+5. Open the local troubleshooting URL at:
 
    ```text
    http://127.0.0.1:11030
@@ -84,12 +75,14 @@ tunnel connector all come up with one `docker compose up -d --build` command.
    can also work, but the configured service URL must match an address that is
    reachable from the `cloudflared` connector.
 
-3. Create a Cloudflare Access self-hosted application for that hostname.
+3. Optionally create a Cloudflare Access self-hosted application for that hostname.
 4. Put the same hostname in `.env` under `APP_ALLOWED_HOSTS`.
 5. Put the tunnel token in `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
    If this token is missing or invalid, Cloudflare will return a 502 and
    `cloudflared` will repeatedly restart.
-6. Set `CLOUDFLARE_ACCESS_REQUIRED=true` after Access is verified.
+6. Leave `CLOUDFLARE_ACCESS_REQUIRED=false` when using only the app's
+   `APP_USERNAME` and `APP_PASSWORD` login. Set it to `true` only after
+   Cloudflare Access is configured and verified for the public hostname.
 7. Start the full stack:
 
    ```bash

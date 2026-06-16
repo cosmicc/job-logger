@@ -22,8 +22,8 @@ def validate_runtime_settings(application_settings: Settings) -> None:
     if application_settings.app_secret_key == "development-only-change-me":
         raise RuntimeError("APP_SECRET_KEY must be replaced in production.")
 
-    if not application_settings.app_password_hash and not application_settings.app_password:
-        raise RuntimeError("APP_PASSWORD_HASH or APP_PASSWORD must be configured in production.")
+    if not application_settings.app_password:
+        raise RuntimeError("APP_PASSWORD must be configured in production.")
 
 
 def create_app(application_settings: Settings = settings) -> FastAPI:
@@ -94,4 +94,3 @@ def create_app(application_settings: Settings = settings) -> FastAPI:
 
 
 app = create_app()
-

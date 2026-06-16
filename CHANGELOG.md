@@ -15,6 +15,9 @@ All recorded changes to Job Logger are documented in this file.
 - Baked the Nginx proxy template into a local Nginx image and expanded tunnel
   diagnostics to detect public-host `APP_ALLOWED_HOSTS` mismatches, preventing
   the stock Nginx 404 page from masking a missing proxy configuration.
+- Removed `APP_PASSWORD_HASH` and Argon2 password-hash handling so deployments
+  use only `APP_USERNAME` and `APP_PASSWORD`; set Cloudflare Access enforcement
+  off by default unless explicitly enabled after Access is configured.
 
 - Added the initial `AGENTS.md` project instructions for the Dockerized Python
   Job Logger application.

@@ -13,9 +13,9 @@ os.environ["APP_ENV"] = "development"
 os.environ["APP_SECRET_KEY"] = "test-secret-key-with-enough-length"
 os.environ["APP_USERNAME"] = "admin"
 os.environ["APP_PASSWORD"] = "test-password"
-os.environ["APP_PASSWORD_HASH"] = ""
 os.environ["APP_ALLOWED_HOSTS"] = "testserver,localhost,127.0.0.1"
 os.environ["APP_SESSION_COOKIE_SECURE"] = "false"
+os.environ["CLOUDFLARE_ACCESS_REQUIRED"] = "false"
 os.environ["DATABASE_URL"] = "sqlite+pysqlite://"
 os.environ["TRANSCRIPTION_PROVIDER"] = "mock"
 os.environ["AUTOTASK_PROVIDER"] = "mock"
@@ -58,4 +58,3 @@ def authenticated_client(client: TestClient) -> TestClient:
     )
     assert login_response.status_code == 303
     return client
-

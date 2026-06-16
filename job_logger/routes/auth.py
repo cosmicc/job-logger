@@ -37,7 +37,7 @@ async def login(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> RedirectResponse:
-    """Authenticate the local app user in addition to Cloudflare Access."""
+    """Authenticate the local application user."""
 
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))

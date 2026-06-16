@@ -6,7 +6,7 @@
   <section class="login-shell">
     <div class="login-panel">
       <h1>Sign in</h1>
-      <p class="muted-text">Use the local app account after Cloudflare Access grants entry.</p>
+      <p class="muted-text">Use the local app account configured for this deployment.</p>
       <form method="post" action="/login" class="stack-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label>
@@ -29,4 +29,3 @@
     </div>
   </section>
 {% endblock %}
-

@@ -2,19 +2,13 @@
 
 from __future__ import annotations
 
-import argparse
 import hmac
 import secrets
 from typing import Any
 
-from argon2 import PasswordHasher
-from argon2.exceptions import VerificationError, VerifyMismatchError
 from fastapi import HTTPException, Request, status
 
 from job_logger.config import Settings, settings
-
-# PasswordHasher provides Argon2id password hashing for the local app account.
-password_hasher = PasswordHasher()
 
 # Session keys are intentionally centralized to avoid typo-driven auth bugs.
 SESSION_USERNAME_KEY = "authenticated_username"
@@ -25,20 +19,8 @@ SESSION_FLASH_KEY = "flash_messages"
 SENSITIVE_KEY_FRAGMENTS = ("password", "secret", "token", "key", "authorization", "cookie")
 
 
-def hash_password(plain_text_password: str) -> str:
-    """Return an Argon2id hash for a deployment password."""
-
-    return password_hasher.hash(plain_text_password)
-
-
 def verify_password(plain_text_password: str, application_settings: Settings = settings) -> bool:
-    """Verify the submitted password against configured credentials."""
-
-    if application_settings.app_password_hash:
-        try:
-            return password_hasher.verify(application_settings.app_password_hash, plain_text_password)
-        except (VerifyMismatchError, VerificationError):
-            return False
+    """Verify the submitted password against the configured app password."""
 
     if application_settings.app_password:
         return hmac.compare_digest(application_settings.app_password, plain_text_password)
@@ -170,22 +152,3 @@ def sanitize_for_audit(value: Any) -> Any:
         return value
 
     return str(value)
-
-
-def main() -> None:
-    """Command line helper for generating password hashes."""
-
-    parser = argparse.ArgumentParser(description="Job Logger security helper")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    hash_parser = subparsers.add_parser("hash-password", help="Generate an Argon2id password hash")
-    hash_parser.add_argument("password", help="Plain text password to hash")
-
-    arguments = parser.parse_args()
-    if arguments.command == "hash-password":
-        print(hash_password(arguments.password))
-
-
-if __name__ == "__main__":
-    main()
-
