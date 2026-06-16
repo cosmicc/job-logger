@@ -8,6 +8,10 @@ All recorded changes to Job Logger are documented in this file.
   for deployment: app and Nginx internals are now fixed to `8000` and `80`
   respectively, and optional internal/external port overrides were removed from
   runtime configuration and diagnostics.
+- Updated Nginx host binding and remote-tunnel documentation so a Cloudflare
+  dashboard service URL can target the server's LAN/internal IP on
+  `NGINX_PUBLIC_PORT`; removed the local `cloudflared --url` override so the
+  remotely-managed tunnel route remains authoritative.
 
 - Added the initial `AGENTS.md` project instructions for the Dockerized Python
   Job Logger application.

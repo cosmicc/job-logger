@@ -76,8 +76,13 @@ tunnel connector all come up with one `docker compose up -d --build` command.
 2. Add a public hostname that routes to this Docker service URL:
 
    ```text
-   http://127.0.0.1:11030
+   http://<server-internal-ip>:11030
    ```
+
+   For this deployment, that means `http://192.168.199.11:11030` on your
+   production network. If `cloudflared` runs on the same Docker host, localhost
+   can also work, but the configured service URL must match an address that is
+   reachable from the `cloudflared` connector.
 
 3. Create a Cloudflare Access self-hosted application for that hostname.
 4. Put the same hostname in `.env` under `APP_ALLOWED_HOSTS`.
@@ -93,13 +98,18 @@ tunnel connector all come up with one `docker compose up -d --build` command.
 
 Nginx is the web front end for this deployment. Public mobile and review
 traffic should enter through the Cloudflare Tunnel hostname, reach the host-exposed
-Nginx endpoint `http://127.0.0.1:11030` by default (or
-`http://127.0.0.1:<NGINX_PUBLIC_PORT>` after you change it), and then proxy to FastAPI at
+Nginx endpoint on `<server-internal-ip>:11030` by default (or
+`<server-internal-ip>:<NGINX_PUBLIC_PORT>` after you change it), and then proxy to FastAPI at
 `http://app:8000`.
 
 The app container is exposed only to the private Compose network. The local
 troubleshooting URL reaches Nginx on `127.0.0.1`, not the app container
 directly.
+
+Nginx binds `NGINX_PUBLIC_PORT` on host interfaces so a remotely-managed tunnel
+can reach the origin by server IP. Keep host firewall rules limited to trusted
+networks or the tunnel connector path because direct LAN access to this port
+bypasses Cloudflare Access. Application login still protects the app itself.
 
 `NGINX_PUBLIC_PORT` is the only configurable host-facing port. All other service
 ports are fixed internally and are not intended to be changed via environment:
@@ -139,8 +149,9 @@ Check these items first:
 
 - Confirm `.env` exists and contains a real `CLOUDFLARE_TUNNEL_TOKEN`.
 - Confirm the Cloudflare tunnel origin (what your Cloudflare connector is configured
-  to reach) is `http://127.0.0.1:11030` by default, or your configured
-  `NGINX_PUBLIC_PORT`.
+  to reach) is `http://<server-internal-ip>:11030` by default, or your configured
+  `NGINX_PUBLIC_PORT`. For the current production network, that is
+  `http://192.168.199.11:11030`.
 - Confirm Nginx itself is reachable from the Docker host:
 
   ```bash
@@ -153,16 +164,16 @@ Check these items first:
   curl -i http://127.0.0.1:11030/health/live
   ```
 
-- Confirm cloudflared is receiving the same origin URL from Compose environment:
+- Confirm Nginx is reachable through the same server IP used by Cloudflare:
 
   ```bash
-  docker compose config | sed -n '/cloudflared:/,/  db:/p'
+  curl -i http://192.168.199.11:11030/nginx-health
   ```
 
-- Confirm the app is healthy from inside the Nginx container:
+- Confirm the app is healthy from inside the app container:
 
   ```bash
-  docker compose exec nginx wget -qO- http://app:8000/health/live
+  docker compose exec app python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3).read()"
   ```
 
 - Review tunnel connector logs:

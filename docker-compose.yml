@@ -66,9 +66,11 @@ services:
       app:
         condition: service_healthy
     ports:
-      # Bind the Nginx troubleshooting port to loopback only. Public access
-      # should come through Cloudflare Tunnel and Cloudflare Access.
-      - "127.0.0.1:${NGINX_PUBLIC_PORT:-11030}:80"
+      # Bind Nginx on host interfaces so a remotely-managed Cloudflare Tunnel
+      # service URL can target this server by LAN/internal IP and port.
+      # Keep host firewall rules tight because this bypasses Cloudflare Access
+      # for clients that can directly reach the server IP.
+      - "0.0.0.0:${NGINX_PUBLIC_PORT:-11030}:80"
     volumes:
       - ./docker/nginx/templates:/etc/nginx/templates:ro
     healthcheck:
@@ -98,8 +100,8 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    # Use the host-exposed nginx port directly so this behaves like the prior
-    # app pattern where the tunnel points at one local endpoint.
+    # Host networking lets remotely-managed tunnel service URLs use either
+    # localhost or this server's LAN/internal IP as the origin address.
     network_mode: "host"
     # The cloudflared image is a distroless runtime without /bin/sh, so the
     # command is passed directly as arguments for the image entrypoint.
@@ -107,8 +109,6 @@ services:
       - tunnel
       - --no-autoupdate
       - run
-      - --url
-      - http://127.0.0.1:${NGINX_PUBLIC_PORT:-11030}
       - --token
       - ${CLOUDFLARE_TUNNEL_TOKEN:-not-set}
     depends_on:
