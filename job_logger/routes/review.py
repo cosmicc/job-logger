@@ -17,6 +17,7 @@ from job_logger.services.jobs import (
     apply_review_fields,
     get_job_or_raise,
     list_review_jobs,
+    purge_job,
     reject_job,
     submit_job_to_autotask,
     validate_review_fields,
@@ -239,3 +240,34 @@ async def retry_submission(
         add_flash_message(request, str(exc), "error")
 
     return RedirectResponse(url=f"/review/{job_id}", status_code=303)
+
+
+@router.post("/{job_id}/purge")
+async def purge_review_job(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Permanently remove a selected job from local history."""
+
+    actor = require_authenticated_username(request)
+    await _form_values(request)
+    try:
+        # Use the current job state as the immutable source for audit details.
+        job = get_job_or_raise(database_session, job_id)
+        purge_job(database_session, job)
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.review.purged",
+            request=request,
+            details={"job_status": job.status.value, "ticket_number": job.ticket_number or "No ticket"},
+        )
+        database_session.commit()
+        add_flash_message(request, "Job removed from review history.", "success")
+    except JobWorkflowError as exc:
+        database_session.rollback()
+        add_flash_message(request, str(exc), "error")
+        return RedirectResponse(url=f"/review/{job_id}", status_code=303)
+
+    return RedirectResponse(url="/review", status_code=303)

@@ -175,6 +175,25 @@
             </button>
           </form>
 
+          <form
+            method="post"
+            action="/review/{{ selected_job.id }}/purge"
+            class="purge-form"
+            onsubmit="return confirm('This will permanently remove this job and related debug history. Continue?')"
+          >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="danger-button" type="submit">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 6h18"></path>
+                <path d="M8 6V4h8v2"></path>
+                <path d="M10 11v6"></path>
+                <path d="M14 11v6"></path>
+                <path d="M9 10h6"></path>
+              </svg>
+              Force purge job
+            </button>
+          </form>
+
           <section class="audit-panel" aria-label="Audit timeline">
             <h3>Audit timeline</h3>
             {% if audit_events %}

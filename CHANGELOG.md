@@ -21,6 +21,9 @@ All recorded changes to Job Logger are documented in this file.
 - Added a debug action to clear all ticket-related job fields and submission
   attempts from the `/debug` page so troubleshooting can begin from a clean
   state without deleting the whole database.
+- Added a per-job **Force purge** button on the review detail pane and a
+  matching `/review/{job_id}/purge` endpoint to permanently delete a selected job
+  (plus related submission attempts) for strict cleanup.
 - Removed the recent-jobs list from the mobile entry page so `/mobile` stays focused
   on the active work flow only.
 - Added mobile audio recording pause/resume controls on `/mobile` so users can pause

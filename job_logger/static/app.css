@@ -594,6 +594,11 @@ td a {
   border-top: 1px solid var(--border);
 }
 
+.purge-form {
+  margin-top: 12px;
+  display: grid;
+}
+
 .audit-panel {
   margin-top: 18px;
   padding: 16px;

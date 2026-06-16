@@ -111,3 +111,97 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
         active_job = get_active_job(database_session)
         assert active_job is not None
         assert active_job.ticket_number == "T20260326.0018"
+
+
+def test_review_detail_force_purge_removes_job_and_attempts(authenticated_client: TestClient) -> None:
+    """A selected review job can be permanently purged from the detail view."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    text_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/description/text",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": "Purge workflow test notes"},
+    )
+    assert text_response.status_code == 200
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_csrf_token = extract_csrf_token(review_page_response.text)
+    accept_response = authenticated_client.post(
+        f"/review/{active_job_id}/accept",
+        data={
+            "csrf_token": review_csrf_token,
+            "ticket_number": "T20260616.0001",
+            "ticket_status": "complete",
+            "start_date": "2026-06-16",
+            "start_time": "08:00",
+            "end_date": "2026-06-16",
+            "end_time": "08:15",
+            "summary_notes": "Purge workflow test notes",
+        },
+        follow_redirects=False,
+    )
+    assert accept_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, active_job_id)
+        assert job is not None
+        assert len(database_session.query(SubmissionAttempt).where(SubmissionAttempt.job_id == active_job_id).all()) == 1
+
+    purge_response = authenticated_client.post(
+        f"/review/{active_job_id}/purge",
+        data={"csrf_token": review_csrf_token},
+        follow_redirects=False,
+    )
+    assert purge_response.status_code == 303
+    assert purge_response.headers["location"] == "/review"
+
+    with database.SessionLocal() as database_session:
+        assert database_session.get(Job, active_job_id) is None
+        remaining_attempts = database_session.query(SubmissionAttempt).where(SubmissionAttempt.job_id == active_job_id).count()
+        assert remaining_attempts == 0
+
+
+def test_review_detail_force_purge_rejects_active_job(authenticated_client: TestClient) -> None:
+    """Active jobs cannot be force-purged from the review endpoint."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+
+    start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    purge_response = authenticated_client.post(
+        f"/review/{active_job_id}/purge",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert purge_response.status_code == 303
+    assert purge_response.headers["location"] == f"/review/{active_job_id}"
+
+    with database.SessionLocal() as database_session:
+        assert database_session.get(Job, active_job_id) is not None

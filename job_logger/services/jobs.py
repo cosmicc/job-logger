@@ -264,6 +264,22 @@ def reject_job(job: Job) -> Job:
     return job
 
 
+def purge_job(database_session: Session, job: Job) -> Job:
+    """Delete a review job and all related submission attempts from local storage."""
+
+    if job.status == JobStatus.ACTIVE:
+        raise JobWorkflowError("Active jobs cannot be purged.")
+
+    # Remove dependent submission attempts explicitly so deletion works even when the
+    # database does not enforce cascading deletes (for example in sqlite tests).
+    database_session.query(SubmissionAttempt).filter_by(job_id=job.id).delete(synchronize_session=False)
+
+    # Keep audit history intact by leaving audit event rows in place; they remain
+    # with a NULLed job_id so security and troubleshooting context is preserved.
+    database_session.delete(job)
+    return job
+
+
 def reset_ticket_data(database_session: Session) -> dict[str, int]:
     """Clear persisted ticket and Autotask submission-state fields for a fresh debug state."""
 
