@@ -34,7 +34,7 @@ class ReviewFields:
     """Validated editable fields submitted from the review form."""
 
     # ticket_number is the reviewed Autotask ticket number.
-    ticket_number: str
+    ticket_number: str | None
 
     # ticket_status is the requested ticket status from the allowed enum list.
     ticket_status: TicketStatus
@@ -46,7 +46,8 @@ class ReviewFields:
     rounded_start_utc: datetime
 
     # rounded_end_utc is the reviewer-approved local end time converted to UTC.
-    rounded_end_utc: datetime
+    # It is optional while a job is still active.
+    rounded_end_utc: datetime | None
 
     # local_work_date is the reviewer-selected America/Detroit date.
     local_work_date: date
@@ -341,12 +342,18 @@ def transcribe_active_job_audio(
     return job
 
 
-def validate_review_fields(form_values: dict[str, str]) -> ReviewFields:
+def validate_review_fields(
+    form_values: dict[str, str],
+    *,
+    require_ticket_number: bool = False,
+    require_end_time_fields: bool = True,
+) -> ReviewFields:
     """Validate and normalize editable review form values."""
 
-    ticket_number = normalize_ticket_number(form_values.get("ticket_number"), required=True)
+    ticket_number = normalize_ticket_number(form_values.get("ticket_number"), required=require_ticket_number)
     if ticket_number is None:
-        raise JobWorkflowError("Ticket number is required.")
+        if require_ticket_number:
+            raise JobWorkflowError("Ticket number is required.")
 
     try:
         ticket_status = TicketStatus(form_values.get("ticket_status", ""))
@@ -367,16 +374,35 @@ def validate_review_fields(form_values: dict[str, str]) -> ReviewFields:
     end_date = form_values.get("end_date", "")
     end_time = form_values.get("end_time", "")
     client_name = normalize_client_name(form_values.get("client_name"))
-    if not start_date or not start_time or not end_date or not end_time:
-        raise JobWorkflowError("Start and end date/time fields are required.")
+    if not start_date or not start_time:
+        raise JobWorkflowError("Start date and start time fields are required.")
 
     try:
         rounded_start_utc = round_to_nearest_quarter_hour(parse_local_form_datetime(start_date, start_time))
-        rounded_end_utc = round_to_nearest_quarter_hour(parse_local_form_datetime(end_date, end_time))
     except ValueError as exc:
         raise JobWorkflowError("Start or end date/time is invalid.") from exc
 
-    rounded_end_utc = enforce_minimum_rounded_end(rounded_start_utc, rounded_end_utc)
+    rounded_end_utc = None
+    if require_end_time_fields:
+        if not end_date or not end_time:
+            raise JobWorkflowError("End date and end time fields are required.")
+
+        try:
+            rounded_end_utc = round_to_nearest_quarter_hour(parse_local_form_datetime(end_date, end_time))
+        except ValueError as exc:
+            raise JobWorkflowError("Start or end date/time is invalid.") from exc
+
+        rounded_end_utc = enforce_minimum_rounded_end(rounded_start_utc, rounded_end_utc)
+    elif end_date or end_time:
+        if not end_date or not end_time:
+            raise JobWorkflowError("End date and end time fields are required.")
+
+        try:
+            rounded_end_utc = round_to_nearest_quarter_hour(parse_local_form_datetime(end_date, end_time))
+        except ValueError as exc:
+            raise JobWorkflowError("Start or end date/time is invalid.") from exc
+
+        rounded_end_utc = enforce_minimum_rounded_end(rounded_start_utc, rounded_end_utc)
     return ReviewFields(
         ticket_number=ticket_number,
         ticket_status=ticket_status,
@@ -391,15 +417,17 @@ def validate_review_fields(form_values: dict[str, str]) -> ReviewFields:
 def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
     """Apply validated review fields to a job."""
 
-    if job.status == JobStatus.ACTIVE:
-        raise JobWorkflowError("Active jobs must be ended before review.")
+    if job.status == JobStatus.ACTIVE and review_fields.rounded_end_utc is not None:
+        raise JobWorkflowError("Active jobs cannot receive an end time while active.")
 
-    job.ticket_number = review_fields.ticket_number
+    if review_fields.ticket_number is not None:
+        job.ticket_number = review_fields.ticket_number
     job.ticket_status = review_fields.ticket_status
     job.summary_notes = review_fields.summary_notes
     job.description_text = review_fields.summary_notes
     job.rounded_start_utc = review_fields.rounded_start_utc
-    job.rounded_end_utc = review_fields.rounded_end_utc
+    if review_fields.rounded_end_utc is not None:
+        job.rounded_end_utc = review_fields.rounded_end_utc
     job.local_work_date = review_fields.local_work_date
     job.client_name = review_fields.client_name
     return job

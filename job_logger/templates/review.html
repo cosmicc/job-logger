@@ -99,7 +99,6 @@
                   autocapitalize="characters"
                   autocomplete="off"
                   spellcheck="false"
-                  required
                 >
               </label>
               <label>
@@ -156,7 +155,12 @@
               </label>
               <label>
                 <span>End date</span>
-                <input name="end_date" type="date" value="{{ selected_job.rounded_end_utc|local_date }}" required>
+                <input
+                  name="end_date"
+                  type="date"
+                  value="{{ selected_job.rounded_end_utc|local_date }}"
+                  {% if selected_job.status.value != "active" %}required{% endif %}
+                >
               </label>
               <label>
                 <span>End time</span>
@@ -171,7 +175,14 @@
                   >
                     -15
                   </button>
-                  <input name="end_time" type="time" class="time-field-input" step="900" value="{{ selected_job.rounded_end_utc|local_time }}" required>
+                  <input
+                    name="end_time"
+                    type="time"
+                    class="time-field-input"
+                    step="900"
+                    value="{{ selected_job.rounded_end_utc|local_time }}"
+                    {% if selected_job.status.value != "active" %}required{% endif %}
+                  >
                   <button
                     type="button"
                     class="secondary-button time-step-button"

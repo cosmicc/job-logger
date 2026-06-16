@@ -8,7 +8,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from job_logger.database import get_database_session
-from job_logger.enums import TicketStatus
+from job_logger.enums import JobStatus, TicketStatus
 from job_logger.models import AuditEvent
 from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_token
 from job_logger.services.audit import record_audit_event
@@ -128,7 +128,12 @@ async def save_review(
     try:
         form_values = await _form_values(request)
         job = get_job_or_raise(database_session, job_id)
-        review_fields = validate_review_fields(form_values)
+        require_end_time_fields = job.status != JobStatus.ACTIVE
+        review_fields = validate_review_fields(
+            form_values,
+            require_ticket_number=False,
+            require_end_time_fields=require_end_time_fields,
+        )
         apply_review_fields(job, review_fields)
         record_audit_event(database_session, actor=actor, action="job.review.saved", job_id=job.id, request=request)
         database_session.commit()
@@ -152,7 +157,7 @@ async def accept_review(
     try:
         form_values = await _form_values(request)
         job = get_job_or_raise(database_session, job_id)
-        review_fields = validate_review_fields(form_values)
+        review_fields = validate_review_fields(form_values, require_ticket_number=True)
         apply_review_fields(job, review_fields)
         submit_job_to_autotask(database_session, job)
         record_audit_event(
@@ -219,7 +224,7 @@ async def retry_submission(
     try:
         job = get_job_or_raise(database_session, job_id)
         if form_values:
-            review_fields = validate_review_fields(form_values)
+            review_fields = validate_review_fields(form_values, require_ticket_number=True)
             apply_review_fields(job, review_fields)
         submit_job_to_autotask(database_session, job)
         record_audit_event(

@@ -410,7 +410,21 @@ for (const activeTicketForm of activeTicketForms) {
     continue;
   }
 
+  const summaryField = activeTicketForm.querySelector(".active-job-summary");
   let initialTicketNumber = toSafeMapString(ticketInput.value).trim().toUpperCase();
+
+  activeTicketForm.addEventListener("submit", () => {
+    if (summaryField) {
+      const safeJobId = toSafeMapString(activeTicketForm.dataset.jobId);
+      const descriptionElement = findDescriptionTextarea(safeJobId);
+      if (descriptionElement) {
+        summaryField.value = descriptionElement.value || "";
+      }
+      clearDescriptionTimer(safeJobId);
+      pendingDescriptionSaves.delete(safeJobId);
+    }
+  });
+
   ticketInput.addEventListener("change", () => {
     const nextTicketNumber = toSafeMapString(ticketInput.value).trim().toUpperCase();
     if (nextTicketNumber === initialTicketNumber) {

@@ -102,7 +102,7 @@ async def save_ticket_number(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> RedirectResponse:
-    """Save an optional Autotask ticket number while work is active."""
+    """Save active-job edits before completing work."""
 
     actor = require_authenticated_username(request)
     form_data = await request.form()
@@ -110,6 +110,7 @@ async def save_ticket_number(
     submitted_ticket_number = str(form_data.get("ticket_number", ""))
     raw_client_name = form_data.get("client_name")
     submitted_client_name = str(raw_client_name) if raw_client_name is not None else None
+    raw_summary_text = form_data.get("summary_notes")
 
     try:
         job = update_active_job_ticket_number(
@@ -118,16 +119,22 @@ async def save_ticket_number(
             submitted_ticket_number,
             submitted_client_name,
         )
+        if raw_summary_text is not None:
+            apply_manual_summary_to_job(database_session, job_id, str(raw_summary_text))
         record_audit_event(
             database_session,
             actor=actor,
-            action="job.ticket_number.updated",
+            action="job.active_edits.saved",
             job_id=job.id,
             request=request,
-            details={"ticket_number_present": bool(job.ticket_number), "client_name_present": bool(job.client_name)},
+            details={
+                "ticket_number_present": bool(job.ticket_number),
+                "client_name_present": bool(job.client_name),
+                "summary_present": bool(job.summary_notes),
+            },
         )
         database_session.commit()
-        add_flash_message(request, "Ticket number saved.", "success")
+        add_flash_message(request, "Active job changes saved.", "success")
     except JobWorkflowError as exc:
         database_session.rollback()
         add_flash_message(request, str(exc), "error")

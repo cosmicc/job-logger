@@ -99,6 +99,27 @@
                   spellcheck="false"
                 >
               </label>
+              <label>
+                <span>Client name</span>
+                <input
+                  id="active-client-name-{{ active_job.id }}"
+                  name="client_name"
+                  value="{{ active_job.client_name or '' }}"
+                  placeholder="Client name for reference"
+                  maxlength="120"
+                  autocomplete="off"
+                  autocorrect="off"
+                  spellcheck="false"
+                >
+              </label>
+              <input type="hidden" class="active-job-summary" name="summary_notes" value="">
+              <button class="secondary-button" type="submit">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M20 6H10a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9.414a1 1 0 0 0-.293-.707l-2.414-2.414A1 1 0 0 0 17 6h-7" />
+                  <path d="M18.5 6.5v-2a2.5 2.5 0 0 0-5 0V6" />
+                </svg>
+                Save Active Changes
+              </button>
             </form>
 
             <div class="description-box">

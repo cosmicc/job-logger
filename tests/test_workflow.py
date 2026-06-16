@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 from fastapi.testclient import TestClient
 
 from job_logger import database
@@ -127,6 +128,191 @@ def test_active_job_completion_requires_client_name(authenticated_client: TestCl
         active_job = database_session.get(Job, active_job_id)
         assert active_job is not None
         assert active_job.status == JobStatus.READY_FOR_REVIEW
+
+
+def test_review_save_does_not_require_ticket_number(authenticated_client: TestClient) -> None:
+    """Review edits can be saved while leaving the ticket number blank."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token, "client_name": "Review Save Client"},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_csrf_token = extract_csrf_token(review_page_response.text)
+
+    save_response = authenticated_client.post(
+        f"/review/{active_job_id}/save",
+        data={
+            "csrf_token": review_csrf_token,
+            "ticket_number": "",
+            "ticket_status": "complete",
+            "start_date": "2026-06-16",
+            "start_time": "08:00",
+            "end_date": "2026-06-16",
+            "end_time": "08:15",
+            "summary_notes": "Editable without ticket during save.",
+        },
+        follow_redirects=False,
+    )
+    assert save_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        reviewed_job = database_session.get(Job, active_job_id)
+        assert reviewed_job is not None
+        assert reviewed_job.status == JobStatus.READY_FOR_REVIEW
+        assert reviewed_job.ticket_number is None
+        assert reviewed_job.summary_notes == "Editable without ticket during save."
+
+
+def test_review_save_active_job_without_stop_time(authenticated_client: TestClient) -> None:
+    """Active jobs can be saved in review without end date or end time."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token, "ticket_number": "T20260326.0018", "client_name": "Active List"},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+        active_job_local_start = active_job.rounded_start_utc.astimezone(ZoneInfo("America/Detroit"))
+        assert active_job.rounded_end_utc is None
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_csrf_token = extract_csrf_token(review_page_response.text)
+
+    save_response = authenticated_client.post(
+        f"/review/{active_job_id}/save",
+        data={
+            "csrf_token": review_csrf_token,
+            "ticket_number": "T20260616.0001",
+            "ticket_status": "complete",
+            "start_date": active_job_local_start.date().isoformat(),
+            "start_time": active_job_local_start.strftime("%H:%M"),
+            "summary_notes": "Active job saved without stop values.",
+            "client_name": "Active Review Save",
+        },
+        follow_redirects=False,
+    )
+    assert save_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        reviewed_job = database_session.get(Job, active_job_id)
+        assert reviewed_job is not None
+        assert reviewed_job.status == JobStatus.ACTIVE
+        assert reviewed_job.rounded_end_utc is None
+        assert reviewed_job.client_name == "Active Review Save"
+        assert reviewed_job.summary_notes == "Active job saved without stop values."
+        assert reviewed_job.ticket_number == "T20260616.0001"
+
+
+def test_review_accept_still_requires_ticket_number(authenticated_client: TestClient) -> None:
+    """Review save path is permissive, but submission still requires a ticket number."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token, "client_name": "Review Accept Client"},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_csrf_token = extract_csrf_token(review_page_response.text)
+
+    accept_response = authenticated_client.post(
+        f"/review/{active_job_id}/accept",
+        data={
+            "csrf_token": review_csrf_token,
+            "ticket_number": "",
+            "ticket_status": "complete",
+            "start_date": "2026-06-16",
+            "start_time": "08:00",
+            "end_date": "2026-06-16",
+            "end_time": "08:15",
+            "summary_notes": "Needs ticket to submit.",
+        },
+        follow_redirects=False,
+    )
+    assert accept_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        reviewed_job = database_session.get(Job, active_job_id)
+        assert reviewed_job is not None
+        assert reviewed_job.status == JobStatus.READY_FOR_REVIEW
+        assert reviewed_job.autotask_external_id is None
+
+
+def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_client: TestClient) -> None:
+    """Active job save on mobile stores edited client and summary before completion."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    save_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "ticket_number": "t20260326.0018",
+            "client_name": "Mobile Review Client",
+            "summary_notes": "Saved from mobile active form",
+        },
+        follow_redirects=False,
+    )
+    assert save_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
+        assert active_job.client_name == "Mobile Review Client"
+        assert active_job.summary_notes == "Saved from mobile active form"
+        assert active_job.ticket_number == "T20260326.0018"
 
 
 def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient) -> None:

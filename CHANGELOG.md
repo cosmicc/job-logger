@@ -11,6 +11,13 @@ All recorded changes to Job Logger are documented in this file.
 - Made client name required when ending work and surfaced that value in review rows;
   removed the separate Autotask status column from the review list so submission
   state now appears as a workflow status chip.
+- Allowed review edits (summary/time/client/ticket status) to be saved when the
+  ticket number is blank; ticket number is now enforced only when saving to
+  Autotask on accept/retry.
+- Allowed active jobs to be saved from the job list without stop date/time by
+  making end fields optional only while the job is active.
+- Added a mobile active-job save action for ticket number, client name, and current
+  summary notes so edits can be saved before pressing End Work.
 - Updated the mobile workflow so recording is now `Record -> Pause/Resume -> Submit`
   with submit-based transcription upload, added 15-minute review time increment
   controls for start/end times, and added review-side editable client name field.
