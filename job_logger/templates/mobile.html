@@ -14,34 +14,215 @@
       <a href="/review" class="text-link">Review jobs</a>
     </div>
 
-    <section class="work-panel">
-      {% if active_job %}
-        <p class="eyebrow-text">Active job</p>
-        <h1>Work in progress</h1>
-        <dl class="metric-grid">
-          <div>
-            <dt>Started</dt>
-            <dd>{{ active_job.raw_start_utc|local_display }}</dd>
-          </div>
-          <div>
-            <dt>Rounded start</dt>
-            <dd>{{ active_job.rounded_start_utc|local_time }}</dd>
-          </div>
-        </dl>
+    <section class="active-jobs-stack">
+      {% if active_jobs %}
+        {% for active_job in active_jobs %}
+          {% set job_label = active_job.job_slot if active_job.job_slot else loop.index %}
+          <section class="work-panel">
+            <p class="eyebrow-text">Active job {{ job_label }}</p>
+            <h1>Work in progress</h1>
+            <dl class="metric-grid">
+              <div>
+                <dt>Started</dt>
+                <dd>{{ active_job.raw_start_utc|local_display }}</dd>
+              </div>
+              <div>
+                <dt>Rounded start</dt>
+                <dd>
+                  <div class="time-step-controls">
+                    <form
+                      method="post"
+                      action="/jobs/{{ active_job.id }}/start-time/adjust"
+                      class="rounded-start-adjust-form"
+                      aria-label="Decrease rounded start"
+                    >
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <input type="hidden" name="delta_minutes" value="-15">
+                      <button
+                        type="submit"
+                        class="secondary-button time-step-button"
+                        aria-label="Decrease rounded start by 15 minutes"
+                      >
+                        -15
+                      </button>
+                    </form>
+                    <input
+                      type="time"
+                      class="time-field-input"
+                      value="{{ active_job.rounded_start_utc|local_time }}"
+                      readonly
+                    >
+                    <form
+                      method="post"
+                      action="/jobs/{{ active_job.id }}/start-time/adjust"
+                      class="rounded-start-adjust-form"
+                      aria-label="Increase rounded start"
+                    >
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <input type="hidden" name="delta_minutes" value="15">
+                      <button
+                        type="submit"
+                        class="secondary-button time-step-button"
+                        aria-label="Increase rounded start by 15 minutes"
+                      >
+                        +15
+                      </button>
+                    </form>
+                  </div>
+                </dd>
+              </div>
+              <div class="full-width">
+                <dt>Client</dt>
+                <dd>{{ active_job.client_name or "Not set" }}</dd>
+              </div>
+            </dl>
 
-        <form
-          method="post"
-          action="/jobs/{{ active_job.id }}/ticket-number"
-          id="active-ticket-form"
-          class="ticket-number-form"
-        >
+            <form
+              method="post"
+              action="/jobs/{{ active_job.id }}/ticket-number"
+              class="ticket-number-form active-ticket-form"
+              data-job-id="{{ active_job.id }}"
+            >
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <label>
+                <span>Autotask ticket number</span>
+                <input
+                  id="active-ticket-number-{{ active_job.id }}"
+                  class="active-ticket-number"
+                  name="ticket_number"
+                  value="{{ active_job.ticket_number or '' }}"
+                  placeholder="T20260326.0018"
+                  maxlength="14"
+                  pattern="[Tt][0-9]{8}\\.[0-9]{4}"
+                  autocapitalize="characters"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+              </label>
+            </form>
+
+            <div class="description-box">
+              <label for="description-preview-{{ active_job.id }}">
+                <span>Summary notes</span>
+                <textarea
+                  id="description-preview-{{ active_job.id }}"
+                  class="job-description"
+                  data-job-id="{{ active_job.id }}"
+                  name="summary_notes"
+                  placeholder="Type notes here, then refine with recorded speech if needed."
+                >{{ active_job.summary_notes or active_job.description_text or "" }}</textarea>
+              </label>
+              {% if active_job.transcription_error %}
+                <p class="error-text">{{ active_job.transcription_error }}</p>
+              {% endif %}
+            </div>
+
+            <div class="button-grid">
+              <div class="recording-control-stack">
+                <button
+                  class="secondary-button record-notes-button"
+                  type="button"
+                  data-job-id="{{ active_job.id }}"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <path d="M12 19v3"></path>
+                  </svg>
+                  Record Notes
+                </button>
+                <button
+                  class="secondary-button submit-notes-button"
+                  type="button"
+                  data-job-id="{{ active_job.id }}"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20 6H10a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9.414a1 1 0 0 0-.293-.707l-2.414-2.414A1 1 0 0 0 17 6h-7" />
+                    <path d="M18.5 6.5v-2a2.5 2.5 0 0 0-5 0V6" />
+                  </svg>
+                  Submit
+                </button>
+              </div>
+              <form method="post" action="/jobs/{{ active_job.id }}/end" class="end-job-form" data-job-id="{{ active_job.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <label>
+                  <span>Client name</span>
+                  <input
+                    name="client_name"
+                    value="{{ active_job.client_name or '' }}"
+                    placeholder="Client name for reference"
+                    maxlength="120"
+                    autocomplete="off"
+                    autocorrect="off"
+                    spellcheck="false"
+                    required
+                  >
+                </label>
+                <input type="hidden" class="end-summary-notes" name="summary_notes" value="">
+                <button class="danger-button" type="submit">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="6" y="6" width="12" height="12"></rect>
+                  </svg>
+                  End Work
+                </button>
+              </form>
+            </div>
+            <p class="recording-status" data-job-id="{{ active_job.id }}" aria-live="polite"></p>
+          </section>
+        {% endfor %}
+      {% else %}
+        <section class="work-panel">
+          <p class="eyebrow-text">Ready</p>
+          <h1>Start a work entry</h1>
+          <p class="muted-text">Start work, record the summary notes during the job, then end work for review.</p>
+          <form method="post" action="/jobs/start" class="start-work-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>
+              <span>Autotask ticket number</span>
+              <input
+                name="ticket_number"
+                placeholder="T20260326.0018"
+                maxlength="14"
+                pattern="[Tt][0-9]{8}\.[0-9]{4}"
+                autocapitalize="characters"
+                autocomplete="off"
+                spellcheck="false"
+              >
+            </label>
+            <label>
+              <span>Client name</span>
+              <input
+                name="client_name"
+                placeholder="Client name for reference"
+                maxlength="120"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
+              >
+            </label>
+            <button class="primary-action-button" type="submit">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 5v14l11-7z"></path>
+              </svg>
+              Start Work
+            </button>
+          </form>
+        </section>
+      {% endif %}
+    </section>
+
+    {% if active_jobs %}
+      {% if active_jobs|length < 2 %}
+      <section class="work-panel">
+        <p class="eyebrow-text">Start another job</p>
+        <h1>Add a concurrent job</h1>
+        <p class="muted-text">Up to two jobs can be active at once.</p>
+        <form method="post" action="/jobs/start" class="start-work-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <label>
             <span>Autotask ticket number</span>
             <input
-              id="active-ticket-number"
               name="ticket_number"
-              value="{{ active_job.ticket_number or '' }}"
               placeholder="T20260326.0018"
               maxlength="14"
               pattern="[Tt][0-9]{8}\.[0-9]{4}"
@@ -50,77 +231,33 @@
               spellcheck="false"
             >
           </label>
-        </form>
-
-        <div class="description-box">
-          <label for="description-preview">
-            <span>Summary notes</span>
-            <textarea
-              id="description-preview"
-              name="summary_notes"
-              data-job-id="{{ active_job.id }}"
-              placeholder="Type notes here, then refine with recorded speech if needed."
-            >{{ active_job.summary_notes or active_job.description_text or "" }}</textarea>
+          <label>
+            <span>Client name</span>
+            <input
+              name="client_name"
+              placeholder="Client name for reference"
+              maxlength="120"
+              autocomplete="off"
+              autocorrect="off"
+              spellcheck="false"
+            >
           </label>
-          {% if active_job.transcription_error %}
-            <p class="error-text">{{ active_job.transcription_error }}</p>
-          {% endif %}
-        </div>
-
-        <div class="button-grid">
-          <div class="recording-control-stack">
-            <button
-              class="secondary-button"
-              id="record-description-button"
-              type="button"
-              data-job-id="{{ active_job.id }}"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                <path d="M12 19v3"></path>
-              </svg>
-              Record Notes
-            </button>
-            <button
-              class="secondary-button"
-              id="stop-description-button"
-              type="button"
-              hidden
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="6" y="6" width="12" height="12"></rect>
-              </svg>
-              Stop &amp; Transcribe
-            </button>
-          </div>
-          <form method="post" action="/jobs/{{ active_job.id }}/end">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button class="danger-button" type="submit">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="6" y="6" width="12" height="12"></rect>
-              </svg>
-              End Work
-            </button>
-          </form>
-        </div>
-        <p id="recording-status" class="recording-status" aria-live="polite"></p>
-      {% else %}
-        <p class="eyebrow-text">Ready</p>
-        <h1>Start a work entry</h1>
-        <p class="muted-text">Start work, record the summary notes during the job, then end work for review.</p>
-        <form method="post" action="/jobs/start" class="start-work-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button class="primary-action-button" type="submit">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M8 5v14l11-7z"></path>
             </svg>
-            Start Work
+            Start Job
           </button>
         </form>
+      </section>
+      {% else %}
+      <section class="work-panel">
+        <p class="eyebrow-text">Concurrent jobs</p>
+        <h1>Both job slots are in use</h1>
+        <p class="muted-text">End one active job before starting another.</p>
+      </section>
       {% endif %}
-    </section>
-
+    {% endif %}
   </section>
   <script src="{{ url_for('static', path='mobile.js') }}" defer></script>
 {% endblock %}

@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Date, DateTime, Enum, ForeignKey, Index, String, Text
+from sqlalchemy import JSON, Date, DateTime, Enum, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from job_logger.database import Base
@@ -53,6 +53,21 @@ class Job(Base):
 
     # ticket_number is the human Autotask ticket number entered during review.
     ticket_number: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Autotask ticket number.")
+
+    # job_slot identifies the job position while one or two jobs are active concurrently.
+    # Existing jobs are labeled as slot 1 and slot 2 for the overlapping workflow.
+    job_slot: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Mobile concurrent job slot (1 for job 1, 2 for job 2).",
+    )
+
+    # client_name stores user-provided client context for quick reference at review time.
+    client_name: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+        comment="Client reference typed when work starts.",
+    )
 
     # ticket_status is the requested local ticket status selected during review.
     ticket_status: Mapped[TicketStatus | None] = mapped_column(

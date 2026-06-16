@@ -20,11 +20,11 @@
     <div class="review-layout">
       <section class="table-panel" aria-label="Recorded jobs">
         <div class="table-wrap">
-          <table>
+          <table class="review-table">
             <thead>
             <tr>
                 <th>Ticket</th>
-                <th>Autotask</th>
+                <th>Client</th>
                 <th>Status</th>
                 <th>Date</th>
                 <th>Start</th>
@@ -42,15 +42,17 @@
                 >
                   <td><span>{{ job.ticket_number or "No ticket" }}</span></td>
                   <td>
+                    {{ job.client_name or "Not set" }}
+                  </td>
+                  <td>
                     {% if job.autotask_external_id %}
                       <span class="status-chip status-submitted">Submitted</span>
-                    {% elif job.autotask_error %}
+                    {% elif job.status.value == "submission_failed" or job.autotask_error %}
                       <span class="status-chip status-submission_failed">Submission failed</span>
                     {% else %}
-                      <span class="status-chip status-ready_for_review">Not submitted</span>
+                      <span class="status-chip status-{{ job.status.value }}">{{ job.status.value.replace("_", " ") }}</span>
                     {% endif %}
                   </td>
-                  <td><span class="status-chip status-{{ job.status.value }}">{{ job.status.value.replace("_", " ") }}</span></td>
                   <td>{{ job.rounded_start_utc|local_date }}</td>
                   <td>{{ job.rounded_start_utc|local_time }}</td>
                   <td>{{ job.rounded_end_utc|local_time }}</td>
@@ -111,12 +113,46 @@
                 </select>
               </label>
               <label>
+                <span>Client name</span>
+                <input
+                  name="client_name"
+                  value="{{ selected_job.client_name or '' }}"
+                  placeholder="Client name for reference"
+                  maxlength="120"
+                  autocomplete="off"
+                  autocorrect="off"
+                  spellcheck="false"
+                >
+              </label>
+              <label>
                 <span>Start date</span>
                 <input name="start_date" type="date" value="{{ selected_job.rounded_start_utc|local_date }}" required>
               </label>
               <label>
                 <span>Start time</span>
-                <input name="start_time" type="time" step="900" value="{{ selected_job.rounded_start_utc|local_time }}" required>
+                <div class="time-step-controls">
+                  <button
+                    type="button"
+                    class="secondary-button time-step-button"
+                    data-time-input="start_time"
+                    data-date-input="start_date"
+                    data-delta-minutes="-15"
+                    aria-label="Decrease start time by 15 minutes"
+                  >
+                    -15
+                  </button>
+                  <input name="start_time" type="time" class="time-field-input" step="900" value="{{ selected_job.rounded_start_utc|local_time }}" required>
+                  <button
+                    type="button"
+                    class="secondary-button time-step-button"
+                    data-time-input="start_time"
+                    data-date-input="start_date"
+                    data-delta-minutes="15"
+                    aria-label="Increase start time by 15 minutes"
+                  >
+                    +15
+                  </button>
+                </div>
               </label>
               <label>
                 <span>End date</span>
@@ -124,7 +160,29 @@
               </label>
               <label>
                 <span>End time</span>
-                <input name="end_time" type="time" step="900" value="{{ selected_job.rounded_end_utc|local_time }}" required>
+                <div class="time-step-controls">
+                  <button
+                    type="button"
+                    class="secondary-button time-step-button"
+                    data-time-input="end_time"
+                    data-date-input="end_date"
+                    data-delta-minutes="-15"
+                    aria-label="Decrease end time by 15 minutes"
+                  >
+                    -15
+                  </button>
+                  <input name="end_time" type="time" class="time-field-input" step="900" value="{{ selected_job.rounded_end_utc|local_time }}" required>
+                  <button
+                    type="button"
+                    class="secondary-button time-step-button"
+                    data-time-input="end_time"
+                    data-date-input="end_date"
+                    data-delta-minutes="15"
+                    aria-label="Increase end time by 15 minutes"
+                  >
+                    +15
+                  </button>
+                </div>
               </label>
             </div>
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import desc, select
 from sqlalchemy import update as sqlalchemy_update
@@ -23,6 +23,10 @@ from job_logger.time_utils import (
 )
 
 AUTOTASK_TICKET_NUMBER_PATTERN = re.compile(r"^T\d{8}\.\d{4}$")
+MAX_ACTIVE_JOBS = 2
+MAX_CLIENT_NAME_LENGTH = 120
+ALLOWED_WORK_IN_PROGRESS_START_MINUTE_DELTA = {-15, 15}
+
 
 
 @dataclass(frozen=True)
@@ -47,15 +51,102 @@ class ReviewFields:
     # local_work_date is the reviewer-selected America/Detroit date.
     local_work_date: date
 
+    # client_name is the optional client reference captured and editable in review.
+    client_name: str | None
+
+
+def _normalize_optional_text(text_value: str | None, *, max_length: int) -> str | None:
+    """Trim user text and keep only a bounded value or None."""
+
+    normalized_text = (text_value or "").strip()
+    if not normalized_text:
+        return None
+
+    if len(normalized_text) > max_length:
+        raise JobWorkflowError(f"Text fields must be {max_length} characters or fewer.")
+
+    return normalized_text
+
+
+def _apply_summary_text(job: Job, summary_text: str | None) -> Job:
+    """Apply a summary value to both mutable description fields safely."""
+
+    safe_summary_text = (summary_text or "").strip()
+    if not safe_summary_text:
+        return job
+
+    if len(safe_summary_text) > 32000:
+        raise JobWorkflowError("Summary notes must be 32,000 characters or fewer.")
+
+    job.summary_notes = safe_summary_text
+    job.description_text = safe_summary_text
+    job.transcription_status = TranscriptionStatus.SUCCEEDED
+    job.transcription_provider = "browser"
+    job.transcription_error = None
+    return job
+
+
+def normalize_start_time_delta_minutes(delta_minutes: int | str) -> int:
+    """Normalize allowed minute deltas for active-job rounded start adjustments."""
+
+    try:
+        normalized_delta = int(delta_minutes)
+    except (TypeError, ValueError) as exc:
+        raise JobWorkflowError("A valid minute delta is required.") from exc
+
+    if normalized_delta not in ALLOWED_WORK_IN_PROGRESS_START_MINUTE_DELTA:
+        raise JobWorkflowError("Start-time adjustment must be in 15-minute increments.")
+
+    return normalized_delta
+
 
 class JobWorkflowError(RuntimeError):
     """Raised when a requested job workflow transition is invalid."""
 
 
-def get_active_job(database_session: Session) -> Job | None:
-    """Return the currently active job, if one exists."""
+def list_active_jobs(database_session: Session) -> list[Job]:
+    """Return all active jobs in slot/date order."""
 
-    return database_session.execute(select(Job).where(Job.status == JobStatus.ACTIVE)).scalar_one_or_none()
+    active_jobs = list(
+        database_session.execute(select(Job).where(Job.status == JobStatus.ACTIVE)).scalars()
+    )
+    active_jobs.sort(key=lambda job: ((job.job_slot or 99), job.created_at_utc))
+    return active_jobs
+
+
+def get_active_job(database_session: Session) -> Job | None:
+    """Return the first active job, if any."""
+
+    active_jobs = list_active_jobs(database_session)
+    if not active_jobs:
+        return None
+
+    return active_jobs[0]
+
+
+def _next_active_job_slot(active_jobs: list[Job]) -> int:
+    """Return the next available active slot between 1 and 2."""
+
+    if len(active_jobs) >= MAX_ACTIVE_JOBS:
+        raise JobWorkflowError("A maximum of two jobs can be active at one time.")
+
+    if len(active_jobs) == 0:
+        return 1
+
+    if len(active_jobs) == 1:
+        existing_slot = active_jobs[0].job_slot
+        if existing_slot == 1:
+            return 2
+        if existing_slot == 2:
+            return 1
+        return 2
+
+    occupied_slots = {job.job_slot for job in active_jobs if job.job_slot in {1, 2}}
+    for slot_number in (1, 2):
+        if slot_number not in occupied_slots:
+            return slot_number
+
+    raise JobWorkflowError("No active job slots are available.")
 
 
 def get_job_or_raise(database_session: Session, job_id: str) -> Job:
@@ -92,19 +183,36 @@ def normalize_ticket_number(ticket_number: str | None, *, required: bool) -> str
     return normalized_ticket_number
 
 
-def start_job(database_session: Session, ticket_number: str | None = None) -> Job:
-    """Create a new active job after ensuring only one job is active."""
+def normalize_client_name(client_name: str | None) -> str | None:
+    """Return a safe client name value for persistence."""
 
-    existing_active_job = get_active_job(database_session)
-    if existing_active_job is not None:
-        raise JobWorkflowError("A job is already active.")
+    return _normalize_optional_text(client_name, max_length=MAX_CLIENT_NAME_LENGTH)
 
+
+def normalize_client_name_required(client_name: str | None) -> str:
+    """Require a non-empty client name when transitioning a job to review."""
+
+    normalized_client_name = normalize_client_name(client_name)
+    if normalized_client_name is None:
+        raise JobWorkflowError("Client name is required when ending work.")
+
+    return normalized_client_name
+
+
+def start_job(database_session: Session, ticket_number: str | None = None, client_name: str | None = None) -> Job:
+    """Create a new active job while enforcing the two-job overlap limit."""
+
+    active_jobs = list_active_jobs(database_session)
+    job_slot = _next_active_job_slot(active_jobs)
     normalized_ticket_number = normalize_ticket_number(ticket_number, required=False)
+    normalized_client_name = normalize_client_name(client_name)
     start_timestamp = now_utc()
     rounded_start_timestamp = round_to_nearest_quarter_hour(start_timestamp)
     job = Job(
         status=JobStatus.ACTIVE,
         ticket_number=normalized_ticket_number,
+        job_slot=job_slot,
+        client_name=normalized_client_name,
         raw_start_utc=start_timestamp,
         rounded_start_utc=rounded_start_timestamp,
         local_work_date=local_date_for(rounded_start_timestamp),
@@ -114,23 +222,68 @@ def start_job(database_session: Session, ticket_number: str | None = None) -> Jo
     return job
 
 
-def update_active_job_ticket_number(database_session: Session, job_id: str, ticket_number: str | None) -> Job:
-    """Update the optional Autotask ticket number while a job is active."""
+def update_active_job_ticket_number(
+    database_session: Session,
+    job_id: str,
+    ticket_number: str | None,
+    client_name: str | None = None,
+) -> Job:
+    """Update the optional Autotask ticket number and client while a job is active."""
 
     job = get_job_or_raise(database_session, job_id)
     if job.status != JobStatus.ACTIVE:
         raise JobWorkflowError("Ticket numbers can only be updated from mobile during an active job.")
 
-    job.ticket_number = normalize_ticket_number(ticket_number, required=False)
+    if ticket_number is not None:
+        job.ticket_number = normalize_ticket_number(ticket_number, required=False)
+
+    if client_name is not None:
+        job.client_name = normalize_client_name(client_name)
+
     return job
 
 
-def end_job(database_session: Session, job_id: str) -> Job:
+def apply_manual_summary_to_job(
+    database_session: Session,
+    job_id: str,
+    summary_text: str,
+) -> Job:
+    """Persist manual summary text on completion when browser text was typed."""
+
+    job = get_job_or_raise(database_session, job_id)
+    # Keep the completion path permissive because description capture should not
+    # block the ability to end work if no manual text was entered.
+    return _apply_summary_text(job, summary_text)
+
+
+def adjust_active_job_rounded_start(database_session: Session, job_id: str, delta_minutes: int | str) -> Job:
+    """Shift the active rounded start time by a constrained minute delta."""
+
+    job = get_job_or_raise(database_session, job_id)
+    if job.status != JobStatus.ACTIVE:
+        raise JobWorkflowError("Only active jobs can have rounded start times adjusted.")
+
+    normalized_delta = normalize_start_time_delta_minutes(delta_minutes)
+    job.rounded_start_utc = round_to_nearest_quarter_hour(
+        job.rounded_start_utc + timedelta(minutes=normalized_delta)
+    )
+    job.local_work_date = local_date_for(job.rounded_start_utc)
+    return job
+
+
+def end_job(database_session: Session, job_id: str, client_name: str | None = None) -> Job:
     """End an active job and move it to review."""
 
     job = get_job_or_raise(database_session, job_id)
     if job.status != JobStatus.ACTIVE:
         raise JobWorkflowError("Only an active job can be ended.")
+
+    submitted_client_name = normalize_client_name(client_name)
+    if submitted_client_name is not None:
+        job.client_name = submitted_client_name
+    elif not job.client_name:
+        # Require an explicit name here if no name was previously captured.
+        job.client_name = normalize_client_name_required(job.client_name)
 
     end_timestamp = now_utc()
     rounded_end_timestamp = round_to_nearest_quarter_hour(end_timestamp)
@@ -152,12 +305,7 @@ def update_description_text(database_session: Session, job_id: str, description_
     if not safe_description_text:
         raise JobWorkflowError("Summary notes cannot be empty.")
 
-    job.summary_notes = safe_description_text
-    job.description_text = safe_description_text
-    job.transcription_status = TranscriptionStatus.SUCCEEDED
-    job.transcription_provider = "browser"
-    job.transcription_error = None
-    return job
+    return _apply_summary_text(job, safe_description_text)
 
 
 def transcribe_active_job_audio(
@@ -218,6 +366,7 @@ def validate_review_fields(form_values: dict[str, str]) -> ReviewFields:
     start_time = form_values.get("start_time", "")
     end_date = form_values.get("end_date", "")
     end_time = form_values.get("end_time", "")
+    client_name = normalize_client_name(form_values.get("client_name"))
     if not start_date or not start_time or not end_date or not end_time:
         raise JobWorkflowError("Start and end date/time fields are required.")
 
@@ -235,6 +384,7 @@ def validate_review_fields(form_values: dict[str, str]) -> ReviewFields:
         rounded_start_utc=rounded_start_utc,
         rounded_end_utc=rounded_end_utc,
         local_work_date=local_date_for(rounded_start_utc),
+        client_name=client_name,
     )
 
 
@@ -251,6 +401,7 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
     job.rounded_start_utc = review_fields.rounded_start_utc
     job.rounded_end_utc = review_fields.rounded_end_utc
     job.local_work_date = review_fields.local_work_date
+    job.client_name = review_fields.client_name
     return job
 
 

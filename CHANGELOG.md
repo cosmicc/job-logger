@@ -4,6 +4,18 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Added support for two overlapping active jobs (Job 1 and Job 2) with explicit
+  slot assignment, added client reference capture at job start, and preserved
+  completion behavior when manual summary notes are typed on the mobile screen by
+  forwarding the current mobile summary text with job-end submission.
+- Made client name required when ending work and surfaced that value in review rows;
+  removed the separate Autotask status column from the review list so submission
+  state now appears as a workflow status chip.
+- Updated the mobile workflow so recording is now `Record -> Pause/Resume -> Submit`
+  with submit-based transcription upload, added 15-minute review time increment
+  controls for start/end times, and added review-side editable client name field.
+- Added mobile in-progress rounded-start adjustments so the active job start time can
+  be changed in +/-15-minute increments directly from the work card.
 - Simplified networking configuration so only `NGINX_PUBLIC_PORT` needs to be set
   for deployment: app and Nginx internals are now fixed to `8000` and `80`
   respectively, and optional internal/external port overrides were removed from

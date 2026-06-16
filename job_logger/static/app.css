@@ -368,6 +368,11 @@ a:focus-visible {
   padding: 24px;
 }
 
+.active-jobs-stack {
+  display: grid;
+  gap: 14px;
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -426,6 +431,36 @@ a:focus-visible {
 .recording-control-stack {
   display: grid;
   gap: 10px;
+}
+
+.time-step-controls {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  gap: 8px;
+  align-items: center;
+}
+
+.time-step-controls .time-field-input,
+.time-step-controls .time-step-button {
+  min-height: 42px;
+}
+
+.rounded-start-adjust-form {
+  margin: 0;
+  display: grid;
+}
+
+.rounded-start-adjust-form > .time-step-button {
+  width: 100%;
+}
+
+.time-step-controls .time-field-input {
+  text-align: center;
+}
+
+.time-step-button {
+  min-width: 44px;
+  padding: 8px 0;
 }
 
 .recording-status {
@@ -522,21 +557,21 @@ a:focus-visible {
   overflow-x: auto;
 }
 
-table {
+.review-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
 }
 
-th,
-td {
+.review-table th,
+.review-table td {
   padding: 12px 14px;
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: middle;
 }
 
-th {
+.review-table th {
   background: var(--surface-muted);
   color: var(--muted);
   font-size: 12px;
@@ -714,6 +749,10 @@ td a {
   .review-layout {
     grid-template-columns: 1fr;
   }
+
+  .table-wrap {
+    overflow-x: auto;
+  }
 }
 
 @media (max-width: 620px) {
@@ -748,5 +787,29 @@ td a {
 
   h1 {
     font-size: 34px;
+  }
+}
+
+@media (min-width: 941px) {
+  .review-shell {
+    width: min(1400px, calc(100% - 32px));
+  }
+
+  .review-layout {
+    grid-template-columns: minmax(600px, 1.6fr) minmax(360px, 1fr);
+  }
+
+  .table-wrap {
+    overflow-x: visible;
+  }
+
+  .review-table {
+    table-layout: fixed;
+  }
+
+  .review-table th,
+  .review-table td {
+    max-width: 0;
+    overflow-wrap: anywhere;
   }
 }

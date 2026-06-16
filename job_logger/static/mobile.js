@@ -1,78 +1,104 @@
-const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
-const recordButton = document.getElementById("record-description-button");
-const stopRecordingButton = document.getElementById("stop-description-button");
-const recordingStatus = document.getElementById("recording-status");
-const descriptionPreview = document.getElementById("description-preview");
-const activeTicketForm = document.getElementById("active-ticket-form");
-const activeTicketInput = document.getElementById("active-ticket-number");
-
 const DESCRIPTION_SAVE_DELAY_MS = 650;
-let descriptionSaveTimer = null;
-let lastSavedDescription = descriptionPreview ? descriptionPreview.value : "";
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
+
+const activeRecordButtons = document.querySelectorAll(".record-notes-button");
+const submitButtons = document.querySelectorAll(".submit-notes-button");
+const descriptionTextareas = document.querySelectorAll(".job-description");
+const endJobForms = document.querySelectorAll(".end-job-form");
+const activeTicketForms = document.querySelectorAll(".active-ticket-form");
+
+const descriptionSaveTimers = new Map();
+const lastSavedDescriptions = new Map();
+const pendingDescriptionSaves = new Set();
 
 let activeRecorder = null;
-let activeAudioChunks = [];
 let activeAudioStream = null;
+let activeAudioChunks = [];
 let activeRecordingJobId = "";
 let isUploadingRecording = false;
+let hasRecordedAudio = false;
 
-function setRecordingStatus(message, isError = false) {
-  if (!recordingStatus) {
-    return;
-  }
-
-  recordingStatus.textContent = message;
-  recordingStatus.classList.toggle("error-text", isError);
+function toSafeMapString(value) {
+  return String(value || "");
 }
 
-function setRecordingUi(isRecording = false, isPaused = false, isUploading = false) {
-  if (!recordButton) {
+function findDescriptionTextarea(jobId) {
+  if (!jobId) {
+    return null;
+  }
+
+  return document.querySelector(`.job-description[data-job-id="${toSafeMapString(jobId)}"]`);
+}
+
+function findRecordingStatusElement(jobId) {
+  if (!jobId) {
+    return null;
+  }
+
+  return document.querySelector(`.recording-status[data-job-id="${toSafeMapString(jobId)}"]`);
+}
+
+function findControlElements(jobId) {
+  return {
+    recordButton: document.querySelector(`.record-notes-button[data-job-id="${toSafeMapString(jobId)}"]`),
+    submitButton: document.querySelector(`.submit-notes-button[data-job-id="${toSafeMapString(jobId)}"]`),
+    statusElement: findRecordingStatusElement(jobId),
+  };
+}
+
+function setRecordingStatus(jobId, message, isError = false) {
+  const statusElement = findRecordingStatusElement(jobId);
+  if (!statusElement) {
     return;
   }
+
+  statusElement.textContent = message;
+  statusElement.classList.toggle("error-text", isError);
+}
+
+function setRecordingUi({
+  jobId,
+  isRecording = false,
+  isPaused = false,
+  isUploading = false,
+}) {
+  const controls = findControlElements(jobId);
+  if (!controls.recordButton || !controls.submitButton) {
+    return;
+  }
+
+  controls.recordButton.disabled = isUploading;
+  controls.submitButton.disabled = isUploading;
 
   if (isUploading) {
-    recordButton.disabled = true;
-    recordButton.classList.remove("is-recording");
-    recordButton.textContent = "Processing recording...";
-    if (stopRecordingButton) {
-      stopRecordingButton.hidden = true;
-      stopRecordingButton.disabled = true;
-    }
+    controls.recordButton.classList.remove("is-recording");
+    controls.recordButton.textContent = "Processing notes...";
+    controls.submitButton.textContent = "Processing notes...";
     return;
   }
 
-  recordButton.disabled = false;
   if (isRecording) {
-    recordButton.classList.add("is-recording");
-    recordButton.textContent = isPaused ? "Resume Notes" : "Pause Notes";
-    if (stopRecordingButton) {
-      stopRecordingButton.hidden = false;
-      stopRecordingButton.disabled = false;
-    }
+    controls.recordButton.classList.add("is-recording");
+    controls.recordButton.textContent = isPaused ? "Resume Notes" : "Pause Notes";
+    controls.submitButton.textContent = "Submit Notes";
+    controls.submitButton.disabled = false;
     return;
   }
 
-  recordButton.classList.remove("is-recording");
-  recordButton.textContent = "Record Notes";
-  if (stopRecordingButton) {
-    stopRecordingButton.hidden = true;
-    stopRecordingButton.disabled = false;
+  controls.recordButton.classList.remove("is-recording");
+  controls.recordButton.textContent = "Record Notes";
+  controls.submitButton.textContent = "Submit Notes";
+  controls.submitButton.disabled = true;
+}
+
+function setAllRecordingControlsIdle() {
+  for (const button of activeRecordButtons) {
+    const jobId = button.dataset.jobId || "";
+    setRecordingUi({jobId, isRecording: false});
   }
 }
 
-function getJobIdForDescription() {
-  if (recordButton) {
-    return String(recordButton.dataset.jobId || "");
-  }
-
-  if (descriptionPreview && descriptionPreview.dataset.jobId) {
-    return String(descriptionPreview.dataset.jobId);
-  }
-
-  return "";
-}
-
-function resetRecordingState() {
+function clearRecordingState() {
   isUploadingRecording = false;
   if (activeAudioStream) {
     stopActiveStream();
@@ -81,8 +107,31 @@ function resetRecordingState() {
   activeAudioStream = null;
   activeRecorder = null;
   activeAudioChunks = [];
+  hasRecordedAudio = false;
+  const jobId = activeRecordingJobId;
   activeRecordingJobId = "";
-  setRecordingUi(false);
+  if (jobId) {
+    setRecordingUi({jobId, isRecording: false, isUploading: false});
+  }
+  setRecordingStatus(jobId, "");
+}
+
+function stopActiveStream() {
+  if (!activeAudioStream) {
+    return;
+  }
+
+  for (const track of activeAudioStream.getTracks()) {
+    track.stop();
+  }
+}
+
+function clearDescriptionTimer(jobId) {
+  const timerId = descriptionSaveTimers.get(jobId);
+  if (timerId) {
+    clearTimeout(timerId);
+    descriptionSaveTimers.delete(jobId);
+  }
 }
 
 async function saveDescriptionText(jobId, descriptionText) {
@@ -92,7 +141,7 @@ async function saveDescriptionText(jobId, descriptionText) {
       "Content-Type": "application/json",
       "X-CSRF-Token": csrfToken,
     },
-    body: JSON.stringify({ summary_notes: descriptionText }),
+    body: JSON.stringify({summary_notes: descriptionText}),
   });
 
   const payload = await response.json();
@@ -100,58 +149,56 @@ async function saveDescriptionText(jobId, descriptionText) {
     throw new Error(payload.detail || "Notes could not be saved.");
   }
 
-  return payload.summary_notes || payload.description_text || "";
+  if (payload.summary_notes) {
+    const summaryElement = findDescriptionTextarea(jobId);
+    if (summaryElement) {
+      summaryElement.value = payload.summary_notes || "";
+    }
+    lastSavedDescriptions.set(jobId, payload.summary_notes || "");
+  }
 }
 
-function queueDescriptionSave(immediate = false) {
-  if (!descriptionPreview || !recordButton) {
+function queueDescriptionSave(jobId, immediate = false) {
+  const descriptionElement = findDescriptionTextarea(jobId);
+  if (!descriptionElement) {
     return;
   }
 
-  const jobId = getJobIdForDescription();
-  if (!jobId) {
+  const nextValue = descriptionElement.value;
+  const safeJobId = toSafeMapString(jobId);
+  if (nextValue === lastSavedDescriptions.get(safeJobId)) {
     return;
   }
 
-  const nextValue = descriptionPreview.value;
-  if (nextValue === lastSavedDescription) {
-    return;
-  }
-
-  if (descriptionSaveTimer) {
-    clearTimeout(descriptionSaveTimer);
-    descriptionSaveTimer = null;
-  }
+  clearDescriptionTimer(safeJobId);
+  descriptionSaveTimers.set(
+    safeJobId,
+    setTimeout(() => {
+      descriptionSaveTimers.delete(safeJobId);
+        saveDescriptionText(safeJobId, nextValue)
+        .then(() => {
+          setRecordingStatus(safeJobId, "", false);
+          lastSavedDescriptions.set(safeJobId, nextValue || "");
+          pendingDescriptionSaves.delete(safeJobId);
+        })
+        .catch((error) => {
+          setRecordingStatus(safeJobId, error.message, true);
+          pendingDescriptionSaves.delete(safeJobId);
+        });
+    }, immediate ? 0 : DESCRIPTION_SAVE_DELAY_MS),
+  );
 
   if (immediate) {
-    descriptionSaveTimer = setTimeout(async () => {
-      try {
-        if (!nextValue.trim()) {
-          return;
-        }
-
-        setRecordingStatus("Saving notes...");
-        const savedText = await saveDescriptionText(jobId, nextValue);
-        lastSavedDescription = savedText || "";
-        if (descriptionPreview) {
-          descriptionPreview.value = lastSavedDescription;
-        }
-        setRecordingStatus("");
-      } catch (error) {
-        setRecordingStatus(error.message, true);
-      }
-    }, 0);
-    return;
+    pendingDescriptionSaves.delete(safeJobId);
+    pendingDescriptionSaves.add(safeJobId);
   }
-
-  descriptionSaveTimer = setTimeout(() => queueDescriptionSave(true), DESCRIPTION_SAVE_DELAY_MS);
 }
 
-async function uploadRecording(jobId, audioBlob) {
+async function uploadRecording(activeJobId, audioBlob) {
   const formData = new FormData();
   formData.append("audio", audioBlob, "recording.webm");
 
-  const response = await fetch(`/jobs/${jobId}/description/audio`, {
+  const response = await fetch(`/jobs/${activeJobId}/description/audio`, {
     method: "POST",
     headers: {
       "X-CSRF-Token": csrfToken,
@@ -164,91 +211,103 @@ async function uploadRecording(jobId, audioBlob) {
     throw new Error(payload.detail || "Recording could not be transcribed.");
   }
 
-  if (descriptionPreview) {
-    descriptionPreview.value = payload.summary_notes || payload.description_text || "";
-    lastSavedDescription = descriptionPreview.value || "";
+  const descriptionElement = findDescriptionTextarea(activeJobId);
+  if (descriptionElement) {
+    descriptionElement.value = payload.summary_notes || payload.description_text || "";
+    queueDescriptionSave(activeJobId, true);
   }
 
   return payload;
 }
 
-function stopActiveStream() {
-  if (!activeAudioStream) {
+async function startRecording(activeJobId) {
+  if (!activeJobId) {
+    setRecordingStatus("", "No active job is available.", true);
     return;
   }
 
-  for (const track of activeAudioStream.getTracks()) {
-    track.stop();
-  }
-  activeAudioStream = null;
-}
-
-async function startRecording() {
-  if (!recordButton) {
+  if (activeRecorder && activeRecordingJobId !== activeJobId) {
+    setRecordingStatus(activeJobId, "Another job is currently recording. Finish that session first.", true);
     return;
   }
 
-  const jobId = recordButton.dataset.jobId;
-  if (!jobId) {
-    setRecordingStatus("No active job is available.", true);
+  if (activeRecorder) {
+    if (activeRecorder.state === "recording") {
+      activeRecorder.pause();
+    } else if (activeRecorder.state === "paused") {
+      activeRecorder.resume();
+    }
     return;
   }
 
   if (!navigator.mediaDevices || !window.MediaRecorder) {
-    setRecordingStatus("This browser does not support secure audio recording.", true);
+    setRecordingStatus(activeJobId, "This browser does not support secure audio recording.", true);
     return;
   }
 
-  setRecordingStatus("Preparing recorder...");
+  setRecordingStatus(activeJobId, "Preparing recorder...");
   activeAudioChunks = [];
-  activeAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  hasRecordedAudio = false;
+  activeAudioStream = await navigator.mediaDevices.getUserMedia({audio: true});
   activeRecorder = new MediaRecorder(activeAudioStream);
-  activeRecordingJobId = jobId;
+  activeRecordingJobId = activeJobId;
 
   activeRecorder.addEventListener("dataavailable", (event) => {
     if (event.data && event.data.size > 0) {
       activeAudioChunks.push(event.data);
+      hasRecordedAudio = true;
     }
   });
 
   activeRecorder.addEventListener("pause", () => {
-    setRecordingUi(true, true);
-    setRecordingStatus("Recording paused.");
+    setRecordingStatus(activeJobId, "Recording paused.");
+    setRecordingUi({jobId: activeJobId, isRecording: true, isPaused: true});
   });
 
   activeRecorder.addEventListener("resume", () => {
-    setRecordingUi(true, false);
-    setRecordingStatus("Recording notes...");
+    setRecordingStatus(activeJobId, "Recording notes...");
+    setRecordingUi({jobId: activeJobId, isRecording: true, isPaused: false});
   });
 
   activeRecorder.addEventListener("stop", async () => {
-    stopActiveStream();
+    const jobId = activeRecordingJobId;
     try {
-      const audioBlob = new Blob(activeAudioChunks, { type: "audio/webm" });
+      if (!jobId) {
+        return;
+      }
+
+      stopActiveStream();
+      if (!hasRecordedAudio || activeAudioChunks.length === 0) {
+        setRecordingStatus(jobId, "No audio was recorded. Press Record and try again.");
+        return;
+      }
+
+      const audioBlob = new Blob(activeAudioChunks, {type: "audio/webm"});
       isUploadingRecording = true;
-      setRecordingUi(false, false, true);
-      setRecordingStatus("Uploading recording for transcription...");
-      await uploadRecording(activeRecordingJobId, audioBlob);
-      setRecordingStatus("Notes updated.");
+      setRecordingUi({jobId, isUploading: true});
+      setRecordingStatus(jobId, "Uploading recording for transcription...");
+      await uploadRecording(jobId, audioBlob);
+      setRecordingStatus(jobId, "Notes updated.");
     } catch (error) {
-      setRecordingStatus(error.message, true);
+      setRecordingStatus(jobId, error.message, true);
     } finally {
-      resetRecordingState();
+      clearRecordingState();
     }
   });
 
   activeRecorder.start();
-  setRecordingUi(true, false);
-  setRecordingStatus("Recording notes...");
+  setRecordingUi({jobId: activeJobId, isRecording: true, isPaused: false});
+  setRecordingStatus(activeJobId, "Recording notes...");
 }
 
-function pauseOrResumeRecording() {
-  if (!activeRecorder) {
+function togglePauseResume(activeJobId) {
+  if (!activeRecorder || activeRecordingJobId !== activeJobId) {
+    setRecordingStatus(activeJobId, "Start this job recording first.");
     return;
   }
 
   if (!activeRecorder.pause || !activeRecorder.resume) {
-    setRecordingStatus("Pause/resume is not supported in this browser.");
+    setRecordingStatus(activeJobId, "Pause and resume are not supported in this browser.", true);
     return;
   }
 
@@ -262,8 +321,13 @@ function pauseOrResumeRecording() {
   }
 }
 
-function stopRecording() {
-  if (!activeRecorder || isUploadingRecording || activeRecorder.state === "inactive") {
+function stopRecording(activeJobId) {
+  if (!activeRecorder || isUploadingRecording) {
+    return;
+  }
+
+  if (activeRecordingJobId !== activeJobId) {
+    setRecordingStatus(activeJobId, "That job is not currently recording.");
     return;
   }
 
@@ -274,56 +338,89 @@ function stopRecording() {
   activeRecorder.stop();
 }
 
-if (recordButton) {
+for (const descriptionTextarea of descriptionTextareas) {
+  const jobId = toSafeMapString(descriptionTextarea.dataset.jobId);
+  lastSavedDescriptions.set(jobId, descriptionTextarea.value);
+
+  descriptionTextarea.addEventListener("input", () => {
+    queueDescriptionSave(jobId);
+  });
+
+  descriptionTextarea.addEventListener("blur", () => {
+    queueDescriptionSave(jobId, true);
+  });
+}
+
+for (const recordButton of activeRecordButtons) {
+  const jobId = toSafeMapString(recordButton.dataset.jobId);
   recordButton.addEventListener("click", async () => {
     if (isUploadingRecording) {
       return;
     }
 
     if (activeRecorder) {
-      pauseOrResumeRecording();
+      if (activeRecordingJobId === jobId) {
+        togglePauseResume(jobId);
+        return;
+      }
+
+      setRecordingStatus(jobId, "Finish or submit the current recording before switching jobs.", true);
       return;
     }
 
     try {
-      await startRecording();
+      await startRecording(jobId);
     } catch (error) {
-      resetRecordingState();
-      setRecordingStatus(error.message || "Recording could not start.", true);
+      setRecordingStatus(jobId, error.message || "Recording could not start.", true);
+      clearRecordingState();
     }
   });
 }
 
-if (stopRecordingButton) {
-  stopRecordingButton.addEventListener("click", () => {
+for (const submitButton of submitButtons) {
+  const jobId = toSafeMapString(submitButton.dataset.jobId);
+  submitButton.addEventListener("click", () => {
     if (isUploadingRecording) {
       return;
     }
 
-    stopRecording();
+    if (!activeRecorder || activeRecordingJobId !== jobId) {
+      setRecordingStatus(jobId, "Press Record first, then press Submit when ready.");
+      return;
+    }
+
+    stopRecording(jobId);
   });
 }
 
-if (descriptionPreview) {
-  descriptionPreview.addEventListener("input", () => {
-    queueDescriptionSave(false);
-  });
-
-  descriptionPreview.addEventListener("blur", () => {
-    queueDescriptionSave(true);
+for (const endJobForm of endJobForms) {
+  const jobId = toSafeMapString(endJobForm.dataset.jobId);
+  const summaryField = endJobForm.querySelector(".end-summary-notes");
+  const descriptionElement = findDescriptionTextarea(jobId);
+  endJobForm.addEventListener("submit", () => {
+    if (summaryField) {
+      summaryField.value = descriptionElement ? descriptionElement.value : "";
+    }
   });
 }
 
-if (activeTicketForm && activeTicketInput) {
-  let initialTicketNumber = (activeTicketInput.value || "").trim();
-  activeTicketInput.addEventListener("change", () => {
-    const nextTicketNumber = (activeTicketInput.value || "").trim().toUpperCase();
+for (const activeTicketForm of activeTicketForms) {
+  const ticketInput = activeTicketForm.querySelector(".active-ticket-number");
+  if (!ticketInput) {
+    continue;
+  }
+
+  let initialTicketNumber = toSafeMapString(ticketInput.value).trim().toUpperCase();
+  ticketInput.addEventListener("change", () => {
+    const nextTicketNumber = toSafeMapString(ticketInput.value).trim().toUpperCase();
     if (nextTicketNumber === initialTicketNumber) {
       return;
     }
 
     initialTicketNumber = nextTicketNumber;
-    activeTicketInput.value = nextTicketNumber;
+    ticketInput.value = nextTicketNumber;
     activeTicketForm.submit();
   });
 }
+
+setAllRecordingControlsIdle();
