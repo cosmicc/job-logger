@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from datetime import timedelta
 from zoneinfo import ZoneInfo
+
+import pytest
 from fastapi.testclient import TestClient
 
 from job_logger import database
 from job_logger.enums import JobStatus, TranscriptionStatus
 from job_logger.models import Job, SubmissionAttempt
+from job_logger.services.autotask import AutotaskConnectivityResult
 from job_logger.services.jobs import get_active_job
 from tests.conftest import extract_csrf_token
 
@@ -85,6 +88,35 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         attempts = database_session.query(SubmissionAttempt).filter_by(job_id=active_job_id).all()
         assert len(attempts) == 1
         assert attempts[0].succeeded is True
+
+
+def test_start_work_blocks_when_autotask_is_unavailable(authenticated_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The mandatory Autotask dependency must be healthy before new work starts."""
+
+    def failed_connectivity_check() -> AutotaskConnectivityResult:
+        """Return a deterministic failed dependency result for start gating."""
+
+        return AutotaskConnectivityResult(
+            provider="autotask",
+            available=False,
+            summary="Autotask API check failed with HTTP 401.",
+            tips=("Verify the API user credentials.",),
+            checked_operations=("configuration", "companies"),
+        )
+
+    monkeypatch.setattr("job_logger.routes.mobile.test_autotask_connectivity", failed_connectivity_check)
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token, "client_name": "Blocked Client"},
+        follow_redirects=False,
+    )
+
+    assert start_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        assert get_active_job(database_session) is None
 
 
 def test_active_job_completion_requires_client_name(authenticated_client: TestClient) -> None:

@@ -25,6 +25,9 @@ def validate_runtime_settings(application_settings: Settings) -> None:
     if not application_settings.app_password:
         raise RuntimeError("APP_PASSWORD must be configured in production.")
 
+    if application_settings.autotask_provider != "autotask":
+        raise RuntimeError("AUTOTASK_PROVIDER=autotask is required in production.")
+
 
 def create_app(application_settings: Settings = settings) -> FastAPI:
     """Create and configure the FastAPI application."""

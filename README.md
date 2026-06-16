@@ -253,7 +253,10 @@ and stores only the returned text and safe status.
 
 ### Autotask
 
-`AUTOTASK_PROVIDER=mock` is the default and creates a local mock external ID.
+Autotask is mandatory for normal production use because the app now uses
+Autotask Companies and Tickets to decide which ticket receives time. Production
+must run with `AUTOTASK_PROVIDER=autotask`. The `mock` provider is only for
+tests or isolated development.
 
 `AUTOTASK_PROVIDER=autotask` enables live REST API calls. Set:
 
@@ -264,8 +267,8 @@ and stores only the returned text and safe status.
 - `AUTOTASK_RESOURCE_ID`
 - `AUTOTASK_ROLE_ID`
 
-Autotask ticket status picklist IDs vary by tenant. Configure these when live
-ticket-status updates should be sent:
+Autotask ticket status picklist IDs vary by tenant. Configure these before
+production use so the full workflow can update the selected ticket status:
 
 - `AUTOTASK_STATUS_IN_PROGRESS_ID`
 - `AUTOTASK_STATUS_WAITING_CUSTOMER_ID`
@@ -284,6 +287,11 @@ job's stored company ID or stored client name. Selecting a returned ticket fills
 the editable ticket number field; the ticket number can still be typed manually.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
+
+The `/debug` page includes a **Test Autotask API** button. That check verifies
+required workflow configuration and the live Companies/Tickets API calls used by
+the app. If the check fails, new jobs cannot be started until Autotask
+connectivity or configuration is fixed.
 
 ## Time Handling
 

@@ -5,8 +5,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from job_logger import database
-from job_logger.models import Job, SubmissionAttempt
-from job_logger.enums import JobStatus
+from job_logger.models import SubmissionAttempt
 from job_logger.services.jobs import get_active_job
 from tests.conftest import extract_csrf_token
 
@@ -45,7 +44,7 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
 
     end_response = authenticated_client.post(
         f"/jobs/{active_job_id}/end",
-        data={"csrf_token": csrf_token},
+        data={"csrf_token": csrf_token, "client_name": "Debug Client"},
         follow_redirects=False,
     )
     assert end_response.status_code == 303
@@ -80,51 +79,21 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert "mock-time-entry" in debug_response.text
 
 
-def test_debug_route_clears_ticket_data(authenticated_client: TestClient) -> None:
-    """The debug reset endpoint removes all ticket-related data and submission attempts."""
+def test_debug_route_tests_autotask_api(authenticated_client: TestClient) -> None:
+    """The debug page can run the safe Autotask API connectivity check."""
 
-    start_page_response = authenticated_client.get("/mobile")
-    csrf_token = extract_csrf_token(start_page_response.text)
-    start_response = authenticated_client.post(
-        "/jobs/start",
-        data={"csrf_token": csrf_token},
-        follow_redirects=False,
-    )
-    assert start_response.status_code == 303
+    debug_page_response = authenticated_client.get("/debug")
+    debug_csrf_token = extract_csrf_token(debug_page_response.text)
 
-    with database.SessionLocal() as database_session:
-        active_job = database_session.query(Job).where(Job.status == JobStatus.ACTIVE).first()
-        assert active_job is not None
-        active_job_id = active_job.id
-        database_session.add(
-            SubmissionAttempt(
-                job_id=active_job_id,
-                provider="mock",
-                idempotency_key="debug-reset-attempt",
-                succeeded=True,
-                request_snapshot={},
-            )
-        )
-        database_session.commit()
-
-    debug_csrf_response = authenticated_client.get("/debug")
-    debug_csrf_token = extract_csrf_token(debug_csrf_response.text)
-
-    reset_response = authenticated_client.post(
-        "/debug/tickets/reset",
+    test_response = authenticated_client.post(
+        "/debug/autotask/test",
         data={"csrf_token": debug_csrf_token},
         follow_redirects=False,
     )
-    assert reset_response.status_code == 303
+    assert test_response.status_code == 303
 
-    with database.SessionLocal() as database_session:
-        reset_job = database_session.get(Job, active_job_id)
-        assert reset_job is not None
-        assert reset_job.ticket_number is None
-        assert reset_job.ticket_status is None
-        assert reset_job.autotask_provider is None
-        assert reset_job.autotask_external_id is None
-        assert reset_job.autotask_error is None
-        assert reset_job.autotask_submitted_at_utc is None
-        attempts_remaining = database_session.query(SubmissionAttempt).where(SubmissionAttempt.job_id == active_job_id).count()
-        assert attempts_remaining == 0
+    debug_result_response = authenticated_client.get("/debug")
+
+    assert debug_result_response.status_code == 200
+    assert "Last Autotask API test" in debug_result_response.text
+    assert "Mock Autotask provider is available" in debug_result_response.text

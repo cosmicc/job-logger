@@ -11,12 +11,11 @@
       </div>
       <form
         method="post"
-        action="/debug/tickets/reset"
-        class="debug-reset-form"
-        onsubmit="return confirm('Clear all ticket data and submission attempts for a fresh start?')"
+        action="/debug/autotask/test"
+        class="debug-test-form"
       >
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button class="danger-outline-button" type="submit">Clear ticket data</button>
+        <button class="secondary-button" type="submit">Test Autotask API</button>
       </form>
       <a class="secondary-link-button" href="/review">
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -70,6 +69,33 @@
 
         <p class="eyebrow-text">Status mapping IDs</p>
         <pre class="debug-code">{{ autotask_settings.status_id_map | tojson }}</pre>
+
+        {% if autotask_connectivity %}
+          <section class="debug-connectivity-result" aria-label="Last Autotask API test result">
+            <div class="review-header">
+              <h2>Last Autotask API test</h2>
+              {% if autotask_connectivity.available %}
+                <span class="status-chip status-submitted">Reachable</span>
+              {% else %}
+                <span class="status-chip status-submission_failed">Needs fixing</span>
+              {% endif %}
+            </div>
+            <p>{{ autotask_connectivity.summary }}</p>
+            {% if autotask_connectivity.checked_operations %}
+              <p class="muted-text">Checked: {{ autotask_connectivity.checked_operations | join(", ") }}</p>
+            {% endif %}
+            {% if autotask_connectivity.tips %}
+              <p class="eyebrow-text">Fix tips</p>
+              <ul class="debug-tip-list">
+                {% for tip in autotask_connectivity.tips %}
+                  <li>{{ tip }}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </section>
+        {% else %}
+          <p class="muted-text">Use Test Autotask API to verify the mandatory Autotask dependency before starting new jobs.</p>
+        {% endif %}
       </div>
     </section>
 

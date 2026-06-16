@@ -15,7 +15,7 @@ from job_logger.security import (
     validate_csrf_token,
 )
 from job_logger.services.audit import record_audit_event
-from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider
+from job_logger.services.autotask import AutotaskConnectivityResult, AutotaskSubmissionError, get_autotask_provider, test_autotask_connectivity
 from job_logger.services.jobs import (
     JobWorkflowError,
     apply_manual_summary_to_job,
@@ -31,6 +31,16 @@ from job_logger.services.transcription import TranscriptionError
 from job_logger.ui import template_context, templates
 
 router = APIRouter(tags=["mobile"])
+
+
+def _autotask_start_block_message(connectivity_result: AutotaskConnectivityResult) -> str:
+    """Return the safe message shown when Autotask blocks new work starts."""
+
+    leading_tips = " ".join(connectivity_result.tips[:2])
+    if leading_tips:
+        return f"Autotask API is down and needs fixing. {connectivity_result.summary} Tips: {leading_tips}"
+
+    return f"Autotask API is down and needs fixing. {connectivity_result.summary}"
 
 
 @router.get("/", include_in_schema=False)
@@ -101,6 +111,24 @@ async def start_work(
     submitted_ticket_number = str(form_data.get("ticket_number", ""))
     submitted_client_name = str(form_data.get("client_name", ""))
     submitted_autotask_company_id = str(form_data.get("autotask_company_id", ""))
+
+    connectivity_result = test_autotask_connectivity()
+    if not connectivity_result.available:
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.start.blocked_autotask_unavailable",
+            request=request,
+            details={
+                "provider": connectivity_result.provider,
+                "summary": connectivity_result.summary,
+                "checked_operations": list(connectivity_result.checked_operations),
+                "tip_count": len(connectivity_result.tips),
+            },
+        )
+        database_session.commit()
+        add_flash_message(request, _autotask_start_block_message(connectivity_result), "error")
+        return RedirectResponse(url="/mobile", status_code=303)
 
     try:
         job = start_job(

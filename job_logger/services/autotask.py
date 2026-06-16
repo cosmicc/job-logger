@@ -30,6 +30,26 @@ class AutotaskCompanyOption:
 
 
 @dataclass(frozen=True)
+class AutotaskConnectivityResult:
+    """Safe diagnostic result for the mandatory Autotask API dependency."""
+
+    # provider records which configured provider was tested.
+    provider: str
+
+    # available is true only when the provider is ready for the job workflow.
+    available: bool
+
+    # summary is a short user-facing result that must not contain secrets.
+    summary: str
+
+    # tips lists actionable, non-secret fixes for the operator.
+    tips: tuple[str, ...] = ()
+
+    # checked_operations records which dependency checks completed.
+    checked_operations: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class AutotaskSubmissionResult:
     """Result returned by Autotask submission providers."""
 
@@ -77,6 +97,11 @@ class BaseAutotaskProvider:
 
     def submit_job(self, job: Job) -> AutotaskSubmissionResult:
         """Submit a reviewed job to an external destination."""
+
+        raise NotImplementedError
+
+    def test_connectivity(self) -> AutotaskConnectivityResult:
+        """Return whether this provider is ready for the job workflow."""
 
         raise NotImplementedError
 
@@ -130,6 +155,17 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             external_id=f"mock-time-entry-{job.id}",
             safe_error=None,
             request_snapshot=snapshot,
+        )
+
+    def test_connectivity(self) -> AutotaskConnectivityResult:
+        """Return a successful local-only result for tests and development."""
+
+        return AutotaskConnectivityResult(
+            provider=self.provider_name,
+            available=True,
+            summary="Mock Autotask provider is available for development and tests; no live API call was made.",
+            tips=("Use AUTOTASK_PROVIDER=autotask for production so company and ticket data come from Autotask.",),
+            checked_operations=("mock provider",),
         )
 
     def list_open_tickets_for_client(self, client_name: str, autotask_company_id: int | None = None) -> list[AutotaskTicketOption]:
@@ -206,11 +242,11 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return headers
 
-    def _client(self) -> httpx.Client:
+    def _client(self, timeout_seconds: float = 30.0) -> httpx.Client:
         """Return a short-lived HTTP client for Autotask calls."""
 
         base_url = (self.application_settings.autotask_base_url or "").rstrip("/")
-        return httpx.Client(base_url=base_url, headers=self._headers(), timeout=30)
+        return httpx.Client(base_url=base_url, headers=self._headers(), timeout=timeout_seconds)
 
     def _raise_for_safe_response(self, response: httpx.Response, action_description: str) -> None:
         """Raise a safe Autotask error without exposing headers or secrets."""
@@ -219,6 +255,106 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             return
 
         raise AutotaskSubmissionError(f"{action_description} failed with Autotask HTTP {response.status_code}.")
+
+    def _workflow_configuration_gaps(self) -> list[str]:
+        """Return missing settings that would prevent the full Autotask workflow."""
+
+        required_workflow_values = {
+            "AUTOTASK_RESOURCE_ID": self.application_settings.autotask_resource_id,
+            "AUTOTASK_ROLE_ID": self.application_settings.autotask_role_id,
+            "AUTOTASK_STATUS_IN_PROGRESS_ID": self.application_settings.autotask_status_in_progress_id,
+            "AUTOTASK_STATUS_WAITING_CUSTOMER_ID": self.application_settings.autotask_status_waiting_customer_id,
+            "AUTOTASK_STATUS_WAITING_PARTS_ID": self.application_settings.autotask_status_waiting_parts_id,
+            "AUTOTASK_STATUS_FOLLOW_UP_ID": self.application_settings.autotask_status_follow_up_id,
+            "AUTOTASK_STATUS_COMPLETE_ID": self.application_settings.autotask_status_complete_id,
+        }
+        return [setting_name for setting_name, setting_value in required_workflow_values.items() if setting_value is None]
+
+    def _query_tickets_for_connectivity(self, client: httpx.Client) -> None:
+        """Confirm the Tickets query endpoint is reachable without exposing data."""
+
+        query_payload = {"filter": [{"op": "eq", "field": "id", "value": 0}]}
+        response = client.post("/Tickets/query", json=query_payload)
+        self._raise_for_safe_response(response, "Autotask ticket connectivity query")
+        response.json()
+
+    def _tips_for_remote_failure(self, exc: Exception) -> tuple[str, ...]:
+        """Return safe troubleshooting tips for a failed live Autotask check."""
+
+        error_message = str(exc)
+        if isinstance(exc, httpx.TimeoutException):
+            return (
+                "Confirm the Docker host can reach the internet and Autotask is not blocked by firewall or DNS policy.",
+                "Confirm AUTOTASK_BASE_URL points to your tenant's REST base URL and not the interactive web portal URL.",
+            )
+
+        if isinstance(exc, httpx.ConnectError):
+            return (
+                "Confirm AUTOTASK_BASE_URL is spelled correctly and includes the tenant REST path ending in /ATServicesRest/V1.0.",
+                "Confirm the Docker host has DNS and outbound HTTPS access.",
+            )
+
+        if "HTTP 401" in error_message or "HTTP 403" in error_message:
+            return (
+                "Verify AUTOTASK_USERNAME is the API user's Username (key), not the human login email.",
+                "Verify AUTOTASK_SECRET and AUTOTASK_API_INTEGRATION_CODE match the active Autotask API user.",
+                "Confirm the API user is active and has permission to read Companies, read Tickets, and create TimeEntries.",
+            )
+
+        if "HTTP 404" in error_message:
+            return (
+                "Confirm AUTOTASK_BASE_URL includes the correct tenant zone and /ATServicesRest/V1.0 path.",
+                "Confirm the configured Autotask zone URL is the REST API URL, not the SOAP or browser URL.",
+            )
+
+        if "HTTP 429" in error_message:
+            return (
+                "Autotask is rate limiting requests; wait and try again before starting new jobs.",
+                "Check whether another process is repeatedly querying Autotask with the same API user.",
+            )
+
+        return (
+            "Verify the Autotask API user, integration code, tenant REST base URL, and outbound HTTPS connectivity.",
+            "Use the Autotask discovery script after connectivity is restored to confirm tenant-specific IDs.",
+        )
+
+    def test_connectivity(self) -> AutotaskConnectivityResult:
+        """Verify live Autotask settings and the endpoints required by this app."""
+
+        workflow_gaps = self._workflow_configuration_gaps()
+        if workflow_gaps:
+            return AutotaskConnectivityResult(
+                provider=self.provider_name,
+                available=False,
+                summary=f"Autotask workflow configuration is incomplete: {', '.join(workflow_gaps)}.",
+                tips=(
+                    "Fill the listed AUTOTASK_* values in .env and recreate the app container.",
+                    "Use scripts/discover_autotask_ids.py to look up role, billing code, and ticket status IDs after API credentials work.",
+                ),
+                checked_operations=("configuration",),
+            )
+
+        try:
+            with self._client(timeout_seconds=10.0) as client:
+                self._query_company_by_id(client, 0)
+                self._query_ticket_status_labels(client)
+                self._query_tickets_for_connectivity(client)
+        except (httpx.HTTPError, ValueError, AutotaskSubmissionError) as exc:
+            return AutotaskConnectivityResult(
+                provider=self.provider_name,
+                available=False,
+                summary=f"Autotask API check failed: {exc}",
+                tips=self._tips_for_remote_failure(exc),
+                checked_operations=("configuration", "companies", "ticket status metadata", "tickets"),
+            )
+
+        return AutotaskConnectivityResult(
+            provider=self.provider_name,
+            available=True,
+            summary="Autotask API connection succeeded for company lookup, ticket status metadata, and ticket lookup.",
+            tips=("Autotask is available for starting new jobs.",),
+            checked_operations=("configuration", "companies", "ticket status metadata", "tickets"),
+        )
 
     def _query_ticket_status_labels(self, client: httpx.Client) -> dict[int, str]:
         """Return Autotask Tickets.status picklist values as ID-to-label mappings."""
@@ -530,3 +666,23 @@ def get_autotask_provider(application_settings: Settings = settings) -> BaseAuto
         return LiveAutotaskProvider(application_settings)
 
     raise AutotaskSubmissionError(f"Unsupported Autotask provider: {application_settings.autotask_provider}")
+
+
+def test_autotask_connectivity(application_settings: Settings = settings) -> AutotaskConnectivityResult:
+    """Return a safe Autotask dependency result for start-work gating and debug."""
+
+    try:
+        provider = get_autotask_provider(application_settings)
+        return provider.test_connectivity()
+    except AutotaskSubmissionError as exc:
+        return AutotaskConnectivityResult(
+            provider=application_settings.autotask_provider,
+            available=False,
+            summary=f"Autotask provider is not ready: {exc}",
+            tips=(
+                "Set AUTOTASK_PROVIDER=autotask for production.",
+                "Confirm AUTOTASK_BASE_URL, AUTOTASK_USERNAME, AUTOTASK_SECRET, and AUTOTASK_API_INTEGRATION_CODE are set in .env.",
+                "Recreate the app container after changing .env so the new settings are loaded.",
+            ),
+            checked_operations=("provider configuration",),
+        )

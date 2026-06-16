@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 from job_logger.config import settings
 from job_logger.database import get_database_session
 from job_logger.services.audit import record_audit_event
-from job_logger.services.jobs import reset_ticket_data
 from job_logger.models import Job, SubmissionAttempt
+from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
 from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_token
 from job_logger.ui import template_context, templates
 
@@ -70,6 +70,18 @@ def _safe_autotask_config() -> dict[str, object]:
     }
 
 
+def _serialize_connectivity_result(result: AutotaskConnectivityResult) -> dict[str, object]:
+    """Return a session-safe Autotask connectivity result without secrets."""
+
+    return {
+        "provider": result.provider,
+        "available": result.available,
+        "summary": result.summary,
+        "tips": list(result.tips),
+        "checked_operations": list(result.checked_operations),
+    }
+
+
 def _serialize_submission_attempt(attempt: SubmissionAttempt, job_ticket_number: str | None) -> DebugSubmissionAttempt:
     """Return a UI-safe representation of one submission attempt."""
 
@@ -121,17 +133,18 @@ def debug_page(request: Request, database_session: Session = Depends(get_databas
         template_context(
             request,
             autotask_settings=_safe_autotask_config(),
+            autotask_connectivity=request.session.get("autotask_connectivity_result"),
             submission_attempts=debug_submission_attempts,
         ),
     )
 
 
-@router.post("/tickets/reset")
-async def clear_ticket_data(
+@router.post("/autotask/test")
+async def test_autotask_api(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> RedirectResponse:
-    """Clear debug ticket data and submission attempts to restart from a clean state."""
+    """Test mandatory Autotask API connectivity from the debug page."""
 
     try:
         actor = require_authenticated_username(request)
@@ -141,19 +154,24 @@ async def clear_ticket_data(
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
 
-    reset_stats = reset_ticket_data(database_session)
+    connectivity_result = test_autotask_connectivity()
+    request.session["autotask_connectivity_result"] = _serialize_connectivity_result(connectivity_result)
     record_audit_event(
         database_session,
         actor=actor,
-        action="debug.ticket_data.reset",
+        action="debug.autotask_api.tested",
         request=request,
-        details=reset_stats,
+        details={
+            "provider": connectivity_result.provider,
+            "available": connectivity_result.available,
+            "checked_operations": list(connectivity_result.checked_operations),
+            "tip_count": len(connectivity_result.tips),
+        },
     )
     database_session.commit()
-    add_flash_message(
-        request,
-        f"Ticket data reset: {reset_stats['jobs_reset']} job(s) cleared, "
-        f"{reset_stats['submission_attempts_removed']} submission attempt(s) removed.",
-        "success",
-    )
+    if connectivity_result.available:
+        add_flash_message(request, connectivity_result.summary, "success")
+    else:
+        add_flash_message(request, f"Autotask API is down and needs fixing. {connectivity_result.summary}", "error")
+
     return RedirectResponse(url="/debug", status_code=303)

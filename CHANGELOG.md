@@ -30,6 +30,9 @@ All recorded changes to Job Logger are documented in this file.
 - Added mobile Autotask company search by client name, stored selected Autotask
   company IDs on jobs, and used the selected company for mobile/review open-ticket
   lookup while preserving manual ticket-number entry.
+- Made live Autotask mandatory for production job starts, blocked new work when
+  Autotask connectivity/configuration fails, and replaced the debug ticket-reset
+  action with a safe Autotask API connectivity test and troubleshooting tips.
 - Updated the mobile workflow so recording is now `Record -> Pause/Resume -> Submit`
   with submit-based transcription upload, added 15-minute review time increment
   controls for start/end times, and added review-side editable client name field.
