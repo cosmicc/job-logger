@@ -7,6 +7,7 @@ and submitting accepted jobs to Autotask.
 ## Architecture
 
 - FastAPI serves the application.
+- Nginx fronts the FastAPI web interface inside Docker.
 - Jinja templates render the mobile capture page and desktop review page.
 - PostgreSQL stores jobs, review fields, submission attempts, and audit events.
 - Alembic manages database migrations.
@@ -61,15 +62,15 @@ Autotask REST API references used by this app:
 
 ## Cloudflare Tunnel
 
-The Compose file starts `cloudflared` by default. This keeps the production
-deployment path simple: the app, PostgreSQL, and tunnel connector all come up
-with one `docker compose up -d --build` command.
+The Compose file starts Nginx and `cloudflared` by default. This keeps the
+production deployment path simple: the app, PostgreSQL, Nginx reverse proxy, and
+tunnel connector all come up with one `docker compose up -d --build` command.
 
 1. Create a Cloudflare Tunnel in the Zero Trust dashboard.
 2. Add a public hostname that routes to this Docker service URL:
 
    ```text
-   http://app:8000
+   http://nginx:8080
    ```
 
 3. Create a Cloudflare Access self-hosted application for that hostname.
@@ -82,38 +83,42 @@ with one `docker compose up -d --build` command.
    docker compose up -d --build
    ```
 
-The app container exposes its port only on `127.0.0.1` for local
-troubleshooting. Public mobile and review traffic should enter through the
-Cloudflare Tunnel hostname and then reach the internal Docker service
+Nginx is the internal web front end for this deployment. Public mobile and
+review traffic should enter through the Cloudflare Tunnel hostname, reach the
+internal Docker service `http://nginx:8080`, and then proxy to FastAPI at
 `http://app:8000`.
 
+The app container is exposed only to the private Compose network. The local
+troubleshooting URL reaches Nginx on `127.0.0.1`, not the app container
+directly.
+
 `APP_INTERNAL_PORT` changes the Uvicorn port inside the app container and inside
-the Docker network. The default is `8000`. If you change it, update the
+the Docker network. The default is `8000`. Nginx uses this value to reach the
+FastAPI app.
+
+```text
+APP_INTERNAL_PORT=8010 -> Nginx proxies to http://app:8010
+```
+
+`NGINX_INTERNAL_PORT` changes the private Compose-network port that
+`cloudflared` should use. The default is `8080`. If you change it, update the
 Cloudflare public hostname service URL to match:
 
 ```text
-APP_INTERNAL_PORT=8010 -> Cloudflare service URL http://app:8010
+NGINX_INTERNAL_PORT=8081 -> Cloudflare service URL http://nginx:8081
 ```
 
-`APP_EXPOSE_PORT` changes only the optional host-side troubleshooting port. It
-does not change the port that the tunnel should use when `cloudflared` is in the
-same Compose stack. For example, the defaults create this mapping:
+`NGINX_EXPOSE_PORT` changes only the optional host-side troubleshooting port.
+For example, the defaults create this mapping:
 
 ```text
-Docker host 127.0.0.1:11030 -> app container port 8000
-```
-
-When `cloudflared` runs as the Compose service in this project, Cloudflare
-should use the internal app port:
-
-```text
-http://app:${APP_INTERNAL_PORT}
+Docker host 127.0.0.1:11030 -> nginx container port 8080 -> app container port 8000
 ```
 
 If `cloudflared` is not running in this Compose stack, it will not be able to
-resolve the Docker service name `app`. In that separate-deployment case, either
-move `cloudflared` into this Compose stack or point the tunnel at the actual
-host-reachable app URL.
+resolve the Docker service name `nginx`. In that separate-deployment case,
+either move `cloudflared` into this Compose stack or point the tunnel at the
+actual host-reachable Nginx URL.
 
 The `cloudflared` metrics endpoint is published only on localhost at
 `127.0.0.1:20241` by default so tunnel diagnostics can be collected from the
@@ -129,21 +134,28 @@ Check these items first:
 
 - Confirm `.env` exists and contains a real `CLOUDFLARE_TUNNEL_TOKEN`.
 - Confirm the Cloudflare public hostname service URL is exactly
-  `http://app:8000` when `APP_INTERNAL_PORT=8000`, or
-  `http://app:<your-internal-port>` if you changed `APP_INTERNAL_PORT`.
+  `http://nginx:8080` when `NGINX_INTERNAL_PORT=8080`, or
+  `http://nginx:<your-nginx-internal-port>` if you changed
+  `NGINX_INTERNAL_PORT`.
 - Do not use `http://localhost:<port>` or `http://127.0.0.1:<port>` in the
   Cloudflare public hostname service URL. Inside the `cloudflared` container,
-  localhost means the tunnel container itself, not the FastAPI app container.
-- Confirm the app is healthy from the Docker host:
+  localhost means the tunnel container itself, not Nginx or FastAPI.
+- Confirm Nginx can reach the app from the Docker host:
 
   ```bash
   curl -i http://127.0.0.1:11030/health/live
   ```
 
-- Confirm the app is healthy from inside the tunnel container:
+- Confirm Nginx is healthy from inside the tunnel container:
 
   ```bash
-  docker compose exec cloudflared wget -qO- http://app:${APP_INTERNAL_PORT:-8000}/health/live
+  docker compose exec cloudflared wget -qO- http://nginx:${NGINX_INTERNAL_PORT:-8080}/health/live
+  ```
+
+- Confirm the app is healthy from inside the Nginx container:
+
+  ```bash
+  docker compose exec nginx wget -qO- http://app:${APP_INTERNAL_PORT:-8000}/health/live
   ```
 
 - Review tunnel connector logs:

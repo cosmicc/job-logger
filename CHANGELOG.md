@@ -29,3 +29,6 @@ All recorded changes to Job Logger are documented in this file.
 - Added `APP_INTERNAL_PORT` so the Uvicorn/container port can be changed from
   the default `8000` without confusing it with the host-side
   `APP_EXPOSE_PORT` mapping.
+- Added an Nginx reverse-proxy container as the web front end for Cloudflare
+  Tunnel, moved host troubleshooting traffic to Nginx, and updated tunnel
+  diagnostics to validate `cloudflared -> nginx -> app` connectivity.
