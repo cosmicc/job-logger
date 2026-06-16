@@ -87,19 +87,27 @@ troubleshooting. Public mobile and review traffic should enter through the
 Cloudflare Tunnel hostname and then reach the internal Docker service
 `http://app:8000`.
 
-`APP_EXPOSE_PORT` does not change the port inside the Docker network. It only
-changes the optional host-side troubleshooting port. For example,
-`APP_EXPOSE_PORT=11030` creates this mapping:
+`APP_INTERNAL_PORT` changes the Uvicorn port inside the app container and inside
+the Docker network. The default is `8000`. If you change it, update the
+Cloudflare public hostname service URL to match:
+
+```text
+APP_INTERNAL_PORT=8010 -> Cloudflare service URL http://app:8010
+```
+
+`APP_EXPOSE_PORT` changes only the optional host-side troubleshooting port. It
+does not change the port that the tunnel should use when `cloudflared` is in the
+same Compose stack. For example, the defaults create this mapping:
 
 ```text
 Docker host 127.0.0.1:11030 -> app container port 8000
 ```
 
 When `cloudflared` runs as the Compose service in this project, Cloudflare
-should still use:
+should use the internal app port:
 
 ```text
-http://app:8000
+http://app:${APP_INTERNAL_PORT}
 ```
 
 If `cloudflared` is not running in this Compose stack, it will not be able to
@@ -121,8 +129,9 @@ Check these items first:
 
 - Confirm `.env` exists and contains a real `CLOUDFLARE_TUNNEL_TOKEN`.
 - Confirm the Cloudflare public hostname service URL is exactly
-  `http://app:8000` when `cloudflared` runs in this Compose stack.
-- Do not use `http://localhost:8000` or `http://127.0.0.1:8000` in the
+  `http://app:8000` when `APP_INTERNAL_PORT=8000`, or
+  `http://app:<your-internal-port>` if you changed `APP_INTERNAL_PORT`.
+- Do not use `http://localhost:<port>` or `http://127.0.0.1:<port>` in the
   Cloudflare public hostname service URL. Inside the `cloudflared` container,
   localhost means the tunnel container itself, not the FastAPI app container.
 - Confirm the app is healthy from the Docker host:
@@ -134,7 +143,7 @@ Check these items first:
 - Confirm the app is healthy from inside the tunnel container:
 
   ```bash
-  docker compose exec cloudflared wget -qO- http://app:8000/health/live
+  docker compose exec cloudflared wget -qO- http://app:${APP_INTERNAL_PORT:-8000}/health/live
   ```
 
 - Review tunnel connector logs:

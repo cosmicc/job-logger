@@ -26,3 +26,6 @@ All recorded changes to Job Logger are documented in this file.
 - Added a tunnel diagnostic script and clarified that Cloudflare Tunnel should
   route to `http://app:8000` when `cloudflared` runs in the Compose stack,
   regardless of the host-side `APP_EXPOSE_PORT` value.
+- Added `APP_INTERNAL_PORT` so the Uvicorn/container port can be changed from
+  the default `8000` without confusing it with the host-side
+  `APP_EXPOSE_PORT` mapping.
