@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
@@ -19,6 +20,8 @@ from job_logger.time_utils import (
     parse_local_form_datetime,
     round_to_nearest_quarter_hour,
 )
+
+AUTOTASK_TICKET_NUMBER_PATTERN = re.compile(r"^T\d{8}\.\d{4}$")
 
 
 @dataclass(frozen=True)
@@ -73,23 +76,54 @@ def list_review_jobs(database_session: Session) -> list[Job]:
     return list(database_session.execute(select(Job).order_by(desc(Job.created_at_utc))).scalars())
 
 
-def start_job(database_session: Session) -> Job:
+def normalize_ticket_number(ticket_number: str | None, *, required: bool) -> str | None:
+    """Return a normalized Autotask ticket number or raise a workflow error."""
+
+    normalized_ticket_number = (ticket_number or "").strip().upper()
+    if not normalized_ticket_number:
+        if required:
+            raise JobWorkflowError("Ticket number is required.")
+        return None
+
+    if len(normalized_ticket_number) > 50:
+        raise JobWorkflowError("Ticket number must be 50 characters or fewer.")
+
+    if not AUTOTASK_TICKET_NUMBER_PATTERN.fullmatch(normalized_ticket_number):
+        raise JobWorkflowError("Ticket number must match the Autotask format TYYYYMMDD.####, such as T20260326.0018.")
+
+    return normalized_ticket_number
+
+
+def start_job(database_session: Session, ticket_number: str | None = None) -> Job:
     """Create a new active job after ensuring only one job is active."""
 
     existing_active_job = get_active_job(database_session)
     if existing_active_job is not None:
         raise JobWorkflowError("A job is already active.")
 
+    normalized_ticket_number = normalize_ticket_number(ticket_number, required=False)
     start_timestamp = now_utc()
     rounded_start_timestamp = round_to_nearest_quarter_hour(start_timestamp)
     job = Job(
         status=JobStatus.ACTIVE,
+        ticket_number=normalized_ticket_number,
         raw_start_utc=start_timestamp,
         rounded_start_utc=rounded_start_timestamp,
         local_work_date=local_date_for(rounded_start_timestamp),
     )
     database_session.add(job)
     database_session.flush()
+    return job
+
+
+def update_active_job_ticket_number(database_session: Session, job_id: str, ticket_number: str | None) -> Job:
+    """Update the optional Autotask ticket number while a job is active."""
+
+    job = get_job_or_raise(database_session, job_id)
+    if job.status != JobStatus.ACTIVE:
+        raise JobWorkflowError("Ticket numbers can only be updated from mobile during an active job.")
+
+    job.ticket_number = normalize_ticket_number(ticket_number, required=False)
     return job
 
 
@@ -162,12 +196,9 @@ def transcribe_active_job_audio(
 def validate_review_fields(form_values: dict[str, str]) -> ReviewFields:
     """Validate and normalize editable review form values."""
 
-    ticket_number = form_values.get("ticket_number", "").strip()
-    if not ticket_number:
+    ticket_number = normalize_ticket_number(form_values.get("ticket_number"), required=True)
+    if ticket_number is None:
         raise JobWorkflowError("Ticket number is required.")
-
-    if len(ticket_number) > 50:
-        raise JobWorkflowError("Ticket number must be 50 characters or fewer.")
 
     try:
         ticket_status = TicketStatus(form_values.get("ticket_status", ""))

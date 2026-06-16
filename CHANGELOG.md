@@ -18,6 +18,9 @@ All recorded changes to Job Logger are documented in this file.
 - Removed `APP_PASSWORD_HASH` and Argon2 password-hash handling so deployments
   use only `APP_USERNAME` and `APP_PASSWORD`; set Cloudflare Access enforcement
   off by default unless explicitly enabled after Access is configured.
+- Added optional Autotask ticket number capture on the mobile page before or
+  during active work, with server-side `TYYYYMMDD.####` validation and review
+  prefill.
 
 - Added the initial `AGENTS.md` project instructions for the Dockerized Python
   Job Logger application.

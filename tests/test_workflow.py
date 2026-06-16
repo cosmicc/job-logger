@@ -25,13 +25,18 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
     mobile_page_response = authenticated_client.get("/mobile")
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
-    start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token, "ticket_number": "t20260326.0018"},
+        follow_redirects=False,
+    )
     assert start_response.status_code == 303
 
     with database.SessionLocal() as database_session:
         active_job = get_active_job(database_session)
         assert active_job is not None
         active_job_id = active_job.id
+        assert active_job.ticket_number == "T20260326.0018"
 
     text_response = authenticated_client.post(
         f"/jobs/{active_job_id}/description/text",
@@ -48,6 +53,7 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
     assert end_response.status_code == 303
 
     review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    assert 'value="T20260326.0018"' in review_page_response.text
     review_csrf_token = extract_csrf_token(review_page_response.text)
 
     accept_response = authenticated_client.post(
@@ -78,3 +84,30 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         assert len(attempts) == 1
         assert attempts[0].succeeded is True
 
+
+def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient) -> None:
+    """The mobile page can save an optional Autotask ticket number during active work."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+
+    start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+        assert active_job.ticket_number is None
+
+    save_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={"csrf_token": csrf_token, "ticket_number": "t20260326.0018"},
+        follow_redirects=False,
+    )
+    assert save_ticket_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        assert active_job.ticket_number == "T20260326.0018"

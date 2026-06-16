@@ -22,6 +22,7 @@ from job_logger.services.jobs import (
     list_review_jobs,
     start_job,
     transcribe_active_job_audio,
+    update_active_job_ticket_number,
     update_description_text,
 )
 from job_logger.services.transcription import TranscriptionError
@@ -73,12 +74,52 @@ async def start_work(
     actor = require_authenticated_username(request)
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+    submitted_ticket_number = str(form_data.get("ticket_number", ""))
 
     try:
-        job = start_job(database_session)
-        record_audit_event(database_session, actor=actor, action="job.started", job_id=job.id, request=request)
+        job = start_job(database_session, ticket_number=submitted_ticket_number)
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.started",
+            job_id=job.id,
+            request=request,
+            details={"ticket_number_present": bool(job.ticket_number)},
+        )
         database_session.commit()
         add_flash_message(request, "Work started.", "success")
+    except JobWorkflowError as exc:
+        database_session.rollback()
+        add_flash_message(request, str(exc), "error")
+
+    return RedirectResponse(url="/mobile", status_code=303)
+
+
+@router.post("/jobs/{job_id}/ticket-number")
+async def save_ticket_number(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Save an optional Autotask ticket number while work is active."""
+
+    actor = require_authenticated_username(request)
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+    submitted_ticket_number = str(form_data.get("ticket_number", ""))
+
+    try:
+        job = update_active_job_ticket_number(database_session, job_id, submitted_ticket_number)
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.ticket_number.updated",
+            job_id=job.id,
+            request=request,
+            details={"ticket_number_present": bool(job.ticket_number)},
+        )
+        database_session.commit()
+        add_flash_message(request, "Ticket number saved.", "success")
     except JobWorkflowError as exc:
         database_session.rollback()
         add_flash_message(request, str(exc), "error")

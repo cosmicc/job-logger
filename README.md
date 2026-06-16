@@ -275,6 +275,15 @@ Start time, end time, and resulting duration are rounded to 15-minute intervals.
 If rounding would produce a zero-minute job, the end time is advanced to the next
 15-minute interval.
 
+## Ticket Numbers
+
+The mobile page accepts an optional Autotask ticket number before or during an
+active job. When provided, the ticket number is stored with the job and prefilled
+on the desktop review page.
+
+Ticket numbers must use the Autotask format `TYYYYMMDD.####`, for example
+`T20260326.0018`.
+
 ## Testing
 
 Run local checks with:

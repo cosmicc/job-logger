@@ -29,6 +29,31 @@
           </div>
         </dl>
 
+        <form method="post" action="/jobs/{{ active_job.id }}/ticket-number" class="ticket-number-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>
+            <span>Autotask ticket number</span>
+            <input
+              name="ticket_number"
+              value="{{ active_job.ticket_number or '' }}"
+              placeholder="T20260326.0018"
+              maxlength="14"
+              pattern="[Tt][0-9]{8}\.[0-9]{4}"
+              autocapitalize="characters"
+              autocomplete="off"
+              spellcheck="false"
+            >
+          </label>
+          <button class="secondary-button" type="submit">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <path d="M17 21v-8H7v8"></path>
+              <path d="M7 3v5h8"></path>
+            </svg>
+            Save Ticket
+          </button>
+        </form>
+
         <div class="description-box">
           <label for="description-preview">Description</label>
           <textarea id="description-preview" readonly>{{ active_job.description_text or "" }}</textarea>
@@ -66,8 +91,20 @@
         <p class="eyebrow-text">Ready</p>
         <h1>Start a work entry</h1>
         <p class="muted-text">Start work, record the description during the job, then end work for review.</p>
-        <form method="post" action="/jobs/start">
+        <form method="post" action="/jobs/start" class="start-work-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>
+            <span>Autotask ticket number</span>
+            <input
+              name="ticket_number"
+              placeholder="T20260326.0018"
+              maxlength="14"
+              pattern="[Tt][0-9]{8}\.[0-9]{4}"
+              autocapitalize="characters"
+              autocomplete="off"
+              spellcheck="false"
+            >
+          </label>
           <button class="primary-action-button" type="submit">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M8 5v14l11-7z"></path>
@@ -99,4 +136,3 @@
   </section>
   <script src="{{ url_for('static', path='mobile.js') }}" defer></script>
 {% endblock %}
-

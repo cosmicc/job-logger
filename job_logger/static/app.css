@@ -392,6 +392,23 @@ a:focus-visible {
   gap: 9px;
 }
 
+.start-work-form {
+  display: grid;
+  gap: 14px;
+}
+
+.ticket-number-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 18px;
+}
+
+.ticket-number-form .secondary-button {
+  min-width: 132px;
+}
+
 .button-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -616,6 +633,7 @@ td a {
 
   .button-grid,
   .metric-grid,
+  .ticket-number-form,
   .form-grid,
   .reject-form {
     grid-template-columns: 1fr;
@@ -631,4 +649,3 @@ td a {
     font-size: 34px;
   }
 }
-
