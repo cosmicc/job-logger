@@ -78,10 +78,12 @@ services:
     volumes:
       - ./docker/nginx/templates:/etc/nginx/templates:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- \"http://127.0.0.1:$${NGINX_INTERNAL_PORT}/nginx-health\" >/dev/null"]
+      # Check that the Nginx master process is alive.
+      # This avoids failures when the container image does not include wget/curl.
+      test: ["CMD-SHELL", "[ -f /var/run/nginx.pid ] && kill -0 \"$(cat /var/run/nginx.pid)\""]
       interval: 30s
       timeout: 5s
-      start_period: 10s
+      start_period: 20s
       retries: 3
 
   db:
@@ -102,14 +104,18 @@ services:
   cloudflared:
     image: ${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:latest}
     restart: unless-stopped
+    # The cloudflared image is a distroless runtime without /bin/sh, so the
+    # command is passed directly as arguments for the image entrypoint.
     command:
       - tunnel
-      - --no-autoupdate
       - --metrics
       - ${CLOUDFLARED_METRICS:-0.0.0.0:20241}
+      - --no-autoupdate
       - run
+      - --url
+      - http://nginx:${NGINX_INTERNAL_PORT:-8080}
       - --token
-      - ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN must be set in .env}
+      - ${CLOUDFLARE_TUNNEL_TOKEN:-not-set}
     depends_on:
       nginx:
         condition: service_healthy

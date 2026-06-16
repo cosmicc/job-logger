@@ -35,3 +35,11 @@ All recorded changes to Job Logger are documented in this file.
 - Split Nginx self-health from FastAPI upstream health so Compose can start the
   reverse proxy reliably while still keeping explicit diagnostics for
   `nginx -> app` connectivity.
+- Relaxed compose startup when a Cloudflare tunnel token is missing by moving the
+  token requirement into container runtime checks and documenting a local debug
+  path that runs `app`, `db`, and `nginx` without tunnel connectivity.
+- Updated Nginx health checks to avoid false unhealthy states when optional
+  network tools are absent inside the container image.
+- Updated `cloudflared` compose command handling to work with Cloudflare's
+  distroless image (no `/bin/sh`) and added a fallback tunnel-token value so
+  startup logs remain actionable when the token is not set.

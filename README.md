@@ -54,6 +54,12 @@ Autotask REST API references used by this app:
    docker compose up -d --build
    ```
 
+   If you do not have a tunnel token yet, run only local services first:
+
+   ```bash
+   docker compose up -d --build app db nginx
+   ```
+
 6. Open the local troubleshooting URL at:
 
    ```text
@@ -76,6 +82,8 @@ tunnel connector all come up with one `docker compose up -d --build` command.
 3. Create a Cloudflare Access self-hosted application for that hostname.
 4. Put the same hostname in `.env` under `APP_ALLOWED_HOSTS`.
 5. Put the tunnel token in `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
+   If the token is missing, the `cloudflared` service will log a clear error and
+   remain in a restart state until you add a valid token.
 6. Set `CLOUDFLARE_ACCESS_REQUIRED=true` after Access is verified.
 7. Start the full stack:
 
