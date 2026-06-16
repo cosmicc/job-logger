@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from sqlalchemy import desc, select
+from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.orm import Session
 
 from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus
@@ -261,6 +262,30 @@ def reject_job(job: Job) -> Job:
 
     job.status = JobStatus.REJECTED
     return job
+
+
+def reset_ticket_data(database_session: Session) -> dict[str, int]:
+    """Clear persisted ticket and Autotask submission-state fields for a fresh debug state."""
+
+    jobs_reset = (
+        database_session.execute(
+            sqlalchemy_update(Job).values(
+                ticket_number=None,
+                ticket_status=None,
+                autotask_provider=None,
+                autotask_external_id=None,
+                autotask_submitted_at_utc=None,
+                autotask_error=None,
+            )
+        ).rowcount
+        or 0
+    )
+    attempts_removed = database_session.query(SubmissionAttempt).delete(synchronize_session=False)
+
+    return {
+        "jobs_reset": int(jobs_reset),
+        "submission_attempts_removed": int(attempts_removed),
+    }
 
 
 def submit_job_to_autotask(database_session: Session, job: Job) -> Job:

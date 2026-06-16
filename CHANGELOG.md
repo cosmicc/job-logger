@@ -18,10 +18,15 @@ All recorded changes to Job Logger are documented in this file.
 - Added a new authenticated `/debug` page for troubleshooting Autotask connectivity:
   includes a masked config snapshot, last-200 submission attempts, sanitized
   request payloads, and per-attempt success/failure indicators.
+- Added a debug action to clear all ticket-related job fields and submission
+  attempts from the `/debug` page so troubleshooting can begin from a clean
+  state without deleting the whole database.
 - Removed the recent-jobs list from the mobile entry page so `/mobile` stays focused
   on the active work flow only.
 - Added mobile audio recording pause/resume controls on `/mobile` so users can pause
   capture and continue before submitting the session for transcription.
+- Removed the pre-start Autotask ticket number input from `/mobile`; starting a new
+  entry now only presents the Start Work action.
 - Increased spacing between the mobile ticket number entry field and the Start Work
   button for clearer separation and easier tapping on mobile.
 - Removed `APP_PASSWORD_HASH` and Argon2 password-hash handling so deployments

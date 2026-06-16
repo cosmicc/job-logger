@@ -9,6 +9,15 @@
         <h1>Autotask debug</h1>
         <p class="muted-text">Review provider configuration and the most recent submission attempts.</p>
       </div>
+      <form
+        method="post"
+        action="/debug/tickets/reset"
+        class="debug-reset-form"
+        onsubmit="return confirm('Clear all ticket data and submission attempts for a fresh start?')"
+      >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="danger-outline-button" type="submit">Clear ticket data</button>
+      </form>
       <a class="secondary-link-button" href="/review">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M15 18l-6-6 6-6"></path>

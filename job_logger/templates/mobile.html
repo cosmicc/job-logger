@@ -111,18 +111,6 @@
         <p class="muted-text">Start work, record the summary notes during the job, then end work for review.</p>
         <form method="post" action="/jobs/start" class="start-work-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <label>
-            <span>Autotask ticket number</span>
-            <input
-              name="ticket_number"
-              placeholder="T20260326.0018"
-              maxlength="14"
-              pattern="[Tt][0-9]{8}\.[0-9]{4}"
-              autocapitalize="characters"
-              autocomplete="off"
-              spellcheck="false"
-            >
-          </label>
           <button class="primary-action-button" type="submit">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M8 5v14l11-7z"></path>

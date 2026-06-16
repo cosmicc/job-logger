@@ -12,8 +12,10 @@ from sqlalchemy.orm import Session
 
 from job_logger.config import settings
 from job_logger.database import get_database_session
+from job_logger.services.audit import record_audit_event
+from job_logger.services.jobs import reset_ticket_data
 from job_logger.models import Job, SubmissionAttempt
-from job_logger.security import require_authenticated_username
+from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_token
 from job_logger.ui import template_context, templates
 
 router = APIRouter(prefix="/debug", tags=["debug"])
@@ -122,3 +124,36 @@ def debug_page(request: Request, database_session: Session = Depends(get_databas
             submission_attempts=debug_submission_attempts,
         ),
     )
+
+
+@router.post("/tickets/reset")
+async def clear_ticket_data(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Clear debug ticket data and submission attempts to restart from a clean state."""
+
+    try:
+        actor = require_authenticated_username(request)
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=303)
+
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+
+    reset_stats = reset_ticket_data(database_session)
+    record_audit_event(
+        database_session,
+        actor=actor,
+        action="debug.ticket_data.reset",
+        request=request,
+        details=reset_stats,
+    )
+    database_session.commit()
+    add_flash_message(
+        request,
+        f"Ticket data reset: {reset_stats['jobs_reset']} job(s) cleared, "
+        f"{reset_stats['submission_attempts_removed']} submission attempt(s) removed.",
+        "success",
+    )
+    return RedirectResponse(url="/debug", status_code=303)
