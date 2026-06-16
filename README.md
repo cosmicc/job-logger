@@ -76,14 +76,14 @@ tunnel connector all come up with one `docker compose up -d --build` command.
 2. Add a public hostname that routes to this Docker service URL:
 
    ```text
-   http://nginx:8080
+   http://127.0.0.1:11030
    ```
 
 3. Create a Cloudflare Access self-hosted application for that hostname.
 4. Put the same hostname in `.env` under `APP_ALLOWED_HOSTS`.
 5. Put the tunnel token in `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
-   If the token is missing, the `cloudflared` service will log a clear error and
-   remain in a restart state until you add a valid token.
+   If this token is missing or invalid, Cloudflare will return a 502 and
+   `cloudflared` will repeatedly restart.
 6. Set `CLOUDFLARE_ACCESS_REQUIRED=true` after Access is verified.
 7. Start the full stack:
 
@@ -91,46 +91,33 @@ tunnel connector all come up with one `docker compose up -d --build` command.
    docker compose up -d --build
    ```
 
-Nginx is the internal web front end for this deployment. Public mobile and
-review traffic should enter through the Cloudflare Tunnel hostname, reach the
-internal Docker service `http://nginx:8080`, and then proxy to FastAPI at
+Nginx is the web front end for this deployment. Public mobile and review
+traffic should enter through the Cloudflare Tunnel hostname, reach the host-exposed
+Nginx endpoint `http://127.0.0.1:11030` by default (or
+`http://127.0.0.1:<NGINX_PUBLIC_PORT>` after you change it), and then proxy to FastAPI at
 `http://app:8000`.
 
 The app container is exposed only to the private Compose network. The local
 troubleshooting URL reaches Nginx on `127.0.0.1`, not the app container
 directly.
 
-`APP_INTERNAL_PORT` changes the Uvicorn port inside the app container and inside
-the Docker network. The default is `8000`. Nginx uses this value to reach the
-FastAPI app.
+`NGINX_PUBLIC_PORT` is the only configurable host-facing port. All other service
+ports are fixed internally and are not intended to be changed via environment:
 
-```text
-APP_INTERNAL_PORT=8010 -> Nginx proxies to http://app:8010
-```
+- Nginx listens on container port `80`.
+- App listens on container port `8000`.
+- PostgreSQL stays internal to Compose on container port `5432`.
 
-`NGINX_INTERNAL_PORT` changes the private Compose-network port that
-`cloudflared` should use. The default is `8080`. If you change it, update the
-Cloudflare public hostname service URL to match:
+If the local troubleshooting URL is changed to a different port, update only:
 
-```text
-NGINX_INTERNAL_PORT=8081 -> Cloudflare service URL http://nginx:8081
-```
-
-`NGINX_EXPOSE_PORT` changes only the optional host-side troubleshooting port.
-For example, the defaults create this mapping:
-
-```text
-Docker host 127.0.0.1:11030 -> nginx container port 8080 -> app container port 8000
+```env
+NGINX_PUBLIC_PORT=<your-host-port>
 ```
 
 If `cloudflared` is not running in this Compose stack, it will not be able to
 resolve the Docker service name `nginx`. In that separate-deployment case,
 either move `cloudflared` into this Compose stack or point the tunnel at the
 actual host-reachable Nginx URL.
-
-The `cloudflared` metrics endpoint is published only on localhost at
-`127.0.0.1:20241` by default so tunnel diagnostics can be collected from the
-Docker host without exposing metrics to the network.
 
 Nginx exposes two health paths:
 
@@ -151,13 +138,9 @@ hostname.
 Check these items first:
 
 - Confirm `.env` exists and contains a real `CLOUDFLARE_TUNNEL_TOKEN`.
-- Confirm the Cloudflare public hostname service URL is exactly
-  `http://nginx:8080` when `NGINX_INTERNAL_PORT=8080`, or
-  `http://nginx:<your-nginx-internal-port>` if you changed
-  `NGINX_INTERNAL_PORT`.
-- Do not use `http://localhost:<port>` or `http://127.0.0.1:<port>` in the
-  Cloudflare public hostname service URL. Inside the `cloudflared` container,
-  localhost means the tunnel container itself, not Nginx or FastAPI.
+- Confirm the Cloudflare tunnel origin (what your Cloudflare connector is configured
+  to reach) is `http://127.0.0.1:11030` by default, or your configured
+  `NGINX_PUBLIC_PORT`.
 - Confirm Nginx itself is reachable from the Docker host:
 
   ```bash
@@ -170,22 +153,28 @@ Check these items first:
   curl -i http://127.0.0.1:11030/health/live
   ```
 
-- Confirm Nginx is healthy from inside the tunnel container:
+- Confirm cloudflared is receiving the same origin URL from Compose environment:
 
   ```bash
-  docker compose exec cloudflared wget -qO- http://nginx:${NGINX_INTERNAL_PORT:-8080}/nginx-health
+  docker compose config | sed -n '/cloudflared:/,/  db:/p'
   ```
 
 - Confirm the app is healthy from inside the Nginx container:
 
   ```bash
-  docker compose exec nginx wget -qO- http://app:${APP_INTERNAL_PORT:-8000}/health/live
+  docker compose exec nginx wget -qO- http://app:8000/health/live
   ```
 
 - Review tunnel connector logs:
 
   ```bash
   docker compose logs --tail=100 cloudflared
+  ```
+
+- Confirm app-level host filtering is not rejecting the Cloudflare hostname:
+
+  ```bash
+  docker compose logs --tail=120 app | rg "Invalid host header|Invalid Host header|Cloudflare Access"
   ```
 
 - Run the bundled tunnel diagnostic script:

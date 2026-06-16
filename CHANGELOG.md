@@ -4,6 +4,11 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Simplified networking configuration so only `NGINX_PUBLIC_PORT` needs to be set
+  for deployment: app and Nginx internals are now fixed to `8000` and `80`
+  respectively, and optional internal/external port overrides were removed from
+  runtime configuration and diagnostics.
+
 - Added the initial `AGENTS.md` project instructions for the Dockerized Python
   Job Logger application.
 - Documented the security-first architecture, Cloudflare Tunnel deployment
@@ -43,3 +48,7 @@ All recorded changes to Job Logger are documented in this file.
 - Updated `cloudflared` compose command handling to work with Cloudflare's
   distroless image (no `/bin/sh`) and added a fallback tunnel-token value so
   startup logs remain actionable when the token is not set.
+- Updated tunnel diagnostics to focus on the running cloudflared instance rather
+  than invalid container checks for `/nginx-health` and to report clear token
+  state; this helps separate network routing failures from container startup
+  misconfiguration.

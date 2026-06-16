@@ -1,6 +1,6 @@
 server {
     # Nginx listens only inside Docker unless mapped by docker-compose.yml.
-    listen ${NGINX_INTERNAL_PORT};
+    listen 80;
     server_name _;
 
     # Send access and error logs to Docker so tunnel/origin troubleshooting does
@@ -23,7 +23,7 @@ server {
     # This endpoint lets diagnostics verify the same proxy path that
     # Cloudflare will use for the application after Nginx is up.
     location = /health/live {
-        proxy_pass http://${APP_UPSTREAM_HOST}:${APP_INTERNAL_PORT}/health/live;
+        proxy_pass http://${APP_UPSTREAM_HOST}:8000/health/live;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -34,7 +34,7 @@ server {
     }
 
     location / {
-        proxy_pass http://${APP_UPSTREAM_HOST}:${APP_INTERNAL_PORT};
+        proxy_pass http://${APP_UPSTREAM_HOST}:8000;
         proxy_http_version 1.1;
 
         # Preserve the original host and forwarding chain for TrustedHost,

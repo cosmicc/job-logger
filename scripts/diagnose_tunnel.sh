@@ -35,12 +35,8 @@ get_non_secret_setting() {
 }
 
 # Nginx is the front door for both local troubleshooting and Cloudflare Tunnel.
-NGINX_EXPOSE_PORT="$(get_non_secret_setting "NGINX_EXPOSE_PORT" "11030")"
-NGINX_INTERNAL_PORT="$(get_non_secret_setting "NGINX_INTERNAL_PORT" "8080")"
-
-# The internal port is where Uvicorn listens inside the app container and where
-# Nginx must connect when both services share this Compose network.
-APP_INTERNAL_PORT="$(get_non_secret_setting "APP_INTERNAL_PORT" "8000")"
+NGINX_PUBLIC_PORT="$(get_non_secret_setting "NGINX_PUBLIC_PORT" "11030")"
+CLOUDFLARE_TUNNEL_TOKEN="$(get_non_secret_setting "CLOUDFLARE_TUNNEL_TOKEN" "")"
 
 printf '%s\n' "Job Logger tunnel diagnostics"
 printf '%s\n' "============================="
@@ -49,35 +45,38 @@ printf '\n%s\n' "1. Docker Compose service state"
 docker compose ps
 
 printf '\n%s\n' "2. Nginx self-health through the host troubleshooting port"
-if curl -fsS "http://127.0.0.1:${NGINX_EXPOSE_PORT}/nginx-health" >/dev/null; then
+if curl -fsS "http://127.0.0.1:${NGINX_PUBLIC_PORT}/nginx-health" >/dev/null; then
     printf '%s\n' "Host Nginx self-health check passed."
 else
-    printf '%s\n' "Host Nginx self-health check failed. Nginx is not reachable on 127.0.0.1:${NGINX_EXPOSE_PORT}."
+    printf '%s\n' "Host Nginx self-health check failed. Nginx is not reachable on 127.0.0.1:${NGINX_PUBLIC_PORT}."
 fi
 
 printf '\n%s\n' "3. App health through the Nginx host troubleshooting port"
-if curl -fsS "http://127.0.0.1:${NGINX_EXPOSE_PORT}/health/live"; then
+if curl -fsS "http://127.0.0.1:${NGINX_PUBLIC_PORT}/health/live"; then
     printf '\n%s\n' "Nginx-to-app proxy health check passed from the host."
 else
     printf '\n%s\n' "Nginx is reachable, but the app health route did not pass through Nginx."
 fi
 
 printf '\n%s\n' "4. Mobile route through the Nginx host troubleshooting port"
-curl -i "http://127.0.0.1:${NGINX_EXPOSE_PORT}/mobile" || true
+curl -i "http://127.0.0.1:${NGINX_PUBLIC_PORT}/mobile" || true
 
-printf '\n%s\n' "5. Nginx self-health from inside the cloudflared container"
-if docker compose exec -T cloudflared wget -qO- "http://nginx:${NGINX_INTERNAL_PORT}/nginx-health" >/dev/null; then
-    printf '%s\n' "Container-to-container Nginx self-health check passed. Cloudflare Tunnel should use http://nginx:${NGINX_INTERNAL_PORT}."
+printf '\n%s\n' "5. App health from inside the app container"
+if docker compose exec -T app python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3).read()" >/dev/null; then
+    printf '\n%s\n' "App container health check passed."
 else
-    printf '%s\n' "Container-to-container Nginx self-health check failed. cloudflared cannot reach Nginx as http://nginx:${NGINX_INTERNAL_PORT}."
+    printf '\n%s\n' "App container health check failed. Container cannot serve http://127.0.0.1:8000/health/live."
 fi
 
-printf '\n%s\n' "6. App health from inside the Nginx container"
-if docker compose exec -T nginx wget -qO- "http://app:${APP_INTERNAL_PORT}/health/live"; then
-    printf '\n%s\n' "Nginx-to-app health check passed."
+printf '\n%s\n' "6. Cloudflared runtime and token state"
+docker compose ps cloudflared
+if [ -z "${CLOUDFLARE_TUNNEL_TOKEN}" ]; then
+    printf '%s\n' "CLOUDFLARE_TUNNEL_TOKEN is not set in environment."
+elif [ "${CLOUDFLARE_TUNNEL_TOKEN}" = "not-set" ]; then
+    printf '%s\n' "CLOUDFLARE_TUNNEL_TOKEN was expanded to 'not-set' in compose."
 else
-    printf '\n%s\n' "Nginx-to-app health check failed. Nginx cannot reach the app as http://app:${APP_INTERNAL_PORT}."
+    printf '%s\n' "CLOUDFLARE_TUNNEL_TOKEN is set."
 fi
-
-printf '\n%s\n' "7. Recent cloudflared logs"
+printf '%s\n' "Cloudflared is configured to use origin: http://127.0.0.1:${NGINX_PUBLIC_PORT}."
+printf '%s\n' "Recent cloudflared logs:"
 docker compose logs --tail=80 cloudflared
