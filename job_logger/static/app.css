@@ -402,7 +402,7 @@ a:focus-visible {
 
 .start-work-form {
   display: grid;
-  gap: 16px;
+  gap: 24px;
 }
 
 .ticket-number-form {
@@ -413,7 +413,7 @@ a:focus-visible {
 }
 
 .start-work-form .primary-action-button {
-  margin-top: 6px;
+  margin-top: 10px;
 }
 
 .button-grid {
@@ -421,6 +421,11 @@ a:focus-visible {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   margin-top: 16px;
+}
+
+.recording-control-stack {
+  display: grid;
+  gap: 10px;
 }
 
 .recording-status {

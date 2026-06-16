@@ -68,19 +68,32 @@
         </div>
 
         <div class="button-grid">
-          <button
-            class="secondary-button"
-            id="record-description-button"
-            type="button"
-            data-job-id="{{ active_job.id }}"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-              <path d="M12 19v3"></path>
-            </svg>
-            Record Notes
-          </button>
+          <div class="recording-control-stack">
+            <button
+              class="secondary-button"
+              id="record-description-button"
+              type="button"
+              data-job-id="{{ active_job.id }}"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <path d="M12 19v3"></path>
+              </svg>
+              Record Notes
+            </button>
+            <button
+              class="secondary-button"
+              id="stop-description-button"
+              type="button"
+              hidden
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="6" y="6" width="12" height="12"></rect>
+              </svg>
+              Stop &amp; Transcribe
+            </button>
+          </div>
           <form method="post" action="/jobs/{{ active_job.id }}/end">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="danger-button" type="submit">

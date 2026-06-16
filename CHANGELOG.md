@@ -20,6 +20,10 @@ All recorded changes to Job Logger are documented in this file.
   request payloads, and per-attempt success/failure indicators.
 - Removed the recent-jobs list from the mobile entry page so `/mobile` stays focused
   on the active work flow only.
+- Added mobile audio recording pause/resume controls on `/mobile` so users can pause
+  capture and continue before submitting the session for transcription.
+- Increased spacing between the mobile ticket number entry field and the Start Work
+  button for clearer separation and easier tapping on mobile.
 - Removed `APP_PASSWORD_HASH` and Argon2 password-hash handling so deployments
   use only `APP_USERNAME` and `APP_PASSWORD`; set Cloudflare Access enforcement
   off by default unless explicitly enabled after Access is configured.

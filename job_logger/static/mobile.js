@@ -1,5 +1,6 @@
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 const recordButton = document.getElementById("record-description-button");
+const stopRecordingButton = document.getElementById("stop-description-button");
 const recordingStatus = document.getElementById("recording-status");
 const descriptionPreview = document.getElementById("description-preview");
 const activeTicketForm = document.getElementById("active-ticket-form");
@@ -12,6 +13,8 @@ let lastSavedDescription = descriptionPreview ? descriptionPreview.value : "";
 let activeRecorder = null;
 let activeAudioChunks = [];
 let activeAudioStream = null;
+let activeRecordingJobId = "";
+let isUploadingRecording = false;
 
 function setRecordingStatus(message, isError = false) {
   if (!recordingStatus) {
@@ -20,6 +23,41 @@ function setRecordingStatus(message, isError = false) {
 
   recordingStatus.textContent = message;
   recordingStatus.classList.toggle("error-text", isError);
+}
+
+function setRecordingUi(isRecording = false, isPaused = false, isUploading = false) {
+  if (!recordButton) {
+    return;
+  }
+
+  if (isUploading) {
+    recordButton.disabled = true;
+    recordButton.classList.remove("is-recording");
+    recordButton.textContent = "Processing recording...";
+    if (stopRecordingButton) {
+      stopRecordingButton.hidden = true;
+      stopRecordingButton.disabled = true;
+    }
+    return;
+  }
+
+  recordButton.disabled = false;
+  if (isRecording) {
+    recordButton.classList.add("is-recording");
+    recordButton.textContent = isPaused ? "Resume Notes" : "Pause Notes";
+    if (stopRecordingButton) {
+      stopRecordingButton.hidden = false;
+      stopRecordingButton.disabled = false;
+    }
+    return;
+  }
+
+  recordButton.classList.remove("is-recording");
+  recordButton.textContent = "Record Notes";
+  if (stopRecordingButton) {
+    stopRecordingButton.hidden = true;
+    stopRecordingButton.disabled = false;
+  }
 }
 
 function getJobIdForDescription() {
@@ -32,6 +70,19 @@ function getJobIdForDescription() {
   }
 
   return "";
+}
+
+function resetRecordingState() {
+  isUploadingRecording = false;
+  if (activeAudioStream) {
+    stopActiveStream();
+  }
+
+  activeAudioStream = null;
+  activeRecorder = null;
+  activeAudioChunks = [];
+  activeRecordingJobId = "";
+  setRecordingUi(false);
 }
 
 async function saveDescriptionText(jobId, descriptionText) {
@@ -148,9 +199,11 @@ async function startRecording() {
     return;
   }
 
+  setRecordingStatus("Preparing recorder...");
   activeAudioChunks = [];
   activeAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   activeRecorder = new MediaRecorder(activeAudioStream);
+  activeRecordingJobId = jobId;
 
   activeRecorder.addEventListener("dataavailable", (event) => {
     if (event.data && event.data.size > 0) {
@@ -158,43 +211,96 @@ async function startRecording() {
     }
   });
 
+  activeRecorder.addEventListener("pause", () => {
+    setRecordingUi(true, true);
+    setRecordingStatus("Recording paused.");
+  });
+
+  activeRecorder.addEventListener("resume", () => {
+    setRecordingUi(true, false);
+    setRecordingStatus("Recording notes...");
+  });
+
   activeRecorder.addEventListener("stop", async () => {
-    recordButton.classList.remove("is-recording");
-    recordButton.innerHTML = recordButton.dataset.originalHtml;
     stopActiveStream();
     try {
       const audioBlob = new Blob(activeAudioChunks, { type: "audio/webm" });
+      isUploadingRecording = true;
+      setRecordingUi(false, false, true);
       setRecordingStatus("Uploading recording for transcription...");
-      await uploadRecording(jobId, audioBlob);
+      await uploadRecording(activeRecordingJobId, audioBlob);
       setRecordingStatus("Notes updated.");
     } catch (error) {
       setRecordingStatus(error.message, true);
     } finally {
-      activeRecorder = null;
-      activeAudioChunks = [];
+      resetRecordingState();
     }
   });
 
-  recordButton.dataset.originalHtml = recordButton.innerHTML;
-  recordButton.classList.add("is-recording");
-  recordButton.textContent = "Stop Recording";
   activeRecorder.start();
+  setRecordingUi(true, false);
   setRecordingStatus("Recording notes...");
+}
+
+function pauseOrResumeRecording() {
+  if (!activeRecorder) {
+    return;
+  }
+
+  if (!activeRecorder.pause || !activeRecorder.resume) {
+    setRecordingStatus("Pause/resume is not supported in this browser.");
+    return;
+  }
+
+  if (activeRecorder.state === "recording") {
+    activeRecorder.pause();
+    return;
+  }
+
+  if (activeRecorder.state === "paused") {
+    activeRecorder.resume();
+  }
+}
+
+function stopRecording() {
+  if (!activeRecorder || isUploadingRecording || activeRecorder.state === "inactive") {
+    return;
+  }
+
+  if (activeRecorder.state === "paused") {
+    activeRecorder.resume();
+  }
+
+  activeRecorder.stop();
 }
 
 if (recordButton) {
   recordButton.addEventListener("click", async () => {
-    if (activeRecorder && activeRecorder.state === "recording") {
-      activeRecorder.stop();
+    if (isUploadingRecording) {
+      return;
+    }
+
+    if (activeRecorder) {
+      pauseOrResumeRecording();
       return;
     }
 
     try {
       await startRecording();
     } catch (error) {
-      stopActiveStream();
+      resetRecordingState();
       setRecordingStatus(error.message || "Recording could not start.", true);
     }
+  });
+}
+
+if (stopRecordingButton) {
+  stopRecordingButton.addEventListener("click", () => {
+    if (isUploadingRecording) {
+      return;
+    }
+
+    stopRecording();
   });
 }
 
