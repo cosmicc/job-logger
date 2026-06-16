@@ -96,6 +96,14 @@ tunnel connector all come up with one `docker compose up -d --build` command.
    docker compose up -d --build
    ```
 
+   After changing `APP_ALLOWED_HOSTS`, `NGINX_PUBLIC_PORT`, or the nginx proxy
+   config, recreate the app-facing services so Docker applies the new container
+   environment and rendered nginx config:
+
+   ```bash
+   docker compose up -d --build --force-recreate app nginx cloudflared
+   ```
+
 Nginx is the web front end for this deployment. Public mobile and review
 traffic should enter through the Cloudflare Tunnel hostname, reach the host-exposed
 Nginx endpoint on `<server-internal-ip>:11030` by default (or
@@ -134,6 +142,11 @@ Nginx exposes two health paths:
 - `/nginx-health` checks only the Nginx container.
 - `/health/live` proxies through Nginx to the FastAPI app.
 
+The nginx container is built from `docker/nginx/Dockerfile` with this app's
+proxy template baked in. If `/nginx-health` returns a stock nginx 404 page, the
+running container is not using this project's nginx image/config and should be
+rebuilt.
+
 The normal Nginx startup log ends with `Configuration complete; ready for start
 up` and `start worker process`. If the log later says `signal 3 (SIGQUIT)
 received, shutting down`, Docker or Compose asked Nginx to stop gracefully; that
@@ -168,6 +181,13 @@ Check these items first:
 
   ```bash
   curl -i http://192.168.199.11:11030/nginx-health
+  ```
+
+- Confirm the app accepts the Cloudflare public hostname after container
+  recreation:
+
+  ```bash
+  curl -i -H 'Host: joblogger.lsec.io' http://127.0.0.1:11030/health/live
   ```
 
 - Confirm the app is healthy from inside the app container:

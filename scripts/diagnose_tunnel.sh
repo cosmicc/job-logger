@@ -37,7 +37,21 @@ get_non_secret_setting() {
 # Nginx is the front door for both local troubleshooting and Cloudflare Tunnel.
 NGINX_PUBLIC_PORT="$(get_non_secret_setting "NGINX_PUBLIC_PORT" "11030")"
 CLOUDFLARE_TUNNEL_TOKEN="$(get_non_secret_setting "CLOUDFLARE_TUNNEL_TOKEN" "")"
+APP_ALLOWED_HOSTS="$(get_non_secret_setting "APP_ALLOWED_HOSTS" "localhost,127.0.0.1,app,nginx")"
 HOST_IPV4_ADDRESSES="$(hostname -I 2>/dev/null | tr ' ' '\n' | awk '/^[0-9]+\./ && $1 !~ /^127\./ { print }' | sort -u || true)"
+PUBLIC_ALLOWED_HOST="$(
+    printf '%s\n' "${APP_ALLOWED_HOSTS}" \
+        | tr ',' '\n' \
+        | awk '
+            {
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
+            }
+            $0 != "" && $0 != "localhost" && $0 != "127.0.0.1" && $0 != "app" && $0 != "nginx" {
+                print
+                exit
+            }
+        '
+)"
 
 printf '%s\n' "Job Logger tunnel diagnostics"
 printf '%s\n' "============================="
@@ -72,17 +86,26 @@ else
     done
 fi
 
-printf '\n%s\n' "5. Mobile route through the Nginx host troubleshooting port"
+printf '\n%s\n' "5. App host-filter check through Nginx"
+if [ -z "${PUBLIC_ALLOWED_HOST}" ]; then
+    printf '%s\n' "No public host was found in APP_ALLOWED_HOSTS."
+elif curl -fsS -H "Host: ${PUBLIC_ALLOWED_HOST}" "http://127.0.0.1:${NGINX_PUBLIC_PORT}/health/live" >/dev/null; then
+    printf '%s\n' "Host-filter check passed for Host: ${PUBLIC_ALLOWED_HOST}."
+else
+    printf '%s\n' "Host-filter check failed for Host: ${PUBLIC_ALLOWED_HOST}. Recreate the app container after updating APP_ALLOWED_HOSTS."
+fi
+
+printf '\n%s\n' "6. Mobile route through the Nginx host troubleshooting port"
 curl -i "http://127.0.0.1:${NGINX_PUBLIC_PORT}/mobile" || true
 
-printf '\n%s\n' "6. App health from inside the app container"
+printf '\n%s\n' "7. App health from inside the app container"
 if docker compose exec -T app python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3).read()" >/dev/null; then
     printf '\n%s\n' "App container health check passed."
 else
     printf '\n%s\n' "App container health check failed. Container cannot serve http://127.0.0.1:8000/health/live."
 fi
 
-printf '\n%s\n' "7. Cloudflared runtime and token state"
+printf '\n%s\n' "8. Cloudflared runtime and token state"
 docker compose ps cloudflared
 if [ -z "${CLOUDFLARE_TUNNEL_TOKEN}" ]; then
     printf '%s\n' "CLOUDFLARE_TUNNEL_TOKEN is not set in environment."

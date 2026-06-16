@@ -55,7 +55,8 @@ services:
       retries: 3
 
   nginx:
-    image: nginx:1.27-alpine
+    build:
+      context: ./docker/nginx
     restart: unless-stopped
     environment:
       # APP_UPSTREAM_HOST is the Docker DNS name for the FastAPI service.
@@ -71,8 +72,6 @@ services:
       # Keep host firewall rules tight because this bypasses Cloudflare Access
       # for clients that can directly reach the server IP.
       - "0.0.0.0:${NGINX_PUBLIC_PORT:-11030}:80"
-    volumes:
-      - ./docker/nginx/templates:/etc/nginx/templates:ro
     healthcheck:
       # Check that the Nginx master process is alive.
       # This avoids failures when the container image does not include wget/curl.

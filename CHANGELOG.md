@@ -12,6 +12,9 @@ All recorded changes to Job Logger are documented in this file.
   dashboard service URL can target the server's LAN/internal IP on
   `NGINX_PUBLIC_PORT`; removed the local `cloudflared --url` override so the
   remotely-managed tunnel route remains authoritative.
+- Baked the Nginx proxy template into a local Nginx image and expanded tunnel
+  diagnostics to detect public-host `APP_ALLOWED_HOSTS` mismatches, preventing
+  the stock Nginx 404 page from masking a missing proxy configuration.
 
 - Added the initial `AGENTS.md` project instructions for the Dockerized Python
   Job Logger application.
