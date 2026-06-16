@@ -19,7 +19,6 @@ from job_logger.services.jobs import (
     JobWorkflowError,
     end_job,
     get_active_job,
-    list_review_jobs,
     start_job,
     transcribe_active_job_audio,
     update_active_job_ticket_number,
@@ -49,11 +48,10 @@ def mobile_page(
         return RedirectResponse(url="/login", status_code=303)
 
     active_job = get_active_job(database_session)
-    recent_jobs = list_review_jobs(database_session)[:5]
     return templates.TemplateResponse(
         request,
         "mobile.html",
-        template_context(request, active_job=active_job, recent_jobs=recent_jobs),
+        template_context(request, active_job=active_job),
     )
 
 

@@ -15,6 +15,11 @@ All recorded changes to Job Logger are documented in this file.
 - Baked the Nginx proxy template into a local Nginx image and expanded tunnel
   diagnostics to detect public-host `APP_ALLOWED_HOSTS` mismatches, preventing
   the stock Nginx 404 page from masking a missing proxy configuration.
+- Added a new authenticated `/debug` page for troubleshooting Autotask connectivity:
+  includes a masked config snapshot, last-200 submission attempts, sanitized
+  request payloads, and per-attempt success/failure indicators.
+- Removed the recent-jobs list from the mobile entry page so `/mobile` stays focused
+  on the active work flow only.
 - Removed `APP_PASSWORD_HASH` and Argon2 password-hash handling so deployments
   use only `APP_USERNAME` and `APP_PASSWORD`; set Cloudflare Access enforcement
   off by default unless explicitly enabled after Access is configured.

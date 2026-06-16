@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Autotask Debug - Job Logger{% endblock %}
+
+{% block content %}
+  <section class="debug-shell">
+    <div class="review-header">
+      <div>
+        <h1>Autotask debug</h1>
+        <p class="muted-text">Review provider configuration and the most recent submission attempts.</p>
+      </div>
+      <a class="secondary-link-button" href="/review">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6"></path>
+        </svg>
+        Review
+      </a>
+    </div>
+
+    <section class="table-panel" aria-label="Autotask configuration">
+      <div class="debug-panel-body">
+        <h2>Autotask configuration snapshot</h2>
+        <dl class="debug-list">
+          <div>
+            <dt>Provider</dt>
+            <dd>{{ autotask_settings.provider }}</dd>
+          </div>
+          <div>
+            <dt>Base URL</dt>
+            <dd>{{ autotask_settings.base_url or "not configured" }}</dd>
+          </div>
+          <div>
+            <dt>API user configured</dt>
+            <dd>
+              {% if autotask_settings.has_username %}Yes{% else %}No{% endif %}
+            </dd>
+          </div>
+          <div>
+            <dt>API secret configured</dt>
+            <dd>
+              {% if autotask_settings.has_secret %}Yes{% else %}No{% endif %}
+            </dd>
+          </div>
+          <div>
+            <dt>API integration code configured</dt>
+            <dd>
+              {% if autotask_settings.has_api_integration_code %}Yes{% else %}No{% endif %}
+            </dd>
+          </div>
+          <div>
+            <dt>Resource/Role IDs configured</dt>
+            <dd>
+              Resource: {% if autotask_settings.has_resource_id %}Yes{% else %}No{% endif %}, Role: {% if autotask_settings.has_role_id %}Yes{% else %}No{% endif %}
+            </dd>
+          </div>
+          <div>
+            <dt>Time entry type</dt>
+            <dd>{{ autotask_settings.time_entry_type }}</dd>
+          </div>
+        </dl>
+
+        <p class="eyebrow-text">Status mapping IDs</p>
+        <pre class="debug-code">{{ autotask_settings.status_id_map | tojson }}</pre>
+      </div>
+    </section>
+
+    <section class="table-panel" aria-label="Recent Autotask submission attempts">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <h2>Autotask submission attempts</h2>
+          <p class="muted-text">Newest records first, max 200.</p>
+        </div>
+
+        {% if submission_attempts %}
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Job</th>
+                  <th>Ticket</th>
+                  <th>Provider</th>
+                  <th>Status</th>
+                  <th>External ID</th>
+                  <th>Error</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for attempt in submission_attempts %}
+                  <tr>
+                    <td>{{ attempt.created_at_utc }}</td>
+                    <td title="{{ attempt.job_id }}">{{ attempt.job_id[:8] }}</td>
+                    <td>{{ attempt.job_ticket_number or "No ticket" }}</td>
+                    <td>{{ attempt.provider }}</td>
+                    <td>
+                      {% if attempt.succeeded %}
+                        <span class="status-chip status-submitted">Succeeded</span>
+                      {% else %}
+                        <span class="status-chip status-submission_failed">Failed</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ attempt.external_id or "—" }}</td>
+                    <td class="truncate-cell">{{ attempt.safe_error or "—" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <details class="debug-requests">
+            <summary>Show last 200 request snapshots</summary>
+            {% for attempt in submission_attempts %}
+              <div class="debug-attempt">
+                <p>
+                  <strong>{{ attempt.id }}</strong>
+                  <span class="muted-text">{{ attempt.created_at_utc }} · {{ attempt.provider }}</span>
+                </p>
+                <pre class="debug-code">{{ attempt.request_snapshot }}</pre>
+              </div>
+            {% endfor %}
+          </details>
+        {% else %}
+          <p class="muted-text">No Autotask submission attempts have been recorded yet.</p>
+        {% endif %}
+      </div>
+    </section>
+  </section>
+{% endblock %}

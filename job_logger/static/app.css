@@ -163,7 +163,8 @@ svg {
 
 .login-shell,
 .mobile-shell,
-.review-shell {
+.review-shell,
+.debug-shell {
   width: min(1120px, calc(100% - 32px));
   margin: 32px auto;
 }
@@ -178,7 +179,8 @@ svg {
 .work-panel,
 .table-panel,
 .edit-panel,
-.audit-panel {
+.audit-panel,
+.debug-table-panel {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -591,6 +593,77 @@ td a {
   margin-top: 18px;
   padding: 16px;
   box-shadow: none;
+}
+
+.debug-panel-body {
+  padding: 18px;
+}
+
+.debug-list {
+  display: grid;
+  gap: 12px;
+}
+
+.debug-list div {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.debug-list dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.debug-list dd {
+  margin: 0;
+  font-size: 14px;
+}
+
+.debug-code {
+  margin: 10px 0 0;
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: #050e1b;
+  color: #d2e4ff;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.debug-requests {
+  margin-top: 18px;
+}
+
+.debug-requests summary {
+  cursor: pointer;
+}
+
+.debug-attempt {
+  margin-top: 14px;
+}
+
+.debug-attempt p {
+  margin: 0 0 8px;
+}
+
+.debug-attempt .muted-text {
+  margin-left: 8px;
+}
+
+.truncate-cell {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .audit-list {

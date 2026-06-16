@@ -120,24 +120,6 @@
       {% endif %}
     </section>
 
-    <section class="recent-list" aria-label="Recent jobs">
-      <h2>Recent jobs</h2>
-      {% if recent_jobs %}
-        <div class="job-list">
-          {% for job in recent_jobs %}
-            <a class="job-row" href="/review/{{ job.id }}">
-              <span>
-                <strong>{{ job.ticket_number or "No ticket yet" }}</strong>
-                <small>{{ job.created_at_utc|local_display }}</small>
-              </span>
-              <span class="status-chip status-{{ job.status.value }}">{{ job.status.value.replace("_", " ") }}</span>
-            </a>
-          {% endfor %}
-        </div>
-      {% else %}
-        <p class="muted-text">No jobs recorded yet.</p>
-      {% endif %}
-    </section>
   </section>
   <script src="{{ url_for('static', path='mobile.js') }}" defer></script>
 {% endblock %}
