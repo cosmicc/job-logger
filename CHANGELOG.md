@@ -23,3 +23,6 @@ All recorded changes to Job Logger are documented in this file.
   documentation.
 - Added tunnel 502 troubleshooting documentation and a `/moble` typo redirect
   to the mobile page.
+- Added a tunnel diagnostic script and clarified that Cloudflare Tunnel should
+  route to `http://app:8000` when `cloudflared` runs in the Compose stack,
+  regardless of the host-side `APP_EXPOSE_PORT` value.

@@ -87,6 +87,26 @@ troubleshooting. Public mobile and review traffic should enter through the
 Cloudflare Tunnel hostname and then reach the internal Docker service
 `http://app:8000`.
 
+`APP_EXPOSE_PORT` does not change the port inside the Docker network. It only
+changes the optional host-side troubleshooting port. For example,
+`APP_EXPOSE_PORT=11030` creates this mapping:
+
+```text
+Docker host 127.0.0.1:11030 -> app container port 8000
+```
+
+When `cloudflared` runs as the Compose service in this project, Cloudflare
+should still use:
+
+```text
+http://app:8000
+```
+
+If `cloudflared` is not running in this Compose stack, it will not be able to
+resolve the Docker service name `app`. In that separate-deployment case, either
+move `cloudflared` into this Compose stack or point the tunnel at the actual
+host-reachable app URL.
+
 The `cloudflared` metrics endpoint is published only on localhost at
 `127.0.0.1:20241` by default so tunnel diagnostics can be collected from the
 Docker host without exposing metrics to the network.
@@ -121,6 +141,12 @@ Check these items first:
 
   ```bash
   docker compose logs --tail=100 cloudflared
+  ```
+
+- Run the bundled tunnel diagnostic script:
+
+  ```bash
+  scripts/diagnose_tunnel.sh
   ```
 
 The mobile route is `/mobile`. The app also redirects `/moble` to `/mobile` to
