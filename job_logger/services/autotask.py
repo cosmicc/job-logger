@@ -119,6 +119,10 @@ class AutotaskConnectivityResult:
     # checked_operations records which dependency checks completed.
     checked_operations: tuple[str, ...] = ()
 
+    # failed_operation identifies the first dependency operation that failed.
+    # It is intentionally a short local label, not a remote response body.
+    failed_operation: str | None = None
+
 
 @dataclass(frozen=True)
 class AutotaskSubmissionResult:
@@ -388,18 +392,63 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
     def _query_tickets_for_connectivity(self, client: httpx.Client) -> None:
         """Confirm the Tickets query endpoint is reachable without exposing data."""
 
-        query_payload = {"filter": [{"op": "eq", "field": "id", "value": 0}]}
-        self._query_paginated_items(
+        query_payload = {"filter": [{"op": "exist", "field": "id"}]}
+        self._query_single_page_for_connectivity(
             client,
             endpoint_path="/Tickets/query",
             query_payload=query_payload,
             action_description="Autotask ticket connectivity query",
         )
 
-    def _tips_for_remote_failure(self, exc: Exception) -> tuple[str, ...]:
+    def _query_companies_for_connectivity(self, client: httpx.Client) -> None:
+        """Confirm the Companies query endpoint is reachable without exposing data."""
+
+        # The app needs live Companies query access for mobile client selection.
+        # Using a one-page existence probe avoids assuming any specific company
+        # ID exists and avoids walking through customer data during diagnostics.
+        query_payload = {"filter": [{"op": "exist", "field": "id"}]}
+        self._query_single_page_for_connectivity(
+            client,
+            endpoint_path="/Companies/query",
+            query_payload=query_payload,
+            action_description="Autotask company connectivity query",
+        )
+
+    def _query_single_page_for_connectivity(
+        self,
+        client: httpx.Client,
+        *,
+        endpoint_path: str,
+        query_payload: dict[str, Any],
+        action_description: str,
+    ) -> None:
+        """Run one bounded query page to prove an Autotask endpoint is usable."""
+
+        connectivity_query_payload = dict(query_payload)
+        connectivity_query_payload["MaxRecords"] = 1
+        response = client.post(endpoint_path, json=connectivity_query_payload)
+        self._raise_for_safe_response(response, action_description)
+        response.json()
+
+    def _tips_for_remote_failure(self, exc: Exception, failed_operation: str | None = None) -> tuple[str, ...]:
         """Return safe troubleshooting tips for a failed live Autotask check."""
 
         error_message = str(exc)
+        if "HTTP 500" in error_message and failed_operation == "companies":
+            return (
+                "Autotask accepted the base URL and credentials but failed the Companies query used by mobile client lookup.",
+                "Confirm the API user's security level can read Companies/Organizations through the Autotask REST API.",
+                "Run scripts/discover_autotask_ids.py again and check its workflow preflight section; "
+                "ID discovery can succeed while Companies query access still fails.",
+            )
+
+        if "HTTP 500" in error_message and failed_operation == "tickets":
+            return (
+                "Autotask accepted the base URL and credentials but failed the Tickets query used by open-ticket lookup and submission.",
+                "Confirm the API user's security level can read Tickets through the Autotask REST API.",
+                "If permissions look correct, retest later or open an Autotask support case because the tenant returned a server-side 500.",
+            )
+
         if isinstance(exc, httpx.TimeoutException):
             return (
                 "Confirm the Docker host can reach the internet and Autotask is not blocked by firewall or DNS policy.",
@@ -450,20 +499,29 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     "Use scripts/discover_autotask_ids.py to look up role, billing code, and ticket status IDs after API credentials work.",
                 ),
                 checked_operations=("configuration",),
+                failed_operation="configuration",
             )
 
+        checked_operations: list[str] = ["configuration"]
+        failed_operation = "companies"
         try:
             with self._client(timeout_seconds=10.0) as client:
-                self._query_company_by_id(client, 0)
+                self._query_companies_for_connectivity(client)
+                checked_operations.append("companies")
+                failed_operation = "ticket status metadata"
                 self._query_ticket_status_labels(client)
+                checked_operations.append("ticket status metadata")
+                failed_operation = "tickets"
                 self._query_tickets_for_connectivity(client)
+                checked_operations.append("tickets")
         except (httpx.HTTPError, ValueError, AutotaskSubmissionError) as exc:
             return AutotaskConnectivityResult(
                 provider=self.provider_name,
                 available=False,
-                summary=f"Autotask API check failed: {exc}",
-                tips=self._tips_for_remote_failure(exc),
-                checked_operations=("configuration", "companies", "ticket status metadata", "tickets"),
+                summary=f"Autotask API check failed during {failed_operation}: {exc}",
+                tips=self._tips_for_remote_failure(exc, failed_operation),
+                checked_operations=tuple(checked_operations),
+                failed_operation=failed_operation,
             )
 
         return AutotaskConnectivityResult(
@@ -471,7 +529,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             available=True,
             summary="Autotask API connection succeeded for company lookup, ticket status metadata, and ticket lookup.",
             tips=("Autotask is available for starting new jobs.",),
-            checked_operations=("configuration", "companies", "ticket status metadata", "tickets"),
+            checked_operations=tuple(checked_operations),
         )
 
     def _query_ticket_status_labels(self, client: httpx.Client) -> dict[int, str]:

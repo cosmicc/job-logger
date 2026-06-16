@@ -4,6 +4,10 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Improved Autotask diagnostics so the debug API test records the first failed
+  operation, adds Companies/Tickets-specific troubleshooting tips for Autotask
+  HTTP 500 responses, and makes `scripts/discover_autotask_ids.py` print
+  non-fatal workflow endpoint preflight results alongside ID discovery.
 - Added support for two overlapping active jobs (Job 1 and Job 2) with explicit
   slot assignment, added client reference capture at job start, and preserved
   completion behavior when manual summary notes are typed on the mobile screen by

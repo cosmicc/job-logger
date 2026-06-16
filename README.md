@@ -302,6 +302,12 @@ required workflow configuration and the live Companies/Tickets API calls used by
 the app. If the check fails, new jobs cannot be started until Autotask
 connectivity or configuration is fixed.
 
+The `scripts/discover_autotask_ids.py` helper also prints a workflow endpoint
+preflight section. Role, billing-code, and ticket-status ID discovery can
+succeed even when the Autotask API user cannot query Companies or Tickets, so
+use the preflight result and the `/debug` failed-operation label when diagnosing
+Autotask HTTP 500 or permission failures.
+
 ## Time Handling
 
 All user-facing dates and times use `America/Detroit`.

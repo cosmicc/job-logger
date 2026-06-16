@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
+import pytest
+
 from job_logger.config import settings
 from job_logger.services.autotask import (
     _COMPANY_ID_CACHE,
@@ -112,6 +114,49 @@ class FakeEmptyCompanyQueryClient:
         return FakeAutotaskResponse({"items": [], "pageDetails": {}})
 
 
+class FakeConnectivityContext:
+    """Context manager that returns a fake Autotask client for diagnostics."""
+
+    def __init__(self, fake_client: object) -> None:
+        """Store the fake client returned to the provider."""
+
+        # fake_client is the object used by LiveAutotaskProvider inside `with`.
+        self.fake_client = fake_client
+
+    def __enter__(self) -> object:
+        """Return the fake client to the provider connectivity check."""
+
+        return self.fake_client
+
+    def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> bool:
+        """Do not suppress provider exceptions in connectivity tests."""
+
+        return False
+
+
+class FakeCompanyConnectivityFailureClient:
+    """Fake Autotask client that fails the Companies workflow probe."""
+
+    def __init__(self) -> None:
+        """Initialize a flag proving later checks were not attempted."""
+
+        # get_call_count would increase if ticket metadata ran after failure.
+        self.get_call_count = 0
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return an Autotask HTTP 500 for the Companies query probe."""
+
+        assert endpoint_path == "/Companies/query"
+        assert json["MaxRecords"] == 1
+        return FakeAutotaskResponse({"errors": ["server failure"]}, status_code=500)
+
+    def get(self, endpoint_path: str) -> FakeAutotaskResponse:
+        """Fail if later connectivity checks run after Companies failure."""
+
+        self.get_call_count += 1
+        return FakeAutotaskResponse({})
+
+
 def _live_test_provider() -> LiveAutotaskProvider:
     """Return a configured live provider without real Autotask credentials."""
 
@@ -185,3 +230,28 @@ def test_ticket_status_lookup_uses_cache() -> None:
     assert first_lookup == {1: "In Progress", 5: "Complete"}
     assert second_lookup == first_lookup
     assert fake_client.get_call_count == 1
+
+
+def test_connectivity_result_identifies_company_query_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Autotask diagnostics should identify the first failed workflow operation."""
+
+    provider = _live_test_provider()
+    fake_client = FakeCompanyConnectivityFailureClient()
+
+    def fake_client_context(timeout_seconds: float = 10.0) -> FakeConnectivityContext:
+        """Return the fake context manager while accepting the provider timeout."""
+
+        # timeout_seconds is accepted so the fake matches LiveAutotaskProvider._client.
+        assert timeout_seconds == 10.0
+        return FakeConnectivityContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    connectivity_result = provider.test_connectivity()
+
+    assert connectivity_result.available is False
+    assert connectivity_result.failed_operation == "companies"
+    assert connectivity_result.checked_operations == ("configuration",)
+    assert "during companies" in connectivity_result.summary
+    assert any("Companies query" in tip for tip in connectivity_result.tips)
+    assert fake_client.get_call_count == 0

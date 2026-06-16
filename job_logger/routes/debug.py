@@ -79,6 +79,7 @@ def _serialize_connectivity_result(result: AutotaskConnectivityResult) -> dict[s
         "summary": result.summary,
         "tips": list(result.tips),
         "checked_operations": list(result.checked_operations),
+        "failed_operation": result.failed_operation,
     }
 
 

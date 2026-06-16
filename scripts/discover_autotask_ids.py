@@ -2,8 +2,9 @@
 """Discover Autotask IDs needed by Job Logger from a local .env file.
 
 The script performs read-only Autotask REST calls for role IDs, billing code
-IDs, and ticket status picklist IDs. It intentionally avoids printing secrets,
-raw request headers, or raw environment values.
+IDs, ticket status picklist IDs, and workflow endpoint preflight checks. It
+intentionally avoids printing secrets, raw request headers, or raw environment
+values.
 """
 
 from __future__ import annotations
@@ -204,6 +205,41 @@ def raise_for_autotask_error(response: httpx.Response, action_description: str) 
     raise RuntimeError(f"{action_description} failed with HTTP {response.status_code}.")
 
 
+def print_workflow_preflight(client: httpx.Client) -> None:
+    """Print non-fatal checks for the endpoints the app needs at runtime."""
+
+    # workflow_probes intentionally use one-record existence queries. These
+    # checks prove endpoint permissions without printing company or ticket data.
+    workflow_probes = (
+        ("Companies query", "/Companies/query"),
+        ("Tickets query", "/Tickets/query"),
+    )
+
+    print("Workflow Endpoint Preflight")
+    print("---------------------------")
+    for probe_label, endpoint_path in workflow_probes:
+        # query_payload mirrors the app diagnostic: it asks Autotask for one
+        # bounded page and avoids assuming that any particular ID exists.
+        query_payload = {
+            "filter": [{"op": "exist", "field": "id"}],
+            "MaxRecords": 1,
+        }
+        try:
+            response = client.post(endpoint_path, json=query_payload)
+        except httpx.HTTPError as error:
+            print(f"{probe_label}: failed with {type(error).__name__}")
+            continue
+
+        if response.status_code < 400:
+            print(f"{probe_label}: ok")
+            continue
+
+        print(f"{probe_label}: failed with HTTP {response.status_code}")
+
+    print("Note: ID discovery can succeed even when these workflow checks fail.")
+    print()
+
+
 def query_entity_records(client: httpx.Client, entity_name: str) -> list[dict[str, Any]]:
     """Query all records for a simple Autotask entity using id >= 0."""
 
@@ -336,6 +372,7 @@ def main() -> int:
 
     with httpx.Client(base_url=settings.base_url, headers=build_headers(settings), timeout=arguments.timeout) as client:
         print_zone_information(client, settings)
+        print_workflow_preflight(client)
         print_role_records(query_entity_records(client, "Roles"), include_inactive=arguments.include_inactive)
         print_billing_code_records(query_entity_records(client, "BillingCodes"), include_inactive=arguments.include_inactive)
         print_ticket_status_records(query_ticket_status_values(client), include_inactive=arguments.include_inactive)

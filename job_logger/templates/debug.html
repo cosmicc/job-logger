@@ -81,6 +81,9 @@
               {% endif %}
             </div>
             <p>{{ autotask_connectivity.summary }}</p>
+            {% if autotask_connectivity.failed_operation %}
+              <p class="muted-text">Failed operation: {{ autotask_connectivity.failed_operation }}</p>
+            {% endif %}
             {% if autotask_connectivity.checked_operations %}
               <p class="muted-text">Checked: {{ autotask_connectivity.checked_operations | join(", ") }}</p>
             {% endif %}
