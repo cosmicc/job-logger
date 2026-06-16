@@ -18,7 +18,7 @@
       {% if active_jobs %}
         {% for active_job in active_jobs %}
           {% set job_label = active_job.job_slot if active_job.job_slot else loop.index %}
-          <section class="work-panel">
+          <section class="work-panel" data-active-job-card="{{ active_job.id }}">
             <p class="eyebrow-text">Active job {{ job_label }}</p>
             <h1>Work in progress</h1>
             <dl class="metric-grid">
@@ -29,51 +29,54 @@
               <div>
                 <dt>Rounded start</dt>
                 <dd>
-                  <div class="time-step-controls">
-                    <form
-                      method="post"
-                      action="/jobs/{{ active_job.id }}/start-time/adjust"
-                      class="rounded-start-adjust-form"
-                      aria-label="Decrease rounded start"
-                    >
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                      <input type="hidden" name="delta_minutes" value="-15">
-                      <button
-                        type="submit"
-                        class="secondary-button time-step-button"
-                        aria-label="Decrease rounded start by 15 minutes"
-                      >
-                        -15
-                      </button>
-                    </form>
+                  <div class="time-stepper">
                     <input
                       type="time"
                       class="time-field-input"
                       value="{{ active_job.rounded_start_utc|local_time }}"
+                      aria-label="Rounded start time"
                       readonly
                     >
-                    <form
-                      method="post"
-                      action="/jobs/{{ active_job.id }}/start-time/adjust"
-                      class="rounded-start-adjust-form"
-                      aria-label="Increase rounded start"
-                    >
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                      <input type="hidden" name="delta_minutes" value="15">
-                      <button
-                        type="submit"
-                        class="secondary-button time-step-button"
-                        aria-label="Increase rounded start by 15 minutes"
+                    <div class="time-stepper-arrows" aria-label="Adjust rounded start in 15 minute increments">
+                      <form
+                        method="post"
+                        action="/jobs/{{ active_job.id }}/start-time/adjust"
+                        class="rounded-start-adjust-form time-stepper-form"
+                        aria-label="Increase rounded start"
                       >
-                        +15
-                      </button>
-                    </form>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="delta_minutes" value="15">
+                        <button
+                          type="submit"
+                          class="time-stepper-arrow-button"
+                          aria-label="Increase rounded start by 15 minutes"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M6 15l6-6 6 6"></path>
+                          </svg>
+                        </button>
+                      </form>
+                      <form
+                        method="post"
+                        action="/jobs/{{ active_job.id }}/start-time/adjust"
+                        class="rounded-start-adjust-form time-stepper-form"
+                        aria-label="Decrease rounded start"
+                      >
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="delta_minutes" value="-15">
+                        <button
+                          type="submit"
+                          class="time-stepper-arrow-button"
+                          aria-label="Decrease rounded start by 15 minutes"
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M6 9l6 6 6-6"></path>
+                          </svg>
+                        </button>
+                      </form>
+                    </div>
                   </div>
                 </dd>
-              </div>
-              <div class="full-width">
-                <dt>Client</dt>
-                <dd>{{ active_job.client_name or "Not set" }}</dd>
               </div>
             </dl>
 
@@ -84,6 +87,46 @@
               data-job-id="{{ active_job.id }}"
             >
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              {% if active_job.autotask_company_id %}
+                <div class="locked-client-field" data-locked-client-field>
+                  <span class="field-label">Client name</span>
+                  <strong>{{ active_job.client_name or "Selected Autotask client" }}</strong>
+                  <small>Autotask selected</small>
+                </div>
+                <input
+                  type="hidden"
+                  class="active-client-name-source"
+                  data-active-client-source
+                  name="client_name"
+                  value="{{ active_job.client_name or '' }}"
+                >
+              {% else %}
+                <label>
+                  <span>Client name</span>
+                  <input
+                    id="active-client-name-{{ active_job.id }}"
+                    class="autotask-company-input active-client-name-source"
+                    data-company-input
+                    data-active-client-source
+                    name="client_name"
+                    value="{{ active_job.client_name or '' }}"
+                    placeholder="Client name for reference"
+                    maxlength="120"
+                    autocomplete="off"
+                    autocorrect="off"
+                    spellcheck="false"
+                  >
+                </label>
+              {% endif %}
+              <input
+                type="hidden"
+                class="autotask-company-id"
+                data-company-id-input
+                name="autotask_company_id"
+                value="{{ active_job.autotask_company_id or '' }}"
+              >
+              <div class="company-search-results" data-company-results></div>
+              <p class="company-search-status muted-text" data-company-status aria-live="polite"></p>
               <label>
                 <span>Autotask ticket number</span>
                 <input
@@ -99,30 +142,6 @@
                   spellcheck="false"
                 >
               </label>
-              <label>
-                <span>Client name</span>
-                <input
-                  id="active-client-name-{{ active_job.id }}"
-                  class="autotask-company-input"
-                  data-company-input
-                  name="client_name"
-                  value="{{ active_job.client_name or '' }}"
-                  placeholder="Client name for reference"
-                  maxlength="120"
-                  autocomplete="off"
-                  autocorrect="off"
-                  spellcheck="false"
-                >
-              </label>
-              <input
-                type="hidden"
-                class="autotask-company-id"
-                data-company-id-input
-                name="autotask_company_id"
-                value="{{ active_job.autotask_company_id or '' }}"
-              >
-              <div class="company-search-results" data-company-results></div>
-              <p class="company-search-status muted-text" data-company-status aria-live="polite"></p>
               <input type="hidden" class="active-job-summary" name="summary_notes" value="">
               <button class="secondary-button" type="submit">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -199,30 +218,18 @@
               </div>
               <form method="post" action="/jobs/{{ active_job.id }}/end" class="end-job-form" data-job-id="{{ active_job.id }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <label>
-                  <span>Client name</span>
-                  <input
-                    class="autotask-company-input"
-                    data-company-input
-                    name="client_name"
-                    value="{{ active_job.client_name or '' }}"
-                    placeholder="Client name for reference"
-                    maxlength="120"
-                    autocomplete="off"
-                    autocorrect="off"
-                    spellcheck="false"
-                    required
-                  >
-                </label>
                 <input
                   type="hidden"
-                  class="autotask-company-id"
-                  data-company-id-input
+                  class="end-client-name"
+                  name="client_name"
+                  value="{{ active_job.client_name or '' }}"
+                >
+                <input
+                  type="hidden"
+                  class="end-autotask-company-id"
                   name="autotask_company_id"
                   value="{{ active_job.autotask_company_id or '' }}"
                 >
-                <div class="company-search-results" data-company-results></div>
-                <p class="company-search-status muted-text" data-company-status aria-live="polite"></p>
                 <input type="hidden" class="end-summary-notes" name="summary_notes" value="">
                 <button class="danger-button" type="submit">
                   <svg viewBox="0 0 24 24" aria-hidden="true">

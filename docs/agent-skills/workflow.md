@@ -46,12 +46,19 @@ Active jobs support these updates before completion:
 
 - Ticket number.
 - Client name.
-- Selected Autotask company ID.
+- Selected Autotask company ID while the active job has not already locked an
+  Autotask company.
 - Summary notes.
 - Rounded start time in 15-minute increments.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job edits, not only ticket numbers.
+
+The active mobile card should expose only one client entry point for each job.
+After an Autotask company is selected, the active job displays that client as a
+read-only value and submits hidden copies only for normal form flow. The
+service layer still enforces the lock because hidden fields are not security
+controls.
 
 ## Ending Work
 

@@ -51,6 +51,38 @@ function findActiveTicketForm(jobId) {
   return document.querySelector(`.active-ticket-form[data-job-id="${toSafeMapString(jobId)}"]`);
 }
 
+function readActiveJobClientFields(jobId) {
+  const activeTicketForm = findActiveTicketForm(jobId);
+  if (!activeTicketForm) {
+    return {clientName: "", autotaskCompanyId: ""};
+  }
+
+  // The active job card has one authoritative client source. It may be a
+  // visible autocomplete input while unlocked, or a hidden value after an
+  // Autotask company has been selected and locked for the active job.
+  const clientNameSource = activeTicketForm.querySelector("[data-active-client-source]");
+  const autotaskCompanyIdSource = activeTicketForm.querySelector("[data-company-id-input]");
+  return {
+    clientName: clientNameSource ? clientNameSource.value : "",
+    autotaskCompanyId: autotaskCompanyIdSource ? autotaskCompanyIdSource.value : "",
+  };
+}
+
+function syncEndJobClientFields(endJobForm) {
+  const jobId = toSafeMapString(endJobForm.dataset.jobId);
+  const clientFields = readActiveJobClientFields(jobId);
+  const endClientNameField = endJobForm.querySelector(".end-client-name");
+  const endAutotaskCompanyIdField = endJobForm.querySelector(".end-autotask-company-id");
+
+  if (endClientNameField) {
+    endClientNameField.value = clientFields.clientName;
+  }
+
+  if (endAutotaskCompanyIdField) {
+    endAutotaskCompanyIdField.value = clientFields.autotaskCompanyId;
+  }
+}
+
 function findControlElements(jobId) {
   return {
     recordButton: document.querySelector(`.record-notes-button[data-job-id="${toSafeMapString(jobId)}"]`),
@@ -216,6 +248,12 @@ function renderCompanyResults(companyInput, companies) {
       resultsElement.replaceChildren();
       setCompanyStatus(companyInput, "Autotask company selected.");
       if (parentForm && parentForm.classList.contains("active-ticket-form")) {
+        const endJobForm = document.querySelector(
+          `.end-job-form[data-job-id="${toSafeMapString(parentForm.dataset.jobId)}"]`,
+        );
+        if (endJobForm) {
+          syncEndJobClientFields(endJobForm);
+        }
         submitFormWithCurrentFields(parentForm);
       }
     });
@@ -592,6 +630,7 @@ for (const endJobForm of endJobForms) {
   const summaryField = endJobForm.querySelector(".end-summary-notes");
   const descriptionElement = findDescriptionTextarea(jobId);
   endJobForm.addEventListener("submit", () => {
+    syncEndJobClientFields(endJobForm);
     if (summaryField) {
       summaryField.value = descriptionElement ? descriptionElement.value : "";
     }

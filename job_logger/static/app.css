@@ -490,6 +490,35 @@ a:focus-visible {
   margin-bottom: 18px;
 }
 
+.locked-client-field {
+  display: grid;
+  min-height: 60px;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.locked-client-field .field-label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.locked-client-field strong {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.locked-client-field small {
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .start-work-form .primary-action-button {
   margin-top: 10px;
 }
@@ -506,34 +535,74 @@ a:focus-visible {
   gap: 10px;
 }
 
-.time-step-controls {
+.time-stepper {
+  position: relative;
   display: grid;
-  grid-template-columns: 48px 1fr 48px;
-  gap: 8px;
-  align-items: center;
+  min-width: 0;
 }
 
-.time-step-controls .time-field-input,
-.time-step-controls .time-step-button {
+.time-stepper .time-field-input {
+  width: 100%;
   min-height: 42px;
+  padding-right: 44px;
+  text-align: center;
 }
 
-.rounded-start-adjust-form {
+.time-stepper-arrows {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  bottom: 4px;
+  display: grid;
+  width: 34px;
+  grid-template-rows: 1fr 1fr;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.rounded-start-adjust-form,
+.time-stepper-form {
   margin: 0;
   display: grid;
 }
 
-.rounded-start-adjust-form > .time-step-button {
+.time-stepper-arrow-button {
+  display: grid;
   width: 100%;
+  min-height: 0;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
 }
 
-.time-step-controls .time-field-input {
-  text-align: center;
+.time-stepper-form:last-child .time-stepper-arrow-button {
+  border-bottom: 0;
 }
 
-.time-step-button {
-  min-width: 44px;
-  padding: 8px 0;
+.time-stepper-arrow-button:hover,
+.time-stepper-arrow-button:focus-visible {
+  background: var(--surface-muted);
+  color: var(--accent-strong);
+}
+
+.time-stepper-arrow-button svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rounded-start-adjust-form > .time-stepper-arrow-button {
+  width: 100%;
 }
 
 .recording-status {

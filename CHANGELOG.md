@@ -10,6 +10,16 @@ All recorded changes to Job Logger are documented in this file.
   non-fatal workflow endpoint preflight results alongside ID discovery. The
   diagnostics now safely surface bounded Autotask body-level permission messages
   when Autotask wraps permission denials in HTTP 500 responses.
+- Documented that blank `AUTOTASK_IMPERSONATION_RESOURCE_ID` omits the
+  `ImpersonationResourceId` header, which lets Autotask evaluate the API user's
+  own Companies/Tickets permissions.
+- Fixed Autotask POST query pagination so Companies/Tickets lookup follows
+  `nextPageUrl` with POST and the original query body instead of GET, avoiding
+  HTTP 405 failures when loading open tickets.
+- Cleaned up the mobile Work in Progress card so each active job has one client
+  entry point, locks a selected Autotask client as read-only during active work,
+  uses compact 15-minute rounded-start arrow controls, and keeps Job 1/Job 2 on
+  the same shared layout.
 - Added support for two overlapping active jobs (Job 1 and Job 2) with explicit
   slot assignment, added client reference capture at job start, and preserved
   completion behavior when manual summary notes are typed on the mobile screen by

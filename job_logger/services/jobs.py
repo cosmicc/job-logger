@@ -223,6 +223,38 @@ def normalize_client_name_required(client_name: str | None) -> str:
     return normalized_client_name
 
 
+def preserve_locked_active_autotask_client(
+    job: Job,
+    client_name: str | None,
+    autotask_company_id: int | str | None,
+) -> bool:
+    """Validate submitted active-job client fields when an Autotask company is locked.
+
+    Active mobile jobs lock the selected Autotask company after lookup so the
+    operator cannot accidentally drift the visible client name away from the
+    company ID used for ticket lookup. The UI submits hidden copies for normal
+    form flow, but this service-level check is the authoritative guard against
+    crafted requests that try to replace the selected company while the job is
+    still active.
+    """
+
+    if job.autotask_company_id is None:
+        return False
+
+    submitted_autotask_company_id = normalize_autotask_company_id(autotask_company_id)
+    if submitted_autotask_company_id is not None and submitted_autotask_company_id != job.autotask_company_id:
+        raise JobWorkflowError("The selected Autotask company is locked for this active job.")
+
+    submitted_client_name = normalize_client_name(client_name)
+    if submitted_client_name is not None and job.client_name and submitted_client_name != job.client_name:
+        raise JobWorkflowError("The selected Autotask client is locked for this active job.")
+
+    if submitted_client_name is not None and not job.client_name:
+        job.client_name = submitted_client_name
+
+    return True
+
+
 def start_job(
     database_session: Session,
     ticket_number: str | None = None,
@@ -266,10 +298,14 @@ def update_active_job_ticket_number(
     if job.status != JobStatus.ACTIVE:
         raise JobWorkflowError("Ticket numbers can only be updated from mobile during an active job.")
 
+    locked_autotask_client_preserved = False
+    if client_name is not None:
+        locked_autotask_client_preserved = preserve_locked_active_autotask_client(job, client_name, autotask_company_id)
+
     if ticket_number is not None:
         job.ticket_number = normalize_ticket_number(ticket_number, required=False)
 
-    if client_name is not None:
+    if client_name is not None and not locked_autotask_client_preserved:
         job.client_name = normalize_client_name(client_name)
         job.autotask_company_id = normalize_autotask_company_id(autotask_company_id)
 
@@ -316,8 +352,9 @@ def end_job(
     if job.status != JobStatus.ACTIVE:
         raise JobWorkflowError("Only an active job can be ended.")
 
+    locked_autotask_client_preserved = preserve_locked_active_autotask_client(job, client_name, autotask_company_id)
     submitted_client_name = normalize_client_name(client_name)
-    if submitted_client_name is not None:
+    if submitted_client_name is not None and not locked_autotask_client_preserved:
         job.client_name = submitted_client_name
         job.autotask_company_id = normalize_autotask_company_id(autotask_company_id)
     elif not job.client_name:

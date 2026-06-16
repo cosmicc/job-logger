@@ -193,6 +193,103 @@ def test_mobile_job_start_stores_selected_autotask_company(authenticated_client:
         assert active_job.autotask_company_id == 1001
 
 
+def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_client: TestClient) -> None:
+    """The active mobile card renders selected Autotask clients as read-only."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    updated_mobile_page_response = authenticated_client.get("/mobile")
+    page_html = updated_mobile_page_response.text
+
+    assert 'data-locked-client-field' in page_html
+    assert f'id="active-client-name-{active_job_id}"' not in page_html
+    assert 'class="end-client-name"' in page_html
+    assert 'class="end-autotask-company-id"' in page_html
+    assert 'class="time-stepper-arrow-button"' in page_html
+    assert 'name="delta_minutes" value="15"' in page_html
+    assert 'name="delta_minutes" value="-15"' in page_html
+    assert "&gt;+15&lt;" not in page_html
+    assert "&gt;-15&lt;" not in page_html
+
+
+def test_mobile_active_job_locked_autotask_company_rejects_form_tampering(authenticated_client: TestClient) -> None:
+    """Mobile form handlers preserve an already selected active-job company."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    tampered_save_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "ticket_number": "T20260616.9999",
+            "client_name": "Wrong Client",
+            "autotask_company_id": "2002",
+        },
+        follow_redirects=False,
+    )
+    assert tampered_save_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
+        assert active_job.status == JobStatus.ACTIVE
+        assert active_job.client_name == "Acme Services"
+        assert active_job.autotask_company_id == 1001
+        assert active_job.ticket_number is None
+
+    tampered_end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token, "client_name": "Wrong Client", "autotask_company_id": "2002"},
+        follow_redirects=False,
+    )
+    assert tampered_end_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
+        assert active_job.status == JobStatus.ACTIVE
+        assert active_job.client_name == "Acme Services"
+        assert active_job.autotask_company_id == 1001
+
+    valid_end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert valid_end_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        reviewed_job = database_session.get(Job, active_job_id)
+        assert reviewed_job is not None
+        assert reviewed_job.status == JobStatus.READY_FOR_REVIEW
+        assert reviewed_job.client_name == "Acme Services"
+        assert reviewed_job.autotask_company_id == 1001
+
+
 def test_review_save_does_not_require_ticket_number(authenticated_client: TestClient) -> None:
     """Review edits can be saved while leaving the ticket number blank."""
 

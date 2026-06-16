@@ -279,8 +279,10 @@ production use so the full workflow can update the selected ticket status:
 The mobile page can search Autotask companies while entering the client name.
 Selecting a company stores the display name and Autotask company ID with the job
 so open-ticket lookup can target the exact selected company instead of relying
-only on a typed name. Client names and ticket numbers can still be typed
-manually when needed.
+only on a typed name. During active work, that selected Autotask client is shown
+as read-only for the job so the client name cannot drift away from the company
+ID used for ticket lookup. Client names and ticket numbers can still be typed
+manually when needed before an Autotask company is selected.
 
 Autotask company search results and selected-company metadata are cached
 in-process for two hours because company names rarely change. Empty company
@@ -289,13 +291,23 @@ from cache can still be queried from Autotask. Ticket status picklist labels and
 other Autotask lookup data remain on a 15-minute cache. Live company and ticket
 queries request `MaxRecords=500` and follow Autotask pagination links so larger
 tenants are not limited to the first page of results. Pagination is bounded and
-fails safely instead of silently showing partial customer or ticket lists.
+fails safely instead of silently showing partial customer or ticket lists. For
+POST query pagination, Job Logger follows `nextPageUrl` with POST and the
+original query body because Autotask rejects GET follow-up calls for those
+resources.
 
 The mobile and review pages can query open Autotask tickets from the selected
 job's stored company ID or stored client name. Selecting a returned ticket fills
 the editable ticket number field; the ticket number can still be typed manually.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
+
+Leave `AUTOTASK_IMPERSONATION_RESOURCE_ID` blank unless Autotask specifically
+requires impersonation for your tenant. When blank, Job Logger omits the
+`ImpersonationResourceId` header and uses the API user's own permissions. If the
+value is set, Autotask evaluates Companies/Tickets query permissions for the
+impersonated resource context, which can fail even when the API user itself has
+access.
 
 The `/debug` page includes a **Test Autotask API** button. That check verifies
 required workflow configuration and the live Companies/Tickets API calls used by

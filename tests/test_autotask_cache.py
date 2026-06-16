@@ -40,18 +40,26 @@ class FakeCompanyQueryClient:
     def __init__(self) -> None:
         """Initialize counters used to prove cache hits avoid new API calls."""
 
-        # post_call_count counts initial query requests.
+        # post_call_count counts initial query and next-page POST requests.
         self.post_call_count = 0
 
-        # get_call_count counts follow-up next-page requests.
+        # get_call_count counts any incorrect GET follow-up requests.
         self.get_call_count = 0
 
     def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
-        """Return the first page of company results."""
+        """Return company query pages using Autotask's POST pagination method."""
 
         self.post_call_count += 1
-        assert endpoint_path == "/Companies/query"
         assert json["MaxRecords"] == 500
+        if endpoint_path == "/Companies/query/next-page":
+            return FakeAutotaskResponse(
+                {
+                    "items": [{"id": 1001, "companyName": "Acme", "isActive": True}],
+                    "pageDetails": {},
+                }
+            )
+
+        assert endpoint_path == "/Companies/query"
         return FakeAutotaskResponse(
             {
                 "items": [{"id": 2002, "companyName": "Acme Zeta", "isActive": True}],
@@ -60,16 +68,10 @@ class FakeCompanyQueryClient:
         )
 
     def get(self, next_page_url: str) -> FakeAutotaskResponse:
-        """Return the second page of company results."""
+        """Fail the test if the provider uses GET for POST query pagination."""
 
         self.get_call_count += 1
-        assert next_page_url == "/Companies/query/next-page"
-        return FakeAutotaskResponse(
-            {
-                "items": [{"id": 1001, "companyName": "Acme", "isActive": True}],
-                "pageDetails": {},
-            }
-        )
+        raise AssertionError(f"Autotask POST query pagination must not use GET: {next_page_url}")
 
 
 class FakeTicketStatusClient:
@@ -201,8 +203,8 @@ def test_company_lookup_uses_pagination_and_cache() -> None:
 
     assert [company["companyName"] for company in first_lookup] == ["Acme", "Acme Zeta"]
     assert second_lookup == first_lookup
-    assert fake_client.post_call_count == 1
-    assert fake_client.get_call_count == 1
+    assert fake_client.post_call_count == 2
+    assert fake_client.get_call_count == 0
 
 
 def test_empty_company_lookup_does_not_block_future_live_query() -> None:
@@ -233,6 +235,14 @@ def test_ticket_status_lookup_uses_cache() -> None:
     assert first_lookup == {1: "In Progress", 5: "Complete"}
     assert second_lookup == first_lookup
     assert fake_client.get_call_count == 1
+
+
+def test_blank_impersonation_resource_omits_autotask_header() -> None:
+    """Blank impersonation config should not send Autotask's impersonation header."""
+
+    provider = _live_test_provider()
+    assert provider.application_settings.autotask_impersonation_resource_id is None
+    assert "ImpersonationResourceId" not in provider._headers()
 
 
 def test_connectivity_result_identifies_company_query_failure(monkeypatch: pytest.MonkeyPatch) -> None:

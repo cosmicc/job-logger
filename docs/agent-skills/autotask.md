@@ -74,6 +74,9 @@ Important rules:
 - Do not expose raw Autotask API responses to the browser.
 - Manual client names remain allowed.
 - Selected Autotask company IDs are preferred for exact ticket lookup.
+- On the active mobile card, a selected Autotask company is locked and should
+  be shown as read-only so the visible client name cannot drift away from the
+  company ID used for ticket lookup.
 - If a user edits the client name manually in review, stale company IDs should
   be cleared so future lookups do not silently use the wrong customer.
 
@@ -111,6 +114,8 @@ Live Companies and Tickets queries must:
 
 - Request `MaxRecords=500`.
 - Follow `pageDetails.nextPageUrl` when provided.
+- Use POST with the original query body for `nextPageUrl` values that came from
+  a POST query; Autotask returns HTTP 405 if those follow-up calls use GET.
 - Bound pagination to avoid runaway loops.
 - Fail safely if the result set exceeds the supported pagination bound instead
   of silently showing partial results.
@@ -135,6 +140,11 @@ Required live Autotask values include:
 - Tenant-specific ticket status picklist IDs.
 - Billing code ID when configured.
 - Impersonation resource ID when configured.
+
+`AUTOTASK_IMPERSONATION_RESOURCE_ID` should be blank by default. When blank, the
+provider omits `ImpersonationResourceId` and Autotask evaluates the API user's
+own permissions. When set, Companies/Tickets query permissions must work for the
+impersonated resource context too.
 
 Submission must remain idempotent. A retry must not create duplicate time
 entries for the same accepted job.

@@ -409,7 +409,10 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     f"{action_description} returned more than {AUTOTASK_MAX_PAGINATED_PAGES} pages; narrow the search."
                 )
 
-            response = client.get(str(next_page_url))
+            # Autotask's POST query pagination returns a nextPageUrl, but the
+            # follow-up request must still use POST with the original query
+            # body. Using GET returns HTTP 405 for POST query resources.
+            response = client.post(str(next_page_url), json=paged_query_payload)
             page_number += 1
 
         return collected_items
