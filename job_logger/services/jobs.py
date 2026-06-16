@@ -55,6 +55,9 @@ class ReviewFields:
     # client_name is the optional client reference captured and editable in review.
     client_name: str | None
 
+    # autotask_company_id is the selected Autotask company when chosen from lookup.
+    autotask_company_id: int | None
+
 
 def _normalize_optional_text(text_value: str | None, *, max_length: int) -> str | None:
     """Trim user text and keep only a bounded value or None."""
@@ -190,6 +193,26 @@ def normalize_client_name(client_name: str | None) -> str | None:
     return _normalize_optional_text(client_name, max_length=MAX_CLIENT_NAME_LENGTH)
 
 
+def normalize_autotask_company_id(autotask_company_id: int | str | None) -> int | None:
+    """Return a positive Autotask company ID or None for manual client names."""
+
+    if autotask_company_id is None:
+        return None
+
+    if isinstance(autotask_company_id, str) and not autotask_company_id.strip():
+        return None
+
+    try:
+        normalized_company_id = int(autotask_company_id)
+    except (TypeError, ValueError) as exc:
+        raise JobWorkflowError("Autotask company selection is invalid.") from exc
+
+    if normalized_company_id <= 0:
+        raise JobWorkflowError("Autotask company selection is invalid.")
+
+    return normalized_company_id
+
+
 def normalize_client_name_required(client_name: str | None) -> str:
     """Require a non-empty client name when transitioning a job to review."""
 
@@ -200,13 +223,19 @@ def normalize_client_name_required(client_name: str | None) -> str:
     return normalized_client_name
 
 
-def start_job(database_session: Session, ticket_number: str | None = None, client_name: str | None = None) -> Job:
+def start_job(
+    database_session: Session,
+    ticket_number: str | None = None,
+    client_name: str | None = None,
+    autotask_company_id: int | str | None = None,
+) -> Job:
     """Create a new active job while enforcing the two-job overlap limit."""
 
     active_jobs = list_active_jobs(database_session)
     job_slot = _next_active_job_slot(active_jobs)
     normalized_ticket_number = normalize_ticket_number(ticket_number, required=False)
     normalized_client_name = normalize_client_name(client_name)
+    normalized_autotask_company_id = normalize_autotask_company_id(autotask_company_id)
     start_timestamp = now_utc()
     rounded_start_timestamp = round_to_nearest_quarter_hour(start_timestamp)
     job = Job(
@@ -214,6 +243,7 @@ def start_job(database_session: Session, ticket_number: str | None = None, clien
         ticket_number=normalized_ticket_number,
         job_slot=job_slot,
         client_name=normalized_client_name,
+        autotask_company_id=normalized_autotask_company_id,
         raw_start_utc=start_timestamp,
         rounded_start_utc=rounded_start_timestamp,
         local_work_date=local_date_for(rounded_start_timestamp),
@@ -228,6 +258,7 @@ def update_active_job_ticket_number(
     job_id: str,
     ticket_number: str | None,
     client_name: str | None = None,
+    autotask_company_id: int | str | None = None,
 ) -> Job:
     """Update the optional Autotask ticket number and client while a job is active."""
 
@@ -240,6 +271,7 @@ def update_active_job_ticket_number(
 
     if client_name is not None:
         job.client_name = normalize_client_name(client_name)
+        job.autotask_company_id = normalize_autotask_company_id(autotask_company_id)
 
     return job
 
@@ -272,7 +304,12 @@ def adjust_active_job_rounded_start(database_session: Session, job_id: str, delt
     return job
 
 
-def end_job(database_session: Session, job_id: str, client_name: str | None = None) -> Job:
+def end_job(
+    database_session: Session,
+    job_id: str,
+    client_name: str | None = None,
+    autotask_company_id: int | str | None = None,
+) -> Job:
     """End an active job and move it to review."""
 
     job = get_job_or_raise(database_session, job_id)
@@ -282,6 +319,7 @@ def end_job(database_session: Session, job_id: str, client_name: str | None = No
     submitted_client_name = normalize_client_name(client_name)
     if submitted_client_name is not None:
         job.client_name = submitted_client_name
+        job.autotask_company_id = normalize_autotask_company_id(autotask_company_id)
     elif not job.client_name:
         # Require an explicit name here if no name was previously captured.
         job.client_name = normalize_client_name_required(job.client_name)
@@ -374,6 +412,7 @@ def validate_review_fields(
     end_date = form_values.get("end_date", "")
     end_time = form_values.get("end_time", "")
     client_name = normalize_client_name(form_values.get("client_name"))
+    autotask_company_id = normalize_autotask_company_id(form_values.get("autotask_company_id"))
     if not start_date or not start_time:
         raise JobWorkflowError("Start date and start time fields are required.")
 
@@ -411,6 +450,7 @@ def validate_review_fields(
         rounded_end_utc=rounded_end_utc,
         local_work_date=local_date_for(rounded_start_utc),
         client_name=client_name,
+        autotask_company_id=autotask_company_id,
     )
 
 
@@ -430,6 +470,7 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
         job.rounded_end_utc = review_fields.rounded_end_utc
     job.local_work_date = review_fields.local_work_date
     job.client_name = review_fields.client_name
+    job.autotask_company_id = review_fields.autotask_company_id
     return job
 
 
@@ -466,6 +507,7 @@ def reset_ticket_data(database_session: Session) -> dict[str, int]:
         database_session.execute(
             sqlalchemy_update(Job).values(
                 ticket_number=None,
+                autotask_company_id=None,
                 ticket_status=None,
                 autotask_provider=None,
                 autotask_external_id=None,

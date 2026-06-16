@@ -69,6 +69,14 @@ class Job(Base):
         comment="Client reference typed when work starts.",
     )
 
+    # autotask_company_id stores the selected Autotask company/account ID when a
+    # user chooses a company from server-side Autotask search results.
+    autotask_company_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Selected Autotask company ID for ticket lookup.",
+    )
+
     # ticket_status is the requested local ticket status selected during review.
     ticket_status: Mapped[TicketStatus | None] = mapped_column(
         Enum(

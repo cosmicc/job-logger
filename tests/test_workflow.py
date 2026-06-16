@@ -130,6 +130,37 @@ def test_active_job_completion_requires_client_name(authenticated_client: TestCl
         assert active_job.status == JobStatus.READY_FOR_REVIEW
 
 
+def test_mobile_autotask_company_lookup_returns_options(authenticated_client: TestClient) -> None:
+    """Authenticated mobile users can query safe Autotask company options."""
+
+    response = authenticated_client.get("/autotask/companies?query=Acme")
+
+    assert response.status_code == 200
+    response_payload = response.json()
+    assert response_payload["companies"][0]["company_id"] == 1001
+    assert response_payload["companies"][0]["company_name"] == "Acme Services"
+
+
+def test_mobile_job_start_stores_selected_autotask_company(authenticated_client: TestClient) -> None:
+    """Starting work can store the selected Autotask company for exact lookup."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        assert active_job.client_name == "Acme Services"
+        assert active_job.autotask_company_id == 1001
+
+
 def test_review_save_does_not_require_ticket_number(authenticated_client: TestClient) -> None:
     """Review edits can be saved while leaving the ticket number blank."""
 
@@ -228,6 +259,41 @@ def test_review_save_active_job_without_stop_time(authenticated_client: TestClie
         assert reviewed_job.ticket_number == "T20260616.0001"
 
 
+def test_review_ticket_lookup_returns_open_tickets_for_job_client(authenticated_client: TestClient) -> None:
+    """Review can request open Autotask ticket options using the selected company."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token, "client_name": "Ticket Lookup Client", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+        assert active_job.autotask_company_id == 1001
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token, "client_name": "Ticket Lookup Client", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    ticket_lookup_response = authenticated_client.get(f"/review/{active_job_id}/tickets")
+
+    assert ticket_lookup_response.status_code == 200
+    response_payload = ticket_lookup_response.json()
+    assert response_payload["client_name"] == "Ticket Lookup Client"
+    assert response_payload["autotask_company_id"] == 1001
+    assert response_payload["tickets"][0]["ticket_number"] == "T20260616.0001"
+    assert response_payload["tickets"][0]["company_name"] == "Ticket Lookup Client"
+
+
 def test_review_accept_still_requires_ticket_number(authenticated_client: TestClient) -> None:
     """Review save path is permissive, but submission still requires a ticket number."""
 
@@ -301,6 +367,7 @@ def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_
             "csrf_token": csrf_token,
             "ticket_number": "t20260326.0018",
             "client_name": "Mobile Review Client",
+            "autotask_company_id": "1002",
             "summary_notes": "Saved from mobile active form",
         },
         follow_redirects=False,
@@ -311,6 +378,7 @@ def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_
         active_job = database_session.get(Job, active_job_id)
         assert active_job is not None
         assert active_job.client_name == "Mobile Review Client"
+        assert active_job.autotask_company_id == 1002
         assert active_job.summary_notes == "Saved from mobile active form"
         assert active_job.ticket_number == "T20260326.0018"
 

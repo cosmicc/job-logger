@@ -319,6 +319,61 @@ a:focus-visible {
   background: var(--surface-muted);
 }
 
+.company-search-results,
+.ticket-picker-results {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.company-option-button,
+.ticket-option-button {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  color: var(--text);
+  padding: 9px 11px;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.company-option-button:hover,
+.ticket-option-button:hover {
+  border-color: var(--accent);
+  background: var(--surface-strong);
+}
+
+.company-search-status,
+.ticket-picker-status {
+  min-height: 20px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.mobile-ticket-picker {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+}
+
+.mobile-ticket-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mobile-ticket-picker-header h3 {
+  margin: 0;
+}
+
 .danger-button {
   width: 100%;
   background: var(--danger);
@@ -613,6 +668,50 @@ td a {
 
 .wide-field {
   margin-top: 14px;
+}
+
+.ticket-picker {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.ticket-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ticket-picker-header h3,
+.ticket-picker-header p,
+.ticket-picker-status {
+  margin-bottom: 0;
+}
+
+.ticket-picker-results {
+  display: grid;
+  gap: 8px;
+}
+
+.ticket-option-button {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  padding: 9px 11px;
+  text-align: left;
+  font-weight: 700;
+}
+
+.ticket-option-button:hover {
+  background: rgba(45, 212, 191, 0.13);
 }
 
 .action-row {

@@ -13,6 +13,21 @@ from job_logger.enums import TicketStatus
 from job_logger.models import Job
 from job_logger.time_utils import format_autotask_datetime, rounded_duration_minutes
 
+MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP = 10
+MAX_TICKET_LOOKUP_RESULTS = 25
+MIN_COMPANY_SEARCH_CHARACTERS = 3
+
+
+@dataclass(frozen=True)
+class AutotaskCompanyOption:
+    """Safe company data returned to the browser for client selection."""
+
+    # company_id is the Autotask company/account ID used for exact ticket lookup.
+    company_id: int
+
+    # company_name is the Autotask display name shown in autocomplete results.
+    company_name: str
+
 
 @dataclass(frozen=True)
 class AutotaskSubmissionResult:
@@ -34,6 +49,23 @@ class AutotaskSubmissionResult:
     request_snapshot: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class AutotaskTicketOption:
+    """Safe ticket data returned to review users for ticket selection."""
+
+    # ticket_number is the human Autotask number used by the review form.
+    ticket_number: str
+
+    # title helps the reviewer choose the correct open ticket.
+    title: str
+
+    # status_label is the current Autotask ticket status label.
+    status_label: str
+
+    # company_name is included because client-name searches can match more than one company.
+    company_name: str
+
+
 class AutotaskSubmissionError(RuntimeError):
     """Raised for configuration or remote Autotask failures."""
 
@@ -45,6 +77,16 @@ class BaseAutotaskProvider:
 
     def submit_job(self, job: Job) -> AutotaskSubmissionResult:
         """Submit a reviewed job to an external destination."""
+
+        raise NotImplementedError
+
+    def list_open_tickets_for_client(self, client_name: str, autotask_company_id: int | None = None) -> list[AutotaskTicketOption]:
+        """Return open ticket options for the supplied client name."""
+
+        raise NotImplementedError
+
+    def search_companies(self, query_text: str) -> list[AutotaskCompanyOption]:
+        """Return matching Autotask companies for an autocomplete query."""
 
         raise NotImplementedError
 
@@ -90,6 +132,40 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             request_snapshot=snapshot,
         )
 
+    def list_open_tickets_for_client(self, client_name: str, autotask_company_id: int | None = None) -> list[AutotaskTicketOption]:
+        """Return deterministic open ticket options for local review testing."""
+
+        safe_client_name = client_name.strip()
+        if not safe_client_name:
+            raise AutotaskSubmissionError("Client name is required before searching Autotask tickets.")
+
+        return [
+            AutotaskTicketOption(
+                ticket_number="T20260616.0001",
+                title=f"Mock open ticket for {safe_client_name}",
+                status_label="In Progress",
+                company_name=safe_client_name,
+            ),
+            AutotaskTicketOption(
+                ticket_number="T20260616.0002",
+                title=f"Mock follow-up ticket for {safe_client_name}",
+                status_label="Follow Up",
+                company_name=safe_client_name,
+            ),
+        ]
+
+    def search_companies(self, query_text: str) -> list[AutotaskCompanyOption]:
+        """Return deterministic company options for local autocomplete testing."""
+
+        safe_query_text = query_text.strip()
+        if len(safe_query_text) < MIN_COMPANY_SEARCH_CHARACTERS:
+            raise AutotaskSubmissionError("Type at least 3 characters before searching Autotask companies.")
+
+        return [
+            AutotaskCompanyOption(company_id=1001, company_name=f"{safe_query_text} Services"),
+            AutotaskCompanyOption(company_id=1002, company_name=f"{safe_query_text} Holdings"),
+        ]
+
 
 class LiveAutotaskProvider(BaseAutotaskProvider):
     """Autotask REST API provider for reviewed time-entry submission."""
@@ -103,15 +179,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         self._validate_configuration()
 
     def _validate_configuration(self) -> None:
-        """Ensure live Autotask submissions have every required secret and ID."""
+        """Ensure live Autotask API access has every required secret."""
 
         required_values = {
             "AUTOTASK_BASE_URL": self.application_settings.autotask_base_url,
             "AUTOTASK_USERNAME": self.application_settings.autotask_username,
             "AUTOTASK_SECRET": self.application_settings.autotask_secret,
             "AUTOTASK_API_INTEGRATION_CODE": self.application_settings.autotask_api_integration_code,
-            "AUTOTASK_RESOURCE_ID": self.application_settings.autotask_resource_id,
-            "AUTOTASK_ROLE_ID": self.application_settings.autotask_role_id,
         }
         missing_values = [name for name, value in required_values.items() if value in (None, "")]
         if missing_values:
@@ -137,6 +211,222 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         base_url = (self.application_settings.autotask_base_url or "").rstrip("/")
         return httpx.Client(base_url=base_url, headers=self._headers(), timeout=30)
+
+    def _raise_for_safe_response(self, response: httpx.Response, action_description: str) -> None:
+        """Raise a safe Autotask error without exposing headers or secrets."""
+
+        if response.status_code < 400:
+            return
+
+        raise AutotaskSubmissionError(f"{action_description} failed with Autotask HTTP {response.status_code}.")
+
+    def _query_ticket_status_labels(self, client: httpx.Client) -> dict[int, str]:
+        """Return Autotask Tickets.status picklist values as ID-to-label mappings."""
+
+        response = client.get("/Tickets/entityInformation/fields/status")
+        if response.status_code == 404:
+            response = client.get("/Tickets/entityInformation/fields")
+        self._raise_for_safe_response(response, "Autotask ticket status metadata query")
+
+        response_payload = response.json()
+        status_field: dict[str, Any] | None = None
+        if isinstance(response_payload, dict) and "picklistValues" in response_payload:
+            status_field = response_payload
+        else:
+            fields = response_payload.get("fields") if isinstance(response_payload, dict) else response_payload
+            if isinstance(fields, list):
+                for field_record in fields:
+                    if isinstance(field_record, dict) and field_record.get("name") == "status":
+                        status_field = field_record
+                        break
+
+        if status_field is None:
+            return {}
+
+        picklist_values = status_field.get("picklistValues") or status_field.get("PicklistValues") or []
+        status_labels: dict[int, str] = {}
+        if not isinstance(picklist_values, list):
+            return status_labels
+
+        for picklist_value in picklist_values:
+            if not isinstance(picklist_value, dict):
+                continue
+
+            raw_status_id = picklist_value.get("value") or picklist_value.get("id")
+            status_label = picklist_value.get("label") or picklist_value.get("name")
+            if raw_status_id is None or status_label is None:
+                continue
+
+            try:
+                status_labels[int(raw_status_id)] = str(status_label)
+            except (TypeError, ValueError):
+                continue
+
+        return status_labels
+
+    def _query_companies_by_name(self, client: httpx.Client, client_name: str) -> list[dict[str, Any]]:
+        """Return active Autotask companies whose names contain the job client name."""
+
+        query_payload = {"filter": [{"op": "contains", "field": "companyName", "value": client_name}]}
+        response = client.post("/Companies/query", json=query_payload)
+        self._raise_for_safe_response(response, "Autotask company lookup")
+
+        response_payload = response.json()
+        companies = response_payload.get("items") or response_payload.get("Item") or []
+        if not isinstance(companies, list):
+            return []
+
+        active_companies = [
+            company
+            for company in companies
+            if isinstance(company, dict) and company.get("id") is not None and company.get("isActive", True)
+        ]
+        normalized_client_name = client_name.strip().casefold()
+        active_companies.sort(
+            key=lambda company: (
+                str(company.get("companyName", "")).strip().casefold() != normalized_client_name,
+                str(company.get("companyName", "")).casefold(),
+            )
+        )
+        return active_companies[:MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP]
+
+    def _query_company_by_id(self, client: httpx.Client, company_id: int) -> dict[str, Any] | None:
+        """Return one active Autotask company by ID."""
+
+        query_payload = {"filter": [{"op": "eq", "field": "id", "value": company_id}]}
+        response = client.post("/Companies/query", json=query_payload)
+        self._raise_for_safe_response(response, "Autotask company lookup")
+
+        response_payload = response.json()
+        companies = response_payload.get("items") or response_payload.get("Item") or []
+        if not isinstance(companies, list):
+            return None
+
+        for company in companies:
+            if isinstance(company, dict) and company.get("id") is not None and company.get("isActive", True):
+                return company
+
+        return None
+
+    def _query_tickets_for_company(self, client: httpx.Client, company_id: int) -> list[dict[str, Any]]:
+        """Return Autotask tickets for one company ID."""
+
+        query_payload = {"filter": [{"op": "eq", "field": "companyID", "value": company_id}]}
+        response = client.post("/Tickets/query", json=query_payload)
+        self._raise_for_safe_response(response, "Autotask ticket lookup")
+
+        response_payload = response.json()
+        tickets = response_payload.get("items") or response_payload.get("Item") or []
+        if not isinstance(tickets, list):
+            return []
+
+        return [ticket for ticket in tickets if isinstance(ticket, dict)]
+
+    def _is_open_ticket(self, ticket: dict[str, Any], status_labels: dict[int, str]) -> bool:
+        """Return whether a ticket should be offered as an open-ticket match."""
+
+        if ticket.get("completedDate"):
+            return False
+
+        raw_status_id = ticket.get("status")
+        try:
+            status_id = int(raw_status_id)
+        except (TypeError, ValueError):
+            status_id = None
+
+        if self.application_settings.autotask_status_complete_id is not None and status_id == self.application_settings.autotask_status_complete_id:
+            return False
+
+        status_label = status_labels.get(status_id or -1, "")
+        return status_label.strip().casefold() != "complete"
+
+    def _build_ticket_options_for_company(
+        self,
+        client: httpx.Client,
+        *,
+        company_id: int,
+        company_name: str,
+        status_labels: dict[int, str],
+    ) -> list[AutotaskTicketOption]:
+        """Return safe open-ticket options for one Autotask company."""
+
+        ticket_options: list[AutotaskTicketOption] = []
+        for ticket in self._query_tickets_for_company(client, company_id):
+            if not self._is_open_ticket(ticket, status_labels):
+                continue
+
+            ticket_number = str(ticket.get("ticketNumber") or "").strip()
+            if not ticket_number:
+                continue
+
+            raw_status_id = ticket.get("status")
+            try:
+                status_id = int(raw_status_id)
+            except (TypeError, ValueError):
+                status_id = -1
+
+            ticket_options.append(
+                AutotaskTicketOption(
+                    ticket_number=ticket_number,
+                    title=str(ticket.get("title") or "Untitled ticket")[:240],
+                    status_label=status_labels.get(status_id, str(raw_status_id or "Unknown")),
+                    company_name=company_name,
+                )
+            )
+
+        return ticket_options
+
+    def list_open_tickets_for_client(self, client_name: str, autotask_company_id: int | None = None) -> list[AutotaskTicketOption]:
+        """Return open Autotask tickets for a selected company or client-name match."""
+
+        safe_client_name = client_name.strip()
+        if not safe_client_name:
+            raise AutotaskSubmissionError("Client name is required before searching Autotask tickets.")
+
+        ticket_options: list[AutotaskTicketOption] = []
+        with self._client() as client:
+            status_labels = self._query_ticket_status_labels(client)
+            companies: list[dict[str, Any]]
+            if autotask_company_id is not None:
+                selected_company = self._query_company_by_id(client, autotask_company_id)
+                companies = [selected_company] if selected_company is not None else []
+            else:
+                companies = self._query_companies_by_name(client, safe_client_name)
+
+            for company in companies:
+                if len(ticket_options) >= MAX_TICKET_LOOKUP_RESULTS:
+                    break
+
+                company_id = int(company["id"])
+                company_name = str(company.get("companyName") or safe_client_name)
+                ticket_options.extend(
+                    self._build_ticket_options_for_company(
+                        client,
+                        company_id=company_id,
+                        company_name=company_name,
+                        status_labels=status_labels,
+                    )
+                )
+
+        return ticket_options[:MAX_TICKET_LOOKUP_RESULTS]
+
+    def search_companies(self, query_text: str) -> list[AutotaskCompanyOption]:
+        """Return active Autotask companies matching a user-entered query."""
+
+        safe_query_text = query_text.strip()
+        if len(safe_query_text) < MIN_COMPANY_SEARCH_CHARACTERS:
+            raise AutotaskSubmissionError("Type at least 3 characters before searching Autotask companies.")
+
+        with self._client() as client:
+            companies = self._query_companies_by_name(client, safe_query_text)
+
+        return [
+            AutotaskCompanyOption(
+                company_id=int(company["id"]),
+                company_name=str(company.get("companyName") or "Unnamed company")[:120],
+            )
+            for company in companies
+        ]
 
     def _query_ticket_id(self, client: httpx.Client, ticket_number: str) -> int:
         """Find the Autotask ticket ID for the reviewed ticket number."""
@@ -173,6 +463,10 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         if job.rounded_end_utc is None:
             raise AutotaskSubmissionError("Job has no rounded end time.")
+        if self.application_settings.autotask_resource_id is None:
+            raise AutotaskSubmissionError("AUTOTASK_RESOURCE_ID is required before Autotask submission.")
+        if self.application_settings.autotask_role_id is None:
+            raise AutotaskSubmissionError("AUTOTASK_ROLE_ID is required before Autotask submission.")
 
         payload: dict[str, Any] = {
             "ticketID": ticket_id,

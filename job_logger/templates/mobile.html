@@ -103,6 +103,8 @@
                 <span>Client name</span>
                 <input
                   id="active-client-name-{{ active_job.id }}"
+                  class="autotask-company-input"
+                  data-company-input
                   name="client_name"
                   value="{{ active_job.client_name or '' }}"
                   placeholder="Client name for reference"
@@ -112,6 +114,15 @@
                   spellcheck="false"
                 >
               </label>
+              <input
+                type="hidden"
+                class="autotask-company-id"
+                data-company-id-input
+                name="autotask_company_id"
+                value="{{ active_job.autotask_company_id or '' }}"
+              >
+              <div class="company-search-results" data-company-results></div>
+              <p class="company-search-status muted-text" data-company-status aria-live="polite"></p>
               <input type="hidden" class="active-job-summary" name="summary_notes" value="">
               <button class="secondary-button" type="submit">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -121,6 +132,28 @@
                 Save Active Changes
               </button>
             </form>
+
+            <section
+              class="mobile-ticket-picker"
+              data-active-ticket-picker
+              data-ticket-lookup-url="/review/{{ active_job.id }}/tickets"
+              data-ticket-form-job-id="{{ active_job.id }}"
+              data-auto-load-ticket-options="{% if active_job.autotask_company_id %}true{% else %}false{% endif %}"
+            >
+              <div class="mobile-ticket-picker-header">
+                <h3>Open tickets</h3>
+                <button
+                  class="secondary-button"
+                  type="button"
+                  data-active-ticket-lookup-button
+                  {% if not active_job.client_name %}disabled{% endif %}
+                >
+                  Find tickets
+                </button>
+              </div>
+              <p class="ticket-picker-status muted-text" data-active-ticket-lookup-status aria-live="polite"></p>
+              <div class="ticket-picker-results" data-active-ticket-lookup-results></div>
+            </section>
 
             <div class="description-box">
               <label for="description-preview-{{ active_job.id }}">
@@ -169,6 +202,8 @@
                 <label>
                   <span>Client name</span>
                   <input
+                    class="autotask-company-input"
+                    data-company-input
                     name="client_name"
                     value="{{ active_job.client_name or '' }}"
                     placeholder="Client name for reference"
@@ -179,6 +214,15 @@
                     required
                   >
                 </label>
+                <input
+                  type="hidden"
+                  class="autotask-company-id"
+                  data-company-id-input
+                  name="autotask_company_id"
+                  value="{{ active_job.autotask_company_id or '' }}"
+                >
+                <div class="company-search-results" data-company-results></div>
+                <p class="company-search-status muted-text" data-company-status aria-live="polite"></p>
                 <input type="hidden" class="end-summary-notes" name="summary_notes" value="">
                 <button class="danger-button" type="submit">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -213,6 +257,8 @@
             <label>
               <span>Client name</span>
               <input
+                class="autotask-company-input"
+                data-company-input
                 name="client_name"
                 placeholder="Client name for reference"
                 maxlength="120"
@@ -221,6 +267,15 @@
                 spellcheck="false"
               >
             </label>
+            <input
+              type="hidden"
+              class="autotask-company-id"
+              data-company-id-input
+              name="autotask_company_id"
+              value=""
+            >
+            <div class="company-search-results" data-company-results></div>
+            <p class="company-search-status muted-text" data-company-status aria-live="polite"></p>
             <button class="primary-action-button" type="submit">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M8 5v14l11-7z"></path>
@@ -255,6 +310,8 @@
           <label>
             <span>Client name</span>
             <input
+              class="autotask-company-input"
+              data-company-input
               name="client_name"
               placeholder="Client name for reference"
               maxlength="120"
@@ -263,6 +320,15 @@
               spellcheck="false"
             >
           </label>
+          <input
+            type="hidden"
+            class="autotask-company-id"
+            data-company-id-input
+            name="autotask_company_id"
+            value=""
+          >
+          <div class="company-search-results" data-company-results></div>
+          <p class="company-search-status muted-text" data-company-status aria-live="polite"></p>
           <button class="primary-action-button" type="submit">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M8 5v14l11-7z"></path>

@@ -114,6 +114,7 @@
               <label>
                 <span>Client name</span>
                 <input
+                  data-review-client-input
                   name="client_name"
                   value="{{ selected_job.client_name or '' }}"
                   placeholder="Client name for reference"
@@ -123,6 +124,12 @@
                   spellcheck="false"
                 >
               </label>
+              <input
+                type="hidden"
+                data-review-company-id-input
+                name="autotask_company_id"
+                value="{{ selected_job.autotask_company_id or '' }}"
+              >
               <label>
                 <span>Start date</span>
                 <input name="start_date" type="date" value="{{ selected_job.rounded_start_utc|local_date }}" required>
@@ -196,6 +203,30 @@
                 </div>
               </label>
             </div>
+
+            <section
+              class="ticket-picker"
+              data-ticket-picker
+              data-ticket-lookup-url="/review/{{ selected_job.id }}/tickets"
+              aria-label="Open Autotask tickets"
+            >
+              <div class="ticket-picker-header">
+                <div>
+                  <h3>Open tickets</h3>
+                  <p class="muted-text">{{ selected_job.client_name or "No client name set" }}</p>
+                </div>
+                <button
+                  class="secondary-button"
+                  type="button"
+                  data-ticket-lookup-button
+                  {% if not selected_job.client_name %}disabled{% endif %}
+                >
+                  Find tickets
+                </button>
+              </div>
+              <p class="ticket-picker-status muted-text" data-ticket-lookup-status aria-live="polite"></p>
+              <div class="ticket-picker-results" data-ticket-lookup-results></div>
+            </section>
 
             <label class="wide-field">
               <span>Summary notes</span>

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ from job_logger.enums import JobStatus, TicketStatus
 from job_logger.models import AuditEvent
 from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_token
 from job_logger.services.audit import record_audit_event
+from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider
 from job_logger.services.jobs import (
     JobWorkflowError,
     apply_review_fields,
@@ -79,6 +80,44 @@ def selected_review_page(
     """Render the desktop review page with a selected job."""
 
     return _render_review(request, database_session, job_id)
+
+
+@router.get("/{job_id}/tickets")
+def review_ticket_options(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Return open Autotask tickets for the selected job's stored client name."""
+
+    require_authenticated_username(request)
+    try:
+        job = get_job_or_raise(database_session, job_id)
+        if not job.client_name:
+            raise JobWorkflowError("Client name is required before searching Autotask tickets.")
+
+        ticket_options = get_autotask_provider().list_open_tickets_for_client(
+            job.client_name,
+            job.autotask_company_id,
+        )
+    except (AutotaskSubmissionError, JobWorkflowError) as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+
+    return JSONResponse(
+        {
+            "client_name": job.client_name,
+            "autotask_company_id": job.autotask_company_id,
+            "tickets": [
+                {
+                    "ticket_number": ticket_option.ticket_number,
+                    "title": ticket_option.title,
+                    "status_label": ticket_option.status_label,
+                    "company_name": ticket_option.company_name,
+                }
+                for ticket_option in ticket_options
+            ],
+        }
+    )
 
 
 async def _form_values(request: Request) -> dict[str, str]:

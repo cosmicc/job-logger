@@ -25,6 +25,7 @@ Autotask REST API references used by this app:
 
 - TimeEntries entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/TimeEntriesEntity.htm
 - Tickets entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/TicketsEntity.htm
+- Companies entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/CompaniesEntity.htm
 - REST authentication headers: https://www.autotask.net/help/developerhelp/Content/APIs/REST/General_Topics/REST_Security_Auth.htm
 
 ## Local Setup
@@ -272,8 +273,17 @@ ticket-status updates should be sent:
 - `AUTOTASK_STATUS_FOLLOW_UP_ID`
 - `AUTOTASK_STATUS_COMPLETE_ID`
 
-The app queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row, and
-records every attempt in `submission_attempts`.
+The mobile page can search Autotask companies while entering the client name.
+Selecting a company stores the display name and Autotask company ID with the job
+so open-ticket lookup can target the exact selected company instead of relying
+only on a typed name. Client names and ticket numbers can still be typed
+manually when needed.
+
+The mobile and review pages can query open Autotask tickets from the selected
+job's stored company ID or stored client name. Selecting a returned ticket fills
+the editable ticket number field; the ticket number can still be typed manually.
+The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
+and records every attempt in `submission_attempts`.
 
 ## Time Handling
 

@@ -1,4 +1,6 @@
 const DESCRIPTION_SAVE_DELAY_MS = 650;
+const COMPANY_SEARCH_DELAY_MS = 400;
+const MIN_COMPANY_SEARCH_CHARACTERS = 3;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 
 const activeRecordButtons = document.querySelectorAll(".record-notes-button");
@@ -6,8 +8,11 @@ const submitButtons = document.querySelectorAll(".submit-notes-button");
 const descriptionTextareas = document.querySelectorAll(".job-description");
 const endJobForms = document.querySelectorAll(".end-job-form");
 const activeTicketForms = document.querySelectorAll(".active-ticket-form");
+const companyInputs = document.querySelectorAll("[data-company-input]");
+const activeTicketPickers = document.querySelectorAll("[data-active-ticket-picker]");
 
 const descriptionSaveTimers = new Map();
+const companySearchTimers = new Map();
 const lastSavedDescriptions = new Map();
 const pendingDescriptionSaves = new Set();
 
@@ -38,12 +43,66 @@ function findRecordingStatusElement(jobId) {
   return document.querySelector(`.recording-status[data-job-id="${toSafeMapString(jobId)}"]`);
 }
 
+function findActiveTicketForm(jobId) {
+  if (!jobId) {
+    return null;
+  }
+
+  return document.querySelector(`.active-ticket-form[data-job-id="${toSafeMapString(jobId)}"]`);
+}
+
 function findControlElements(jobId) {
   return {
     recordButton: document.querySelector(`.record-notes-button[data-job-id="${toSafeMapString(jobId)}"]`),
     submitButton: document.querySelector(`.submit-notes-button[data-job-id="${toSafeMapString(jobId)}"]`),
     statusElement: findRecordingStatusElement(jobId),
   };
+}
+
+function getCompanyPickerElements(companyInput) {
+  const parentForm = companyInput.closest("form");
+  if (!parentForm) {
+    return {companyIdInput: null, resultsElement: null, statusElement: null};
+  }
+
+  return {
+    companyIdInput: parentForm.querySelector("[data-company-id-input]"),
+    resultsElement: parentForm.querySelector("[data-company-results]"),
+    statusElement: parentForm.querySelector("[data-company-status]"),
+  };
+}
+
+function clearCompanyResults(companyInput) {
+  const {resultsElement} = getCompanyPickerElements(companyInput);
+  if (resultsElement) {
+    resultsElement.replaceChildren();
+  }
+}
+
+function setCompanyStatus(companyInput, message, isError = false) {
+  const {statusElement} = getCompanyPickerElements(companyInput);
+  if (!statusElement) {
+    return;
+  }
+
+  statusElement.textContent = message;
+  statusElement.classList.toggle("error-text", isError);
+}
+
+function submitFormWithCurrentFields(formElement) {
+  if (!formElement) {
+    return;
+  }
+
+  if (formElement.requestSubmit) {
+    formElement.requestSubmit();
+    return;
+  }
+
+  const shouldSubmit = formElement.dispatchEvent(new Event("submit", {cancelable: true}));
+  if (shouldSubmit) {
+    formElement.submit();
+  }
 }
 
 function setRecordingStatus(jobId, message, isError = false) {
@@ -124,6 +183,79 @@ function stopActiveStream() {
   for (const track of activeAudioStream.getTracks()) {
     track.stop();
   }
+}
+
+async function searchAutotaskCompanies(queryText) {
+  const response = await fetch(`/autotask/companies?query=${encodeURIComponent(queryText)}`, {
+    headers: {Accept: "application/json"},
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || "Autotask company search failed.");
+  }
+
+  return Array.isArray(payload.companies) ? payload.companies : [];
+}
+
+function renderCompanyResults(companyInput, companies) {
+  const parentForm = companyInput.closest("form");
+  const {companyIdInput, resultsElement} = getCompanyPickerElements(companyInput);
+  if (!companyIdInput || !resultsElement) {
+    return;
+  }
+
+  resultsElement.replaceChildren();
+  for (const companyOption of companies) {
+    const optionButton = document.createElement("button");
+    optionButton.type = "button";
+    optionButton.className = "company-option-button";
+    optionButton.textContent = companyOption.company_name || "Unnamed company";
+    optionButton.addEventListener("click", () => {
+      companyInput.value = companyOption.company_name || "";
+      companyIdInput.value = companyOption.company_id || "";
+      resultsElement.replaceChildren();
+      setCompanyStatus(companyInput, "Autotask company selected.");
+      if (parentForm && parentForm.classList.contains("active-ticket-form")) {
+        submitFormWithCurrentFields(parentForm);
+      }
+    });
+    resultsElement.append(optionButton);
+  }
+}
+
+function queueCompanySearch(companyInput) {
+  const queryText = toSafeMapString(companyInput.value).trim();
+  const {companyIdInput} = getCompanyPickerElements(companyInput);
+  if (companyIdInput) {
+    companyIdInput.value = "";
+  }
+
+  clearTimeout(companySearchTimers.get(companyInput));
+  clearCompanyResults(companyInput);
+
+  if (queryText.length < MIN_COMPANY_SEARCH_CHARACTERS) {
+    setCompanyStatus(companyInput, "");
+    return;
+  }
+
+  companySearchTimers.set(
+    companyInput,
+    setTimeout(async () => {
+      try {
+        setCompanyStatus(companyInput, "Searching Autotask...");
+        const companies = await searchAutotaskCompanies(queryText);
+        if (companies.length === 0) {
+          setCompanyStatus(companyInput, "No matching Autotask companies found.");
+          return;
+        }
+
+        setCompanyStatus(companyInput, "");
+        renderCompanyResults(companyInput, companies);
+      } catch (error) {
+        setCompanyStatus(companyInput, error.message || "Autotask company search failed.", true);
+      }
+    }, COMPANY_SEARCH_DELAY_MS),
+  );
 }
 
 function clearDescriptionTimer(jobId) {
@@ -218,6 +350,68 @@ async function uploadRecording(activeJobId, audioBlob) {
   }
 
   return payload;
+}
+
+function buildTicketOptionText(ticketOption) {
+  const ticketNumber = ticketOption.ticket_number || "No ticket number";
+  const ticketTitle = ticketOption.title || "Untitled ticket";
+  const ticketStatus = ticketOption.status_label || "Unknown status";
+  return `${ticketNumber} | ${ticketTitle} | ${ticketStatus}`;
+}
+
+async function loadActiveTicketOptions(ticketPicker) {
+  const lookupUrl = ticketPicker.dataset.ticketLookupUrl || "";
+  const jobId = toSafeMapString(ticketPicker.dataset.ticketFormJobId);
+  const lookupButton = ticketPicker.querySelector("[data-active-ticket-lookup-button]");
+  const statusElement = ticketPicker.querySelector("[data-active-ticket-lookup-status]");
+  const resultsElement = ticketPicker.querySelector("[data-active-ticket-lookup-results]");
+  if (!lookupUrl || !lookupButton || !statusElement || !resultsElement) {
+    return;
+  }
+
+  lookupButton.disabled = true;
+  statusElement.classList.remove("error-text");
+  statusElement.textContent = "Searching Autotask tickets...";
+  resultsElement.replaceChildren();
+
+  try {
+    const response = await fetch(lookupUrl, {headers: {Accept: "application/json"}});
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.detail || "Autotask ticket lookup failed.");
+    }
+
+    const ticketOptions = Array.isArray(payload.tickets) ? payload.tickets : [];
+    if (ticketOptions.length === 0) {
+      statusElement.textContent = "No open tickets found.";
+      return;
+    }
+
+    statusElement.textContent = `${ticketOptions.length} open ticket(s) found.`;
+    for (const ticketOption of ticketOptions) {
+      const optionButton = document.createElement("button");
+      optionButton.type = "button";
+      optionButton.className = "ticket-option-button";
+      optionButton.textContent = buildTicketOptionText(ticketOption);
+      optionButton.addEventListener("click", () => {
+        const activeTicketForm = findActiveTicketForm(jobId);
+        const ticketInput = activeTicketForm ? activeTicketForm.querySelector(".active-ticket-number") : null;
+        if (!ticketInput) {
+          return;
+        }
+
+        ticketInput.value = ticketOption.ticket_number || "";
+        statusElement.textContent = `Selected ${ticketInput.value}.`;
+        submitFormWithCurrentFields(activeTicketForm);
+      });
+      resultsElement.append(optionButton);
+    }
+  } catch (error) {
+    statusElement.textContent = error.message || "Autotask ticket lookup failed.";
+    statusElement.classList.add("error-text");
+  } finally {
+    lookupButton.disabled = false;
+  }
 }
 
 async function startRecording(activeJobId) {
@@ -433,8 +627,27 @@ for (const activeTicketForm of activeTicketForms) {
 
     initialTicketNumber = nextTicketNumber;
     ticketInput.value = nextTicketNumber;
-    activeTicketForm.submit();
+    submitFormWithCurrentFields(activeTicketForm);
   });
+}
+
+for (const companyInput of companyInputs) {
+  companyInput.addEventListener("input", () => {
+    queueCompanySearch(companyInput);
+  });
+}
+
+for (const ticketPicker of activeTicketPickers) {
+  const lookupButton = ticketPicker.querySelector("[data-active-ticket-lookup-button]");
+  if (lookupButton) {
+    lookupButton.addEventListener("click", () => {
+      loadActiveTicketOptions(ticketPicker);
+    });
+  }
+
+  if (ticketPicker.dataset.autoLoadTicketOptions === "true") {
+    loadActiveTicketOptions(ticketPicker);
+  }
 }
 
 setAllRecordingControlsIdle();

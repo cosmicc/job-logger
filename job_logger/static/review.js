@@ -86,6 +86,83 @@ function bindTimeStepButtons() {
   }
 }
 
+function buildTicketOptionText(ticketOption) {
+  const ticketNumber = ticketOption.ticket_number || "No ticket number";
+  const ticketTitle = ticketOption.title || "Untitled ticket";
+  const ticketStatus = ticketOption.status_label || "Unknown status";
+  const companyName = ticketOption.company_name || "Unknown company";
+  return `${ticketNumber} | ${ticketTitle} | ${ticketStatus} | ${companyName}`;
+}
+
+function bindTicketLookup() {
+  const ticketPicker = document.querySelector("[data-ticket-picker]");
+  if (!ticketPicker) {
+    return;
+  }
+
+  const lookupUrl = ticketPicker.dataset.ticketLookupUrl;
+  const lookupButton = ticketPicker.querySelector("[data-ticket-lookup-button]");
+  const statusElement = ticketPicker.querySelector("[data-ticket-lookup-status]");
+  const resultsElement = ticketPicker.querySelector("[data-ticket-lookup-results]");
+  const ticketNumberInput = document.querySelector('input[name="ticket_number"]');
+  if (!lookupUrl || !lookupButton || !statusElement || !resultsElement || !ticketNumberInput) {
+    return;
+  }
+
+  lookupButton.addEventListener("click", async () => {
+    lookupButton.disabled = true;
+    statusElement.textContent = "Searching Autotask...";
+    resultsElement.replaceChildren();
+
+    try {
+      const response = await fetch(lookupUrl, {headers: {Accept: "application/json"}});
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.detail || "Autotask ticket lookup failed.");
+      }
+
+      const ticketOptions = Array.isArray(payload.tickets) ? payload.tickets : [];
+      if (ticketOptions.length === 0) {
+        statusElement.textContent = "No open tickets found.";
+        return;
+      }
+
+      statusElement.textContent = `${ticketOptions.length} open ticket(s) found.`;
+      for (const ticketOption of ticketOptions) {
+        const optionButton = document.createElement("button");
+        optionButton.type = "button";
+        optionButton.className = "ticket-option-button";
+        optionButton.textContent = buildTicketOptionText(ticketOption);
+        optionButton.addEventListener("click", () => {
+          ticketNumberInput.value = ticketOption.ticket_number || "";
+          ticketNumberInput.focus();
+          statusElement.textContent = `Selected ${ticketNumberInput.value}.`;
+        });
+        resultsElement.append(optionButton);
+      }
+    } catch (error) {
+      statusElement.textContent = error.message || "Autotask ticket lookup failed.";
+    } finally {
+      lookupButton.disabled = false;
+    }
+  });
+}
+
+function bindReviewCompanyClearing() {
+  const clientInput = document.querySelector("[data-review-client-input]");
+  const companyIdInput = document.querySelector("[data-review-company-id-input]");
+  if (!clientInput || !companyIdInput) {
+    return;
+  }
+
+  const initialClientName = clientInput.value;
+  clientInput.addEventListener("input", () => {
+    if (clientInput.value !== initialClientName) {
+      companyIdInput.value = "";
+    }
+  });
+}
+
 const reviewRows = document.querySelectorAll(".review-table-row[data-review-url]");
 for (const reviewRow of reviewRows) {
   const reviewUrl = reviewRow.getAttribute("data-review-url");
@@ -106,3 +183,5 @@ for (const reviewRow of reviewRows) {
 }
 
 bindTimeStepButtons();
+bindTicketLookup();
+bindReviewCompanyClearing();

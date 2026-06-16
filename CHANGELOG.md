@@ -25,6 +25,11 @@ All recorded changes to Job Logger are documented in this file.
   defaults of 8 threads and 8g for local transcription.
 - Documented the recommended Docker host size of at least 8 CPU cores and 10 GB
   of RAM for reliable local faster-whisper transcription.
+- Added review-side Autotask open-ticket lookup by stored client name, allowing
+  reviewers to select a ticket and fill the ticket number field automatically.
+- Added mobile Autotask company search by client name, stored selected Autotask
+  company IDs on jobs, and used the selected company for mobile/review open-ticket
+  lookup while preserving manual ticket-number entry.
 - Updated the mobile workflow so recording is now `Record -> Pause/Resume -> Submit`
   with submit-based transcription upload, added 15-minute review time increment
   controls for start/end times, and added review-side editable client name field.

@@ -15,6 +15,7 @@ from job_logger.security import (
     validate_csrf_token,
 )
 from job_logger.services.audit import record_audit_event
+from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider
 from job_logger.services.jobs import (
     JobWorkflowError,
     apply_manual_summary_to_job,
@@ -64,6 +65,29 @@ def mobile_typo_redirect() -> RedirectResponse:
     return RedirectResponse(url="/mobile", status_code=303)
 
 
+@router.get("/autotask/companies")
+def autotask_company_options(request: Request, query: str = "") -> JSONResponse:
+    """Return safe Autotask company options for authenticated autocomplete."""
+
+    require_authenticated_username(request)
+    try:
+        company_options = get_autotask_provider().search_companies(query)
+    except AutotaskSubmissionError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+
+    return JSONResponse(
+        {
+            "companies": [
+                {
+                    "company_id": company_option.company_id,
+                    "company_name": company_option.company_name,
+                }
+                for company_option in company_options
+            ],
+        }
+    )
+
+
 @router.post("/jobs/start")
 async def start_work(
     request: Request,
@@ -76,16 +100,25 @@ async def start_work(
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
     submitted_ticket_number = str(form_data.get("ticket_number", ""))
     submitted_client_name = str(form_data.get("client_name", ""))
+    submitted_autotask_company_id = str(form_data.get("autotask_company_id", ""))
 
     try:
-        job = start_job(database_session, ticket_number=submitted_ticket_number, client_name=submitted_client_name)
+        job = start_job(
+            database_session,
+            ticket_number=submitted_ticket_number,
+            client_name=submitted_client_name,
+            autotask_company_id=submitted_autotask_company_id,
+        )
         record_audit_event(
             database_session,
             actor=actor,
             action="job.started",
             job_id=job.id,
             request=request,
-            details={"ticket_number_present": bool(job.ticket_number)},
+            details={
+                "ticket_number_present": bool(job.ticket_number),
+                "autotask_company_selected": job.autotask_company_id is not None,
+            },
         )
         database_session.commit()
         add_flash_message(request, "Work started.", "success")
@@ -110,6 +143,8 @@ async def save_ticket_number(
     submitted_ticket_number = str(form_data.get("ticket_number", ""))
     raw_client_name = form_data.get("client_name")
     submitted_client_name = str(raw_client_name) if raw_client_name is not None else None
+    raw_autotask_company_id = form_data.get("autotask_company_id")
+    submitted_autotask_company_id = str(raw_autotask_company_id) if raw_autotask_company_id is not None else None
     raw_summary_text = form_data.get("summary_notes")
 
     try:
@@ -118,6 +153,7 @@ async def save_ticket_number(
             job_id,
             submitted_ticket_number,
             submitted_client_name,
+            submitted_autotask_company_id,
         )
         if raw_summary_text is not None:
             apply_manual_summary_to_job(database_session, job_id, str(raw_summary_text))
@@ -130,6 +166,7 @@ async def save_ticket_number(
             details={
                 "ticket_number_present": bool(job.ticket_number),
                 "client_name_present": bool(job.client_name),
+                "autotask_company_selected": job.autotask_company_id is not None,
                 "summary_present": bool(job.summary_notes),
             },
         )
@@ -187,10 +224,17 @@ async def end_work(
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
     raw_client_name = form_data.get("client_name")
     submitted_client_name = str(raw_client_name) if raw_client_name is not None else None
+    raw_autotask_company_id = form_data.get("autotask_company_id")
+    submitted_autotask_company_id = str(raw_autotask_company_id) if raw_autotask_company_id is not None else None
     summary_notes = str(form_data.get("summary_notes", ""))
 
     try:
-        job = end_job(database_session, job_id, client_name=submitted_client_name)
+        job = end_job(
+            database_session,
+            job_id,
+            client_name=submitted_client_name,
+            autotask_company_id=submitted_autotask_company_id,
+        )
         apply_manual_summary_to_job(database_session, job_id=job.id, summary_text=summary_notes)
         record_audit_event(
             database_session,
@@ -198,7 +242,10 @@ async def end_work(
             action="job.ended",
             job_id=job.id,
             request=request,
-            details={"client_name_present": bool(job.client_name)},
+            details={
+                "client_name_present": bool(job.client_name),
+                "autotask_company_selected": job.autotask_company_id is not None,
+            },
         )
         database_session.commit()
         add_flash_message(request, "Work ended and moved to review.", "success")
