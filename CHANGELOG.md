@@ -17,3 +17,7 @@ All recorded changes to Job Logger are documented in this file.
 - Replaced the OpenAI speech-to-text provider with local faster-whisper
   transcription and updated Docker/environment variables for local model
   caching.
+- Made the `cloudflared` Docker service part of the default Compose stack,
+  required `CLOUDFLARE_TUNNEL_TOKEN` for startup, restricted local app and
+  tunnel metrics ports to `127.0.0.1`, and updated tunnel deployment
+  documentation.

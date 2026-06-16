@@ -43,7 +43,9 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "${APP_EXPOSE_PORT:-8000}:8000"
+      # Bind the optional local troubleshooting port to loopback only. Public
+      # access should come through Cloudflare Tunnel and Cloudflare Access.
+      - "127.0.0.1:${APP_EXPOSE_PORT:-8000}:8000"
     volumes:
       - faster_whisper_models:/models/faster-whisper
     healthcheck:
@@ -69,14 +71,22 @@ services:
       retries: 5
 
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: ${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:latest}
     restart: unless-stopped
-    profiles:
+    command:
       - tunnel
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
+      - --no-autoupdate
+      - --metrics
+      - ${CLOUDFLARED_METRICS:-0.0.0.0:20241}
+      - run
+      - --token
+      - ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN must be set in .env}
     depends_on:
       app:
         condition: service_healthy
+    ports:
+      # The metrics endpoint is for local tunnel diagnostics only.
+      - "127.0.0.1:${CLOUDFLARED_METRICS_PORT:-20241}:20241"
 
 volumes:
   postgres_data:

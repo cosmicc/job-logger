@@ -50,18 +50,20 @@ Autotask REST API references used by this app:
 5. Start the stack:
 
    ```bash
-   docker compose up --build
+   docker compose up -d --build
    ```
 
-6. Open the local app at:
+6. Open the local troubleshooting URL at:
 
    ```text
-   http://127.0.0.1:8000
+   http://127.0.0.1:11030
    ```
 
 ## Cloudflare Tunnel
 
-The Compose file includes a `cloudflared` service under the `tunnel` profile.
+The Compose file starts `cloudflared` by default. This keeps the production
+deployment path simple: the app, PostgreSQL, and tunnel connector all come up
+with one `docker compose up -d --build` command.
 
 1. Create a Cloudflare Tunnel in the Zero Trust dashboard.
 2. Add a public hostname that routes to this Docker service URL:
@@ -71,13 +73,23 @@ The Compose file includes a `cloudflared` service under the `tunnel` profile.
    ```
 
 3. Create a Cloudflare Access self-hosted application for that hostname.
-4. Put the tunnel token in `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
-5. Set `CLOUDFLARE_ACCESS_REQUIRED=true` after Access is verified.
-6. Start the tunnel profile:
+4. Put the same hostname in `.env` under `APP_ALLOWED_HOSTS`.
+5. Put the tunnel token in `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
+6. Set `CLOUDFLARE_ACCESS_REQUIRED=true` after Access is verified.
+7. Start the full stack:
 
    ```bash
-   docker compose --profile tunnel up --build
+   docker compose up -d --build
    ```
+
+The app container exposes its port only on `127.0.0.1` for local
+troubleshooting. Public mobile and review traffic should enter through the
+Cloudflare Tunnel hostname and then reach the internal Docker service
+`http://app:8000`.
+
+The `cloudflared` metrics endpoint is published only on localhost at
+`127.0.0.1:20241` by default so tunnel diagnostics can be collected from the
+Docker host without exposing metrics to the network.
 
 ## Provider Modes
 
