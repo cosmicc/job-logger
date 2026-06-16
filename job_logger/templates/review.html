@@ -22,8 +22,9 @@
         <div class="table-wrap">
           <table>
             <thead>
-              <tr>
+            <tr>
                 <th>Ticket</th>
+                <th>Autotask</th>
                 <th>Status</th>
                 <th>Date</th>
                 <th>Start</th>
@@ -32,9 +33,22 @@
             </thead>
             <tbody>
               {% for job in jobs %}
-                <tr class="{% if selected_job and selected_job.id == job.id %}selected-row{% endif %}">
+                <tr
+                  class="review-table-row {% if selected_job and selected_job.id == job.id %}selected-row{% endif %}"
+                  data-review-url="/review/{{ job.id }}"
+                  tabindex="0"
+                  role="button"
+                  aria-label="Open job {{ job.ticket_number or 'No ticket' }} for review"
+                >
+                  <td><span>{{ job.ticket_number or "No ticket" }}</span></td>
                   <td>
-                    <a href="/review/{{ job.id }}">{{ job.ticket_number or "No ticket" }}</a>
+                    {% if job.autotask_external_id %}
+                      <span class="status-chip status-submitted">Submitted</span>
+                    {% elif job.autotask_error %}
+                      <span class="status-chip status-submission_failed">Submission failed</span>
+                    {% else %}
+                      <span class="status-chip status-ready_for_review">Not submitted</span>
+                    {% endif %}
                   </td>
                   <td><span class="status-chip status-{{ job.status.value }}">{{ job.status.value.replace("_", " ") }}</span></td>
                   <td>{{ job.rounded_start_utc|local_date }}</td>
@@ -43,7 +57,7 @@
                 </tr>
               {% else %}
                 <tr>
-                  <td colspan="5">No jobs are available for review.</td>
+                  <td colspan="6">No jobs are available for review.</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -116,11 +130,7 @@
 
             <label class="wide-field">
               <span>Summary notes</span>
-              <textarea name="summary_notes" rows="5">{{ selected_job.summary_notes or '' }}</textarea>
-            </label>
-            <label class="wide-field">
-              <span>Transcribed description</span>
-              <textarea name="description_text" rows="8">{{ selected_job.description_text or '' }}</textarea>
+              <textarea name="summary_notes" rows="8">{{ selected_job.summary_notes or selected_job.description_text or '' }}</textarea>
             </label>
 
             <div class="action-row">
@@ -189,4 +199,6 @@
       </section>
     </div>
   </section>
+
+  <script src="{{ url_for('static', path='review.js') }}" defer></script>
 {% endblock %}

@@ -29,11 +29,17 @@
           </div>
         </dl>
 
-        <form method="post" action="/jobs/{{ active_job.id }}/ticket-number" class="ticket-number-form">
+        <form
+          method="post"
+          action="/jobs/{{ active_job.id }}/ticket-number"
+          id="active-ticket-form"
+          class="ticket-number-form"
+        >
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <label>
             <span>Autotask ticket number</span>
             <input
+              id="active-ticket-number"
               name="ticket_number"
               value="{{ active_job.ticket_number or '' }}"
               placeholder="T20260326.0018"
@@ -44,19 +50,18 @@
               spellcheck="false"
             >
           </label>
-          <button class="secondary-button" type="submit">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-              <path d="M17 21v-8H7v8"></path>
-              <path d="M7 3v5h8"></path>
-            </svg>
-            Save Ticket
-          </button>
         </form>
 
         <div class="description-box">
-          <label for="description-preview">Description</label>
-          <textarea id="description-preview" readonly>{{ active_job.description_text or "" }}</textarea>
+          <label for="description-preview">
+            <span>Summary notes</span>
+            <textarea
+              id="description-preview"
+              name="summary_notes"
+              data-job-id="{{ active_job.id }}"
+              placeholder="Type notes here, then refine with recorded speech if needed."
+            >{{ active_job.summary_notes or active_job.description_text or "" }}</textarea>
+          </label>
           {% if active_job.transcription_error %}
             <p class="error-text">{{ active_job.transcription_error }}</p>
           {% endif %}
@@ -74,7 +79,7 @@
               <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
               <path d="M12 19v3"></path>
             </svg>
-            Record Description
+            Record Notes
           </button>
           <form method="post" action="/jobs/{{ active_job.id }}/end">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -90,7 +95,7 @@
       {% else %}
         <p class="eyebrow-text">Ready</p>
         <h1>Start a work entry</h1>
-        <p class="muted-text">Start work, record the description during the job, then end work for review.</p>
+        <p class="muted-text">Start work, record the summary notes during the job, then end work for review.</p>
         <form method="post" action="/jobs/start" class="start-work-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <label>

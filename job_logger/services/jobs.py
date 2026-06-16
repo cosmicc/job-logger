@@ -37,9 +37,6 @@ class ReviewFields:
     # summary_notes are submitted to Autotask as the time-entry notes.
     summary_notes: str
 
-    # description_text contains editable speech-to-text output.
-    description_text: str
-
     # rounded_start_utc is the reviewer-approved local start time converted to UTC.
     rounded_start_utc: datetime
 
@@ -144,16 +141,17 @@ def end_job(database_session: Session, job_id: str) -> Job:
 
 
 def update_description_text(database_session: Session, job_id: str, description_text: str) -> Job:
-    """Append or replace active-job description text from browser speech recognition."""
+    """Replace the active-job summary notes from browser text input."""
 
     job = get_job_or_raise(database_session, job_id)
     if job.status != JobStatus.ACTIVE:
-        raise JobWorkflowError("Descriptions can only be recorded during an active job.")
+        raise JobWorkflowError("Summary notes can only be recorded during an active job.")
 
     safe_description_text = description_text.strip()
     if not safe_description_text:
-        raise JobWorkflowError("Description text cannot be empty.")
+        raise JobWorkflowError("Summary notes cannot be empty.")
 
+    job.summary_notes = safe_description_text
     job.description_text = safe_description_text
     job.transcription_status = TranscriptionStatus.SUCCEEDED
     job.transcription_provider = "browser"
@@ -186,6 +184,7 @@ def transcribe_active_job_audio(
         job.transcription_error = str(exc)
         raise
 
+    job.summary_notes = transcription_result.text
     job.description_text = transcription_result.text
     job.transcription_provider = transcription_result.provider
     job.transcription_status = TranscriptionStatus.SUCCEEDED
@@ -206,9 +205,10 @@ def validate_review_fields(form_values: dict[str, str]) -> ReviewFields:
         raise JobWorkflowError("Ticket status is invalid.") from exc
 
     summary_notes = form_values.get("summary_notes", "").strip()
-    description_text = form_values.get("description_text", "").strip()
-    if not summary_notes and not description_text:
-        raise JobWorkflowError("Summary notes or description text is required.")
+    if not summary_notes:
+        summary_notes = form_values.get("description_text", "").strip()
+    if not summary_notes:
+        raise JobWorkflowError("Summary notes are required.")
 
     if len(summary_notes) > 32000:
         raise JobWorkflowError("Summary notes must be 32,000 characters or fewer.")
@@ -231,7 +231,6 @@ def validate_review_fields(form_values: dict[str, str]) -> ReviewFields:
         ticket_number=ticket_number,
         ticket_status=ticket_status,
         summary_notes=summary_notes,
-        description_text=description_text,
         rounded_start_utc=rounded_start_utc,
         rounded_end_utc=rounded_end_utc,
         local_work_date=local_date_for(rounded_start_utc),
@@ -247,7 +246,7 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
     job.ticket_number = review_fields.ticket_number
     job.ticket_status = review_fields.ticket_status
     job.summary_notes = review_fields.summary_notes
-    job.description_text = review_fields.description_text
+    job.description_text = review_fields.summary_notes
     job.rounded_start_utc = review_fields.rounded_start_utc
     job.rounded_end_utc = review_fields.rounded_end_utc
     job.local_work_date = review_fields.local_work_date

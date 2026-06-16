@@ -69,7 +69,7 @@ def build_safe_submission_snapshot(job: Job) -> dict[str, Any]:
         "startDateTime": format_autotask_datetime(job.rounded_start_utc),
         "endDateTime": format_autotask_datetime(job.rounded_end_utc) if job.rounded_end_utc else None,
         "hoursWorked": str(_job_duration_hours(job)) if job.rounded_end_utc else None,
-        "summaryNotesLength": len(job.summary_notes or ""),
+        "summaryNotesLength": len(job.summary_notes or job.description_text or ""),
     }
 
 
@@ -236,4 +236,3 @@ def get_autotask_provider(application_settings: Settings = settings) -> BaseAuto
         return LiveAutotaskProvider(application_settings)
 
     raise AutotaskSubmissionError(f"Unsupported Autotask provider: {application_settings.autotask_provider}")
-

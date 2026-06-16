@@ -21,6 +21,13 @@ All recorded changes to Job Logger are documented in this file.
 - Added optional Autotask ticket number capture on the mobile page before or
   during active work, with server-side `TYYYYMMDD.####` validation and review
   prefill.
+- Improved mobile flow so active jobs show a ticket field without a manual save
+  button, description notes are editable in-page and synced from both typing and
+  speech-to-text recording, and the review list now highlights and loads the
+  selected job with clear row-level Autotask submission status.
+- Unified note text so transcribed content now populates the same `summary_notes`
+  field used for review and Autotask submission, removing the separate
+  description field in the review workflow; added dark theme as the default.
 
 - Added the initial `AGENTS.md` project instructions for the Dockerized Python
   Job Logger application.

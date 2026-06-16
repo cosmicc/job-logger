@@ -1,19 +1,25 @@
 :root {
-  --background: #f7f9fb;
-  --surface: #ffffff;
-  --surface-muted: #f0f4f7;
-  --text: #182027;
-  --muted: #65717d;
-  --border: #d9e1e8;
-  --accent: #0f766e;
-  --accent-strong: #115e59;
-  --warning: #b7791f;
-  --danger: #b42318;
-  --danger-soft: #fff1f0;
-  --success: #147d4a;
-  --shadow: 0 16px 45px rgba(24, 32, 39, 0.08);
+  --background: #0b1220;
+  --surface: #111a2c;
+  --surface-muted: #1a2740;
+  --text: #e5e9f0;
+  --muted: #9aa8bc;
+  --border: #2b3c59;
+  --accent: #2dd4bf;
+  --accent-strong: #14b8a6;
+  --warning: #f59e0b;
+  --warning-soft: rgba(245, 158, 11, 0.16);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.16);
+  --success: #34d399;
+  --shadow: 0 22px 52px rgba(3, 7, 18, 0.55);
+  --focus-ring: rgba(45, 212, 191, 0.45);
+  --success-soft: rgba(52, 211, 153, 0.16);
+  --surface-strong: rgba(255, 255, 255, 0.05);
+  --on-accent: #04120f;
+  --on-danger: #2b0b0b;
   --radius: 8px;
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 * {
@@ -64,7 +70,7 @@ svg {
   min-height: 64px;
   padding: 0 28px;
   border-bottom: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--surface-strong);
   backdrop-filter: blur(10px);
 }
 
@@ -81,8 +87,8 @@ svg {
   height: 34px;
   place-items: center;
   border-radius: var(--radius);
-  background: var(--text);
-  color: white;
+  background: var(--accent);
+  color: var(--text);
   font-size: 13px;
   letter-spacing: 0;
 }
@@ -146,12 +152,12 @@ svg {
 }
 
 .flash-success {
-  border-color: rgba(20, 125, 74, 0.25);
+  border-color: var(--success);
   color: var(--success);
 }
 
 .flash-error {
-  border-color: rgba(180, 35, 24, 0.25);
+  border-color: var(--danger);
   color: var(--danger);
 }
 
@@ -247,7 +253,7 @@ textarea {
   min-height: 42px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: white;
+  background: var(--surface);
   color: var(--text);
   padding: 9px 11px;
   font-size: 15px;
@@ -263,7 +269,7 @@ select:focus,
 textarea:focus,
 button:focus-visible,
 a:focus-visible {
-  outline: 3px solid rgba(15, 118, 110, 0.25);
+  outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -287,7 +293,7 @@ a:focus-visible {
 .primary-button,
 .primary-action-button {
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 
 .primary-button:hover,
@@ -314,11 +320,11 @@ a:focus-visible {
 .danger-button {
   width: 100%;
   background: var(--danger);
-  color: white;
+  color: var(--on-danger);
 }
 
 .danger-outline-button {
-  border-color: rgba(180, 35, 24, 0.35);
+  border-color: rgba(248, 113, 113, 0.35);
   background: var(--danger-soft);
   color: var(--danger);
 }
@@ -347,9 +353,9 @@ a:focus-visible {
   gap: 7px;
   min-height: 34px;
   padding: 7px 10px;
-  border: 1px solid rgba(15, 118, 110, 0.22);
+  border: 1px solid rgba(45, 212, 191, 0.24);
   border-radius: var(--radius);
-  background: #eefaf8;
+  background: rgba(45, 212, 191, 0.14);
   color: var(--accent-strong);
   font-size: 13px;
   font-weight: 800;
@@ -394,19 +400,18 @@ a:focus-visible {
 
 .start-work-form {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .ticket-number-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: end;
   margin-bottom: 18px;
 }
 
-.ticket-number-form .secondary-button {
-  min-width: 132px;
+.start-work-form .primary-action-button {
+  margin-top: 6px;
 }
 
 .button-grid {
@@ -425,8 +430,8 @@ a:focus-visible {
 }
 
 .is-recording {
-  border-color: rgba(183, 121, 31, 0.4);
-  background: #fff7ed;
+  border-color: rgba(245, 158, 11, 0.5);
+  background: var(--warning-soft);
   color: var(--warning);
 }
 
@@ -470,17 +475,17 @@ a:focus-visible {
 }
 
 .status-active {
-  background: #eefaf8;
+  background: rgba(45, 212, 191, 0.18);
   color: var(--accent-strong);
 }
 
 .status-ready_for_review {
-  background: #fff7ed;
+  background: var(--warning-soft);
   color: var(--warning);
 }
 
 .status-submitted {
-  background: #eefbf2;
+  background: var(--success-soft);
   color: var(--success);
 }
 
@@ -538,7 +543,20 @@ td a {
 }
 
 .selected-row {
-  background: #eefaf8;
+  background: rgba(45, 212, 191, 0.13);
+}
+
+.review-table-row {
+  cursor: pointer;
+}
+
+.review-table-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.review-table-row:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -2px;
 }
 
 .edit-panel {

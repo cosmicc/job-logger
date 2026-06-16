@@ -41,7 +41,7 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
     text_response = authenticated_client.post(
         f"/jobs/{active_job_id}/description/text",
         headers={"X-CSRF-Token": csrf_token},
-        json={"description_text": "Replaced a failed workstation power supply."},
+        json={"summary_notes": "Replaced a failed workstation power supply."},
     )
     assert text_response.status_code == 200
 
@@ -67,7 +67,6 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
             "end_date": "2026-06-16",
             "end_time": "08:15",
             "summary_notes": "Replaced a failed workstation power supply.",
-            "description_text": "Replaced a failed workstation power supply.",
         },
         follow_redirects=False,
     )
@@ -77,6 +76,7 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         job = database_session.get(Job, active_job_id)
         assert job is not None
         assert job.status == JobStatus.SUBMITTED
+        assert job.summary_notes == "Replaced a failed workstation power supply."
         assert job.transcription_status == TranscriptionStatus.SUCCEEDED
         assert job.autotask_external_id == f"mock-time-entry-{active_job_id}"
 

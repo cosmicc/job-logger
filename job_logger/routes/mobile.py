@@ -157,12 +157,12 @@ async def save_browser_description(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> JSONResponse:
-    """Save text returned by browser speech recognition during an active job."""
+    """Save text returned by typing or browser speech recognition during an active job."""
 
     actor = require_authenticated_username(request)
     validate_csrf_header(request)
     payload = await request.json()
-    description_text = str(payload.get("description_text", ""))
+    description_text = str(payload.get("summary_notes", "")) or str(payload.get("description_text", ""))
 
     try:
         job = update_description_text(database_session, job_id, description_text)
@@ -179,7 +179,7 @@ async def save_browser_description(
         database_session.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    return JSONResponse({"description_text": job.description_text or ""})
+    return JSONResponse({"summary_notes": job.summary_notes or "", "description_text": job.description_text or ""})
 
 
 @router.post("/jobs/{job_id}/description/audio")
@@ -222,7 +222,9 @@ async def upload_audio_description(
         database_session.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    return JSONResponse({"description_text": job.description_text or "", "provider": job.transcription_provider})
+    return JSONResponse(
+        {"summary_notes": job.summary_notes or "", "description_text": job.description_text or "", "provider": job.transcription_provider}
+    )
 
 
 def require_authenticated_username_or_redirect(request: Request) -> bool:

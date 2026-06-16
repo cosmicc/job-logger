@@ -69,8 +69,12 @@ class Job(Base):
     # summary_notes become Autotask summaryNotes when the job is accepted.
     summary_notes: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Reviewer-approved time notes.")
 
-    # description_text stores speech-to-text output and manual edits for review.
-    description_text: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Editable transcribed description.")
+    # description_text mirrors summary_notes for compatibility with legacy clients.
+    description_text: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Compatibility mirror of summary_notes for legacy data and payload paths.",
+    )
 
     # raw_start_utc is the exact time the user tapped Start Work.
     raw_start_utc: Mapped[datetime] = mapped_column(
