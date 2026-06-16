@@ -91,6 +91,41 @@ The `cloudflared` metrics endpoint is published only on localhost at
 `127.0.0.1:20241` by default so tunnel diagnostics can be collected from the
 Docker host without exposing metrics to the network.
 
+### Tunnel 502 Troubleshooting
+
+A Cloudflare 502 means the request reached Cloudflare and the tunnel connector,
+but `cloudflared` could not reach the origin service configured for the public
+hostname.
+
+Check these items first:
+
+- Confirm `.env` exists and contains a real `CLOUDFLARE_TUNNEL_TOKEN`.
+- Confirm the Cloudflare public hostname service URL is exactly
+  `http://app:8000` when `cloudflared` runs in this Compose stack.
+- Do not use `http://localhost:8000` or `http://127.0.0.1:8000` in the
+  Cloudflare public hostname service URL. Inside the `cloudflared` container,
+  localhost means the tunnel container itself, not the FastAPI app container.
+- Confirm the app is healthy from the Docker host:
+
+  ```bash
+  curl -i http://127.0.0.1:11030/health/live
+  ```
+
+- Confirm the app is healthy from inside the tunnel container:
+
+  ```bash
+  docker compose exec cloudflared wget -qO- http://app:8000/health/live
+  ```
+
+- Review tunnel connector logs:
+
+  ```bash
+  docker compose logs --tail=100 cloudflared
+  ```
+
+The mobile route is `/mobile`. The app also redirects `/moble` to `/mobile` to
+avoid a common typo after the tunnel is working.
+
 ## Provider Modes
 
 ### Speech To Text

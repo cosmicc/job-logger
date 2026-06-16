@@ -21,3 +21,5 @@ All recorded changes to Job Logger are documented in this file.
   required `CLOUDFLARE_TUNNEL_TOKEN` for startup, restricted local app and
   tunnel metrics ports to `127.0.0.1`, and updated tunnel deployment
   documentation.
+- Added tunnel 502 troubleshooting documentation and a `/moble` typo redirect
+  to the mobile page.

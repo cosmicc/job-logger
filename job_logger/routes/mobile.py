@@ -56,6 +56,13 @@ def mobile_page(
     )
 
 
+@router.get("/moble", include_in_schema=False)
+def mobile_typo_redirect() -> RedirectResponse:
+    """Redirect a common mobile URL typo to the real mobile work logger."""
+
+    return RedirectResponse(url="/mobile", status_code=303)
+
+
 @router.post("/jobs/start")
 async def start_work(
     request: Request,
