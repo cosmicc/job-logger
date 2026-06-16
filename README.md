@@ -124,6 +124,16 @@ The `cloudflared` metrics endpoint is published only on localhost at
 `127.0.0.1:20241` by default so tunnel diagnostics can be collected from the
 Docker host without exposing metrics to the network.
 
+Nginx exposes two health paths:
+
+- `/nginx-health` checks only the Nginx container.
+- `/health/live` proxies through Nginx to the FastAPI app.
+
+The normal Nginx startup log ends with `Configuration complete; ready for start
+up` and `start worker process`. If the log later says `signal 3 (SIGQUIT)
+received, shutting down`, Docker or Compose asked Nginx to stop gracefully; that
+line is not an Nginx configuration failure by itself.
+
 ### Tunnel 502 Troubleshooting
 
 A Cloudflare 502 means the request reached Cloudflare and the tunnel connector,
@@ -140,6 +150,12 @@ Check these items first:
 - Do not use `http://localhost:<port>` or `http://127.0.0.1:<port>` in the
   Cloudflare public hostname service URL. Inside the `cloudflared` container,
   localhost means the tunnel container itself, not Nginx or FastAPI.
+- Confirm Nginx itself is reachable from the Docker host:
+
+  ```bash
+  curl -i http://127.0.0.1:11030/nginx-health
+  ```
+
 - Confirm Nginx can reach the app from the Docker host:
 
   ```bash
@@ -149,7 +165,7 @@ Check these items first:
 - Confirm Nginx is healthy from inside the tunnel container:
 
   ```bash
-  docker compose exec cloudflared wget -qO- http://nginx:${NGINX_INTERNAL_PORT:-8080}/health/live
+  docker compose exec cloudflared wget -qO- http://nginx:${NGINX_INTERNAL_PORT:-8080}/nginx-health
   ```
 
 - Confirm the app is healthy from inside the Nginx container:

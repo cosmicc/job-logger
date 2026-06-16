@@ -78,7 +78,7 @@ services:
     volumes:
       - ./docker/nginx/templates:/etc/nginx/templates:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- \"http://127.0.0.1:$${NGINX_INTERNAL_PORT}/health/live\" >/dev/null"]
+      test: ["CMD-SHELL", "wget -qO- \"http://127.0.0.1:$${NGINX_INTERNAL_PORT}/nginx-health\" >/dev/null"]
       interval: 30s
       timeout: 5s
       start_period: 10s

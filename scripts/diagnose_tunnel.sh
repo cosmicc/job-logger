@@ -48,29 +48,36 @@ printf '%s\n' "============================="
 printf '\n%s\n' "1. Docker Compose service state"
 docker compose ps
 
-printf '\n%s\n' "2. Nginx health through the host troubleshooting port"
-if curl -fsS "http://127.0.0.1:${NGINX_EXPOSE_PORT}/health/live"; then
-    printf '\n%s\n' "Host health check passed."
+printf '\n%s\n' "2. Nginx self-health through the host troubleshooting port"
+if curl -fsS "http://127.0.0.1:${NGINX_EXPOSE_PORT}/nginx-health" >/dev/null; then
+    printf '%s\n' "Host Nginx self-health check passed."
 else
-    printf '\n%s\n' "Host health check failed. Nginx is not reachable on 127.0.0.1:${NGINX_EXPOSE_PORT}."
+    printf '%s\n' "Host Nginx self-health check failed. Nginx is not reachable on 127.0.0.1:${NGINX_EXPOSE_PORT}."
 fi
 
-printf '\n%s\n' "3. Mobile route through the Nginx host troubleshooting port"
+printf '\n%s\n' "3. App health through the Nginx host troubleshooting port"
+if curl -fsS "http://127.0.0.1:${NGINX_EXPOSE_PORT}/health/live"; then
+    printf '\n%s\n' "Nginx-to-app proxy health check passed from the host."
+else
+    printf '\n%s\n' "Nginx is reachable, but the app health route did not pass through Nginx."
+fi
+
+printf '\n%s\n' "4. Mobile route through the Nginx host troubleshooting port"
 curl -i "http://127.0.0.1:${NGINX_EXPOSE_PORT}/mobile" || true
 
-printf '\n%s\n' "4. Nginx health from inside the cloudflared container"
-if docker compose exec -T cloudflared wget -qO- "http://nginx:${NGINX_INTERNAL_PORT}/health/live"; then
-    printf '\n%s\n' "Container-to-container health check passed. Cloudflare Tunnel should use http://nginx:${NGINX_INTERNAL_PORT}."
+printf '\n%s\n' "5. Nginx self-health from inside the cloudflared container"
+if docker compose exec -T cloudflared wget -qO- "http://nginx:${NGINX_INTERNAL_PORT}/nginx-health" >/dev/null; then
+    printf '%s\n' "Container-to-container Nginx self-health check passed. Cloudflare Tunnel should use http://nginx:${NGINX_INTERNAL_PORT}."
 else
-    printf '\n%s\n' "Container-to-container health check failed. cloudflared cannot reach Nginx as http://nginx:${NGINX_INTERNAL_PORT}."
+    printf '%s\n' "Container-to-container Nginx self-health check failed. cloudflared cannot reach Nginx as http://nginx:${NGINX_INTERNAL_PORT}."
 fi
 
-printf '\n%s\n' "5. App health from inside the Nginx container"
+printf '\n%s\n' "6. App health from inside the Nginx container"
 if docker compose exec -T nginx wget -qO- "http://app:${APP_INTERNAL_PORT}/health/live"; then
     printf '\n%s\n' "Nginx-to-app health check passed."
 else
     printf '\n%s\n' "Nginx-to-app health check failed. Nginx cannot reach the app as http://app:${APP_INTERNAL_PORT}."
 fi
 
-printf '\n%s\n' "6. Recent cloudflared logs"
+printf '\n%s\n' "7. Recent cloudflared logs"
 docker compose logs --tail=80 cloudflared

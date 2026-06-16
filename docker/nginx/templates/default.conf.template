@@ -3,12 +3,25 @@ server {
     listen ${NGINX_INTERNAL_PORT};
     server_name _;
 
+    # Send access and error logs to Docker so tunnel/origin troubleshooting does
+    # not require shell access inside the container.
+    access_log /dev/stdout;
+    error_log /dev/stderr warn;
+
     # Mobile audio uploads need a bounded request size that matches the app's
     # security posture instead of Nginx's smaller default body limit.
     client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
 
-    # This endpoint lets Docker and tunnel diagnostics verify the same proxy
-    # path that Cloudflare will use for the application.
+    # This endpoint proves Nginx itself is running. It intentionally does not
+    # depend on FastAPI so Docker does not keep restarting or delaying the
+    # reverse proxy when the upstream app is still starting.
+    location = /nginx-health {
+        access_log off;
+        return 204;
+    }
+
+    # This endpoint lets diagnostics verify the same proxy path that
+    # Cloudflare will use for the application after Nginx is up.
     location = /health/live {
         proxy_pass http://${APP_UPSTREAM_HOST}:${APP_INTERNAL_PORT}/health/live;
         proxy_http_version 1.1;

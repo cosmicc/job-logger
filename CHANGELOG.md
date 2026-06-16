@@ -32,3 +32,6 @@ All recorded changes to Job Logger are documented in this file.
 - Added an Nginx reverse-proxy container as the web front end for Cloudflare
   Tunnel, moved host troubleshooting traffic to Nginx, and updated tunnel
   diagnostics to validate `cloudflared -> nginx -> app` connectivity.
+- Split Nginx self-health from FastAPI upstream health so Compose can start the
+  reverse proxy reliably while still keeping explicit diagnostics for
+  `nginx -> app` connectivity.
