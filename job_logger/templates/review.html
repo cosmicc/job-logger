@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}Review Jobs - Job Logger{% endblock %}
+
+{% block content %}
+  <section class="review-shell">
+    <div class="review-header">
+      <div>
+        <h1>Job review</h1>
+        <p class="muted-text">Edit recorded work, accept reviewed jobs, and submit approved time to Autotask.</p>
+      </div>
+      <a class="secondary-link-button" href="/mobile">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6"></path>
+        </svg>
+        Mobile
+      </a>
+    </div>
+
+    <div class="review-layout">
+      <section class="table-panel" aria-label="Recorded jobs">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ticket</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Start</th>
+                <th>End</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for job in jobs %}
+                <tr class="{% if selected_job and selected_job.id == job.id %}selected-row{% endif %}">
+                  <td>
+                    <a href="/review/{{ job.id }}">{{ job.ticket_number or "No ticket" }}</a>
+                  </td>
+                  <td><span class="status-chip status-{{ job.status.value }}">{{ job.status.value.replace("_", " ") }}</span></td>
+                  <td>{{ job.rounded_start_utc|local_date }}</td>
+                  <td>{{ job.rounded_start_utc|local_time }}</td>
+                  <td>{{ job.rounded_end_utc|local_time }}</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="5">No jobs are available for review.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="edit-panel" aria-label="Selected job editor">
+        {% if selected_job %}
+          <form method="post" class="review-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="form-header-row">
+              <div>
+                <p class="eyebrow-text">Selected job</p>
+                <h2>{{ selected_job.ticket_number or "Unassigned ticket" }}</h2>
+              </div>
+              <span class="status-chip status-{{ selected_job.status.value }}">{{ selected_job.status.value.replace("_", " ") }}</span>
+            </div>
+
+            {% if selected_job.autotask_external_id %}
+              <p class="success-text">Autotask time entry: {{ selected_job.autotask_external_id }}</p>
+            {% endif %}
+            {% if selected_job.autotask_error %}
+              <p class="error-text">{{ selected_job.autotask_error }}</p>
+            {% endif %}
+
+            <div class="form-grid">
+              <label>
+                <span>Ticket number</span>
+                <input name="ticket_number" value="{{ selected_job.ticket_number or '' }}" maxlength="50" required>
+              </label>
+              <label>
+                <span>Ticket status</span>
+                <select name="ticket_status" required>
+                  {% for option_value, option_label in ticket_status_options %}
+                    <option value="{{ option_value }}" {% if selected_job.ticket_status and selected_job.ticket_status.value == option_value %}selected{% endif %}>
+                      {{ option_label }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label>
+                <span>Start date</span>
+                <input name="start_date" type="date" value="{{ selected_job.rounded_start_utc|local_date }}" required>
+              </label>
+              <label>
+                <span>Start time</span>
+                <input name="start_time" type="time" step="900" value="{{ selected_job.rounded_start_utc|local_time }}" required>
+              </label>
+              <label>
+                <span>End date</span>
+                <input name="end_date" type="date" value="{{ selected_job.rounded_end_utc|local_date }}" required>
+              </label>
+              <label>
+                <span>End time</span>
+                <input name="end_time" type="time" step="900" value="{{ selected_job.rounded_end_utc|local_time }}" required>
+              </label>
+            </div>
+
+            <label class="wide-field">
+              <span>Summary notes</span>
+              <textarea name="summary_notes" rows="5">{{ selected_job.summary_notes or '' }}</textarea>
+            </label>
+            <label class="wide-field">
+              <span>Transcribed description</span>
+              <textarea name="description_text" rows="8">{{ selected_job.description_text or '' }}</textarea>
+            </label>
+
+            <div class="action-row">
+              <button class="secondary-button" type="submit" formaction="/review/{{ selected_job.id }}/save">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                  <path d="M17 21v-8H7v8"></path>
+                  <path d="M7 3v5h8"></path>
+                </svg>
+                Save
+              </button>
+              <button class="primary-button" type="submit" formaction="/review/{{ selected_job.id }}/accept">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M20 6L9 17l-5-5"></path>
+                </svg>
+                Accept and Submit
+              </button>
+              {% if selected_job.status.value == "submission_failed" %}
+                <button class="primary-button" type="submit" formaction="/review/{{ selected_job.id }}/retry">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M21 12a9 9 0 1 1-3-6.7"></path>
+                    <path d="M21 3v6h-6"></path>
+                  </svg>
+                  Retry
+                </button>
+              {% endif %}
+            </div>
+          </form>
+
+          <form method="post" action="/review/{{ selected_job.id }}/reject" class="reject-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>
+              <span>Rejection reason</span>
+              <input name="rejection_reason" placeholder="Optional">
+            </label>
+            <button class="danger-outline-button" type="submit">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 6L6 18"></path>
+                <path d="M6 6l12 12"></path>
+              </svg>
+              Reject
+            </button>
+          </form>
+
+          <section class="audit-panel" aria-label="Audit timeline">
+            <h3>Audit timeline</h3>
+            {% if audit_events %}
+              <ol class="audit-list">
+                {% for audit_event in audit_events %}
+                  <li>
+                    <strong>{{ audit_event.action }}</strong>
+                    <span>{{ audit_event.created_at_utc|local_display }} by {{ audit_event.actor }}</span>
+                  </li>
+                {% endfor %}
+              </ol>
+            {% else %}
+              <p class="muted-text">No audit events recorded for this job.</p>
+            {% endif %}
+          </section>
+        {% else %}
+          <div class="empty-state">
+            <h2>No job selected</h2>
+            <p class="muted-text">Recorded jobs will appear here after work is ended.</p>
+          </div>
+        {% endif %}
+      </section>
+    </div>
+  </section>
+{% endblock %}
+

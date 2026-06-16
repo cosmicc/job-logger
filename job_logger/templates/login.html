@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In - Job Logger{% endblock %}
+
+{% block content %}
+  <section class="login-shell">
+    <div class="login-panel">
+      <h1>Sign in</h1>
+      <p class="muted-text">Use the local app account after Cloudflare Access grants entry.</p>
+      <form method="post" action="/login" class="stack-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>
+          <span>Username</span>
+          <input name="username" autocomplete="username" required>
+        </label>
+        <label>
+          <span>Password</span>
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button class="primary-button full-width" type="submit">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+            <path d="M10 17l5-5-5-5"></path>
+            <path d="M15 12H3"></path>
+          </svg>
+          Sign in
+        </button>
+      </form>
+    </div>
+  </section>
+{% endblock %}
+

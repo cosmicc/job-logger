@@ -1,0 +1,44 @@
+[project]
+name = "job-logger"
+version = "0.1.0"
+description = "Security-focused mobile work logger with review and Autotask submission."
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.13.2",
+    "argon2-cffi>=23.1.0",
+    "fastapi>=0.115.0",
+    "faster-whisper>=1.1.0",
+    "httpx>=0.27.0",
+    "itsdangerous>=2.2.0",
+    "jinja2>=3.1.4",
+    "psycopg[binary]>=3.2.1",
+    "python-multipart>=0.0.9",
+    "sqlalchemy>=2.0.32",
+    "uvicorn[standard]>=0.30.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.2",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.6.2",
+]
+
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["job_logger"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 160
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["B008"]

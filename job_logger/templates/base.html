@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>{% block title %}Job Logger{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+  </head>
+  <body>
+    <header class="app-header">
+      <a class="brand" href="/mobile" aria-label="Job Logger home">
+        <span class="brand-mark" aria-hidden="true">JL</span>
+        <span>Job Logger</span>
+      </a>
+      {% if current_username %}
+        <nav class="top-nav" aria-label="Primary navigation">
+          <a href="/mobile">Mobile</a>
+          <a href="/review">Review</a>
+        </nav>
+        <form method="post" action="/logout" class="logout-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="icon-button" type="submit" title="Sign out" aria-label="Sign out">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10 17l5-5-5-5"></path>
+              <path d="M15 12H3"></path>
+              <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
+            </svg>
+          </button>
+        </form>
+      {% endif %}
+    </header>
+
+    {% if flash_messages %}
+      <section class="flash-stack" aria-label="Messages">
+        {% for flash_message in flash_messages %}
+          <div class="flash flash-{{ flash_message.category }}">{{ flash_message.message }}</div>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>
+
