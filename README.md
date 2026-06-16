@@ -238,6 +238,10 @@ container should not attempt any model download.
 faster-whisper's local model loader. `FASTER_WHISPER_MEMORY_LIMIT` defaults to
 `8g` and controls the Docker Compose memory limit for the app container, where
 local transcription runs.
+For reliable local transcription, run the Docker stack on a server with at least
+8 CPU cores and 10 GB of RAM so the app container can use its default 8-thread,
+8 GB faster-whisper allocation while leaving memory for PostgreSQL, Nginx, and
+the host operating system.
 
 `TRANSCRIPTION_PROVIDER=mock` proves the upload path without loading a local
 model. `TRANSCRIPTION_PROVIDER=disabled` rejects transcription attempts.

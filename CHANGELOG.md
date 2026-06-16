@@ -23,6 +23,8 @@ All recorded changes to Job Logger are documented in this file.
   credentials.
 - Added Docker-configurable faster-whisper CPU threads and app memory limit
   defaults of 8 threads and 8g for local transcription.
+- Documented the recommended Docker host size of at least 8 CPU cores and 10 GB
+  of RAM for reliable local faster-whisper transcription.
 - Updated the mobile workflow so recording is now `Record -> Pause/Resume -> Submit`
   with submit-based transcription upload, added 15-minute review time increment
   controls for start/end times, and added review-side editable client name field.
