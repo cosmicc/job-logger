@@ -231,3 +231,108 @@ could not be run.
 
 Do not commit secrets, generated credentials, local environment files, database
 data volumes, raw audio files, or private tunnel tokens.
+
+## Agent Orientation Map
+
+Future AI agents should treat this file as the mandatory starting point for the
+repository. If a change touches one of the critical areas below, read the linked
+agent skill file before editing code:
+
+- Mobile job workflow, review workflow, job statuses, active-job limits, and
+  time rounding: `docs/agent-skills/workflow.md`.
+- Autotask connectivity, company/ticket lookup, cache behavior, mandatory
+  production integration, and submission rules: `docs/agent-skills/autotask.md`.
+- Authentication, Cloudflare Access, CSRF, audit events, secret handling, raw
+  audio handling, and diagnostic safety: `docs/agent-skills/security.md`.
+
+These files are not optional background reading. They describe the current code
+shape and the security/data-integrity boundaries that are easy to break when
+adding features quickly.
+
+## Current Application Structure
+
+The application is a FastAPI project under `job_logger/`.
+
+- `job_logger/main.py` creates the FastAPI app, registers routers, applies
+  TrustedHost, session, Cloudflare Access, CSP, and security-header middleware.
+- `job_logger/config.py` loads every runtime setting from environment variables.
+  Production must use `AUTOTASK_PROVIDER=autotask`.
+- `job_logger/database.py` owns SQLAlchemy engine/session setup.
+- `job_logger/models.py` defines persistent tables for jobs, audit events, and
+  Autotask submission attempts.
+- `job_logger/enums.py` defines workflow, transcription, and ticket-status
+  enums used by routes, services, templates, and migrations.
+- `job_logger/time_utils.py` centralizes UTC/local conversion and 15-minute
+  rounding. Do not duplicate rounding logic elsewhere.
+- `job_logger/routes/auth.py` handles login/logout and local authenticated
+  sessions.
+- `job_logger/routes/mobile.py` handles `/mobile`, active job start/end/save,
+  active rounded-start adjustment, recording uploads, description text saves,
+  and Autotask company autocomplete.
+- `job_logger/routes/review.py` handles review listing, edit/save/accept/retry,
+  ticket lookup for a selected job, rejection, and force purge behavior.
+- `job_logger/routes/debug.py` handles the authenticated diagnostic page and the
+  Autotask API connectivity test.
+- `job_logger/routes/health.py` exposes container health endpoints.
+- `job_logger/services/jobs.py` owns core job state transitions and must remain
+  the primary place for workflow validation.
+- `job_logger/services/autotask.py` owns Autotask providers, connectivity tests,
+  company/ticket lookup, cache behavior, pagination, status mapping, and time
+  entry submission.
+- `job_logger/services/transcription.py` owns speech-to-text provider behavior.
+- `job_logger/services/audit.py` records immutable audit events.
+- `job_logger/templates/` contains Jinja pages for mobile, review, debug, and
+  authentication views.
+- `job_logger/static/` contains browser-side JavaScript and CSS.
+- `migrations/versions/` contains Alembic schema migrations.
+- `scripts/` contains operational helper scripts, including Autotask ID
+  discovery.
+- `tests/` contains workflow, diagnostics, provider, and security regression
+  tests.
+
+## Current High-Level Flow
+
+The normal workflow is:
+
+1. User authenticates through Cloudflare Access when enabled, then through the
+   app login.
+2. User opens `/mobile`.
+3. Before a new job can start, the server checks mandatory Autotask API
+   availability. If Autotask is down or misconfigured, job creation is blocked.
+4. User starts Job 1 or Job 2. At most two active jobs may exist at once.
+5. User enters/selects an Autotask company by client name. Manual client text is
+   allowed, but selected company IDs are preferred for exact ticket lookup.
+6. User can choose an open Autotask ticket or manually type a ticket number.
+7. User records notes during an active job. The record button pauses/resumes;
+   the separate submit button sends audio for transcription.
+8. User can save active job edits before ending work.
+9. User ends work with a mandatory client name. The job moves to review.
+10. User reviews and edits the job from `/review`.
+11. Accept/retry submits a reviewed job to Autotask idempotently.
+12. Submission attempts and important state changes are recorded for audit and
+    diagnostics.
+
+## Current Autotask Dependency
+
+Autotask is not an optional production dependency anymore. The app depends on
+Autotask Companies and Tickets to help select the correct ticket before work is
+submitted.
+
+In production:
+
+- `APP_ENV=production` requires `AUTOTASK_PROVIDER=autotask`.
+- Starting a new job is blocked when the Autotask connectivity test fails.
+- The `/debug` page provides the supported manual **Test Autotask API** action.
+- Mock Autotask mode is only for tests and isolated development.
+
+## Documentation Maintenance Rules For Agents
+
+When changing workflow, Autotask behavior, security behavior, Docker/runtime
+configuration, database schema, or diagnostics:
+
+- Update this file if the top-level structure or required reading changes.
+- Update the relevant file in `docs/agent-skills/`.
+- Update `README.md` when operators need to know about behavior or deployment
+  changes.
+- Update `CHANGELOG.md` for every user-visible, security, workflow, database,
+  Docker, Autotask, transcription, or diagnostic change.

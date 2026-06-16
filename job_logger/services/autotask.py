@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import time
+from copy import deepcopy
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
+from threading import RLock
 from typing import Any
 
 import httpx
@@ -16,6 +19,74 @@ from job_logger.time_utils import format_autotask_datetime, rounded_duration_min
 MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP = 10
 MAX_TICKET_LOOKUP_RESULTS = 25
 MIN_COMPANY_SEARCH_CHARACTERS = 3
+
+# AUTOTASK_CACHE_TTL_SECONDS is the default short TTL for status metadata and non-company lookups.
+AUTOTASK_CACHE_TTL_SECONDS = 15 * 60
+
+# COMPANY_CACHE_TTL_SECONDS is longer because company names are low-churn reference data.
+COMPANY_CACHE_TTL_SECONDS = 2 * 60 * 60
+
+# AUTOTASK_MAX_RECORDS_PER_PAGE uses Autotask's maximum documented query page size.
+AUTOTASK_MAX_RECORDS_PER_PAGE = 500
+
+# AUTOTASK_MAX_PAGINATED_PAGES prevents runaway next-page loops from bad remote responses.
+AUTOTASK_MAX_PAGINATED_PAGES = 100
+
+
+@dataclass(frozen=True)
+class _AutotaskCacheEntry:
+    """In-process cache entry for non-secret Autotask lookup data."""
+
+    # expires_at_monotonic is based on time.monotonic so wall-clock changes do not extend cache life.
+    expires_at_monotonic: float
+
+    # value stores only non-secret company metadata or ticket status labels.
+    value: Any
+
+
+# _AUTOTASK_CACHE_LOCK protects cache reads/writes across concurrent web requests.
+_AUTOTASK_CACHE_LOCK = RLock()
+
+# _COMPANY_SEARCH_CACHE stores raw active company records keyed by tenant URL and normalized query text.
+_COMPANY_SEARCH_CACHE: dict[tuple[str, str], _AutotaskCacheEntry] = {}
+
+# _COMPANY_ID_CACHE stores one selected company record keyed by tenant URL and Autotask company ID.
+_COMPANY_ID_CACHE: dict[tuple[str, int], _AutotaskCacheEntry] = {}
+
+# _TICKET_STATUS_CACHE stores ticket status picklist labels keyed by tenant URL.
+_TICKET_STATUS_CACHE: dict[str, _AutotaskCacheEntry] = {}
+
+
+def _get_cached_value(cache_store: dict[Any, _AutotaskCacheEntry], cache_key: Any) -> Any | None:
+    """Return a defensive copy of a cached value when its 15-minute TTL is valid."""
+
+    current_monotonic_time = time.monotonic()
+    with _AUTOTASK_CACHE_LOCK:
+        cache_entry = cache_store.get(cache_key)
+        if cache_entry is None:
+            return None
+
+        if cache_entry.expires_at_monotonic <= current_monotonic_time:
+            cache_store.pop(cache_key, None)
+            return None
+
+        return deepcopy(cache_entry.value)
+
+
+def _set_cached_value(
+    cache_store: dict[Any, _AutotaskCacheEntry],
+    cache_key: Any,
+    value: Any,
+    ttl_seconds: int = AUTOTASK_CACHE_TTL_SECONDS,
+) -> None:
+    """Store a defensive copy of non-secret Autotask lookup data for a bounded TTL."""
+
+    cache_entry = _AutotaskCacheEntry(
+        expires_at_monotonic=time.monotonic() + ttl_seconds,
+        value=deepcopy(value),
+    )
+    with _AUTOTASK_CACHE_LOCK:
+        cache_store[cache_key] = cache_entry
 
 
 @dataclass(frozen=True)
@@ -248,6 +319,11 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         base_url = (self.application_settings.autotask_base_url or "").rstrip("/")
         return httpx.Client(base_url=base_url, headers=self._headers(), timeout=timeout_seconds)
 
+    def _cache_namespace(self) -> str:
+        """Return the non-secret namespace used for tenant-specific cache keys."""
+
+        return (self.application_settings.autotask_base_url or "").rstrip("/")
+
     def _raise_for_safe_response(self, response: httpx.Response, action_description: str) -> None:
         """Raise a safe Autotask error without exposing headers or secrets."""
 
@@ -255,6 +331,48 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             return
 
         raise AutotaskSubmissionError(f"{action_description} failed with Autotask HTTP {response.status_code}.")
+
+    def _query_paginated_items(
+        self,
+        client: httpx.Client,
+        *,
+        endpoint_path: str,
+        query_payload: dict[str, Any],
+        action_description: str,
+    ) -> list[dict[str, Any]]:
+        """Return all Autotask query items using MaxRecords and next-page URLs."""
+
+        paged_query_payload = dict(query_payload)
+        paged_query_payload["MaxRecords"] = AUTOTASK_MAX_RECORDS_PER_PAGE
+
+        collected_items: list[dict[str, Any]] = []
+        response = client.post(endpoint_path, json=paged_query_payload)
+        page_number = 1
+
+        while True:
+            self._raise_for_safe_response(response, action_description)
+            response_payload = response.json()
+            if isinstance(response_payload, dict):
+                page_items = response_payload.get("items") or response_payload.get("Item") or []
+            else:
+                page_items = []
+            if isinstance(page_items, list):
+                collected_items.extend(item for item in page_items if isinstance(item, dict))
+
+            page_details = response_payload.get("pageDetails") if isinstance(response_payload, dict) else None
+            next_page_url = page_details.get("nextPageUrl") if isinstance(page_details, dict) else None
+            if not next_page_url:
+                break
+
+            if page_number >= AUTOTASK_MAX_PAGINATED_PAGES:
+                raise AutotaskSubmissionError(
+                    f"{action_description} returned more than {AUTOTASK_MAX_PAGINATED_PAGES} pages; narrow the search."
+                )
+
+            response = client.get(str(next_page_url))
+            page_number += 1
+
+        return collected_items
 
     def _workflow_configuration_gaps(self) -> list[str]:
         """Return missing settings that would prevent the full Autotask workflow."""
@@ -274,9 +392,12 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Confirm the Tickets query endpoint is reachable without exposing data."""
 
         query_payload = {"filter": [{"op": "eq", "field": "id", "value": 0}]}
-        response = client.post("/Tickets/query", json=query_payload)
-        self._raise_for_safe_response(response, "Autotask ticket connectivity query")
-        response.json()
+        self._query_paginated_items(
+            client,
+            endpoint_path="/Tickets/query",
+            query_payload=query_payload,
+            action_description="Autotask ticket connectivity query",
+        )
 
     def _tips_for_remote_failure(self, exc: Exception) -> tuple[str, ...]:
         """Return safe troubleshooting tips for a failed live Autotask check."""
@@ -359,6 +480,11 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
     def _query_ticket_status_labels(self, client: httpx.Client) -> dict[int, str]:
         """Return Autotask Tickets.status picklist values as ID-to-label mappings."""
 
+        cache_key = self._cache_namespace()
+        cached_status_labels = _get_cached_value(_TICKET_STATUS_CACHE, cache_key)
+        if isinstance(cached_status_labels, dict):
+            return cached_status_labels
+
         response = client.get("/Tickets/entityInformation/fields/status")
         if response.status_code == 404:
             response = client.get("/Tickets/entityInformation/fields")
@@ -377,11 +503,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                         break
 
         if status_field is None:
+            _set_cached_value(_TICKET_STATUS_CACHE, cache_key, {})
             return {}
 
         picklist_values = status_field.get("picklistValues") or status_field.get("PicklistValues") or []
         status_labels: dict[int, str] = {}
         if not isinstance(picklist_values, list):
+            _set_cached_value(_TICKET_STATUS_CACHE, cache_key, status_labels)
             return status_labels
 
         for picklist_value in picklist_values:
@@ -398,20 +526,25 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             except (TypeError, ValueError):
                 continue
 
+        _set_cached_value(_TICKET_STATUS_CACHE, cache_key, status_labels)
         return status_labels
 
     def _query_companies_by_name(self, client: httpx.Client, client_name: str) -> list[dict[str, Any]]:
         """Return active Autotask companies whose names contain the job client name."""
 
+        normalized_query_text = client_name.strip().casefold()
+        cache_key = (self._cache_namespace(), normalized_query_text)
+        cached_companies = _get_cached_value(_COMPANY_SEARCH_CACHE, cache_key)
+        if isinstance(cached_companies, list) and cached_companies:
+            return cached_companies[:MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP]
+
         query_payload = {"filter": [{"op": "contains", "field": "companyName", "value": client_name}]}
-        response = client.post("/Companies/query", json=query_payload)
-        self._raise_for_safe_response(response, "Autotask company lookup")
-
-        response_payload = response.json()
-        companies = response_payload.get("items") or response_payload.get("Item") or []
-        if not isinstance(companies, list):
-            return []
-
+        companies = self._query_paginated_items(
+            client,
+            endpoint_path="/Companies/query",
+            query_payload=query_payload,
+            action_description="Autotask company lookup",
+        )
         active_companies = [
             company
             for company in companies
@@ -424,22 +557,29 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 str(company.get("companyName", "")).casefold(),
             )
         )
+        if active_companies:
+            _set_cached_value(_COMPANY_SEARCH_CACHE, cache_key, active_companies, COMPANY_CACHE_TTL_SECONDS)
         return active_companies[:MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP]
 
     def _query_company_by_id(self, client: httpx.Client, company_id: int) -> dict[str, Any] | None:
         """Return one active Autotask company by ID."""
 
-        query_payload = {"filter": [{"op": "eq", "field": "id", "value": company_id}]}
-        response = client.post("/Companies/query", json=query_payload)
-        self._raise_for_safe_response(response, "Autotask company lookup")
+        cache_key = (self._cache_namespace(), company_id)
+        cached_company = _get_cached_value(_COMPANY_ID_CACHE, cache_key)
+        if isinstance(cached_company, dict):
+            return cached_company
 
-        response_payload = response.json()
-        companies = response_payload.get("items") or response_payload.get("Item") or []
-        if not isinstance(companies, list):
-            return None
+        query_payload = {"filter": [{"op": "eq", "field": "id", "value": company_id}]}
+        companies = self._query_paginated_items(
+            client,
+            endpoint_path="/Companies/query",
+            query_payload=query_payload,
+            action_description="Autotask company lookup",
+        )
 
         for company in companies:
             if isinstance(company, dict) and company.get("id") is not None and company.get("isActive", True):
+                _set_cached_value(_COMPANY_ID_CACHE, cache_key, company, COMPANY_CACHE_TTL_SECONDS)
                 return company
 
         return None
@@ -448,15 +588,12 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Return Autotask tickets for one company ID."""
 
         query_payload = {"filter": [{"op": "eq", "field": "companyID", "value": company_id}]}
-        response = client.post("/Tickets/query", json=query_payload)
-        self._raise_for_safe_response(response, "Autotask ticket lookup")
-
-        response_payload = response.json()
-        tickets = response_payload.get("items") or response_payload.get("Item") or []
-        if not isinstance(tickets, list):
-            return []
-
-        return [ticket for ticket in tickets if isinstance(ticket, dict)]
+        return self._query_paginated_items(
+            client,
+            endpoint_path="/Tickets/query",
+            query_payload=query_payload,
+            action_description="Autotask ticket lookup",
+        )
 
     def _is_open_ticket(self, ticket: dict[str, Any], status_labels: dict[int, str]) -> bool:
         """Return whether a ticket should be offered as an open-ticket match."""
@@ -568,10 +705,12 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Find the Autotask ticket ID for the reviewed ticket number."""
 
         query_payload = {"filter": [{"op": "eq", "field": "ticketNumber", "value": ticket_number}]}
-        response = client.post("/Tickets/query", json=query_payload)
-        response.raise_for_status()
-        response_payload = response.json()
-        tickets = response_payload.get("items") or response_payload.get("Item") or []
+        tickets = self._query_paginated_items(
+            client,
+            endpoint_path="/Tickets/query",
+            query_payload=query_payload,
+            action_description="Autotask ticket number lookup",
+        )
         if not tickets:
             raise AutotaskSubmissionError(f"No Autotask ticket found for ticket number {ticket_number}.")
 

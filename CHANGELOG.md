@@ -33,6 +33,15 @@ All recorded changes to Job Logger are documented in this file.
 - Made live Autotask mandatory for production job starts, blocked new work when
   Autotask connectivity/configuration fails, and replaced the debug ticket-reset
   action with a safe Autotask API connectivity test and troubleshooting tips.
+- Added two-hour in-process positive caching for Autotask company lookups and
+  selected company metadata, kept ticket status labels and other lookup caches at
+  15 minutes, and avoided treating empty company cache results as authoritative;
+  Autotask company/ticket queries now request `MaxRecords=500`, follow pagination
+  links, and fail safely instead of silently truncating unexpectedly large result
+  sets.
+- Expanded agent documentation with a current app structure map, workflow
+  summary, mandatory Autotask dependency notes, and dedicated workflow,
+  Autotask, and security agent skill files.
 - Updated the mobile workflow so recording is now `Record -> Pause/Resume -> Submit`
   with submit-based transcription upload, added 15-minute review time increment
   controls for start/end times, and added review-side editable client name field.

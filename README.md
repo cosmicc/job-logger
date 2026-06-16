@@ -282,6 +282,15 @@ so open-ticket lookup can target the exact selected company instead of relying
 only on a typed name. Client names and ticket numbers can still be typed
 manually when needed.
 
+Autotask company search results and selected-company metadata are cached
+in-process for two hours because company names rarely change. Empty company
+search results are not treated as authoritative cache hits, so a company missing
+from cache can still be queried from Autotask. Ticket status picklist labels and
+other Autotask lookup data remain on a 15-minute cache. Live company and ticket
+queries request `MaxRecords=500` and follow Autotask pagination links so larger
+tenants are not limited to the first page of results. Pagination is bounded and
+fails safely instead of silently showing partial customer or ticket lists.
+
 The mobile and review pages can query open Autotask tickets from the selected
 job's stored company ID or stored client name. Selecting a returned ticket fills
 the editable ticket number field; the ticket number can still be typed manually.
