@@ -19,7 +19,6 @@ from urllib.parse import urlparse
 
 import httpx
 
-
 # REQUIRED_AUTOTASK_SETTINGS are the minimum values needed to authenticate
 # against the Autotask REST API.
 REQUIRED_AUTOTASK_SETTINGS = (

@@ -8,20 +8,20 @@ from sqlalchemy.orm import Session
 
 from job_logger.config import settings
 from job_logger.database import get_database_session
-from job_logger.security import (
-    add_flash_message,
-    require_authenticated_username,
-    validate_csrf_header,
-    validate_csrf_token,
-)
+from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_header, validate_csrf_token
 from job_logger.services.audit import record_audit_event
-from job_logger.services.autotask import AutotaskConnectivityResult, AutotaskSubmissionError, get_autotask_provider, test_autotask_connectivity
+from job_logger.services.autotask import (
+    AutotaskConnectivityResult,
+    AutotaskSubmissionError,
+    get_autotask_provider,
+    test_autotask_connectivity,
+)
 from job_logger.services.jobs import (
     JobWorkflowError,
+    adjust_active_job_rounded_start,
     apply_manual_summary_to_job,
     end_job,
     list_active_jobs,
-    adjust_active_job_rounded_start,
     start_job,
     transcribe_active_job_audio,
     update_active_job_ticket_number,

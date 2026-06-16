@@ -7,10 +7,10 @@ from typing import Any
 
 from job_logger.config import settings
 from job_logger.services.autotask import (
-    LiveAutotaskProvider,
     _COMPANY_ID_CACHE,
     _COMPANY_SEARCH_CACHE,
     _TICKET_STATUS_CACHE,
+    LiveAutotaskProvider,
 )
 
 

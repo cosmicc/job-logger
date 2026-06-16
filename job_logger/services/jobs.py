@@ -389,9 +389,8 @@ def validate_review_fields(
     """Validate and normalize editable review form values."""
 
     ticket_number = normalize_ticket_number(form_values.get("ticket_number"), required=require_ticket_number)
-    if ticket_number is None:
-        if require_ticket_number:
-            raise JobWorkflowError("Ticket number is required.")
+    if ticket_number is None and require_ticket_number:
+        raise JobWorkflowError("Ticket number is required.")
 
     try:
         ticket_status = TicketStatus(form_values.get("ticket_status", ""))
@@ -422,17 +421,8 @@ def validate_review_fields(
         raise JobWorkflowError("Start or end date/time is invalid.") from exc
 
     rounded_end_utc = None
-    if require_end_time_fields:
-        if not end_date or not end_time:
-            raise JobWorkflowError("End date and end time fields are required.")
-
-        try:
-            rounded_end_utc = round_to_nearest_quarter_hour(parse_local_form_datetime(end_date, end_time))
-        except ValueError as exc:
-            raise JobWorkflowError("Start or end date/time is invalid.") from exc
-
-        rounded_end_utc = enforce_minimum_rounded_end(rounded_start_utc, rounded_end_utc)
-    elif end_date or end_time:
+    should_parse_end_time = require_end_time_fields or bool(end_date or end_time)
+    if should_parse_end_time:
         if not end_date or not end_time:
             raise JobWorkflowError("End date and end time fields are required.")
 

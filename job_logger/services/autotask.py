@@ -352,10 +352,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         while True:
             self._raise_for_safe_response(response, action_description)
             response_payload = response.json()
-            if isinstance(response_payload, dict):
-                page_items = response_payload.get("items") or response_payload.get("Item") or []
-            else:
-                page_items = []
+            page_items = (response_payload.get("items") or response_payload.get("Item") or []) if isinstance(response_payload, dict) else []
             if isinstance(page_items, list):
                 collected_items.extend(item for item in page_items if isinstance(item, dict))
 

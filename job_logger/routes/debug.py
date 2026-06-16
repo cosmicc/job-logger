@@ -12,10 +12,10 @@ from sqlalchemy.orm import Session
 
 from job_logger.config import settings
 from job_logger.database import get_database_session
-from job_logger.services.audit import record_audit_event
 from job_logger.models import Job, SubmissionAttempt
-from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
 from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_token
+from job_logger.services.audit import record_audit_event
+from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
 from job_logger.ui import template_context, templates
 
 router = APIRouter(prefix="/debug", tags=["debug"])
