@@ -135,7 +135,7 @@ class FakeConnectivityContext:
 
 
 class FakeCompanyConnectivityFailureClient:
-    """Fake Autotask client that fails the Companies workflow probe."""
+    """Fake Autotask client that denies the Companies workflow probe."""
 
     def __init__(self) -> None:
         """Initialize a flag proving later checks were not attempted."""
@@ -144,11 +144,14 @@ class FakeCompanyConnectivityFailureClient:
         self.get_call_count = 0
 
     def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
-        """Return an Autotask HTTP 500 for the Companies query probe."""
+        """Return an Autotask permission error for the Companies query probe."""
 
         assert endpoint_path == "/Companies/query"
         assert json["MaxRecords"] == 1
-        return FakeAutotaskResponse({"errors": ["server failure"]}, status_code=500)
+        return FakeAutotaskResponse(
+            {"errors": ["The logged in Resource does not have the adequate permissions to query this entity type."]},
+            status_code=500,
+        )
 
     def get(self, endpoint_path: str) -> FakeAutotaskResponse:
         """Fail if later connectivity checks run after Companies failure."""
@@ -233,7 +236,7 @@ def test_ticket_status_lookup_uses_cache() -> None:
 
 
 def test_connectivity_result_identifies_company_query_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Autotask diagnostics should identify the first failed workflow operation."""
+    """Autotask diagnostics should identify permission failures clearly."""
 
     provider = _live_test_provider()
     fake_client = FakeCompanyConnectivityFailureClient()
@@ -253,5 +256,6 @@ def test_connectivity_result_identifies_company_query_failure(monkeypatch: pytes
     assert connectivity_result.failed_operation == "companies"
     assert connectivity_result.checked_operations == ("configuration",)
     assert "during companies" in connectivity_result.summary
-    assert any("Companies query" in tip for tip in connectivity_result.tips)
+    assert "adequate permissions" in connectivity_result.summary
+    assert any("security level permission" in tip for tip in connectivity_result.tips)
     assert fake_client.get_call_count == 0

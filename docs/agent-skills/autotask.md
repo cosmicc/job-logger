@@ -152,6 +152,8 @@ Discovery success does not prove the full app workflow can run. The script also
 prints non-fatal workflow preflight checks for Companies and Tickets query
 access because role, billing code, and status metadata calls can succeed while
 the API user still lacks endpoint access needed by the mobile/review workflow.
+Autotask may return those permission failures as HTTP 500 responses with a
+body-level permission message.
 
 ## Tests To Consider
 

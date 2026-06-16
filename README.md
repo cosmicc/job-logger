@@ -306,7 +306,9 @@ The `scripts/discover_autotask_ids.py` helper also prints a workflow endpoint
 preflight section. Role, billing-code, and ticket-status ID discovery can
 succeed even when the Autotask API user cannot query Companies or Tickets, so
 use the preflight result and the `/debug` failed-operation label when diagnosing
-Autotask HTTP 500 or permission failures.
+Autotask HTTP 500 or permission failures. Some Autotask permission denials are
+returned as HTTP 500 responses, so check the preflight detail before changing
+credentials.
 
 ## Time Handling
 

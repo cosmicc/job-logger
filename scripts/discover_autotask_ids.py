@@ -39,6 +39,10 @@ STATUS_ENVIRONMENT_VARIABLES = {
     "AUTOTASK_STATUS_COMPLETE_ID": "Complete",
 }
 
+# SAFE_ERROR_TEXT_LIMIT bounds remote error text printed by this script. The
+# script never prints request headers or configured credential values.
+SAFE_ERROR_TEXT_LIMIT = 240
+
 
 @dataclass(frozen=True)
 class AutotaskSettings:
@@ -198,11 +202,39 @@ def raise_for_autotask_error(response: httpx.Response, action_description: str) 
     if response.status_code < 400:
         return
 
-    response_excerpt = response.text.strip()[:1000]
-    if response_excerpt:
-        raise RuntimeError(f"{action_description} failed with HTTP {response.status_code}: {response_excerpt}")
+    safe_error_detail = get_safe_response_error_detail(response)
+    if safe_error_detail:
+        raise RuntimeError(f"{action_description} failed with HTTP {response.status_code}: {safe_error_detail}")
 
     raise RuntimeError(f"{action_description} failed with HTTP {response.status_code}.")
+
+
+def get_safe_response_error_detail(response: httpx.Response) -> str | None:
+    """Return a bounded Autotask error detail safe for console output."""
+
+    try:
+        response_payload = response.json()
+    except ValueError:
+        return None
+
+    if not isinstance(response_payload, dict):
+        return None
+
+    raw_errors = response_payload.get("errors")
+    if isinstance(raw_errors, list):
+        safe_error_messages = [
+            str(error_message).strip()
+            for error_message in raw_errors
+            if str(error_message).strip()
+        ]
+        if safe_error_messages:
+            return "; ".join(safe_error_messages)[:SAFE_ERROR_TEXT_LIMIT]
+
+    raw_message = response_payload.get("message") or response_payload.get("Message")
+    if raw_message:
+        return str(raw_message).strip()[:SAFE_ERROR_TEXT_LIMIT]
+
+    return None
 
 
 def print_workflow_preflight(client: httpx.Client) -> None:
@@ -232,6 +264,11 @@ def print_workflow_preflight(client: httpx.Client) -> None:
 
         if response.status_code < 400:
             print(f"{probe_label}: ok")
+            continue
+
+        safe_error_detail = get_safe_response_error_detail(response)
+        if safe_error_detail:
+            print(f"{probe_label}: failed with HTTP {response.status_code}: {safe_error_detail}")
             continue
 
         print(f"{probe_label}: failed with HTTP {response.status_code}")

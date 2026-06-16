@@ -32,6 +32,10 @@ AUTOTASK_MAX_RECORDS_PER_PAGE = 500
 # AUTOTASK_MAX_PAGINATED_PAGES prevents runaway next-page loops from bad remote responses.
 AUTOTASK_MAX_PAGINATED_PAGES = 100
 
+# AUTOTASK_SAFE_ERROR_TEXT_LIMIT bounds remote error excerpts kept in UI/audit
+# summaries so diagnostics stay actionable without storing full remote payloads.
+AUTOTASK_SAFE_ERROR_TEXT_LIMIT = 240
+
 
 @dataclass(frozen=True)
 class _AutotaskCacheEntry:
@@ -334,7 +338,42 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if response.status_code < 400:
             return
 
+        safe_error_detail = self._safe_response_error_detail(response)
+        if safe_error_detail:
+            raise AutotaskSubmissionError(
+                f"{action_description} failed with Autotask HTTP {response.status_code}: {safe_error_detail}"
+            )
+
         raise AutotaskSubmissionError(f"{action_description} failed with Autotask HTTP {response.status_code}.")
+
+    def _safe_response_error_detail(self, response: httpx.Response) -> str | None:
+        """Return a bounded Autotask error detail when the body is safe to show."""
+
+        try:
+            response_payload = response.json()
+        except ValueError:
+            return None
+
+        # Autotask commonly returns a top-level `errors` list. Those entries
+        # contain operational failure reasons, not request headers or secrets.
+        if not isinstance(response_payload, dict):
+            return None
+
+        raw_errors = response_payload.get("errors")
+        if isinstance(raw_errors, list):
+            safe_error_messages = [
+                str(error_message).strip()
+                for error_message in raw_errors
+                if str(error_message).strip()
+            ]
+            if safe_error_messages:
+                return "; ".join(safe_error_messages)[:AUTOTASK_SAFE_ERROR_TEXT_LIMIT]
+
+        raw_message = response_payload.get("message") or response_payload.get("Message")
+        if raw_message:
+            return str(raw_message).strip()[:AUTOTASK_SAFE_ERROR_TEXT_LIMIT]
+
+        return None
 
     def _query_paginated_items(
         self,
@@ -434,6 +473,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Return safe troubleshooting tips for a failed live Autotask check."""
 
         error_message = str(exc)
+        if "adequate permissions" in error_message:
+            return (
+                f"Grant the Autotask API user's resource security level permission to read {failed_operation or 'the failed entity'} through the REST API.",
+                "Retest the debug page after changing Autotask permissions; no Job Logger secret changes are needed for this failure.",
+                "The same API user can read some metadata, so credential discovery may still succeed while workflow entity queries fail.",
+            )
+
         if "HTTP 500" in error_message and failed_operation == "companies":
             return (
                 "Autotask accepted the base URL and credentials but failed the Companies query used by mobile client lookup.",
