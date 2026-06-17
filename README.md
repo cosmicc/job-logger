@@ -252,7 +252,7 @@ The mobile recorder streams `MediaRecorder` chunks to
 message carries metadata and the CSRF token, then binary audio chunks are sent
 as soon as the browser produces them. The server starts a best-effort interim
 transcription from the first buffered chunk. The mobile **Record Audio** button
-becomes a red **Stop Recording** button while browser capture is active.
+becomes a red **Stop recording** button while browser capture is active.
 Stopping capture lets the browser flush the final chunk, sends WebSocket
 `finish`, returns the button to its idle appearance, and keeps showing
 transcode/transcription status until the final saved transcript or a bounded
