@@ -4,6 +4,15 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Added progressive web app support for mobile app-like launch behavior:
+  installable manifest metadata, app icons, mobile/Apple web app tags, a
+  root-scoped network-only service worker, standalone safe-area styling, and
+  global `overscroll-behavior: none` with full-height root layout. The service
+  worker intentionally does not cache authenticated pages, job data, Autotask
+  responses, transcription data, raw audio, or diagnostics. Static asset links
+  now use root-relative paths so app-shell assets load consistently through
+  Nginx, local host ports, and Cloudflare hostnames.
+
 - Adjusted Work in Progress mobile layout and controls so the rounded-start editor
   renders as `+15` / time / `-15` in one row and active-job metric cards
   remain single-column on all screen widths; the client input now appears above

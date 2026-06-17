@@ -5,6 +5,15 @@
   padding: 0 14px;
 }
 
+@media (display-mode: standalone) {
+  .app-header {
+    min-height: calc(58px + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+  }
+}
+
 .brand span:last-child {
   display: none;
 }

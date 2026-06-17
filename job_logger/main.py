@@ -10,7 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from job_logger.config import Settings, settings
-from job_logger.routes import auth, debug, health, mobile, review
+from job_logger.routes import auth, debug, health, mobile, pwa, review
 
 
 def validate_runtime_settings(application_settings: Settings) -> None:
@@ -64,6 +64,7 @@ def create_app(application_settings: Settings = settings) -> FastAPI:
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self'; "
+            "worker-src 'self'; "
             "style-src 'self'; "
             "img-src 'self' data:; "
             "media-src 'self' blob:; "
@@ -90,6 +91,7 @@ def create_app(application_settings: Settings = settings) -> FastAPI:
         return await call_next(request)
 
     fastapi_app.include_router(health.router)
+    fastapi_app.include_router(pwa.router)
     fastapi_app.include_router(auth.router)
     fastapi_app.include_router(mobile.router)
     fastapi_app.include_router(debug.router)

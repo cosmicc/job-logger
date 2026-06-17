@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Job Logger">
+  <rect width="512" height="512" rx="96" fill="#0b1220"/>
+  <rect x="80" y="86" width="352" height="340" rx="38" fill="#111a2c" stroke="#2dd4bf" stroke-width="18"/>
+  <path d="M155 170h202M155 246h202M155 322h132" fill="none" stroke="#e5e9f0" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="366" cy="326" r="45" fill="#2dd4bf"/>
+  <path d="M350 326l13 13 25-31" fill="none" stroke="#04120f" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

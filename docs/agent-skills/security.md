@@ -102,6 +102,16 @@ Audio stream or compatibility upload handling must:
 If raw audio retention is ever added, it must be explicit, configurable,
 documented, access-controlled, and auditable.
 
+## PWA And Browser Storage
+
+The web app manifest and icons are public app-shell metadata and must not
+contain tenant, user, Autotask, or credential data.
+
+The root-scoped service worker exists only so mobile devices can launch Job
+Logger in standalone app mode. It must remain network-only and must not cache
+authenticated pages, session-bound responses, job records, Autotask lookup
+results, transcription responses, raw audio, CSRF tokens, or diagnostic output.
+
 ## Autotask Safety
 
 Autotask failures should produce safe user-facing messages and troubleshooting

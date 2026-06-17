@@ -235,6 +235,21 @@ Check these items first:
 The mobile route is `/mobile`. The app also redirects `/moble` to `/mobile` to
 avoid a common typo after the tunnel is working.
 
+## Mobile App Mode
+
+Job Logger includes progressive web app metadata so a phone can install it from
+the browser and launch it without the normal browser toolbar.
+
+Use the Cloudflare HTTPS hostname on the phone, sign in, open the browser menu,
+and choose the platform's install action such as **Add to Home Screen** or
+**Install App**. After launching from that home-screen icon, the app uses
+standalone display mode, the configured dark theme color, safe-area padding for
+phone status bars, and disabled page overscroll/bounce behavior.
+
+The service worker is intentionally network-only. It supports standalone app
+launch behavior but does not cache authenticated pages, job data, Autotask
+responses, transcription data, raw audio, or diagnostics.
+
 ## Provider Modes
 
 ### Speech To Text

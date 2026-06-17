@@ -279,6 +279,9 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/routes/debug.py` handles the authenticated diagnostic page and the
   Autotask API connectivity test.
 - `job_logger/routes/health.py` exposes container health endpoints.
+- `job_logger/routes/pwa.py` serves the web app manifest and root-scoped
+  service worker for installed mobile app behavior. The service worker must not
+  cache authenticated job, session, Autotask, or transcription data.
 - `job_logger/services/jobs.py` owns core job state transitions and must remain
   the primary place for workflow validation.
 - `job_logger/services/autotask.py` owns Autotask providers, connectivity tests,
@@ -288,7 +291,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/audit.py` records immutable audit events.
 - `job_logger/templates/` contains Jinja pages for mobile, review, debug, and
   authentication views.
-- `job_logger/static/` contains browser-side JavaScript and CSS.
+- `job_logger/static/` contains browser-side JavaScript, CSS, PWA metadata, and
+  source-controlled app icons.
 - `migrations/versions/` contains Alembic schema migrations.
 - `scripts/` contains operational helper scripts, including Autotask ID
   discovery.
