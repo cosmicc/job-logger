@@ -67,7 +67,9 @@ submitted ticket belongs to that safe list, stores the ticket number and title,
 and records an audit event. When an active job has no ticket number, the mobile
 page shows the open-ticket panel under the client field. The **Find tickets**
 button saves the current active client fields before querying Autotask, and a
-job that already has a saved client auto-loads the picker.
+job that already has a saved client auto-loads the picker. After selection, the
+browser should hide the open-ticket panel and show both the selected ticket
+number and ticket title in Work in Progress without waiting for a page reload.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
@@ -108,15 +110,16 @@ Mobile recording is browser-side in `job_logger/static/mobile.js`.
 Current behavior:
 
 - Record starts audio capture.
-- Record button becomes pause/resume while capture is active.
+- Record button becomes Stop while capture is active.
 - The browser opens `WebSocket /jobs/{job_id}/description/audio/stream`,
   sends CSRF-protected stream metadata first, then streams `MediaRecorder`
   audio chunks as binary WebSocket messages.
 - The server starts an interim transcription attempt as soon as the first chunk
   arrives. The current faster-whisper provider is batch-oriented, so interim
-  text is best-effort from the buffered media snapshot; the final transcript is
-  generated from the full in-memory recording when Submit sends `finish`.
-- Submit stops capture and finalizes the streamed transcription. The legacy
+  text is best-effort from the buffered media snapshot.
+- Stop ends browser capture, lets `MediaRecorder` flush its final chunk, sends
+  WebSocket `finish`, and keeps the control disabled until the final transcript
+  or a bounded error response returns. The legacy
   `POST /jobs/{job_id}/description/audio` endpoint remains as a compatibility
   upload path, but the mobile UI should use the WebSocket stream.
 - Raw audio is not permanently stored by default.
@@ -159,7 +162,8 @@ job and use it as the selected-job detail heading. If no ticket has been
 selected, the detail heading should read `Unassigned Ticket`. Older jobs that
 have a ticket number but no stored title may display the ticket number as a
 fallback. Once a job has a ticket number, hide the open-ticket lookup panel for
-that job.
+that job. Review ticket selection should update the read-only ticket number and
+selected-job heading in place after the server verifies and stores the ticket.
 
 ## Job Status Expectations
 

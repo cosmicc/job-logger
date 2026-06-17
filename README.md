@@ -251,8 +251,10 @@ The mobile recorder streams `MediaRecorder` chunks to
 `WebSocket /jobs/{job_id}/description/audio/stream`. The first WebSocket
 message carries metadata and the CSRF token, then binary audio chunks are sent
 as soon as the browser produces them. The server starts a best-effort interim
-transcription from the first buffered chunk and creates the final saved
-transcript when the browser sends `finish`.
+transcription from the first buffered chunk. The mobile record button becomes a
+stop button while capture is active; stopping capture lets the browser flush
+the final chunk, sends WebSocket `finish`, and keeps processing until the final
+saved transcript or a bounded error response returns.
 
 Raw audio is not stored by default. The app keeps the streamed recording in
 memory only, sends buffered bytes to the local provider through a temporary
@@ -312,10 +314,12 @@ button saves the current active-job client fields before loading open tickets,
 and saved clients auto-load the list when the Work in Progress card renders.
 Selecting a returned ticket fills the mobile job's hidden ticket number, stores
 the selected ticket title for the review detail heading, and automatically saves
-the active-job changes or review ticket selection. On the review page, the
-stored ticket number and client name are read-only identity fields; review save
-and submit use the stored values instead of trusting form posts. Once a job has
-a ticket number, the open-ticket picker is hidden for that job.
+the active-job changes or review ticket selection. The mobile Work in Progress
+card shows both the selected ticket number and ticket name after selection. On
+the review page, the stored ticket number and client name are read-only identity
+fields; review save and submit use the stored values instead of trusting form
+posts. Once a job has a ticket number, the open-ticket picker is hidden for that
+job.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 

@@ -102,7 +102,10 @@ the selected ticket is still valid for that job, and persists the ticket number
 and title returned by the provider. The mobile **Find tickets** button first
 saves the active job's current client fields through
 `POST /jobs/{job_id}/ticket-number` with a JSON response, then loads open
-tickets from the server-verified lookup endpoint.
+tickets from the server-verified lookup endpoint. After mobile or review
+selection succeeds, the UI hides the open-ticket list and updates visible ticket
+number/title fields from the verified JSON response rather than trusting the
+clicked browser option.
 
 ## Caching Rules
 

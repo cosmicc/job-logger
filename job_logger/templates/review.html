@@ -40,7 +40,11 @@
                   role="button"
                   aria-label="Open job {{ job.ticket_number or 'No ticket' }} for review"
                 >
-                  <td><span>{{ job.ticket_number or "No ticket" }}</span></td>
+                  <td>
+                    <span {% if selected_job and selected_job.id == job.id %}data-review-selected-row-ticket{% endif %}>
+                      {{ job.ticket_number or "No ticket" }}
+                    </span>
+                  </td>
                   <td>
                     {{ job.client_name or "Not set" }}
                   </td>

@@ -6,7 +6,6 @@ const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 
 const activeRecordButtons = document.querySelectorAll(".record-notes-button");
-const submitButtons = document.querySelectorAll(".submit-notes-button");
 const descriptionTextareas = document.querySelectorAll(".job-description");
 const endJobForms = document.querySelectorAll(".end-job-form");
 const activeTicketForms = document.querySelectorAll(".active-ticket-form");
@@ -103,7 +102,6 @@ function syncEndJobClientFields(endJobForm) {
 function findControlElements(jobId) {
   return {
     recordButton: document.querySelector(`.record-notes-button[data-job-id="${toSafeMapString(jobId)}"]`),
-    submitButton: document.querySelector(`.submit-notes-button[data-job-id="${toSafeMapString(jobId)}"]`),
     statusElement: findRecordingStatusElement(jobId),
   };
 }
@@ -205,36 +203,29 @@ function setRecordingStatus(jobId, message, isError = false) {
 function setRecordingUi({
   jobId,
   isRecording = false,
-  isPaused = false,
   isUploading = false,
 }) {
   const controls = findControlElements(jobId);
-  if (!controls.recordButton || !controls.submitButton) {
+  if (!controls.recordButton) {
     return;
   }
 
   controls.recordButton.disabled = isUploading;
-  controls.submitButton.disabled = isUploading;
 
   if (isUploading) {
     controls.recordButton.classList.remove("is-recording");
     controls.recordButton.textContent = "Processing notes...";
-    controls.submitButton.textContent = "Processing notes...";
     return;
   }
 
   if (isRecording) {
     controls.recordButton.classList.add("is-recording");
-    controls.recordButton.textContent = isPaused ? "Resume Notes" : "Pause Notes";
-    controls.submitButton.textContent = "Submit Notes";
-    controls.submitButton.disabled = false;
+    controls.recordButton.textContent = "Stop Notes";
     return;
   }
 
   controls.recordButton.classList.remove("is-recording");
   controls.recordButton.textContent = "Record Notes";
-  controls.submitButton.textContent = "Submit Notes";
-  controls.submitButton.disabled = true;
 }
 
 function setAllRecordingControlsIdle() {
@@ -666,6 +657,34 @@ function buildTicketOptionText(ticketOption) {
   return `${ticketNumber} | ${ticketTitle} | ${ticketStatus}`;
 }
 
+function updateActiveTicketDisplay(jobId, selectedTicket) {
+  const activeJobCard = document.querySelector(`[data-active-job-card="${toSafeMapString(jobId)}"]`);
+  if (!activeJobCard) {
+    return;
+  }
+
+  const ticketNumber = toSafeMapString(selectedTicket.ticket_number).trim().toUpperCase();
+  const ticketTitle = toSafeMapString(selectedTicket.ticket_title || selectedTicket.title).trim();
+  const ticketNumberCard = activeJobCard.querySelector("[data-active-ticket-number-card]");
+  const ticketNumberDisplay = activeJobCard.querySelector("[data-active-ticket-number-display]");
+  const ticketTitleCard = activeJobCard.querySelector("[data-active-ticket-title-card]");
+  const ticketTitleDisplay = activeJobCard.querySelector("[data-active-ticket-title-display]");
+
+  if (ticketNumberCard && ticketNumber) {
+    ticketNumberCard.classList.remove("is-hidden");
+  }
+  if (ticketNumberDisplay) {
+    ticketNumberDisplay.textContent = ticketNumber;
+  }
+
+  if (ticketTitleCard && ticketTitle) {
+    ticketTitleCard.classList.remove("is-hidden");
+  }
+  if (ticketTitleDisplay) {
+    ticketTitleDisplay.textContent = ticketTitle;
+  }
+}
+
 async function loadActiveTicketOptions(ticketPicker, options = {}) {
   if (activeTicketLookupRequests.has(ticketPicker)) {
     return;
@@ -737,6 +756,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
 
         optionButton.disabled = true;
         statusElement.textContent = "Saving selected ticket...";
+        ticketPicker.hidden = true;
         try {
           if (ticketSelectUrl) {
             const selectedTicket = await persistActiveSelectedTicket(ticketSelectUrl, ticketOption);
@@ -744,7 +764,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
             if (ticketTitleInput) {
               ticketTitleInput.value = toSafeMapString(selectedTicket.ticket_title).trim();
             }
-            window.location.reload();
+            updateActiveTicketDisplay(jobId, selectedTicket);
             return;
           }
 
@@ -752,8 +772,10 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
           if (ticketTitleInput) {
             ticketTitleInput.value = toSafeMapString(ticketOption.title).trim();
           }
+          updateActiveTicketDisplay(jobId, ticketOption);
           submitFormWithCurrentFields(activeTicketForm);
         } catch (error) {
+          ticketPicker.hidden = false;
           optionButton.disabled = false;
           statusElement.textContent = error.message || "Selected ticket could not be saved.";
           statusElement.classList.add("error-text");
@@ -802,11 +824,7 @@ async function startRecording(activeJobId) {
   }
 
   if (activeRecorder) {
-    if (activeRecorder.state === "recording") {
-      activeRecorder.pause();
-    } else if (activeRecorder.state === "paused") {
-      activeRecorder.resume();
-    }
+    stopRecording(activeJobId);
     return;
   }
 
@@ -839,16 +857,6 @@ async function startRecording(activeJobId) {
     }
   });
 
-  activeRecorder.addEventListener("pause", () => {
-    setRecordingStatus(activeJobId, "Recording paused.");
-    setRecordingUi({jobId: activeJobId, isRecording: true, isPaused: true});
-  });
-
-  activeRecorder.addEventListener("resume", () => {
-    setRecordingStatus(activeJobId, "Recording notes...");
-    setRecordingUi({jobId: activeJobId, isRecording: true, isPaused: false});
-  });
-
   activeRecorder.addEventListener("stop", async () => {
     const jobId = activeRecordingJobId;
     try {
@@ -879,29 +887,8 @@ async function startRecording(activeJobId) {
   });
 
   activeRecorder.start(RECORDING_CHUNK_INTERVAL_MS);
-  setRecordingUi({jobId: activeJobId, isRecording: true, isPaused: false});
+  setRecordingUi({jobId: activeJobId, isRecording: true});
   setRecordingStatus(activeJobId, "Recording notes...");
-}
-
-function togglePauseResume(activeJobId) {
-  if (!activeRecorder || activeRecordingJobId !== activeJobId) {
-    setRecordingStatus(activeJobId, "Start this job recording first.");
-    return;
-  }
-
-  if (!activeRecorder.pause || !activeRecorder.resume) {
-    setRecordingStatus(activeJobId, "Pause and resume are not supported in this browser.", true);
-    return;
-  }
-
-  if (activeRecorder.state === "recording") {
-    activeRecorder.pause();
-    return;
-  }
-
-  if (activeRecorder.state === "paused") {
-    activeRecorder.resume();
-  }
 }
 
 function stopRecording(activeJobId) {
@@ -914,10 +901,15 @@ function stopRecording(activeJobId) {
     return;
   }
 
-  if (activeRecorder.state === "paused") {
-    activeRecorder.resume();
+  if (activeRecorder.state === "inactive") {
+    return;
   }
 
+  // The stop button finalizes the WebSocket stream. The button stays disabled
+  // until the server sends the final transcript or a bounded error response.
+  isUploadingRecording = true;
+  setRecordingUi({jobId: activeJobId, isUploading: true});
+  setRecordingStatus(activeJobId, "Stopping recording and finishing stream...");
   activeRecorder.stop();
 }
 
@@ -943,11 +935,11 @@ for (const recordButton of activeRecordButtons) {
 
     if (activeRecorder) {
       if (activeRecordingJobId === jobId) {
-        togglePauseResume(jobId);
+        stopRecording(jobId);
         return;
       }
 
-      setRecordingStatus(jobId, "Finish or submit the current recording before switching jobs.", true);
+      setRecordingStatus(jobId, "Stop the current recording before switching jobs.", true);
       return;
     }
 
@@ -957,22 +949,6 @@ for (const recordButton of activeRecordButtons) {
       setRecordingStatus(jobId, error.message || "Recording could not start.", true);
       clearRecordingState();
     }
-  });
-}
-
-for (const submitButton of submitButtons) {
-  const jobId = toSafeMapString(submitButton.dataset.jobId);
-  submitButton.addEventListener("click", () => {
-    if (isUploadingRecording) {
-      return;
-    }
-
-    if (!activeRecorder || activeRecordingJobId !== jobId) {
-      setRecordingStatus(jobId, "Press Record first, then press Submit when ready.");
-      return;
-    }
-
-    stopRecording(jobId);
   });
 }
 

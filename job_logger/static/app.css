@@ -71,6 +71,10 @@ svg {
   border: 0;
 }
 
+.is-hidden {
+  display: none !important;
+}
+
 .app-header {
   position: sticky;
   top: 0;
@@ -523,13 +527,16 @@ a:focus-visible {
   font-size: 15px;
 }
 
-.ticket-number-card {
+.ticket-number-card,
+.ticket-title-card {
   display: grid;
   gap: 5px;
 }
 
 .ticket-number-card dd,
-.ticket-number-card strong {
+.ticket-number-card strong,
+.ticket-title-card dd,
+.ticket-title-card strong {
   overflow-wrap: anywhere;
   color: var(--text);
   font-size: 15px;
@@ -537,17 +544,23 @@ a:focus-visible {
 
 .work-location-card {
   display: grid;
-  gap: 5px;
+  padding: 8px;
+  align-items: center;
+}
+
+.work-location-card dd {
+  margin: 0;
 }
 
 .segmented-toggle {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px;
+  gap: 3px;
   width: 100%;
-  min-height: 38px;
+  max-width: 220px;
+  min-height: 32px;
   margin: 0;
-  padding: 3px;
+  padding: 2px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -555,7 +568,11 @@ a:focus-visible {
 
 .segmented-toggle label {
   position: relative;
+  display: block;
   min-width: 0;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
   cursor: pointer;
 }
 
@@ -572,12 +589,14 @@ a:focus-visible {
 
 .segmented-toggle span {
   display: grid;
-  min-height: 30px;
+  min-height: 26px;
   place-items: center;
   border-radius: 6px;
   color: var(--muted);
-  font-size: 13px;
-  font-weight: 750;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
   pointer-events: none;
 }
 

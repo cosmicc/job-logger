@@ -312,9 +312,9 @@ The normal workflow is:
    ticket numbers are populated from that selection instead of manual entry.
 7. User chooses whether the work is Remote or On-Site. The mode is stored on
    the job and is only prefixed onto Autotask `summaryNotes` during submission.
-8. User records notes during an active job. The record button pauses/resumes;
-   audio chunks stream to the server over WebSocket, and the separate submit
-   button finalizes transcription.
+8. User records notes during an active job. The record button becomes a stop
+   button while audio chunks stream to the server over WebSocket, and stopping
+   capture finalizes transcription.
 9. User can save active job edits before ending work.
 10. User ends work with a mandatory client name. The job moves to review.
 11. User reviews the job from `/review`, edits time/status/notes if needed, and

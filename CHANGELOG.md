@@ -12,12 +12,19 @@ All recorded changes to Job Logger are documented in this file.
   and is prefixed onto Autotask `summaryNotes` only when a time entry is
   created. Kept the active open-ticket picker visible before ticket selection,
   added a manual **Find tickets** button inside it, and made client selection
-  save in the background before automatically loading open tickets.
+  save in the background before automatically loading open tickets. Selecting a
+  ticket now hides the open-ticket list immediately, updates the saved ticket
+  number/title in place on mobile and review, and shows the selected ticket name
+  as a Work in Progress card.
 - Switched the mobile recorder to chunked WebSocket audio streaming. The server
   authenticates the session, validates CSRF in the first stream message before
   accepting audio bytes, starts best-effort interim transcription when the first
   chunk arrives, saves the final transcript on `finish`, keeps raw audio
   in-memory only, and adds Nginx WebSocket proxy support for the stream route.
+- Simplified the mobile recorder to a single **Record Notes** / **Stop Notes**
+  button. Stopping capture now flushes the final browser audio chunk, sends the
+  WebSocket finish message, and keeps the control disabled while the streamed
+  transcription completes.
 - Removed `billingCodeID` / Allocation Code from live Autotask `TimeEntries`
   creation so ticket time entry submissions use Autotask defaults and do not
   require Allocation Code edit permission.
@@ -101,9 +108,9 @@ All recorded changes to Job Logger are documented in this file.
 - Expanded agent documentation with a current app structure map, workflow
   summary, mandatory Autotask dependency notes, and dedicated workflow,
   Autotask, and security agent skill files.
-- Updated the mobile workflow so recording is now `Record -> Pause/Resume -> Submit`
-  with submit-based transcription upload, added 15-minute review time increment
-  controls for start/end times, and surfaced client context in the review flow.
+- Updated the mobile workflow recording controls, added 15-minute review time
+  increment controls for start/end times, and surfaced client context in the
+  review flow.
 - Added mobile in-progress rounded-start adjustments so the active job start time can
   be changed in +/-15-minute increments directly from the work card.
 - Simplified networking configuration so only `NGINX_PUBLIC_PORT` needs to be set
@@ -128,8 +135,8 @@ All recorded changes to Job Logger are documented in this file.
   (plus related submission attempts) for strict cleanup.
 - Removed the recent-jobs list from the mobile entry page so `/mobile` stays focused
   on the active work flow only.
-- Added mobile audio recording pause/resume controls on `/mobile` so users can pause
-  capture and continue before submitting the session for transcription.
+- Added mobile audio recording controls on `/mobile` so users can capture notes
+  during active work and submit the session for transcription.
 - Removed the pre-start Autotask ticket number input from `/mobile`; starting a new
   entry now only presents the Start Work action.
 - Increased spacing between the mobile ticket number entry field and the Start Work

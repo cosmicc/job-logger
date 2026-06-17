@@ -108,6 +108,7 @@ function bindTicketLookup() {
   const ticketNumberDisplay = document.querySelector("[data-review-ticket-number-display]");
   const ticketTitleInput = document.querySelector("[data-review-ticket-title-input]");
   const ticketHeading = document.querySelector("[data-selected-ticket-heading]");
+  const selectedRowTicketDisplay = document.querySelector("[data-review-selected-row-ticket]");
   if (!lookupUrl || !ticketSelectUrl || !lookupButton || !statusElement || !resultsElement || !ticketNumberInput) {
     return;
   }
@@ -128,6 +129,24 @@ function bindTicketLookup() {
     }
 
     return payload;
+  }
+
+  function updateSelectedTicketDisplay(selectedTicket) {
+    const selectedTicketNumber = selectedTicket.ticket_number || "";
+    const selectedTicketTitle = selectedTicket.ticket_title || "";
+    ticketNumberInput.value = selectedTicketNumber;
+    if (ticketNumberDisplay) {
+      ticketNumberDisplay.textContent = selectedTicketNumber || "Unassigned Ticket";
+    }
+    if (ticketTitleInput) {
+      ticketTitleInput.value = selectedTicketTitle;
+    }
+    if (ticketHeading) {
+      ticketHeading.textContent = selectedTicketTitle || selectedTicketNumber || "Unassigned Ticket";
+    }
+    if (selectedRowTicketDisplay) {
+      selectedRowTicketDisplay.textContent = selectedTicketNumber || "No ticket";
+    }
   }
 
   lookupButton.addEventListener("click", async () => {
@@ -157,24 +176,13 @@ function bindTicketLookup() {
         optionButton.addEventListener("click", async () => {
           optionButton.disabled = true;
           statusElement.textContent = "Saving selected ticket...";
+          ticketPicker.hidden = true;
+          resultsElement.replaceChildren();
           try {
             const selectedTicket = await persistSelectedTicket(ticketOption);
-            const selectedTicketNumber = selectedTicket.ticket_number || "";
-            const selectedTicketTitle = selectedTicket.ticket_title || "";
-            ticketNumberInput.value = selectedTicketNumber;
-            if (ticketNumberDisplay) {
-              ticketNumberDisplay.textContent = selectedTicketNumber || "Unassigned Ticket";
-            }
-            if (ticketTitleInput) {
-              ticketTitleInput.value = selectedTicketTitle;
-            }
-            if (ticketHeading) {
-              ticketHeading.textContent = selectedTicketTitle || "Unassigned Ticket";
-            }
-            statusElement.textContent = `Selected ${selectedTicketNumber}.`;
-            ticketPicker.hidden = true;
-            window.location.reload();
+            updateSelectedTicketDisplay(selectedTicket);
           } catch (error) {
+            ticketPicker.hidden = false;
             optionButton.disabled = false;
             statusElement.textContent = error.message || "Selected ticket could not be saved.";
           }

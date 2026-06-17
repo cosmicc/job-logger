@@ -277,6 +277,7 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'name="work_location"' in page_html
     assert 'value="remote"' in page_html
     assert 'value="on_site"' in page_html
+    assert "<dt>Work type</dt>" not in page_html
     assert 'data-active-ticket-picker' in page_html
     assert f'data-ticket-select-url="/jobs/{active_job_id}/ticket"' in page_html
     assert 'data-auto-load-ticket-options="true"' in page_html
@@ -285,6 +286,7 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert page_html.index("<dt>Client name</dt>") < page_html.index("<h3>Open tickets</h3>")
     assert page_html.index("<h3>Open tickets</h3>") < page_html.index(f'id="active-ticket-form-{active_job_id}"')
     assert 'class="secondary-button active-save-button"' in page_html
+    assert "submit-notes-button" not in page_html
     assert page_html.index("Summary notes") < page_html.index("Save Active Changes") < page_html.index("Record Notes")
     assert "Autotask ticket number" not in page_html
     assert 'class="active-ticket-number"' in page_html
@@ -869,7 +871,10 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
     updated_mobile_html = updated_mobile_page_response.text
     assert "data-active-ticket-picker" not in updated_mobile_html
     assert '<dt>Ticket number</dt>' in updated_mobile_html
+    assert '<dt>Ticket name</dt>' in updated_mobile_html
     assert "T20260616.0001" in updated_mobile_html
+    assert "Mock open ticket for Mobile Ticket Client" in updated_mobile_html
+    assert "data-active-ticket-title-card" in updated_mobile_html
 
 
 def test_mobile_selected_ticket_title_drives_review_heading(authenticated_client: TestClient) -> None:
