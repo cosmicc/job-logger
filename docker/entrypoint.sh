@@ -20,23 +20,23 @@ wait_for_database() {
 
   while [ "$attempt" -le "$max_attempts" ]; do
     if python - "$database_url" <<'PY'
-from urllib.parse import urlparse
 import sys
 
 import psycopg
+from sqlalchemy.engine import make_url
 
 
 def _connect(raw_url: str) -> None:
-    parsed = urlparse(raw_url)
-    if not parsed.hostname:
+    database_url = make_url(raw_url)
+    if not database_url.host:
         raise RuntimeError("DATABASE_URL must include a host.")
 
     with psycopg.connect(
-        dbname=(parsed.path or "/").lstrip("/") or None,
-        user=parsed.username,
-        password=parsed.password,
-        host=parsed.hostname,
-        port=parsed.port or 5432,
+        dbname=database_url.database,
+        user=database_url.username,
+        password=database_url.password,
+        host=database_url.host,
+        port=database_url.port or 5432,
         connect_timeout=2,
     ):
         return
@@ -44,8 +44,22 @@ def _connect(raw_url: str) -> None:
 
 try:
     _connect(sys.argv[1])
-except Exception as exc:
-    # Keep output low risk: no credentials are echoed in exception text here.
+except psycopg.OperationalError as exc:
+    # Keep startup diagnostics sanitized. Authentication failures are permanent
+    # until the persisted database user password is changed, so do not hide them
+    # behind transient retry messages.
+    error_text = str(exc).splitlines()[0].lower()
+    if "password authentication failed" in error_text:
+        print("db_error=password_authentication_failed")
+        raise SystemExit(2)
+    if "does not exist" in error_text:
+        print("db_error=database_or_user_missing")
+        raise SystemExit(2)
+    print("db_error=temporarily_unreachable")
+    raise SystemExit(1)
+except Exception:
+    # Keep output low risk: do not echo DATABASE_URL because it contains secrets.
+    print("db_error=configuration_or_driver_failure")
     raise SystemExit(1)
 
 print("db_ready")
@@ -53,6 +67,13 @@ PY
     then
       echo "Database connection established."
       return 0
+    else
+      connection_result="$?"
+    fi
+
+    if [ "$connection_result" -eq 2 ]; then
+      echo "Database authentication/configuration failed. Check that the persisted PostgreSQL user password matches POSTGRES_PASSWORD in the deployment environment."
+      return 1
     fi
 
     if [ "$attempt" -ge "$max_attempts" ]; then

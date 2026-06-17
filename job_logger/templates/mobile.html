@@ -62,7 +62,7 @@
               <div class="metric-card work-location-card" aria-label="Work type">
                 <dd>
                   {% set selected_work_location = active_job.work_location.value if active_job.work_location else "remote" %}
-                  <div class="segmented-toggle work-location-toggle" data-work-location-toggle role="radiogroup" aria-label="Work type">
+                  <div class="work-location-switch" data-work-location-toggle role="radiogroup" aria-label="Work type">
                     <label>
                       <input
                         type="radio"

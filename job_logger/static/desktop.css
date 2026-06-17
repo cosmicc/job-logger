@@ -47,6 +47,7 @@
   grid-template-columns: 36px minmax(92px, 1fr) 36px;
 }
 
+.work-location-switch,
 .work-location-toggle {
   width: fit-content;
   max-width: none;
@@ -54,6 +55,7 @@
   padding: 0;
 }
 
+.work-location-switch span,
 .work-location-toggle span {
   min-height: 22px;
   min-width: 52px;

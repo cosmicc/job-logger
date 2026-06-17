@@ -22,6 +22,12 @@ All recorded changes to Job Logger are documented in this file.
   short database readiness wait loop in the entrypoint before running Alembic
   migrations, and by pinning a `db` network alias on the PostgreSQL service.
 
+- Improved the database startup wait loop so permanent PostgreSQL
+  authentication/configuration failures stop with a clear sanitized log instead
+  of retrying as if the database is merely not ready. Documented the safe
+  non-destructive password repair command for existing PostgreSQL volumes whose
+  stored role password no longer matches `.env`.
+
 - Updated the mobile recording control so **Record Audio** becomes a red
   **Stop recording** button only while browser capture is active. Clicking it
   again stops capture, leaves the stream/transcription status visible until the

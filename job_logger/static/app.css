@@ -609,6 +609,7 @@ a:focus-visible {
   margin: 0;
 }
 
+.work-location-switch,
 .work-location-toggle {
   width: fit-content;
   max-width: none;
@@ -622,6 +623,7 @@ a:focus-visible {
   gap: 0;
 }
 
+.work-location-switch label,
 .work-location-toggle label {
   position: relative;
   display: inline-flex;
@@ -629,6 +631,7 @@ a:focus-visible {
   cursor: pointer;
 }
 
+.work-location-switch input[type="radio"],
 .work-location-toggle input[type="radio"] {
   position: absolute;
   inset: 0;
@@ -639,6 +642,7 @@ a:focus-visible {
   cursor: pointer;
 }
 
+.work-location-switch span,
 .work-location-toggle span {
   display: grid;
   min-height: 22px;
@@ -654,11 +658,13 @@ a:focus-visible {
   pointer-events: none;
 }
 
+.work-location-switch input[type="radio"]:checked + span,
 .work-location-toggle input[type="radio"]:checked + span {
   background: var(--accent);
   color: var(--on-accent);
 }
 
+.work-location-switch input[type="radio"]:focus-visible + span,
 .work-location-toggle input[type="radio"]:focus-visible + span {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
@@ -732,6 +738,7 @@ a:focus-visible {
 /* Keep the Work Type control compact and pill-style across desktop and mobile.
    These later declarations override generic `.segmented-toggle` sizing.
 */
+.work-location-switch,
 .work-location-toggle {
   width: fit-content;
   max-width: none;
@@ -745,6 +752,7 @@ a:focus-visible {
   gap: 0;
 }
 
+.work-location-switch label,
 .work-location-toggle label {
   position: relative;
   display: inline-flex;
@@ -752,6 +760,7 @@ a:focus-visible {
   cursor: pointer;
 }
 
+.work-location-switch input[type="radio"],
 .work-location-toggle input[type="radio"] {
   position: absolute;
   inset: 0;
@@ -762,6 +771,7 @@ a:focus-visible {
   cursor: pointer;
 }
 
+.work-location-switch span,
 .work-location-toggle span {
   display: grid;
   min-height: 22px;
@@ -777,11 +787,13 @@ a:focus-visible {
   pointer-events: none;
 }
 
+.work-location-switch input[type="radio"]:checked + span,
 .work-location-toggle input[type="radio"]:checked + span {
   background: var(--accent);
   color: var(--on-accent);
 }
 
+.work-location-switch input[type="radio"]:focus-visible + span,
 .work-location-toggle input[type="radio"]:focus-visible + span {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;

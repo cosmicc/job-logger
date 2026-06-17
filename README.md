@@ -146,6 +146,30 @@ up` and `start worker process`. If the log later says `signal 3 (SIGQUIT)
 received, shutting down`, Docker or Compose asked Nginx to stop gracefully; that
 line is not an Nginx configuration failure by itself.
 
+### PostgreSQL Password Troubleshooting
+
+The PostgreSQL Docker image only applies `POSTGRES_PASSWORD` when the database
+volume is first initialized. If `.env` is changed later while keeping the same
+`postgres_data` volume, the app can loop at startup with database retry messages
+or PostgreSQL can log `password authentication failed for user "job_logger"`.
+
+Do not delete the database volume to fix a password mismatch unless the stored
+job history is intentionally being discarded. Instead, update the existing
+PostgreSQL role password to match the current container environment:
+
+```bash
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -v database_user="$POSTGRES_USER" -v database_password="$POSTGRES_PASSWORD"' <<'SQL'
+ALTER ROLE :"database_user" WITH PASSWORD :'database_password';
+SQL
+```
+
+Then recreate the app container so migrations and FastAPI reconnect with the
+current credentials:
+
+```bash
+docker compose up -d --build --force-recreate app nginx
+```
+
 ### Tunnel 502 Troubleshooting
 
 A Cloudflare 502 means the request reached Cloudflare and the tunnel connector,
