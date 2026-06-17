@@ -17,6 +17,11 @@ All recorded changes to Job Logger are documented in this file.
   breakpoints and restoring strong red-recording visual states for the web Record
   Audio button in desktop layouts.
 
+- Fixed container startup failures when `DATABASE_URL` host is temporarily
+  unresolved at boot (for example in Docker stack/Swarm rollouts) by adding a
+  short database readiness wait loop in the entrypoint before running Alembic
+  migrations, and by pinning a `db` network alias on the PostgreSQL service.
+
 - Updated the mobile recording control so **Record Audio** becomes a red
   **Stop recording** button only while browser capture is active. Clicking it
   again stops capture, leaves the stream/transcription status visible until the
