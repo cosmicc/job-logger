@@ -46,3 +46,37 @@
 .time-step-controls {
   grid-template-columns: 36px minmax(92px, 1fr) 36px;
 }
+
+.work-location-toggle {
+  width: fit-content;
+  max-width: none;
+  min-height: 24px;
+  padding: 0;
+}
+
+.work-location-toggle span {
+  min-height: 22px;
+  min-width: 52px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 6px;
+}
+
+.record-notes-button.is-recording,
+.recording-control-stack .record-notes-button.is-recording,
+.record-notes-button[aria-pressed="true"],
+.recording-control-stack .record-notes-button[aria-pressed="true"] {
+  border-color: rgba(248, 113, 113, 0.78) !important;
+  background: var(--danger) !important;
+  background-color: var(--danger) !important;
+  color: var(--on-danger) !important;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.25) !important;
+}
+
+.record-notes-button.is-recording:hover,
+.recording-control-stack .record-notes-button.is-recording:hover,
+.record-notes-button[aria-pressed="true"]:hover,
+.recording-control-stack .record-notes-button[aria-pressed="true"]:hover {
+  background: #fb8181 !important;
+  color: var(--on-danger) !important;
+}

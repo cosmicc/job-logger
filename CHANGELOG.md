@@ -12,6 +12,11 @@ All recorded changes to Job Logger are documented in this file.
   label while capture is requested, and only returns to neutral once stop/transcode
   completes.
 
+- Matched desktop `/mobile` styling to the compact mobile Work Type control by
+  enforcing the same compact `Remote` / `On-Site` segmented appearance at wider
+  breakpoints and restoring strong red-recording visual states for the web Record
+  Audio button in desktop layouts.
+
 - Updated the mobile recording control so **Record Audio** becomes a red
   **Stop recording** button only while browser capture is active. Clicking it
   again stops capture, leaves the stream/transcription status visible until the
