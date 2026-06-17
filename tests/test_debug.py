@@ -25,7 +25,7 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     csrf_token = extract_csrf_token(start_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "ticket_number": "T20260326.0018"},
+        data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert start_response.status_code == 303
@@ -34,6 +34,19 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
         active_job = get_active_job(database_session)
         assert active_job is not None
         active_job_id = active_job.id
+
+    save_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "ticket_number": "T20260326.0018",
+            "ticket_title": "Debug diagnostics ticket",
+            "client_name": "Debug Client",
+            "autotask_company_id": "1001",
+        },
+        follow_redirects=False,
+    )
+    assert save_ticket_response.status_code == 303
 
     description_response = authenticated_client.post(
         f"/jobs/{active_job_id}/description/text",
@@ -55,7 +68,6 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
         f"/review/{active_job_id}/accept",
         data={
             "csrf_token": review_csrf_token,
-            "ticket_number": "T20260326.0018",
             "ticket_status": "complete",
             "start_date": "2026-06-16",
             "start_time": "08:00",

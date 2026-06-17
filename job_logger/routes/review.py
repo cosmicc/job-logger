@@ -10,12 +10,13 @@ from sqlalchemy.orm import Session
 from job_logger.database import get_database_session
 from job_logger.enums import JobStatus, TicketStatus
 from job_logger.models import AuditEvent
-from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_token
+from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_header, validate_csrf_token
 from job_logger.services.audit import record_audit_event
-from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider
+from job_logger.services.autotask import AutotaskSubmissionError, AutotaskTicketOption, get_autotask_provider
 from job_logger.services.jobs import (
     JobWorkflowError,
     apply_review_fields,
+    apply_selected_ticket_from_lookup,
     get_job_or_raise,
     list_review_jobs,
     purge_job,
@@ -128,6 +129,29 @@ async def _form_values(request: Request) -> dict[str, str]:
     return {key: str(value) for key, value in form_data.items()}
 
 
+def _read_only_review_form_values(form_values: dict[str, str], job: object) -> dict[str, str]:
+    """Overlay read-only job identity fields before review validation."""
+
+    locked_form_values = dict(form_values)
+    locked_form_values["ticket_number"] = getattr(job, "ticket_number", None) or ""
+    locked_form_values["ticket_title"] = getattr(job, "ticket_title", None) or ""
+    locked_form_values["client_name"] = getattr(job, "client_name", None) or ""
+    autotask_company_id = getattr(job, "autotask_company_id", None)
+    locked_form_values["autotask_company_id"] = str(autotask_company_id) if autotask_company_id is not None else ""
+    return locked_form_values
+
+
+def _find_matching_ticket_option(ticket_options: list[AutotaskTicketOption], ticket_number: str) -> AutotaskTicketOption | None:
+    """Return a selected open-ticket option by normalized ticket number."""
+
+    normalized_ticket_number = ticket_number.strip().upper()
+    for ticket_option in ticket_options:
+        if ticket_option.ticket_number.strip().upper() == normalized_ticket_number:
+            return ticket_option
+
+    return None
+
+
 def _render_review(
     request: Request,
     database_session: Session,
@@ -169,7 +193,7 @@ async def save_review(
         job = get_job_or_raise(database_session, job_id)
         require_end_time_fields = job.status != JobStatus.ACTIVE
         review_fields = validate_review_fields(
-            form_values,
+            _read_only_review_form_values(form_values, job),
             require_ticket_number=False,
             require_end_time_fields=require_end_time_fields,
         )
@@ -196,7 +220,7 @@ async def accept_review(
     try:
         form_values = await _form_values(request)
         job = get_job_or_raise(database_session, job_id)
-        review_fields = validate_review_fields(form_values, require_ticket_number=True)
+        review_fields = validate_review_fields(_read_only_review_form_values(form_values, job), require_ticket_number=True)
         apply_review_fields(job, review_fields)
         submit_job_to_autotask(database_session, job)
         record_audit_event(
@@ -263,7 +287,7 @@ async def retry_submission(
     try:
         job = get_job_or_raise(database_session, job_id)
         if form_values:
-            review_fields = validate_review_fields(form_values, require_ticket_number=True)
+            review_fields = validate_review_fields(_read_only_review_form_values(form_values, job), require_ticket_number=True)
             apply_review_fields(job, review_fields)
         submit_job_to_autotask(database_session, job)
         record_audit_event(
@@ -284,6 +308,61 @@ async def retry_submission(
         add_flash_message(request, str(exc), "error")
 
     return RedirectResponse(url=f"/review/{job_id}", status_code=303)
+
+
+@router.post("/{job_id}/ticket")
+async def select_review_ticket(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Persist a ticket chosen from the selected job's open-ticket lookup."""
+
+    actor = require_authenticated_username(request)
+    validate_csrf_header(request)
+    payload = await request.json()
+    submitted_ticket_number = str(payload.get("ticket_number", ""))
+    try:
+        job = get_job_or_raise(database_session, job_id)
+        if not job.client_name:
+            raise JobWorkflowError("Client name is required before selecting an Autotask ticket.")
+
+        ticket_options = get_autotask_provider().list_open_tickets_for_client(
+            job.client_name,
+            job.autotask_company_id,
+        )
+        selected_ticket_option = _find_matching_ticket_option(ticket_options, submitted_ticket_number)
+        if selected_ticket_option is None:
+            raise JobWorkflowError("Selected ticket was not found in the open-ticket list for this client.")
+
+        apply_selected_ticket_from_lookup(
+            job,
+            selected_ticket_option.ticket_number,
+            selected_ticket_option.title,
+        )
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.review.ticket_selected",
+            job_id=job.id,
+            request=request,
+            details={
+                "ticket_number": job.ticket_number,
+                "ticket_title_present": bool(job.ticket_title),
+                "autotask_company_selected": job.autotask_company_id is not None,
+            },
+        )
+        database_session.commit()
+    except (AutotaskSubmissionError, JobWorkflowError) as exc:
+        database_session.rollback()
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+
+    return JSONResponse(
+        {
+            "ticket_number": job.ticket_number,
+            "ticket_title": job.ticket_title,
+        }
+    )
 
 
 @router.post("/{job_id}/purge")

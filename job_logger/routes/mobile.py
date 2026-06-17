@@ -22,7 +22,9 @@ from job_logger.services.jobs import (
     JobWorkflowError,
     adjust_active_job_rounded_start,
     apply_manual_summary_to_job,
+    delete_active_job,
     end_job,
+    get_job_or_raise,
     list_active_jobs,
     set_active_job_rounded_start_time,
     start_job,
@@ -219,6 +221,43 @@ async def save_ticket_number(
         )
         database_session.commit()
         add_flash_message(request, "Active job changes saved.", "success")
+    except JobWorkflowError as exc:
+        database_session.rollback()
+        add_flash_message(request, str(exc), "error")
+
+    return RedirectResponse(url="/mobile", status_code=303)
+
+
+@router.post("/jobs/{job_id}/delete")
+async def delete_open_job(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Discard an active in-progress job from the mobile workflow."""
+
+    actor = require_authenticated_username(request)
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+    try:
+        job = get_job_or_raise(database_session, job_id)
+        audit_details = {
+            "job_id": job.id,
+            "job_status": job.status.value,
+            "ticket_number_present": bool(job.ticket_number),
+            "client_name_present": bool(job.client_name),
+            "autotask_company_selected": job.autotask_company_id is not None,
+        }
+        delete_active_job(database_session, job)
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.active.deleted",
+            request=request,
+            details=audit_details,
+        )
+        database_session.commit()
+        add_flash_message(request, "Open job deleted.", "success")
     except JobWorkflowError as exc:
         database_session.rollback()
         add_flash_message(request, str(exc), "error")

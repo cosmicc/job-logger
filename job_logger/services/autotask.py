@@ -359,17 +359,38 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if not isinstance(response_payload, dict):
             return None
 
-        raw_errors = response_payload.get("errors")
+        raw_errors = response_payload.get("errors") or response_payload.get("Errors")
         if isinstance(raw_errors, list):
-            safe_error_messages = [
-                str(error_message).strip()
-                for error_message in raw_errors
-                if str(error_message).strip()
-            ]
+            safe_error_messages: list[str] = []
+            for error_message in raw_errors:
+                if isinstance(error_message, dict):
+                    raw_error_text = (
+                        error_message.get("message")
+                        or error_message.get("Message")
+                        or error_message.get("detail")
+                        or error_message.get("Detail")
+                        or error_message.get("description")
+                        or error_message.get("Description")
+                    )
+                else:
+                    raw_error_text = error_message
+
+                safe_error_text = str(raw_error_text or "").strip()
+                if safe_error_text:
+                    safe_error_messages.append(safe_error_text)
             if safe_error_messages:
                 return "; ".join(safe_error_messages)[:AUTOTASK_SAFE_ERROR_TEXT_LIMIT]
 
-        raw_message = response_payload.get("message") or response_payload.get("Message")
+        raw_message = (
+            response_payload.get("message")
+            or response_payload.get("Message")
+            or response_payload.get("detail")
+            or response_payload.get("Detail")
+            or response_payload.get("title")
+            or response_payload.get("Title")
+            or response_payload.get("exceptionMessage")
+            or response_payload.get("ExceptionMessage")
+        )
         if raw_message:
             return str(raw_message).strip()[:AUTOTASK_SAFE_ERROR_TEXT_LIMIT]
 
@@ -835,7 +856,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             return
 
         response = client.patch("/Tickets", json={"id": ticket_id, "status": status_id})
-        response.raise_for_status()
+        self._raise_for_safe_response(response, "Autotask ticket status update")
 
     def _create_time_entry(self, client: httpx.Client, job: Job, ticket_id: int) -> str:
         """Create the Autotask TimeEntries row for the accepted job."""
@@ -861,7 +882,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             payload["billingCodeID"] = self.application_settings.autotask_billing_code_id
 
         response = client.post("/TimeEntries", json=payload)
-        response.raise_for_status()
+        self._raise_for_safe_response(response, "Autotask time entry creation")
         response_payload = response.json()
         item_id = response_payload.get("itemId") or response_payload.get("id") or response_payload.get("ItemId")
         if item_id is None:
@@ -876,6 +897,15 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             raise AutotaskSubmissionError("Ticket number is required before Autotask submission.")
 
         snapshot = build_safe_submission_snapshot(job)
+        snapshot.update(
+            {
+                "resourceID": self.application_settings.autotask_resource_id,
+                "roleID": self.application_settings.autotask_role_id,
+                "timeEntryType": self.application_settings.autotask_time_entry_type,
+                "billingCodeID": self.application_settings.autotask_billing_code_id,
+                "impersonationResourceIDConfigured": self.application_settings.autotask_impersonation_resource_id is not None,
+            }
+        )
         try:
             with self._client() as client:
                 ticket_id = self._query_ticket_id(client, job.ticket_number)

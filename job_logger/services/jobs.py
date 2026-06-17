@@ -345,6 +345,16 @@ def update_active_job_ticket_number(
     return job
 
 
+def delete_active_job(database_session: Session, job: Job) -> Job:
+    """Delete an active in-progress job that the user explicitly discarded."""
+
+    if job.status != JobStatus.ACTIVE:
+        raise JobWorkflowError("Only an active job can be deleted from the mobile work page.")
+
+    database_session.delete(job)
+    return job
+
+
 def apply_manual_summary_to_job(
     database_session: Session,
     job_id: str,
@@ -555,6 +565,16 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
     job.local_work_date = review_fields.local_work_date
     job.client_name = review_fields.client_name
     job.autotask_company_id = review_fields.autotask_company_id
+    return job
+
+
+def apply_selected_ticket_from_lookup(job: Job, ticket_number: str, ticket_title: str | None) -> Job:
+    """Store a ticket selected from the server-side Autotask open-ticket lookup."""
+
+    normalized_ticket_number = normalize_ticket_number(ticket_number, required=True)
+    normalized_ticket_title = normalize_ticket_title(ticket_title)
+    job.ticket_number = normalized_ticket_number
+    job.ticket_title = normalized_ticket_title
     return job
 
 

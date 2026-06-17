@@ -18,6 +18,7 @@ Important workflow service responsibilities include:
 - Updating active ticket/client/summary fields.
 - Adjusting rounded active start time in 15-minute increments.
 - Ending active jobs and moving them to review.
+- Deleting an active in-progress job when the user explicitly discards it.
 - Validating review fields.
 - Applying review edits.
 - Accepting/retrying Autotask submission.
@@ -66,6 +67,11 @@ read-only value and submits hidden copies only for normal form flow. The
 service layer still enforces the lock because hidden fields are not security
 controls.
 
+Active jobs can be discarded through `POST /jobs/{job_id}/delete`. This route
+is only for in-progress jobs, requires authentication and CSRF, deletes the
+local active job, and records `job.active.deleted` with sanitized details. Do
+not use this endpoint for reviewed, submitted, or failed jobs.
+
 ## Ending Work
 
 Work ends through `POST /jobs/{job_id}/end`.
@@ -107,8 +113,9 @@ The review page is `/review`, implemented by `job_logger/routes/review.py`,
 Review supports:
 
 - Selecting jobs from the review list.
-- Editing ticket number, client name, ticket status, start date/time, end
-  date/time, and summary notes.
+- Viewing the selected ticket number and client name as read-only Autotask
+  identity fields.
+- Editing ticket status, start date/time, end date/time, and summary notes.
 - Saving edits without a ticket number.
 - Saving active jobs without an end date/time.
 - Accepting or retrying submission only when the ticket number and required
@@ -119,11 +126,17 @@ Review supports:
 Ticket number is intentionally required only before Autotask submission, not for
 ordinary save operations.
 
+Review ticket selection persists through `POST /review/{job_id}/ticket`. The
+route re-queries the selected job's open Autotask ticket list, verifies the
+submitted ticket number belongs to that safe list, stores the ticket number and
+title, and records an audit event. Do not trust browser-supplied ticket title,
+ticket number, client name, or company ID values on review save/accept; the
+route must overlay those fields from the stored job before validation.
+
 When a ticket is selected from Autotask lookup, store the ticket title with the
 job and use it as the selected-job detail heading. If no ticket has been
 selected, the detail heading should read `Unassigned Ticket`. Once a job has a
-ticket number, hide the open-ticket lookup panel for that job until the ticket
-number is cleared.
+ticket number, hide the open-ticket lookup panel for that job.
 
 ## Job Status Expectations
 
@@ -131,7 +144,8 @@ Jobs must never disappear silently. Prefer explicit workflow states, archived
 states, rejected states, failed submission states, or audited purge paths.
 
 Force purge exists for strict cleanup from review detail, but active jobs cannot
-be purged from that endpoint. Be careful before expanding destructive behavior.
+be purged from that endpoint. Active jobs have the separate audited delete route
+described above. Be careful before expanding destructive behavior.
 
 ## Time Rules
 

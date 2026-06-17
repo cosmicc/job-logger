@@ -4,6 +4,15 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Made review-page ticket number and client name read-only identity fields,
+  persisted review ticket selections through a CSRF-protected server endpoint,
+  and kept review save/accept from trusting crafted form values for selected
+  Autotask ticket or client data.
+- Added an audited mobile **Delete** action for discarding an active in-progress
+  job before it reaches review history.
+- Improved Autotask submission error handling so ticket-status updates and
+  `TimeEntries` creation show bounded body-level API details when Autotask
+  returns useful error text with HTTP 500 responses.
 - Improved Autotask diagnostics so the debug API test records the first failed
   operation, adds Companies/Tickets-specific troubleshooting tips for Autotask
   HTTP 500 responses, and makes `scripts/discover_autotask_ids.py` print
@@ -54,7 +63,7 @@ All recorded changes to Job Logger are documented in this file.
   reviewers to select a ticket and fill the ticket number field automatically.
 - Added mobile Autotask company search by client name, stored selected Autotask
   company IDs on jobs, and used the selected company for mobile/review open-ticket
-  lookup while preserving manual ticket-number entry.
+  lookup.
 - Made live Autotask mandatory for production job starts, blocked new work when
   Autotask connectivity/configuration fails, and replaced the debug ticket-reset
   action with a safe Autotask API connectivity test and troubleshooting tips.
@@ -69,7 +78,7 @@ All recorded changes to Job Logger are documented in this file.
   Autotask, and security agent skill files.
 - Updated the mobile workflow so recording is now `Record -> Pause/Resume -> Submit`
   with submit-based transcription upload, added 15-minute review time increment
-  controls for start/end times, and added review-side editable client name field.
+  controls for start/end times, and surfaced client context in the review flow.
 - Added mobile in-progress rounded-start adjustments so the active job start time can
   be changed in +/-15-minute increments directly from the work card.
 - Simplified networking configuration so only `NGINX_PUBLIC_PORT` needs to be set

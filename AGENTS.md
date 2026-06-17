@@ -63,7 +63,8 @@ Recorded jobs follow this lifecycle:
 1. A draft job is created when work starts.
 2. The active job is ended by the user.
 3. The job becomes available for review.
-4. The review page allows the job to be fully edited before acceptance.
+4. The review page allows time, status, and notes to be edited before
+   acceptance while keeping the selected Autotask client and ticket read-only.
 5. An accepted job creates an Autotask time entry.
 6. Rejected, failed, or edited jobs remain available for audit history.
 
@@ -136,9 +137,11 @@ The mobile interface must be optimized for quick use from a phone.
 
 The standard review interface must work well on a full computer screen.
 
-The review interface must allow full editing of reviewed jobs before acceptance,
-including ticket number, summary notes, ticket status, date, start time, end
-time, and the translated speech-to-text description.
+The review interface must allow editing of reviewed job summary notes, ticket
+status, date, start time, end time, and the translated speech-to-text
+description before acceptance. The selected Autotask client name, company ID,
+ticket number, and ticket title are read-only identity fields populated from
+Autotask lookup and must not be editable on the review page.
 
 All state-changing actions must be explicit and auditable.
 
@@ -309,7 +312,8 @@ The normal workflow is:
    the separate submit button sends audio for transcription.
 8. User can save active job edits before ending work.
 9. User ends work with a mandatory client name. The job moves to review.
-10. User reviews and edits the job from `/review`.
+10. User reviews the job from `/review`, edits time/status/notes if needed, and
+    keeps the selected client/ticket identity read-only.
 11. Accept/retry submits a reviewed job to Autotask idempotently.
 12. Submission attempts and important state changes are recorded for audit and
     diagnostics.

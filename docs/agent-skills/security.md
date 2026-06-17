@@ -68,6 +68,7 @@ Audit-worthy actions include:
 - Job start blocked because Autotask is unavailable.
 - Job start.
 - Job active edit save.
+- Active job delete.
 - Rounded start adjustment.
 - Job end.
 - Description text save.
@@ -109,8 +110,10 @@ depends on company and ticket data.
 Jobs should not disappear silently.
 
 Prefer retained workflow states over deletion. If destructive cleanup is
-necessary, it must be explicit, authenticated, CSRF-protected, auditable, and
-blocked for active jobs unless there is a separately reviewed design.
+necessary, it must be explicit, authenticated, CSRF-protected, and auditable.
+Review cleanup must stay blocked for active jobs. The mobile active-job delete
+route is the reviewed exception for discarding an in-progress entry before it
+becomes review history, and it must not be reused for completed jobs.
 
 ## Docker And Runtime Safety
 

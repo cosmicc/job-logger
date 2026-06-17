@@ -77,8 +77,10 @@ Important rules:
 - On the active mobile card, a selected Autotask company is locked and should
   be shown as read-only so the visible client name cannot drift away from the
   company ID used for ticket lookup.
-- If a user edits the client name manually in review, stale company IDs should
-  be cleared so future lookups do not silently use the wrong customer.
+- On review, stored client name, company ID, ticket number, and ticket title
+  are read-only identity fields. Save/accept handlers must overlay those values
+  from the database before validation so crafted form posts cannot change which
+  Autotask ticket receives time.
 
 Ticket lookup uses `/review/{job_id}/tickets`.
 
@@ -86,9 +88,12 @@ Ticket lookup should prefer the stored Autotask company ID. If no company ID is
 stored, it can fall back to client-name matching.
 
 Ticket options returned to the browser include safe ticket number, title, status
-label, and company name. When the user selects a ticket, persist the title as
-local job metadata so the review detail heading can show the chosen ticket name
-without repeatedly querying Autotask.
+label, and company name. Review ticket selection uses
+`POST /review/{job_id}/ticket`; the route re-queries the open-ticket list,
+verifies the submitted ticket number is still valid for the job's stored
+client/company, then persists the ticket number and title as local job metadata.
+The review detail heading can then show the chosen ticket name without
+repeatedly querying Autotask.
 
 On mobile, ticket numbers are populated from the open-ticket picker instead of
 manual entry. The ticket choice automatically submits the active-job save form
@@ -157,6 +162,10 @@ impersonated resource context too.
 
 Submission must remain idempotent. A retry must not create duplicate time
 entries for the same accepted job.
+
+Live Autotask write failures should use `_raise_for_safe_response()` so bounded
+body-level messages from `Tickets` or `TimeEntries` errors are shown without
+falling back to generic HTTP client exception text.
 
 ## Diagnostics And Scripts
 

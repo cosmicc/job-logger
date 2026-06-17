@@ -281,8 +281,9 @@ Selecting a company stores the display name and Autotask company ID with the job
 so open-ticket lookup can target the exact selected company instead of relying
 only on a typed name. During active work, that selected Autotask client is shown
 as read-only for the job so the client name cannot drift away from the company
-ID used for ticket lookup. Client names and ticket numbers can still be typed
-manually when needed before an Autotask company is selected.
+ID used for ticket lookup. Client names can still be typed manually before an
+Autotask company is selected. Ticket numbers are populated from open-ticket
+selection instead of manual entry.
 
 Autotask company search results and selected-company metadata are cached
 in-process for two hours because company names rarely change. Empty company
@@ -299,9 +300,11 @@ resources.
 The mobile and review pages can query open Autotask tickets from the selected
 job's stored company ID or stored client name. Selecting a returned ticket
 fills the mobile job's hidden ticket number, stores the selected ticket title
-for the review detail heading, and automatically saves the active-job changes.
-Once a job has a ticket number, the open-ticket picker is hidden for that job;
-clear the ticket number from review and save if the job needs another lookup.
+for the review detail heading, and automatically saves the active-job changes
+or review ticket selection. On the review page, the stored ticket number and
+client name are read-only identity fields; review save and submit use the
+stored values instead of trusting form posts. Once a job has a ticket number,
+the open-ticket picker is hidden for that job.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 
@@ -325,6 +328,11 @@ Autotask HTTP 500 or permission failures. Some Autotask permission denials are
 returned as HTTP 500 responses, so check the preflight detail before changing
 credentials.
 
+When Autotask rejects ticket status updates or `TimeEntries` creation, Job
+Logger surfaces bounded body-level error details when Autotask provides them.
+This usually identifies the specific missing permission, invalid role, billing
+code, resource, or required field more clearly than a generic HTTP 500 message.
+
 ## Time Handling
 
 All user-facing dates and times use `America/Detroit`.
@@ -341,6 +349,10 @@ The mobile page starts jobs without ticket or client fields. After work starts,
 select the client on the active job card, then choose an open Autotask ticket
 from the returned list. The ticket number is not manually editable on mobile;
 the open-ticket selection fills and saves it automatically.
+
+Open in-progress jobs also have a **Delete** action on the mobile work card.
+That action discards only the active job before it reaches review history and
+records an audit event. Reviewed jobs still use the review workflow actions.
 
 Ticket numbers must use the Autotask format `TYYYYMMDD.####`, for example
 `T20260326.0018`.

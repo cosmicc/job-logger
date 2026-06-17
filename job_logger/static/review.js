@@ -1,4 +1,5 @@
 const TIME_STEP_MINUTES = 15;
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 
 function normalizeDateValue(dateValue) {
   const parsedDate = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -99,14 +100,34 @@ function bindTicketLookup() {
   }
 
   const lookupUrl = ticketPicker.dataset.ticketLookupUrl;
+  const ticketSelectUrl = ticketPicker.dataset.ticketSelectUrl;
   const lookupButton = ticketPicker.querySelector("[data-ticket-lookup-button]");
   const statusElement = ticketPicker.querySelector("[data-ticket-lookup-status]");
   const resultsElement = ticketPicker.querySelector("[data-ticket-lookup-results]");
-  const ticketNumberInput = document.querySelector('input[name="ticket_number"]');
+  const ticketNumberInput = document.querySelector("[data-review-ticket-number-input]");
+  const ticketNumberDisplay = document.querySelector("[data-review-ticket-number-display]");
   const ticketTitleInput = document.querySelector("[data-review-ticket-title-input]");
   const ticketHeading = document.querySelector("[data-selected-ticket-heading]");
-  if (!lookupUrl || !lookupButton || !statusElement || !resultsElement || !ticketNumberInput) {
+  if (!lookupUrl || !ticketSelectUrl || !lookupButton || !statusElement || !resultsElement || !ticketNumberInput) {
     return;
+  }
+
+  async function persistSelectedTicket(ticketOption) {
+    const response = await fetch(ticketSelectUrl, {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
+      body: JSON.stringify({ticket_number: ticketOption.ticket_number || ""}),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.detail || "Selected ticket could not be saved.");
+    }
+
+    return payload;
   }
 
   lookupButton.addEventListener("click", async () => {
@@ -133,18 +154,30 @@ function bindTicketLookup() {
         optionButton.type = "button";
         optionButton.className = "ticket-option-button";
         optionButton.textContent = buildTicketOptionText(ticketOption);
-        optionButton.addEventListener("click", () => {
-          const selectedTicketTitle = ticketOption.title || "";
-          ticketNumberInput.value = ticketOption.ticket_number || "";
-          if (ticketTitleInput) {
-            ticketTitleInput.value = selectedTicketTitle;
+        optionButton.addEventListener("click", async () => {
+          optionButton.disabled = true;
+          statusElement.textContent = "Saving selected ticket...";
+          try {
+            const selectedTicket = await persistSelectedTicket(ticketOption);
+            const selectedTicketNumber = selectedTicket.ticket_number || "";
+            const selectedTicketTitle = selectedTicket.ticket_title || "";
+            ticketNumberInput.value = selectedTicketNumber;
+            if (ticketNumberDisplay) {
+              ticketNumberDisplay.textContent = selectedTicketNumber || "Unassigned Ticket";
+            }
+            if (ticketTitleInput) {
+              ticketTitleInput.value = selectedTicketTitle;
+            }
+            if (ticketHeading) {
+              ticketHeading.textContent = selectedTicketTitle || "Unassigned Ticket";
+            }
+            statusElement.textContent = `Selected ${selectedTicketNumber}.`;
+            ticketPicker.hidden = true;
+            window.location.reload();
+          } catch (error) {
+            optionButton.disabled = false;
+            statusElement.textContent = error.message || "Selected ticket could not be saved.";
           }
-          if (ticketHeading) {
-            ticketHeading.textContent = selectedTicketTitle || "Unassigned Ticket";
-          }
-          ticketNumberInput.focus();
-          statusElement.textContent = `Selected ${ticketNumberInput.value}.`;
-          ticketPicker.hidden = true;
         });
         resultsElement.append(optionButton);
       }
@@ -152,40 +185,6 @@ function bindTicketLookup() {
       statusElement.textContent = error.message || "Autotask ticket lookup failed.";
     } finally {
       lookupButton.disabled = false;
-    }
-  });
-}
-
-function bindReviewTicketTitleClearing() {
-  const ticketNumberInput = document.querySelector('input[name="ticket_number"]');
-  const ticketTitleInput = document.querySelector("[data-review-ticket-title-input]");
-  const ticketHeading = document.querySelector("[data-selected-ticket-heading]");
-  if (!ticketNumberInput || !ticketTitleInput || !ticketHeading) {
-    return;
-  }
-
-  const initialTicketNumber = ticketNumberInput.value;
-  ticketNumberInput.addEventListener("input", () => {
-    if (ticketNumberInput.value === initialTicketNumber) {
-      return;
-    }
-
-    ticketTitleInput.value = "";
-    ticketHeading.textContent = "Unassigned Ticket";
-  });
-}
-
-function bindReviewCompanyClearing() {
-  const clientInput = document.querySelector("[data-review-client-input]");
-  const companyIdInput = document.querySelector("[data-review-company-id-input]");
-  if (!clientInput || !companyIdInput) {
-    return;
-  }
-
-  const initialClientName = clientInput.value;
-  clientInput.addEventListener("input", () => {
-    if (clientInput.value !== initialClientName) {
-      companyIdInput.value = "";
     }
   });
 }
@@ -211,5 +210,3 @@ for (const reviewRow of reviewRows) {
 
 bindTimeStepButtons();
 bindTicketLookup();
-bindReviewTicketTitleClearing();
-bindReviewCompanyClearing();

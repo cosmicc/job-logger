@@ -88,19 +88,16 @@
             {% endif %}
 
             <div class="form-grid">
-              <label>
-                <span>Ticket number</span>
-                <input
-                  name="ticket_number"
-                  value="{{ selected_job.ticket_number or '' }}"
-                  placeholder="T20260326.0018"
-                  maxlength="14"
-                  pattern="[Tt][0-9]{8}\.[0-9]{4}"
-                  autocapitalize="characters"
-                  autocomplete="off"
-                  spellcheck="false"
-                >
-              </label>
+              <div class="readonly-field-card">
+                <span class="metric-label">Ticket number</span>
+                <strong data-review-ticket-number-display>{{ selected_job.ticket_number or "Unassigned Ticket" }}</strong>
+              </div>
+              <input
+                type="hidden"
+                data-review-ticket-number-input
+                name="ticket_number"
+                value="{{ selected_job.ticket_number or '' }}"
+              >
               <input
                 type="hidden"
                 data-review-ticket-title-input
@@ -117,19 +114,15 @@
                   {% endfor %}
                 </select>
               </label>
-              <label>
-                <span>Client name</span>
-                <input
-                  data-review-client-input
-                  name="client_name"
-                  value="{{ selected_job.client_name or '' }}"
-                  placeholder="Client name for reference"
-                  maxlength="120"
-                  autocomplete="off"
-                  autocorrect="off"
-                  spellcheck="false"
-                >
-              </label>
+              <div class="readonly-field-card">
+                <span class="metric-label">Client name</span>
+                <strong>{{ selected_job.client_name or "No client selected" }}</strong>
+              </div>
+              <input
+                type="hidden"
+                name="client_name"
+                value="{{ selected_job.client_name or '' }}"
+              >
               <input
                 type="hidden"
                 data-review-company-id-input
@@ -215,6 +208,7 @@
                 class="ticket-picker"
                 data-ticket-picker
                 data-ticket-lookup-url="/review/{{ selected_job.id }}/tickets"
+                data-ticket-select-url="/review/{{ selected_job.id }}/ticket"
                 aria-label="Open Autotask tickets"
               >
                 <div class="ticket-picker-header">

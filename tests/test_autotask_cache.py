@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
+import httpx
 import pytest
 
 from job_logger.config import settings
@@ -12,6 +13,7 @@ from job_logger.services.autotask import (
     _COMPANY_ID_CACHE,
     _COMPANY_SEARCH_CACHE,
     _TICKET_STATUS_CACHE,
+    AutotaskSubmissionError,
     LiveAutotaskProvider,
 )
 
@@ -269,3 +271,26 @@ def test_connectivity_result_identifies_company_query_failure(monkeypatch: pytes
     assert "adequate permissions" in connectivity_result.summary
     assert any("security level permission" in tip for tip in connectivity_result.tips)
     assert fake_client.get_call_count == 0
+
+
+def test_safe_autotask_error_detail_extracts_nested_error_messages() -> None:
+    """Submission failures should include safe Autotask body details."""
+
+    provider = _live_test_provider()
+    response = httpx.Response(
+        500,
+        json={
+            "errors": [
+                {"message": "The field billingCodeID is invalid for this ticket."},
+                {"Detail": "Use a billing code available to the selected resource."},
+            ],
+        },
+    )
+
+    with pytest.raises(AutotaskSubmissionError) as exc_info:
+        provider._raise_for_safe_response(response, "Autotask time entry creation")
+
+    error_message = str(exc_info.value)
+    assert "Autotask time entry creation failed with Autotask HTTP 500" in error_message
+    assert "billingCodeID is invalid" in error_message
+    assert "Use a billing code available" in error_message

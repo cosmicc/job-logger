@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 
@@ -10,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from job_logger import database
 from job_logger.enums import JobStatus, TranscriptionStatus
-from job_logger.models import Job, SubmissionAttempt
+from job_logger.models import AuditEvent, Job, SubmissionAttempt
 from job_logger.services.autotask import AutotaskConnectivityResult
 from job_logger.services.jobs import get_active_job
 from job_logger.time_utils import local_date_for, parse_local_form_datetime
@@ -50,22 +51,34 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         json={"summary_notes": "Replaced a failed workstation power supply."},
     )
     assert text_response.status_code == 200
+    save_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "ticket_number": "T20260616.0001",
+            "ticket_title": "Mock open ticket for Acme Energy",
+            "client_name": "Acme Energy",
+            "autotask_company_id": "1001",
+        },
+        follow_redirects=False,
+    )
+    assert save_ticket_response.status_code == 303
 
     end_response = authenticated_client.post(
         f"/jobs/{active_job_id}/end",
-        data={"csrf_token": csrf_token, "client_name": "Acme Energy"},
+        data={"csrf_token": csrf_token, "client_name": "Acme Energy", "autotask_company_id": "1001"},
         follow_redirects=False,
     )
     assert end_response.status_code == 303
 
     review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    assert "Mock open ticket for Acme Energy" in review_page_response.text
     review_csrf_token = extract_csrf_token(review_page_response.text)
 
     accept_response = authenticated_client.post(
         f"/review/{active_job_id}/accept",
         data={
             "csrf_token": review_csrf_token,
-            "ticket_number": "T20260616.0001",
             "ticket_status": "complete",
             "start_date": "2026-06-16",
             "start_time": "08:00",
@@ -399,12 +412,10 @@ def test_review_save_active_job_without_stop_time(authenticated_client: TestClie
         f"/review/{active_job_id}/save",
         data={
             "csrf_token": review_csrf_token,
-            "ticket_number": "T20260616.0001",
             "ticket_status": "complete",
             "start_date": active_job_local_start.date().isoformat(),
             "start_time": active_job_local_start.strftime("%H:%M"),
             "summary_notes": "Active job saved without stop values.",
-            "client_name": "Active Review Save",
         },
         follow_redirects=False,
     )
@@ -415,9 +426,9 @@ def test_review_save_active_job_without_stop_time(authenticated_client: TestClie
         assert reviewed_job is not None
         assert reviewed_job.status == JobStatus.ACTIVE
         assert reviewed_job.rounded_end_utc is None
-        assert reviewed_job.client_name == "Active Review Save"
+        assert reviewed_job.client_name is None
         assert reviewed_job.summary_notes == "Active job saved without stop values."
-        assert reviewed_job.ticket_number == "T20260616.0001"
+        assert reviewed_job.ticket_number is None
 
 
 def test_review_ticket_lookup_returns_open_tickets_for_job_client(authenticated_client: TestClient) -> None:
@@ -467,7 +478,7 @@ def test_review_ticket_lookup_returns_open_tickets_for_job_client(authenticated_
 
 
 def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authenticated_client: TestClient) -> None:
-    """Selected Autotask ticket titles become the review detail heading."""
+    """Selecting an Autotask ticket stores the title and locks review identity fields."""
 
     mobile_page_response = authenticated_client.get("/mobile")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -502,35 +513,63 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
     assert "data-ticket-picker" in review_page_response.text
     review_csrf_token = extract_csrf_token(review_page_response.text)
 
-    save_response = authenticated_client.post(
-        f"/review/{active_job_id}/save",
-        data={
-            "csrf_token": review_csrf_token,
-            "ticket_number": "T20260616.0001",
-            "ticket_title": "Mock open ticket for Ticket Title Client",
-            "ticket_status": "complete",
-            "client_name": "Ticket Title Client",
-            "autotask_company_id": "1001",
-            "start_date": "2026-06-16",
-            "start_time": "08:00",
-            "end_date": "2026-06-16",
-            "end_time": "08:15",
-            "summary_notes": "Review heading should use the selected ticket title.",
-        },
-        follow_redirects=False,
+    select_ticket_response = authenticated_client.post(
+        f"/review/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": review_csrf_token},
+        json={"ticket_number": "T20260616.0001"},
     )
-    assert save_response.status_code == 303
+    assert select_ticket_response.status_code == 200
+    assert select_ticket_response.json() == {
+        "ticket_number": "T20260616.0001",
+        "ticket_title": "Mock open ticket for Ticket Title Client",
+    }
 
     with database.SessionLocal() as database_session:
         reviewed_job = database_session.get(Job, active_job_id)
         assert reviewed_job is not None
         assert reviewed_job.ticket_number == "T20260616.0001"
         assert reviewed_job.ticket_title == "Mock open ticket for Ticket Title Client"
+        assert reviewed_job.client_name == "Ticket Title Client"
+        assert reviewed_job.autotask_company_id == 1001
 
     updated_review_page_response = authenticated_client.get(f"/review/{active_job_id}")
-    assert "Mock open ticket for Ticket Title Client" in updated_review_page_response.text
-    assert "Unassigned Ticket" not in updated_review_page_response.text
-    assert "data-ticket-picker" not in updated_review_page_response.text
+    updated_review_html = updated_review_page_response.text
+    assert "Mock open ticket for Ticket Title Client" in updated_review_html
+    assert "Unassigned Ticket" not in updated_review_html
+    assert "data-ticket-picker" not in updated_review_html
+    assert 'data-review-ticket-number-display>T20260616.0001</strong>' in updated_review_html
+    assert re.search(r'<input(?=[^>]*name="ticket_number")(?=[^>]*type="hidden")', updated_review_html)
+    assert re.search(r'<input(?=[^>]*name="client_name")(?=[^>]*type="hidden")', updated_review_html)
+    assert not re.search(r'<input(?=[^>]*name="ticket_number")(?!(?=[^>]*type="hidden"))', updated_review_html)
+    assert not re.search(r'<input(?=[^>]*name="client_name")(?!(?=[^>]*type="hidden"))', updated_review_html)
+
+    tampered_save_response = authenticated_client.post(
+        f"/review/{active_job_id}/save",
+        data={
+            "csrf_token": review_csrf_token,
+            "ticket_number": "T20260616.9999",
+            "ticket_title": "Wrong ticket title",
+            "ticket_status": "complete",
+            "client_name": "Wrong Client",
+            "autotask_company_id": "2002",
+            "start_date": "2026-06-16",
+            "start_time": "08:00",
+            "end_date": "2026-06-16",
+            "end_time": "08:15",
+            "summary_notes": "Review save must not rewrite read-only identity fields.",
+        },
+        follow_redirects=False,
+    )
+    assert tampered_save_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        reviewed_job = database_session.get(Job, active_job_id)
+        assert reviewed_job is not None
+        assert reviewed_job.ticket_number == "T20260616.0001"
+        assert reviewed_job.ticket_title == "Mock open ticket for Ticket Title Client"
+        assert reviewed_job.client_name == "Ticket Title Client"
+        assert reviewed_job.autotask_company_id == 1001
+        assert reviewed_job.summary_notes == "Review save must not rewrite read-only identity fields."
 
 
 def test_review_accept_still_requires_ticket_number(authenticated_client: TestClient) -> None:
@@ -653,6 +692,36 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
         active_job = get_active_job(database_session)
         assert active_job is not None
         assert active_job.ticket_number == "T20260326.0018"
+
+
+def test_mobile_active_job_delete_discards_open_job_with_audit(authenticated_client: TestClient) -> None:
+    """The mobile delete action removes only an active in-progress job."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+
+    start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    delete_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/delete",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert delete_response.status_code == 303
+    assert delete_response.headers["location"] == "/mobile"
+
+    with database.SessionLocal() as database_session:
+        assert database_session.get(Job, active_job_id) is None
+        delete_audit_event = database_session.query(AuditEvent).filter_by(action="job.active.deleted").one()
+        assert delete_audit_event.job_id is None
+        assert delete_audit_event.details["job_id"] == active_job_id
+        assert delete_audit_event.details["job_status"] == "active"
 
 
 def test_mobile_active_job_ticket_update_preserves_client_name(authenticated_client: TestClient) -> None:
@@ -785,6 +854,18 @@ def test_review_detail_force_purge_removes_job_and_attempts(authenticated_client
         json={"summary_notes": "Purge workflow test notes"},
     )
     assert text_response.status_code == 200
+    save_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "ticket_number": "T20260616.0001",
+            "ticket_title": "Mock open ticket for Test Client",
+            "client_name": "Test Client",
+            "autotask_company_id": "1001",
+        },
+        follow_redirects=False,
+    )
+    assert save_ticket_response.status_code == 303
 
     end_response = authenticated_client.post(
         f"/jobs/{active_job_id}/end",
@@ -799,7 +880,6 @@ def test_review_detail_force_purge_removes_job_and_attempts(authenticated_client
         f"/review/{active_job_id}/accept",
         data={
             "csrf_token": review_csrf_token,
-            "ticket_number": "T20260616.0001",
             "ticket_status": "complete",
             "start_date": "2026-06-16",
             "start_time": "08:00",

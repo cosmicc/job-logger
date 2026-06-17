@@ -533,6 +533,19 @@ a:focus-visible {
   gap: 10px;
 }
 
+.work-finish-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.delete-active-job-form {
+  display: grid;
+}
+
+.delete-active-job-form .danger-outline-button {
+  width: 100%;
+}
+
 .time-stepper {
   display: grid;
   min-width: 0;
@@ -700,6 +713,23 @@ td a {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+}
+
+.readonly-field-card {
+  display: grid;
+  min-height: 66px;
+  gap: 5px;
+  align-content: center;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.readonly-field-card strong {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 15px;
 }
 
 .wide-field {
