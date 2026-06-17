@@ -25,10 +25,16 @@ class TicketStatus(StrEnum):
     COMPLETE = "complete"
 
 
+class WorkLocation(StrEnum):
+    """Where the work was performed for Autotask time-entry notes."""
+
+    REMOTE = "remote"
+    ON_SITE = "on_site"
+
+
 class TranscriptionStatus(StrEnum):
     """State of the most recent speech-to-text attempt for a job."""
 
     NOT_REQUESTED = "not_requested"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
-

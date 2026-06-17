@@ -580,6 +580,8 @@ async def save_ticket_number(
     raw_autotask_company_id = form_data.get("autotask_company_id")
     submitted_autotask_company_id = str(raw_autotask_company_id) if raw_autotask_company_id is not None else None
     raw_summary_text = form_data.get("summary_notes")
+    raw_work_location = form_data.get("work_location")
+    submitted_work_location = str(raw_work_location) if raw_work_location is not None else None
 
     try:
         job = update_active_job_ticket_number(
@@ -589,6 +591,7 @@ async def save_ticket_number(
             submitted_client_name,
             submitted_autotask_company_id,
             None,
+            submitted_work_location,
         )
         if raw_summary_text is not None:
             apply_manual_summary_to_job(database_session, job_id, str(raw_summary_text))
@@ -603,6 +606,7 @@ async def save_ticket_number(
                 "client_name_present": bool(job.client_name),
                 "autotask_company_selected": job.autotask_company_id is not None,
                 "summary_present": bool(job.summary_notes),
+                "work_location": job.work_location.value,
             },
         )
         database_session.commit()

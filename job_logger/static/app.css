@@ -60,6 +60,17 @@ svg {
   stroke-width: 2;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .app-header {
   position: sticky;
   top: 0;
@@ -374,6 +385,11 @@ a:focus-visible {
   margin: 0;
 }
 
+.ticket-load-button {
+  min-height: 36px;
+  padding: 7px 12px;
+}
+
 .debug-connectivity-result {
   display: grid;
   gap: 10px;
@@ -517,6 +533,62 @@ a:focus-visible {
   overflow-wrap: anywhere;
   color: var(--text);
   font-size: 15px;
+}
+
+.work-location-card {
+  display: grid;
+  gap: 5px;
+}
+
+.segmented-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  width: 100%;
+  min-height: 38px;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.segmented-toggle label {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.segmented-toggle input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.segmented-toggle span {
+  display: grid;
+  min-height: 30px;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+  pointer-events: none;
+}
+
+.segmented-toggle input:checked + span {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.segmented-toggle input:focus-visible + span {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .start-work-form .primary-action-button {

@@ -57,6 +57,37 @@
                   </div>
                 </dd>
               </div>
+              <div class="metric-card work-location-card">
+                <dt>Work type</dt>
+                <dd>
+                  {% set selected_work_location = active_job.work_location.value if active_job.work_location else "remote" %}
+                  <fieldset class="segmented-toggle work-location-toggle" data-work-location-toggle>
+                    <legend class="sr-only">Work type</legend>
+                    <label>
+                      <input
+                        type="radio"
+                        name="work_location"
+                        value="remote"
+                        form="active-ticket-form-{{ active_job.id }}"
+                        data-work-location-input
+                        {% if selected_work_location == "remote" %}checked{% endif %}
+                      >
+                      <span>Remote</span>
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="work_location"
+                        value="on_site"
+                        form="active-ticket-form-{{ active_job.id }}"
+                        data-work-location-input
+                        {% if selected_work_location == "on_site" %}checked{% endif %}
+                      >
+                      <span>On-Site</span>
+                    </label>
+                  </fieldset>
+                </dd>
+              </div>
               {% if active_job.autotask_company_id %}
                 <div class="metric-card client-name-card" data-locked-client-field>
                   <dt>Client name</dt>
@@ -82,6 +113,13 @@
               >
                 <div class="mobile-ticket-picker-header">
                   <h3>Open tickets</h3>
+                  <button
+                    class="secondary-button ticket-load-button"
+                    type="button"
+                    data-active-ticket-lookup-button
+                  >
+                    Load
+                  </button>
                 </div>
                 <p class="ticket-picker-status muted-text" data-active-ticket-lookup-status aria-live="polite"></p>
                 <div class="ticket-picker-results" data-active-ticket-lookup-results></div>

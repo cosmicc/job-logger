@@ -308,15 +308,17 @@ The normal workflow is:
    for exact ticket lookup.
 6. User chooses an open Autotask ticket from the active-job ticket list. Mobile
    ticket numbers are populated from that selection instead of manual entry.
-7. User records notes during an active job. The record button pauses/resumes;
+7. User chooses whether the work is Remote or On-Site. The mode is stored on
+   the job and is only prefixed onto Autotask `summaryNotes` during submission.
+8. User records notes during an active job. The record button pauses/resumes;
    audio chunks stream to the server over WebSocket, and the separate submit
    button finalizes transcription.
-8. User can save active job edits before ending work.
-9. User ends work with a mandatory client name. The job moves to review.
-10. User reviews the job from `/review`, edits time/status/notes if needed, and
+9. User can save active job edits before ending work.
+10. User ends work with a mandatory client name. The job moves to review.
+11. User reviews the job from `/review`, edits time/status/notes if needed, and
     keeps the selected client/ticket identity read-only.
-11. Accept/retry submits a reviewed job to Autotask idempotently.
-12. Submission attempts and important state changes are recorded for audit and
+12. Accept/retry submits a reviewed job to Autotask idempotently.
+13. Submission attempts and important state changes are recorded for audit and
     diagnostics.
 
 ## Current Autotask Dependency

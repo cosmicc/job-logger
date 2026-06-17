@@ -147,6 +147,7 @@ Required local fields before submission:
 - Start date/time.
 - End date/time.
 - Summary notes.
+- Work location mode, which defaults to Remote.
 
 Required live Autotask values include:
 
@@ -160,6 +161,11 @@ Ticket `TimeEntries` creation must not include `billingCodeID`. Autotask labels
 that as Allocation Code, and tenants can reject it unless the API resource has
 permission to change allocation codes. Let Autotask use the ticket/resource
 defaults instead.
+
+Ticket `TimeEntries.summaryNotes` must be built from the stored work-location
+mode plus the reviewed summary text. The local `summary_notes` field stays
+unprefixed for mobile and review editing; the final payload starts with
+`Remote` or `On-Site`.
 
 `AUTOTASK_IMPERSONATION_RESOURCE_ID` should be blank by default. When blank, the
 provider omits `ImpersonationResourceId` and Autotask evaluates the API user's

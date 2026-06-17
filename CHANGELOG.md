@@ -4,6 +4,11 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Added a persisted Remote/On-Site switch to the mobile Work in Progress card,
+  defaulting to Remote. The selected mode stays out of the visible summary text
+  and is prefixed onto Autotask `summaryNotes` only when a time entry is
+  created. Restored a manual **Load** button inside the active open-ticket
+  picker while keeping guarded auto-load behavior.
 - Switched the mobile recorder to chunked WebSocket audio streaming. The server
   authenticates the session, validates CSRF in the first stream message before
   accepting audio bytes, starts best-effort interim transcription when the first

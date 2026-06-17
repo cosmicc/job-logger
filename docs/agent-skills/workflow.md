@@ -52,6 +52,8 @@ Active jobs support these updates before completion:
 - Selected Autotask company ID while the active job has not already locked an
   Autotask company.
 - Summary notes.
+- Work location mode, either Remote or On-Site, which is stored separately from
+  the visible notes.
 - Rounded start time through a server-validated 15-minute mobile time selector.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
@@ -63,8 +65,13 @@ picker posts the clicked ticket number to `POST /jobs/{job_id}/ticket`. That
 route re-queries the selected job's open Autotask ticket list, verifies the
 submitted ticket belongs to that safe list, stores the ticket number and title,
 and records an audit event. When an active job has a client but no ticket
-number, the mobile page auto-loads the open-ticket picker without requiring a
-separate find button.
+number, the mobile page auto-loads the open-ticket picker and also exposes a
+manual Load button inside the open-ticket panel.
+
+The work-location switch is intentionally not written into `summary_notes` or
+the mobile textarea. Store the mode on the job and let Autotask submission
+prefix `summaryNotes` with `Remote` or `On-Site` only when creating the time
+entry.
 
 The active mobile card should expose only one client entry point for each job.
 After an Autotask company is selected, the active job displays that client as a

@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from job_logger import database
-from job_logger.enums import JobStatus, TranscriptionStatus
+from job_logger.enums import JobStatus, TranscriptionStatus, WorkLocation
 from job_logger.models import AuditEvent, Job, SubmissionAttempt
 from job_logger.services.autotask import AutotaskConnectivityResult
 from job_logger.services.jobs import get_active_job
@@ -223,6 +223,7 @@ def test_mobile_job_start_ignores_prestart_client_and_ticket_fields(authenticate
         assert active_job.ticket_number is None
         assert active_job.client_name is None
         assert active_job.autotask_company_id is None
+        assert active_job.work_location == WorkLocation.REMOTE
 
 
 def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_client: TestClient) -> None:
@@ -264,10 +265,15 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'name="rounded_start_time"' in page_html
     assert 'value="00:00"' in page_html
     assert 'value="00:15"' in page_html
+    assert 'data-work-location-toggle' in page_html
+    assert 'name="work_location"' in page_html
+    assert 'value="remote"' in page_html
+    assert 'value="on_site"' in page_html
     assert 'data-active-ticket-picker' in page_html
     assert f'data-ticket-select-url="/jobs/{active_job_id}/ticket"' in page_html
     assert 'data-auto-load-ticket-options="true"' in page_html
-    assert 'data-active-ticket-lookup-button' not in page_html
+    assert 'data-active-ticket-lookup-button' in page_html
+    assert "Load" in page_html
     assert "Find tickets" not in page_html
     assert page_html.index("<dt>Client name</dt>") < page_html.index("<h3>Open tickets</h3>")
     assert page_html.index("<h3>Open tickets</h3>") < page_html.index(f'id="active-ticket-form-{active_job_id}"')
@@ -668,6 +674,7 @@ def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_
             "client_name": "Mobile Review Client",
             "autotask_company_id": "1002",
             "summary_notes": "Saved from mobile active form",
+            "work_location": "on_site",
         },
         follow_redirects=False,
     )
@@ -679,11 +686,14 @@ def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_
         assert active_job.client_name == "Mobile Review Client"
         assert active_job.autotask_company_id == 1002
         assert active_job.summary_notes == "Saved from mobile active form"
+        assert active_job.work_location == WorkLocation.ON_SITE
         assert active_job.ticket_number is None
         assert active_job.ticket_title is None
 
     updated_mobile_page_response = authenticated_client.get("/mobile")
-    assert "data-active-ticket-picker" in updated_mobile_page_response.text
+    updated_mobile_html = updated_mobile_page_response.text
+    assert "data-active-ticket-picker" in updated_mobile_html
+    assert "On-Site Saved from mobile active form" not in updated_mobile_html
 
 
 def test_mobile_audio_stream_requires_csrf(authenticated_client: TestClient) -> None:

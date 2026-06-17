@@ -317,6 +317,12 @@ the open-ticket picker is hidden for that job.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 
+The mobile Work in Progress card stores a work-location mode of `Remote` or
+`On-Site`, defaulting to `Remote`. This mode does not appear in the editable
+summary text. When a reviewed job is submitted, the Autotask `summaryNotes`
+payload is prefixed with the stored mode, such as `Remote replaced firewall`
+or `On-Site replaced firewall`.
+
 Ticket `TimeEntries` payloads intentionally omit `billingCodeID` / Allocation
 Code values. Autotask will use the ticket/resource defaults, which avoids
 requiring the API resource to have Allocation Code edit permission for ticket

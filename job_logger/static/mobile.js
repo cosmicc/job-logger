@@ -13,11 +13,13 @@ const activeTicketForms = document.querySelectorAll(".active-ticket-form");
 const companyInputs = document.querySelectorAll("[data-company-input]");
 const activeTicketPickers = document.querySelectorAll("[data-active-ticket-picker]");
 const roundedStartTimeForms = document.querySelectorAll("[data-rounded-start-time-form]");
+const workLocationInputs = document.querySelectorAll("[data-work-location-input]");
 
 const descriptionSaveTimers = new Map();
 const companySearchTimers = new Map();
 const lastSavedDescriptions = new Map();
 const pendingDescriptionSaves = new Set();
+const activeTicketLookupRequests = new WeakSet();
 
 let activeRecorder = null;
 let activeAudioStream = null;
@@ -606,6 +608,10 @@ function buildTicketOptionText(ticketOption) {
 }
 
 async function loadActiveTicketOptions(ticketPicker) {
+  if (activeTicketLookupRequests.has(ticketPicker)) {
+    return;
+  }
+
   const lookupUrl = ticketPicker.dataset.ticketLookupUrl || "";
   const ticketSelectUrl = ticketPicker.dataset.ticketSelectUrl || "";
   const jobId = toSafeMapString(ticketPicker.dataset.ticketFormJobId);
@@ -616,6 +622,7 @@ async function loadActiveTicketOptions(ticketPicker) {
     return;
   }
 
+  activeTicketLookupRequests.add(ticketPicker);
   if (lookupButton) {
     lookupButton.disabled = true;
   }
@@ -680,6 +687,7 @@ async function loadActiveTicketOptions(ticketPicker) {
     statusElement.textContent = error.message || "Autotask ticket lookup failed.";
     statusElement.classList.add("error-text");
   } finally {
+    activeTicketLookupRequests.delete(ticketPicker);
     if (lookupButton) {
       lookupButton.disabled = false;
     }
@@ -907,6 +915,17 @@ for (const roundedStartTimeForm of roundedStartTimeForms) {
   });
 }
 
+for (const workLocationInput of workLocationInputs) {
+  workLocationInput.addEventListener("change", () => {
+    if (!workLocationInput.checked) {
+      return;
+    }
+
+    const activeTicketForm = document.getElementById(workLocationInput.getAttribute("form") || "");
+    submitFormWithCurrentFields(activeTicketForm);
+  });
+}
+
 for (const endJobForm of endJobForms) {
   const jobId = toSafeMapString(endJobForm.dataset.jobId);
   const summaryField = endJobForm.querySelector(".end-summary-notes");
@@ -955,7 +974,9 @@ for (const ticketPicker of activeTicketPickers) {
   }
 
   if (ticketPicker.dataset.autoLoadTicketOptions === "true") {
-    loadActiveTicketOptions(ticketPicker);
+    window.setTimeout(() => {
+      loadActiveTicketOptions(ticketPicker);
+    }, 50);
   }
 }
 

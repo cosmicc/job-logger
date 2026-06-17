@@ -12,12 +12,17 @@ from typing import Any
 import httpx
 
 from job_logger.config import Settings, settings
-from job_logger.enums import TicketStatus
+from job_logger.enums import TicketStatus, WorkLocation
 from job_logger.models import Job
 from job_logger.time_utils import format_autotask_datetime, rounded_duration_minutes
 
 MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP = 10
 MAX_TICKET_LOOKUP_RESULTS = 25
+
+WORK_LOCATION_SUMMARY_PREFIXES = {
+    WorkLocation.REMOTE: "Remote",
+    WorkLocation.ON_SITE: "On-Site",
+}
 MIN_COMPANY_SEARCH_CHARACTERS = 3
 
 # AUTOTASK_CACHE_TTL_SECONDS is the default short TTL for status metadata and non-company lookups.
@@ -205,9 +210,38 @@ def _job_duration_hours(job: Job) -> Decimal:
     return (Decimal(minutes) / Decimal(60)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def _work_location_for_job(job: Job) -> WorkLocation:
+    """Return the stored work-location mode, defaulting old in-memory jobs to Remote."""
+
+    raw_work_location = getattr(job, "work_location", None) or WorkLocation.REMOTE
+    if isinstance(raw_work_location, WorkLocation):
+        return raw_work_location
+
+    try:
+        return WorkLocation(str(raw_work_location))
+    except ValueError:
+        return WorkLocation.REMOTE
+
+
+def build_autotask_summary_notes(job: Job) -> str:
+    """Return the Autotask notes with the hidden work-location prefix applied."""
+
+    work_location = _work_location_for_job(job)
+    prefix = WORK_LOCATION_SUMMARY_PREFIXES[work_location]
+    raw_summary_notes = (job.summary_notes or job.description_text or "").strip()
+    for existing_prefix in WORK_LOCATION_SUMMARY_PREFIXES.values():
+        normalized_existing_prefix = f"{existing_prefix} "
+        if raw_summary_notes.casefold().startswith(normalized_existing_prefix.casefold()):
+            raw_summary_notes = raw_summary_notes[len(normalized_existing_prefix) :].lstrip()
+            break
+
+    return f"{prefix} {raw_summary_notes}".strip()
+
+
 def build_safe_submission_snapshot(job: Job) -> dict[str, Any]:
     """Build a non-secret snapshot of local job data used for submission."""
 
+    summary_notes_for_autotask = build_autotask_summary_notes(job)
     return {
         "job_id": job.id,
         "ticket_number": job.ticket_number,
@@ -215,7 +249,8 @@ def build_safe_submission_snapshot(job: Job) -> dict[str, Any]:
         "startDateTime": format_autotask_datetime(job.rounded_start_utc),
         "endDateTime": format_autotask_datetime(job.rounded_end_utc) if job.rounded_end_utc else None,
         "hoursWorked": str(_job_duration_hours(job)) if job.rounded_end_utc else None,
-        "summaryNotesLength": len(job.summary_notes or job.description_text or ""),
+        "work_location": _work_location_for_job(job).value,
+        "summaryNotesLength": len(summary_notes_for_autotask),
     }
 
 
@@ -876,7 +911,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             "startDateTime": format_autotask_datetime(job.rounded_start_utc),
             "endDateTime": format_autotask_datetime(job.rounded_end_utc),
             "hoursWorked": float(_job_duration_hours(job)),
-            "summaryNotes": job.summary_notes or job.description_text or "",
+            "summaryNotes": build_autotask_summary_notes(job),
         }
         response = client.post("/TimeEntries", json=payload)
         self._raise_for_safe_response(response, "Autotask time entry creation")

@@ -10,7 +10,7 @@ from sqlalchemy import JSON, Date, DateTime, Enum, ForeignKey, Index, Integer, S
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from job_logger.database import Base
-from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus
+from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
 
 
 def utc_now() -> datetime:
@@ -98,6 +98,22 @@ class Job(Base):
 
     # summary_notes become Autotask summaryNotes when the job is accepted.
     summary_notes: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Reviewer-approved time notes.")
+
+    # work_location stores whether the final Autotask notes should be prefixed
+    # with Remote or On-Site. The prefix is intentionally not written into
+    # summary_notes so review text stays clean and editable.
+    work_location: Mapped[WorkLocation] = mapped_column(
+        Enum(
+            WorkLocation,
+            native_enum=False,
+            length=20,
+            values_callable=lambda enum_values: [enum_value.value for enum_value in enum_values],
+        ),
+        nullable=False,
+        default=WorkLocation.REMOTE,
+        server_default=WorkLocation.REMOTE.value,
+        comment="Work location prefix applied only to Autotask summaryNotes.",
+    )
 
     # description_text mirrors summary_notes for compatibility with legacy clients.
     description_text: Mapped[str | None] = mapped_column(

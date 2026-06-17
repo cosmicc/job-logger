@@ -10,7 +10,7 @@ from sqlalchemy import desc, select
 from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.orm import Session
 
-from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus
+from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
 from job_logger.models import Job, SubmissionAttempt
 from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider
 from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
@@ -238,6 +238,19 @@ def normalize_autotask_company_id(autotask_company_id: int | str | None) -> int 
     return normalized_company_id
 
 
+def normalize_work_location(work_location: WorkLocation | str | None) -> WorkLocation:
+    """Return a supported work-location mode for Autotask note prefixing."""
+
+    if isinstance(work_location, WorkLocation):
+        return work_location
+
+    normalized_location = (work_location or WorkLocation.REMOTE.value).strip().lower().replace("-", "_")
+    try:
+        return WorkLocation(normalized_location)
+    except ValueError as exc:
+        raise JobWorkflowError("Work location must be Remote or On-Site.") from exc
+
+
 def normalize_client_name_required(client_name: str | None) -> str:
     """Require a non-empty client name when transitioning a job to review."""
 
@@ -285,6 +298,7 @@ def start_job(
     ticket_number: str | None = None,
     client_name: str | None = None,
     autotask_company_id: int | str | None = None,
+    work_location: WorkLocation | str | None = WorkLocation.REMOTE,
 ) -> Job:
     """Create a new active job while enforcing the two-job overlap limit."""
 
@@ -293,6 +307,7 @@ def start_job(
     normalized_ticket_number = normalize_ticket_number(ticket_number, required=False)
     normalized_client_name = normalize_client_name(client_name)
     normalized_autotask_company_id = normalize_autotask_company_id(autotask_company_id)
+    normalized_work_location = normalize_work_location(work_location)
     start_timestamp = now_utc()
     rounded_start_timestamp = round_to_nearest_quarter_hour(start_timestamp)
     job = Job(
@@ -301,6 +316,7 @@ def start_job(
         job_slot=job_slot,
         client_name=normalized_client_name,
         autotask_company_id=normalized_autotask_company_id,
+        work_location=normalized_work_location,
         raw_start_utc=start_timestamp,
         rounded_start_utc=rounded_start_timestamp,
         local_work_date=local_date_for(rounded_start_timestamp),
@@ -317,6 +333,7 @@ def update_active_job_ticket_number(
     client_name: str | None = None,
     autotask_company_id: int | str | None = None,
     ticket_title: str | None = None,
+    work_location: WorkLocation | str | None = None,
 ) -> Job:
     """Update the optional Autotask ticket number and client while a job is active."""
 
@@ -341,6 +358,9 @@ def update_active_job_ticket_number(
     if client_name is not None and not locked_autotask_client_preserved:
         job.client_name = normalize_client_name(client_name)
         job.autotask_company_id = normalize_autotask_company_id(autotask_company_id)
+
+    if work_location is not None:
+        job.work_location = normalize_work_location(work_location)
 
     return job
 

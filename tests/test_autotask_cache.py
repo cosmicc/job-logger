@@ -10,7 +10,7 @@ import httpx
 import pytest
 
 from job_logger.config import settings
-from job_logger.enums import JobStatus, TicketStatus
+from job_logger.enums import JobStatus, TicketStatus, WorkLocation
 from job_logger.models import Job
 from job_logger.services.autotask import (
     _COMPANY_ID_CACHE,
@@ -344,4 +344,32 @@ def test_time_entry_creation_omits_billing_code_id() -> None:
     assert fake_client.posted_payload["resourceID"] == 1
     assert fake_client.posted_payload["roleID"] == 2
     assert fake_client.posted_payload["timeEntryType"] == 2
+    assert fake_client.posted_payload["summaryNotes"] == "Remote Payload must not include allocation code."
     assert "billingCodeID" not in fake_client.posted_payload
+
+
+def test_time_entry_summary_notes_use_hidden_work_location_prefix() -> None:
+    """Autotask summary notes receive the stored work-location prefix only at submission."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTimeEntryCreateClient()
+    rounded_start_utc = datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="time-entry-work-location-test",
+        status=JobStatus.READY_FOR_REVIEW,
+        ticket_number="T20260616.0001",
+        ticket_status=TicketStatus.COMPLETE,
+        summary_notes="Remote replaced the router and verified service.",
+        description_text="Remote replaced the router and verified service.",
+        work_location=WorkLocation.ON_SITE,
+        raw_start_utc=rounded_start_utc,
+        raw_end_utc=rounded_start_utc + timedelta(minutes=30),
+        rounded_start_utc=rounded_start_utc,
+        rounded_end_utc=rounded_start_utc + timedelta(minutes=30),
+    )
+
+    external_id = provider._create_time_entry(fake_client, job, ticket_id=123456)
+
+    assert external_id == "987654"
+    assert fake_client.posted_payload is not None
+    assert fake_client.posted_payload["summaryNotes"] == "On-Site replaced the router and verified service."
