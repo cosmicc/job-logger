@@ -416,6 +416,9 @@ code, resource, or required field more clearly than a generic HTTP 500 message.
 
 All user-facing dates and times use `America/Detroit`.
 
+User-facing times display in 12-hour `am`/`pm` format. Review forms also accept
+legacy 24-hour submissions so stale browser pages do not fail during deployment.
+
 All database timestamps are stored in UTC.
 
 Start time, end time, and resulting duration are rounded to 15-minute intervals.

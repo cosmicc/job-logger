@@ -15,6 +15,7 @@ from job_logger.enums import JobStatus, TranscriptionStatus, WorkLocation
 from job_logger.models import AuditEvent, Job, SubmissionAttempt
 from job_logger.services.autotask import AutotaskConnectivityResult
 from job_logger.services.jobs import get_active_job
+from job_logger.time_utils import format_local_time
 from tests.conftest import extract_csrf_token
 
 
@@ -447,6 +448,11 @@ def test_review_save_active_job_without_stop_time(authenticated_client: TestClie
 
     review_page_response = authenticated_client.get(f"/review/{active_job_id}")
     review_csrf_token = extract_csrf_token(review_page_response.text)
+    active_job_display_start = format_local_time(active_job.rounded_start_utc)
+
+    assert 'type="time"' not in review_page_response.text
+    assert f'value="{active_job_display_start}"' in review_page_response.text
+    assert " am" in active_job_display_start or " pm" in active_job_display_start
 
     save_response = authenticated_client.post(
         f"/review/{active_job_id}/save",
@@ -454,7 +460,7 @@ def test_review_save_active_job_without_stop_time(authenticated_client: TestClie
             "csrf_token": review_csrf_token,
             "ticket_status": "complete",
             "start_date": active_job_local_start.date().isoformat(),
-            "start_time": active_job_local_start.strftime("%H:%M"),
+            "start_time": active_job_display_start,
             "summary_notes": "Active job saved without stop values.",
         },
         follow_redirects=False,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -10,6 +11,11 @@ LOCAL_TIMEZONE = ZoneInfo("America/Detroit")
 
 # ROUNDING_INTERVAL_MINUTES is the required local review increment.
 ROUNDING_INTERVAL_MINUTES = 15
+
+# TWELVE_HOUR_TIME_PATTERN parses the user-facing review time format. Keeping
+# the parser centralized avoids duplicating AM/PM edge cases in routes or
+# service code while still accepting old HTML time-input values for compatibility.
+TWELVE_HOUR_TIME_PATTERN = re.compile(r"^\s*(?P<hour>\d{1,2}):(?P<minute>\d{2})\s*(?P<period>[aApP])\.?[mM]\.?\s*$")
 
 
 def now_utc() -> datetime:
@@ -77,9 +83,36 @@ def parse_local_form_datetime(local_date: str, local_time: str) -> datetime:
     """Parse HTML date/time fields as America/Detroit and return UTC."""
 
     parsed_date = date.fromisoformat(local_date)
-    parsed_time = time.fromisoformat(local_time)
+    parsed_time = parse_local_form_time(local_time)
     local_timestamp = datetime.combine(parsed_date, parsed_time, tzinfo=LOCAL_TIMEZONE)
     return local_timestamp.astimezone(UTC)
+
+
+def parse_local_form_time(local_time: str) -> time:
+    """Parse user-facing America/Detroit time values from review forms.
+
+    New rendered forms use 12-hour text such as ``8:15 am`` so users never see
+    24-hour time. The older ``HH:MM`` format remains accepted for compatibility
+    with tests, browser autofill, and any stale pages open during deployment.
+    """
+
+    normalized_time = local_time.strip()
+    twelve_hour_match = TWELVE_HOUR_TIME_PATTERN.match(normalized_time)
+    if twelve_hour_match:
+        parsed_hour = int(twelve_hour_match.group("hour"))
+        parsed_minute = int(twelve_hour_match.group("minute"))
+        parsed_period = twelve_hour_match.group("period").lower()
+        if parsed_hour < 1 or parsed_hour > 12 or parsed_minute > 59:
+            raise ValueError("Time must be a valid 12-hour value.")
+
+        if parsed_period == "a":
+            hour_24 = 0 if parsed_hour == 12 else parsed_hour
+            return time(hour=hour_24, minute=parsed_minute)
+
+        hour_24 = 12 if parsed_hour == 12 else parsed_hour + 12
+        return time(hour=hour_24, minute=parsed_minute)
+
+    return time.fromisoformat(normalized_time)
 
 
 def format_local_date(timestamp: datetime | None) -> str:
@@ -92,12 +125,12 @@ def format_local_date(timestamp: datetime | None) -> str:
 
 
 def format_local_time(timestamp: datetime | None) -> str:
-    """Format a timestamp for an HTML time input."""
+    """Format a timestamp for user-facing America/Detroit time display."""
 
     if timestamp is None:
         return ""
 
-    return to_local(timestamp).strftime("%H:%M")
+    return format_time_for_display(to_local(timestamp).time())
 
 
 def format_local_display(timestamp: datetime | None) -> str:
@@ -106,11 +139,20 @@ def format_local_display(timestamp: datetime | None) -> str:
     if timestamp is None:
         return "Not set"
 
-    return to_local(timestamp).strftime("%b %-d, %Y %-I:%M %p")
+    local_timestamp = to_local(timestamp)
+    return f"{local_timestamp.strftime('%b')} {local_timestamp.day}, {local_timestamp.year} {format_time_for_display(local_timestamp.time())}"
+
+
+def format_time_for_display(local_time: time) -> str:
+    """Return a 12-hour lower-case am/pm display string."""
+
+    hour_24 = local_time.hour
+    hour_12 = hour_24 % 12 or 12
+    period = "am" if hour_24 < 12 else "pm"
+    return f"{hour_12}:{local_time.minute:02d} {period}"
 
 
 def format_autotask_datetime(timestamp: datetime) -> str:
     """Format UTC timestamps for Autotask REST payloads."""
 
     return ensure_utc(timestamp).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-

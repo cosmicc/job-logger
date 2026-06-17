@@ -16,6 +16,7 @@ from job_logger.models import Job, SubmissionAttempt
 from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_token
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
+from job_logger.time_utils import format_local_display
 from job_logger.ui import template_context, templates
 from job_logger.version import APP_VERSION
 
@@ -50,8 +51,11 @@ class DebugSubmissionAttempt:
     # request_snapshot contains a redacted request payload for troubleshooting.
     request_snapshot: str
 
-    # created_at_utc is the UTC timestamp used for sorting and audit correlation.
+    # created_at_utc is the raw UTC timestamp kept for audit correlation.
     created_at_utc: str
+
+    # created_at_display is the user-facing America/Detroit timestamp.
+    created_at_display: str
 
 
 def _safe_autotask_config() -> dict[str, object]:
@@ -103,6 +107,7 @@ def _serialize_submission_attempt(attempt: SubmissionAttempt, job_ticket_number:
         safe_error=attempt.safe_error,
         request_snapshot=request_snapshot_text,
         created_at_utc=attempt.created_at_utc.isoformat(),
+        created_at_display=format_local_display(attempt.created_at_utc),
     )
 
 

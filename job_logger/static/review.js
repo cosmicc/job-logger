@@ -39,6 +39,46 @@ function padTwo(value) {
   return String(value).padStart(2, "0");
 }
 
+function parseTimeToMinutes(timeValue) {
+  const normalizedTimeValue = String(timeValue || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const twelveHourMatch = normalizedTimeValue.match(/^(\d{1,2}):(\d{2})\s*([ap])\.?m\.?$/);
+  if (twelveHourMatch) {
+    const hour = Number(twelveHourMatch[1]);
+    const minute = Number(twelveHourMatch[2]);
+    const period = twelveHourMatch[3];
+    if (hour < 1 || hour > 12 || minute < 0 || minute > 59) {
+      return null;
+    }
+
+    const hour24 = period === "a"
+      ? (hour === 12 ? 0 : hour)
+      : (hour === 12 ? 12 : hour + 12);
+    return hour24 * 60 + minute;
+  }
+
+  const twentyFourHourMatch = normalizedTimeValue.match(/^(\d{1,2}):(\d{2})$/);
+  if (!twentyFourHourMatch) {
+    return null;
+  }
+
+  const hour = Number(twentyFourHourMatch[1]);
+  const minute = Number(twentyFourHourMatch[2]);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    return null;
+  }
+
+  return hour * 60 + minute;
+}
+
+function formatMinutesAsTwelveHourTime(totalMinutes) {
+  const normalizedTotalMinutes = ((totalMinutes % (60 * 24)) + (60 * 24)) % (60 * 24);
+  const hour24 = Math.floor(normalizedTotalMinutes / 60);
+  const minute = normalizedTotalMinutes % 60;
+  const hour12 = hour24 % 12 || 12;
+  const period = hour24 < 12 ? "am" : "pm";
+  return `${hour12}:${padTwo(minute)} ${period}`;
+}
+
 function adjustTimeField(timeFieldName, dateFieldName, deltaMinutes) {
   const timeInput = document.querySelector(`input[name="${timeFieldName}"]`);
   const dateInput = document.querySelector(`input[name="${dateFieldName}"]`);
@@ -46,23 +86,18 @@ function adjustTimeField(timeFieldName, dateFieldName, deltaMinutes) {
     return;
   }
 
-  const timeParts = timeInput.value.split(":").map((part) => Number(part));
-  if (timeParts.length !== 2 || !Number.isFinite(timeParts[0]) || !Number.isFinite(timeParts[1])) {
+  const currentTotalMinutes = parseTimeToMinutes(timeInput.value);
+  if (currentTotalMinutes === null) {
     return;
   }
 
-  const hours = timeParts[0];
-  const minutes = timeParts[1];
-  const totalMinutes = hours * 60 + minutes + deltaMinutes;
+  const totalMinutes = currentTotalMinutes + deltaMinutes;
   // The date fields represent America/Detroit calendar dates. Rollover must
   // happen at local midnight, so the calculation stays in displayed wall-clock
   // minutes and then applies a pure calendar-day delta.
   const dayDelta = Math.floor(totalMinutes / (60 * 24));
-  const normalizedTotalMinutes = ((totalMinutes % (60 * 24)) + (60 * 24)) % (60 * 24);
-  const adjustedHours = Math.floor(normalizedTotalMinutes / 60);
-  const adjustedMinutes = normalizedTotalMinutes % 60;
 
-  timeInput.value = `${padTwo(adjustedHours)}:${padTwo(adjustedMinutes)}`;
+  timeInput.value = formatMinutesAsTwelveHourTime(totalMinutes);
   if (dayDelta !== 0) {
     dateInput.value = addDaysToDateString(dateInput.value, dayDelta);
   }

@@ -130,7 +130,7 @@
               <tbody>
                 {% for attempt in submission_attempts %}
                   <tr>
-                    <td>{{ attempt.created_at_utc }}</td>
+                    <td>{{ attempt.created_at_display }}</td>
                     <td title="{{ attempt.job_id }}">{{ attempt.job_id[:8] }}</td>
                     <td>{{ attempt.job_ticket_number or "No ticket" }}</td>
                     <td>{{ attempt.provider }}</td>
@@ -155,7 +155,7 @@
               <div class="debug-attempt">
                 <p>
                   <strong>{{ attempt.id }}</strong>
-                  <span class="muted-text">{{ attempt.created_at_utc }} · {{ attempt.provider }}</span>
+                  <span class="muted-text">{{ attempt.created_at_display }} · {{ attempt.provider }}</span>
                 </p>
                 <pre class="debug-code">{{ attempt.request_snapshot }}</pre>
               </div>

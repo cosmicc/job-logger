@@ -4,6 +4,12 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Standardized user-facing time display on 12-hour `am`/`pm` values in
+  `America/Detroit` across mobile, review, audit, and diagnostics screens.
+  Review time forms continue to accept legacy 24-hour submissions for stale
+  browser pages and automated clients, but rendered fields no longer expose
+  24-hour time inputs.
+
 - Added progressive web app support for mobile app-like launch behavior:
   installable manifest metadata, app icons, mobile/Apple web app tags, a
   root-scoped network-only service worker, standalone safe-area styling, and

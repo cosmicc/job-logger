@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from job_logger import database
 from job_logger.models import SubmissionAttempt
 from job_logger.services.jobs import get_active_job
+from job_logger.time_utils import format_local_display
 from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
@@ -102,13 +103,18 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
         attempts = list(database_session.query(SubmissionAttempt).where(SubmissionAttempt.job_id == active_job_id).all())
         assert len(attempts) == 1
         assert attempts[0].succeeded is True
+        attempt_id = attempts[0].id
+        attempt_iso_timestamp = attempts[0].created_at_utc.isoformat()
+        attempt_display_timestamp = format_local_display(attempts[0].created_at_utc)
 
     debug_response = authenticated_client.get("/debug")
     assert debug_response.status_code == 200
     assert "Autotask debug" in debug_response.text
     assert "Application version" in debug_response.text
     assert APP_VERSION in debug_response.text
-    assert attempts[0].id in debug_response.text
+    assert attempt_id in debug_response.text
+    assert attempt_display_timestamp in debug_response.text
+    assert attempt_iso_timestamp not in debug_response.text
     assert "mock-time-entry" in debug_response.text
 
 

@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from job_logger.time_utils import enforce_minimum_rounded_end, round_to_nearest_quarter_hour, to_local
+from job_logger.time_utils import (
+    enforce_minimum_rounded_end,
+    format_local_display,
+    format_local_time,
+    parse_local_form_datetime,
+    round_to_nearest_quarter_hour,
+    to_local,
+)
 
 
 def test_round_to_nearest_quarter_hour_rounds_forward() -> None:
@@ -33,3 +40,37 @@ def test_enforce_minimum_rounded_end_adds_one_interval() -> None:
 
     assert enforce_minimum_rounded_end(rounded_start, rounded_end) == rounded_start + timedelta(minutes=15)
 
+
+def test_format_local_time_uses_detroit_twelve_hour_display() -> None:
+    """Visible times should be America/Detroit 12-hour values with am/pm."""
+
+    timestamp = datetime(2026, 6, 16, 12, 15, tzinfo=UTC)
+
+    assert format_local_time(timestamp) == "8:15 am"
+    assert format_local_display(timestamp) == "Jun 16, 2026 8:15 am"
+
+
+def test_parse_local_form_datetime_accepts_twelve_hour_display() -> None:
+    """Review form times posted as am/pm values should convert through Detroit."""
+
+    parsed_timestamp = parse_local_form_datetime("2026-06-16", "8:15 am")
+
+    assert parsed_timestamp == datetime(2026, 6, 16, 12, 15, tzinfo=UTC)
+
+
+def test_parse_local_form_datetime_handles_noon_and_midnight() -> None:
+    """The 12-hour parser should handle the two ambiguous edge hours."""
+
+    parsed_midnight = parse_local_form_datetime("2026-06-16", "12:00 am")
+    parsed_noon = parse_local_form_datetime("2026-06-16", "12:00 pm")
+
+    assert parsed_midnight == datetime(2026, 6, 16, 4, 0, tzinfo=UTC)
+    assert parsed_noon == datetime(2026, 6, 16, 16, 0, tzinfo=UTC)
+
+
+def test_parse_local_form_datetime_accepts_legacy_twenty_four_hour_values() -> None:
+    """Stale pages and integrations can still submit old HTML time values."""
+
+    parsed_timestamp = parse_local_form_datetime("2026-06-16", "08:15")
+
+    assert parsed_timestamp == datetime(2026, 6, 16, 12, 15, tzinfo=UTC)

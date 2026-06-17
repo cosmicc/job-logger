@@ -6,8 +6,8 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
 from job_logger import time_utils
-from job_logger.services.autotask import AutotaskConnectivityResult, test_cached_autotask_connectivity_for_start
 from job_logger.security import csrf_token, current_username, pop_flash_messages
+from job_logger.services.autotask import AutotaskConnectivityResult, test_cached_autotask_connectivity_for_start
 
 # templates is the single Jinja environment used by all server-rendered pages.
 templates = Jinja2Templates(directory="job_logger/templates")

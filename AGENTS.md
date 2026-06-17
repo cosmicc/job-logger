@@ -75,6 +75,7 @@ Prefer archived, rejected, superseded, or voided states with audit records.
 
 The application timezone is `America/Detroit` for all user-facing dates and
 times. This is required so EST and EDT transitions are handled correctly.
+User-facing times must display in 12-hour `am`/`pm` format, not 24-hour format.
 
 Store timestamps in PostgreSQL in UTC. Convert timestamps to and from
 `America/Detroit` at the application boundary for display, forms, reports, and

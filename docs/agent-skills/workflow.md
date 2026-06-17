@@ -189,6 +189,9 @@ described above. Be careful before expanding destructive behavior.
 
 All user-facing dates and times use `America/Detroit`.
 
+All user-facing times display in 12-hour `am`/`pm` format. Keep any 24-hour
+values limited to internal compatibility parsing or external API payloads.
+
 All stored timestamps are UTC.
 
 Use `job_logger/time_utils.py` for:

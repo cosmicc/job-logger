@@ -156,7 +156,17 @@
                   >
                     -15
                   </button>
-                  <input name="start_time" type="time" class="time-field-input" step="900" value="{{ selected_job.rounded_start_utc|local_time }}" required>
+                  <input
+                    name="start_time"
+                    type="text"
+                    class="time-field-input"
+                    value="{{ selected_job.rounded_start_utc|local_time }}"
+                    inputmode="text"
+                    autocomplete="off"
+                    autocorrect="off"
+                    spellcheck="false"
+                    required
+                  >
                   <button
                     type="button"
                     class="secondary-button time-step-button"
@@ -193,10 +203,13 @@
                   </button>
                   <input
                     name="end_time"
-                    type="time"
+                    type="text"
                     class="time-field-input"
-                    step="900"
                     value="{{ selected_job.rounded_end_utc|local_time }}"
+                    inputmode="text"
+                    autocomplete="off"
+                    autocorrect="off"
+                    spellcheck="false"
                     {% if selected_job.status.value != "active" %}required{% endif %}
                   >
                   <button
