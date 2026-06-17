@@ -16,6 +16,15 @@
         <span>Job Logger</span>
       </a>
       {% if current_username %}
+        <div
+          class="autotask-api-indicator {% if autotask_api_status.available %}is-available{% else %}is-unavailable{% endif %}"
+          role="status"
+          aria-live="polite"
+          aria-label="Autotask API status {{ autotask_api_status.label }}"
+        >
+          <span class="autotask-api-dot" aria-hidden="true"></span>
+          <span>Autotask API: {{ autotask_api_status.label }}</span>
+        </div>
         <nav class="top-nav" aria-label="Primary navigation">
           <a href="/mobile">Mobile</a>
           <a href="/review">Review</a>

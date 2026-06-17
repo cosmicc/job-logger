@@ -114,6 +114,50 @@ svg {
   margin-left: auto;
 }
 
+.autotask-api-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.autotask-api-indicator.is-available {
+  border-color: rgba(52, 211, 153, 0.45);
+  color: var(--success);
+}
+
+.autotask-api-indicator.is-unavailable {
+  border-color: rgba(248, 113, 113, 0.45);
+  color: var(--danger);
+}
+
+.autotask-api-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--muted);
+  box-shadow: 0 0 0 2px rgba(154, 168, 188, 0.16);
+}
+
+.autotask-api-indicator.is-available .autotask-api-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.16);
+}
+
+.autotask-api-indicator.is-unavailable .autotask-api-dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.16);
+}
+
 .top-nav a,
 .text-link,
 .secondary-link-button {
@@ -1159,6 +1203,10 @@ td a {
   }
 
   .top-nav {
+    display: none;
+  }
+
+  .autotask-api-indicator {
     display: none;
   }
 

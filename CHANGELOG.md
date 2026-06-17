@@ -55,6 +55,10 @@ All recorded changes to Job Logger are documented in this file.
   segmented control so the options are smaller and less visually dominant than the
   previous full-size pill buttons, while preserving immediate radio behavior and
   keyboard focus.
+- Added a shared Autotask connectivity indicator in the top navigation bar.
+  Authenticated pages now show an "Autotask API: Online/Offline" badge with a
+  red/green status dot, sourced from the cached start-work connectivity check and
+  rendered with non-secret state only.
 - Switched the mobile recorder to chunked WebSocket audio streaming. The server
   authenticates the session, validates CSRF in the first stream message before
   accepting audio bytes, starts best-effort interim transcription when the first
