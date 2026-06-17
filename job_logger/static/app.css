@@ -565,25 +565,27 @@ a:focus-visible {
   margin: 0;
 }
 
-.work-location-switch {
-  --switch-control-size: 30px;
-  display: inline-flex;
-  align-items: center;
+.work-location-toggle {
   width: fit-content;
-  overflow: hidden;
+  max-width: none;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
   border: 1px solid rgba(154, 168, 188, 0.28);
   border-radius: 999px;
   background: rgba(11, 18, 32, 0.58);
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
 }
 
-.work-location-switch label {
+.work-location-toggle label {
   position: relative;
   display: inline-flex;
   min-width: 0;
   cursor: pointer;
 }
 
-.work-location-switch input[type="radio"] {
+.work-location-toggle input[type="radio"] {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -593,27 +595,27 @@ a:focus-visible {
   cursor: pointer;
 }
 
-.work-location-switch span {
+.work-location-toggle span {
   display: grid;
-  min-height: var(--switch-control-size);
-  min-width: 70px;
+  min-height: 22px;
+  min-width: 52px;
   place-items: center;
-  padding: 0 10px;
   border-radius: 999px;
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 700;
   line-height: 1;
   white-space: nowrap;
+  padding: 0 6px;
   pointer-events: none;
 }
 
-.work-location-switch input[type="radio"]:checked + span {
+.work-location-toggle input[type="radio"]:checked + span {
   background: var(--accent);
   color: var(--on-accent);
 }
 
-.work-location-switch input[type="radio"]:focus-visible + span {
+.work-location-toggle input[type="radio"]:focus-visible + span {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
@@ -680,9 +682,17 @@ a:focus-visible {
   margin-top: 10px;
 }
 
+.active-jobs-stack .metric-grid {
+  grid-template-columns: 1fr;
+}
+
+.active-jobs-stack .metric-card {
+  grid-column: 1 / -1;
+}
+
 .button-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
   margin-top: 16px;
 }
@@ -720,7 +730,7 @@ a:focus-visible {
 .rounded-start-time-form,
 .time-step-controls {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(42px, 52px) minmax(0, 1fr) minmax(42px, 52px);
   align-items: center;
   gap: 7px;
   margin: 0;
@@ -728,8 +738,8 @@ a:focus-visible {
 
 .rounded-start-time-form .time-step-button,
 .time-step-controls .time-step-button {
-  width: 36px;
-  min-width: 36px;
+  width: 100%;
+  min-width: 42px;
   height: 36px;
   min-height: 36px;
   padding: 0;
@@ -764,7 +774,9 @@ a:focus-visible {
 .recording-control-stack .record-notes-button[aria-pressed="true"] {
   border-color: rgba(248, 113, 113, 0.78);
   background: var(--danger) !important;
+  background-color: var(--danger) !important;
   color: var(--on-danger) !important;
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.25) !important;
 }
 
 .record-notes-button.is-recording:hover,

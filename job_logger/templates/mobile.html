@@ -39,10 +39,10 @@
                       type="submit"
                       class="secondary-button time-step-button"
                       name="delta_minutes"
-                      value="-15"
-                      aria-label="Decrease rounded start by 15 minutes"
+                      value="15"
+                      aria-label="Increase rounded start by 15 minutes"
                     >
-                      -15
+                      +15
                     </button>
                     <output class="time-field-input rounded-start-time-display" aria-label="Rounded start time">
                       {{ active_job.rounded_start_utc|local_time }}
@@ -51,10 +51,10 @@
                       type="submit"
                       class="secondary-button time-step-button"
                       name="delta_minutes"
-                      value="15"
-                      aria-label="Increase rounded start by 15 minutes"
+                      value="-15"
+                      aria-label="Decrease rounded start by 15 minutes"
                     >
-                      +15
+                      -15
                     </button>
                   </form>
                 </dd>
@@ -62,7 +62,7 @@
               <div class="metric-card work-location-card" aria-label="Work type">
                 <dd>
                   {% set selected_work_location = active_job.work_location.value if active_job.work_location else "remote" %}
-                  <div class="work-location-switch" data-work-location-toggle role="radiogroup" aria-label="Work type">
+                  <div class="segmented-toggle work-location-toggle" data-work-location-toggle role="radiogroup" aria-label="Work type">
                     <label>
                       <input
                         type="radio"
@@ -88,6 +88,27 @@
                   </div>
                 </dd>
               </div>
+              {% if not active_job.autotask_company_id %}
+                <div class="metric-card client-name-card">
+                  <label>
+                    <span class="metric-label">Client name</span>
+                    <input
+                      id="active-client-name-{{ active_job.id }}"
+                      class="autotask-company-input active-client-name-source"
+                      data-company-input
+                      data-active-client-source
+                      form="active-ticket-form-{{ active_job.id }}"
+                      name="client_name"
+                      value="{{ active_job.client_name or '' }}"
+                      placeholder="Client name for reference"
+                      maxlength="120"
+                      autocomplete="off"
+                      autocorrect="off"
+                      spellcheck="false"
+                    >
+                  </label>
+                </div>
+              {% endif %}
               {% if active_job.autotask_company_id %}
                 <div class="metric-card client-name-card" data-locked-client-field>
                   <dt>Client name</dt>
@@ -133,25 +154,6 @@
                   name="client_name"
                   value="{{ active_job.client_name or '' }}"
                 >
-              {% else %}
-                <div class="metric-card client-name-card">
-                  <label>
-                    <span class="metric-label">Client name</span>
-                    <input
-                      id="active-client-name-{{ active_job.id }}"
-                      class="autotask-company-input active-client-name-source"
-                      data-company-input
-                      data-active-client-source
-                      name="client_name"
-                      value="{{ active_job.client_name or '' }}"
-                      placeholder="Client name for reference"
-                      maxlength="120"
-                      autocomplete="off"
-                      autocorrect="off"
-                      spellcheck="false"
-                    >
-                  </label>
-                </div>
               {% endif %}
               <input
                 type="hidden"

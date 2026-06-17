@@ -32,6 +32,7 @@ let isUploadingRecording = false;
 let hasRecordedAudio = false;
 let activeAudioStreamReady = false;
 let activeAudioStreamFailed = false;
+let isStartingRecording = false;
 
 function toSafeMapString(value) {
   return String(value || "");
@@ -69,6 +70,24 @@ function findActiveTicketPicker(jobId) {
   return document.querySelector(`[data-active-ticket-picker][data-ticket-form-job-id="${toSafeMapString(jobId)}"]`);
 }
 
+function resolveFormForControl(controlElement) {
+  if (!controlElement) {
+    return null;
+  }
+
+  const parentForm = controlElement.closest("form");
+  if (parentForm) {
+    return parentForm;
+  }
+
+  const formId = controlElement.getAttribute("form");
+  if (!formId) {
+    return null;
+  }
+
+  return document.getElementById(formId);
+}
+
 function readActiveJobClientFields(jobId) {
   const activeTicketForm = findActiveTicketForm(jobId);
   if (!activeTicketForm) {
@@ -78,7 +97,12 @@ function readActiveJobClientFields(jobId) {
   // The active job card has one authoritative client source. It may be a
   // visible autocomplete input while unlocked, or a hidden value after an
   // Autotask company has been selected and locked for the active job.
-  const clientNameSource = activeTicketForm.querySelector("[data-active-client-source]");
+  const formClientInput = activeTicketForm.querySelector("[data-active-client-source]");
+  const formId = toSafeMapString(activeTicketForm.id);
+  const formLinkedClientInput = formId
+    ? document.querySelector(`.active-client-name-source[form="${formId}"]`)
+    : null;
+  const clientNameSource = formClientInput || formLinkedClientInput;
   const autotaskCompanyIdSource = activeTicketForm.querySelector("[data-company-id-input]");
   return {
     clientName: clientNameSource ? clientNameSource.value : "",
@@ -110,7 +134,7 @@ function findControlElements(jobId) {
 }
 
 function getCompanyPickerElements(companyInput) {
-  const parentForm = companyInput.closest("form");
+  const parentForm = resolveFormForControl(companyInput);
   if (!parentForm) {
     return {companyIdInput: null, resultsElement: null, statusElement: null};
   }
@@ -243,6 +267,7 @@ function setAllRecordingControlsIdle() {
 
 function clearRecordingState() {
   isUploadingRecording = false;
+  isStartingRecording = false;
   if (activeAudioStream) {
     stopActiveStream();
   }
@@ -998,7 +1023,7 @@ for (const descriptionTextarea of descriptionTextareas) {
 for (const recordButton of activeRecordButtons) {
   const jobId = toSafeMapString(recordButton.dataset.jobId);
   recordButton.addEventListener("click", async () => {
-    if (isUploadingRecording) {
+    if (isUploadingRecording || isStartingRecording) {
       return;
     }
 
@@ -1012,11 +1037,21 @@ for (const recordButton of activeRecordButtons) {
       return;
     }
 
+    setRecordingUi({jobId, isRecording: true});
+    setRecordingStatus(jobId, "Preparing recorder...");
+    isStartingRecording = true;
     try {
       await startRecording(jobId);
     } catch (error) {
       setRecordingStatus(jobId, error.message || "Recording could not start.", true);
       clearRecordingState();
+      isStartingRecording = false;
+      return;
+    }
+
+    isStartingRecording = false;
+    if (!activeRecorder || activeRecordingJobId !== jobId) {
+      setRecordingUi({jobId, isRecording: false});
     }
   });
 }

@@ -4,6 +4,14 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Adjusted Work in Progress mobile layout and controls so the rounded-start editor
+  renders as `+15` / time / `-15` in one row and active-job metric cards
+  remain single-column on all screen widths; the client input now appears above
+  ticket name/description for unlocked jobs. Recording UI now sets the audio button
+  state immediately on click so the button turns red with the `Stop recording`
+  label while capture is requested, and only returns to neutral once stop/transcode
+  completes.
+
 - Updated the mobile recording control so **Record Audio** becomes a red
   **Stop recording** button only while browser capture is active. Clicking it
   again stops capture, leaves the stream/transcription status visible until the
@@ -43,6 +51,10 @@ All recorded changes to Job Logger are documented in this file.
 - Added a short Start Work Autotask health cache so repeated job starts do not
   run the full live Autotask connectivity probe every tap; the debug API test
   still performs a fresh live check.
+- Shrunk the Work in Progress Remote/On-Site selector into a compact inline
+  segmented control so the options are smaller and less visually dominant than the
+  previous full-size pill buttons, while preserving immediate radio behavior and
+  keyboard focus.
 - Switched the mobile recorder to chunked WebSocket audio streaming. The server
   authenticates the session, validates CSRF in the first stream message before
   accepting audio bytes, starts best-effort interim transcription when the first
