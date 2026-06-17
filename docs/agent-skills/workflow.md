@@ -59,7 +59,9 @@ historical; it now saves active-job edits, not only ticket numbers.
 
 The mobile active-job ticket number is not a manual text entry. The open-ticket
 picker writes a hidden ticket number/title pair and automatically submits the
-active-job save form after the user chooses a ticket.
+active-job save form after the user chooses a ticket. When an active job has a
+client but no ticket number, the mobile page auto-loads the open-ticket picker
+without requiring a separate find button.
 
 The active mobile card should expose only one client entry point for each job.
 After an Autotask company is selected, the active job displays that client as a

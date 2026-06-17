@@ -500,6 +500,7 @@ a:focus-visible {
   gap: 5px;
 }
 
+.client-name-card dd,
 .client-name-card strong {
   overflow-wrap: anywhere;
   color: var(--text);
@@ -511,6 +512,7 @@ a:focus-visible {
   gap: 5px;
 }
 
+.ticket-number-card dd,
 .ticket-number-card strong {
   overflow-wrap: anywhere;
   color: var(--text);
@@ -720,12 +722,20 @@ td a {
   min-height: 66px;
   gap: 5px;
   align-content: center;
+  justify-items: start;
   padding: 11px 13px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-muted);
 }
 
+.readonly-field-title,
+.readonly-field-value {
+  display: block;
+  width: 100%;
+}
+
+.readonly-field-value,
 .readonly-field-card strong {
   overflow-wrap: anywhere;
   color: var(--text);

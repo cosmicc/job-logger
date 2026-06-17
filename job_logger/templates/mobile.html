@@ -57,6 +57,18 @@
                   </div>
                 </dd>
               </div>
+              {% if active_job.autotask_company_id %}
+                <div class="metric-card client-name-card" data-locked-client-field>
+                  <dt>Client name</dt>
+                  <dd>{{ active_job.client_name or "Selected client" }}</dd>
+                </div>
+              {% endif %}
+              {% if active_job.ticket_number %}
+                <div class="metric-card ticket-number-card">
+                  <dt>Ticket number</dt>
+                  <dd class="active-ticket-number-display">{{ active_job.ticket_number }}</dd>
+                </div>
+              {% endif %}
             </dl>
 
             <form
@@ -67,10 +79,6 @@
             >
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               {% if active_job.autotask_company_id %}
-                <div class="metric-card client-name-card" data-locked-client-field>
-                  <span class="metric-label">Client name</span>
-                  <strong>{{ active_job.client_name or "Selected client" }}</strong>
-                </div>
                 <input
                   type="hidden"
                   class="active-client-name-source"
@@ -107,12 +115,6 @@
               >
               <div class="company-search-results" data-company-results></div>
               <p class="company-search-status muted-text" data-company-status aria-live="polite"></p>
-              {% if active_job.ticket_number %}
-                <div class="metric-card ticket-number-card">
-                  <span class="metric-label">Ticket number</span>
-                  <strong class="active-ticket-number-display">{{ active_job.ticket_number }}</strong>
-                </div>
-              {% endif %}
               <input
                 type="hidden"
                 id="active-ticket-number-{{ active_job.id }}"
@@ -136,24 +138,16 @@
               </button>
             </form>
 
-            {% if not active_job.ticket_number %}
+            {% if active_job.client_name and not active_job.ticket_number %}
               <section
                 class="mobile-ticket-picker"
                 data-active-ticket-picker
                 data-ticket-lookup-url="/review/{{ active_job.id }}/tickets"
                 data-ticket-form-job-id="{{ active_job.id }}"
-                data-auto-load-ticket-options="{% if active_job.autotask_company_id %}true{% else %}false{% endif %}"
+                data-auto-load-ticket-options="true"
               >
                 <div class="mobile-ticket-picker-header">
                   <h3>Open tickets</h3>
-                  <button
-                    class="secondary-button"
-                    type="button"
-                    data-active-ticket-lookup-button
-                    {% if not active_job.client_name %}disabled{% endif %}
-                  >
-                    Find tickets
-                  </button>
                 </div>
                 <p class="ticket-picker-status muted-text" data-active-ticket-lookup-status aria-live="polite"></p>
                 <div class="ticket-picker-results" data-active-ticket-lookup-results></div>

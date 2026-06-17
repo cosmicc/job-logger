@@ -254,6 +254,10 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'name="rounded_start_time"' in page_html
     assert 'value="00:00"' in page_html
     assert 'value="00:15"' in page_html
+    assert 'data-active-ticket-picker' in page_html
+    assert 'data-auto-load-ticket-options="true"' in page_html
+    assert 'data-active-ticket-lookup-button' not in page_html
+    assert "Find tickets" not in page_html
     assert "Autotask ticket number" not in page_html
     assert 'class="active-ticket-number"' in page_html
     assert 'pattern="[Tt][0-9]{8}\\.[0-9]{4}"' not in page_html
@@ -537,7 +541,10 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
     assert "Mock open ticket for Ticket Title Client" in updated_review_html
     assert "Unassigned Ticket" not in updated_review_html
     assert "data-ticket-picker" not in updated_review_html
-    assert 'data-review-ticket-number-display>T20260616.0001</strong>' in updated_review_html
+    assert 'class="readonly-field-value" data-review-ticket-number-display' in updated_review_html
+    assert "T20260616.0001" in updated_review_html
+    assert '<span class="metric-label readonly-field-title">Ticket number</span>' in updated_review_html
+    assert '<span class="metric-label readonly-field-title">Client name</span>' in updated_review_html
     assert re.search(r'<input(?=[^>]*name="ticket_number")(?=[^>]*type="hidden")', updated_review_html)
     assert re.search(r'<input(?=[^>]*name="client_name")(?=[^>]*type="hidden")', updated_review_html)
     assert not re.search(r'<input(?=[^>]*name="ticket_number")(?!(?=[^>]*type="hidden"))', updated_review_html)

@@ -89,8 +89,8 @@
 
             <div class="form-grid">
               <div class="readonly-field-card">
-                <span class="metric-label">Ticket number</span>
-                <strong data-review-ticket-number-display>{{ selected_job.ticket_number or "Unassigned Ticket" }}</strong>
+                <span class="metric-label readonly-field-title">Ticket number</span>
+                <strong class="readonly-field-value" data-review-ticket-number-display>{{ selected_job.ticket_number or "Unassigned Ticket" }}</strong>
               </div>
               <input
                 type="hidden"
@@ -115,8 +115,8 @@
                 </select>
               </label>
               <div class="readonly-field-card">
-                <span class="metric-label">Client name</span>
-                <strong>{{ selected_job.client_name or "No client selected" }}</strong>
+                <span class="metric-label readonly-field-title">Client name</span>
+                <strong class="readonly-field-value">{{ selected_job.client_name or "No client selected" }}</strong>
               </div>
               <input
                 type="hidden"

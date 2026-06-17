@@ -30,9 +30,11 @@ All recorded changes to Job Logger are documented in this file.
   HTTP 405 failures when loading open tickets.
 - Cleaned up the mobile Work in Progress card so each active job has one client
   entry point, locks a selected Autotask client as read-only during active work,
-  uses a 15-minute rounded-start dropdown selector, and keeps Job 1/Job 2 on
-  the same shared layout. Fixed the active ticket-number pattern so selected
-  Autotask ticket values like `T20260504.0018` pass browser validation.
+  shows populated client and ticket values in the same rounded metric-card style
+  as start-time values, auto-loads open tickets without a manual find button,
+  uses a 15-minute rounded-start dropdown selector, and keeps Job 1/Job 2 on the
+  same shared layout. Fixed the active ticket-number pattern so selected Autotask
+  ticket values like `T20260504.0018` pass browser validation.
 - Added stored Autotask ticket titles so the review detail heading shows the
   selected ticket name, leaves untitled jobs as `Unassigned Ticket`, and hides
   open-ticket lookup panels after a job has a ticket number.

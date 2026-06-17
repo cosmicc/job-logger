@@ -404,11 +404,13 @@ async function loadActiveTicketOptions(ticketPicker) {
   const lookupButton = ticketPicker.querySelector("[data-active-ticket-lookup-button]");
   const statusElement = ticketPicker.querySelector("[data-active-ticket-lookup-status]");
   const resultsElement = ticketPicker.querySelector("[data-active-ticket-lookup-results]");
-  if (!lookupUrl || !lookupButton || !statusElement || !resultsElement) {
+  if (!lookupUrl || !statusElement || !resultsElement) {
     return;
   }
 
-  lookupButton.disabled = true;
+  if (lookupButton) {
+    lookupButton.disabled = true;
+  }
   statusElement.classList.remove("error-text");
   statusElement.textContent = "Searching Autotask tickets...";
   resultsElement.replaceChildren();
@@ -458,7 +460,9 @@ async function loadActiveTicketOptions(ticketPicker) {
     statusElement.textContent = error.message || "Autotask ticket lookup failed.";
     statusElement.classList.add("error-text");
   } finally {
-    lookupButton.disabled = false;
+    if (lookupButton) {
+      lookupButton.disabled = false;
+    }
   }
 }
 
