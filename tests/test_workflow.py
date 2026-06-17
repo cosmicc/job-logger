@@ -292,6 +292,7 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'class="secondary-button active-save-button"' in page_html
     assert "submit-notes-button" not in page_html
     assert page_html.index("Summary notes") < page_html.index("Save Active Changes") < page_html.index("Record Audio")
+    assert "Stop Recording" not in page_html
     assert "Record Notes" not in page_html
     assert "Autotask ticket number" not in page_html
     assert 'class="active-ticket-number"' in page_html

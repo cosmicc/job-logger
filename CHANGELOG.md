@@ -4,11 +4,11 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
-- Renamed the mobile recording control to **Record Audio** and kept that label
-  fixed across idle, recording, and finalizing states. Recording is now shown
-  by a red button state that clears immediately when the user clicks the button
-  again to stop capture while the existing WebSocket stream finalizes and
-  returns the transcript to summary notes.
+- Updated the mobile recording control so **Record Audio** becomes a red **Stop
+  Recording** button only while browser capture is active. Clicking it again
+  stops capture, returns the button to idle styling, and leaves the existing
+  WebSocket stream/transcode status running until the transcript is returned to
+  summary notes.
 - Added automatic phone and desktop stylesheet loading, tightened the review
   detail `-15` / time / `+15` controls so the time input no longer pushes the
   buttons out of line, and added read-only selected-ticket description cards on

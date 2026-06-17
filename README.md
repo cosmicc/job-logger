@@ -251,10 +251,12 @@ The mobile recorder streams `MediaRecorder` chunks to
 `WebSocket /jobs/{job_id}/description/audio/stream`. The first WebSocket
 message carries metadata and the CSRF token, then binary audio chunks are sent
 as soon as the browser produces them. The server starts a best-effort interim
-transcription from the first buffered chunk. The mobile record button becomes a
-stop button while capture is active; stopping capture lets the browser flush
-the final chunk, sends WebSocket `finish`, and keeps processing until the final
-saved transcript or a bounded error response returns.
+transcription from the first buffered chunk. The mobile **Record Audio** button
+becomes a red **Stop Recording** button while browser capture is active.
+Stopping capture lets the browser flush the final chunk, sends WebSocket
+`finish`, returns the button to its idle appearance, and keeps showing
+transcode/transcription status until the final saved transcript or a bounded
+error response returns.
 
 Raw audio is not stored by default. The app keeps the streamed recording in
 memory only, sends buffered bytes to the local provider through a temporary

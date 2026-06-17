@@ -4,6 +4,8 @@ const MIN_COMPANY_SEARCH_CHARACTERS = 3;
 const RECORDING_CHUNK_INTERVAL_MS = 2500;
 const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
+const RECORD_AUDIO_LABEL = "Record Audio";
+const STOP_RECORDING_LABEL = "Stop Recording";
 
 const activeRecordButtons = document.querySelectorAll(".record-notes-button");
 const descriptionTextareas = document.querySelectorAll(".job-description");
@@ -101,6 +103,7 @@ function syncEndJobClientFields(endJobForm) {
 function findControlElements(jobId) {
   return {
     recordButton: document.querySelector(`.record-notes-button[data-job-id="${toSafeMapString(jobId)}"]`),
+    recordButtonLabel: document.querySelector(`.record-notes-button[data-job-id="${toSafeMapString(jobId)}"] [data-record-audio-label]`),
     statusElement: findRecordingStatusElement(jobId),
   };
 }
@@ -211,6 +214,9 @@ function setRecordingUi({
 
   controls.recordButton.disabled = isUploading;
   controls.recordButton.setAttribute("aria-pressed", isRecording ? "true" : "false");
+  if (controls.recordButtonLabel) {
+    controls.recordButtonLabel.textContent = isRecording ? STOP_RECORDING_LABEL : RECORD_AUDIO_LABEL;
+  }
 
   if (isUploading) {
     controls.recordButton.classList.remove("is-recording");
@@ -500,16 +506,16 @@ function handleAudioStreamMessage(activeJobId, rawMessage, readyHandlers) {
   }
 
   if (payload.type === "chunk_received") {
-    setRecordingStatus(activeJobId, "Recording notes...");
+    setRecordingStatus(activeJobId, "Recording audio...");
     return;
   }
 
   if (payload.type === "transcription_started") {
     if (payload.phase === "final") {
-      setRecordingStatus(activeJobId, "Finalizing transcription...");
+      setRecordingStatus(activeJobId, "Transcoding audio...");
       return;
     }
-    setRecordingStatus(activeJobId, "Transcribing streamed audio...");
+    setRecordingStatus(activeJobId, "Transcoding streamed audio...");
     return;
   }
 
@@ -520,7 +526,7 @@ function handleAudioStreamMessage(activeJobId, rawMessage, readyHandlers) {
 
   if (payload.type === "partial") {
     updateDescriptionFromTranscription(activeJobId, payload, false);
-    setRecordingStatus(activeJobId, "Streaming transcript preview...");
+    setRecordingStatus(activeJobId, "Updating transcript preview...");
     return;
   }
 
@@ -629,7 +635,7 @@ async function finishAudioTranscriptionStream(activeJobId) {
     activeAudioStreamFinalResolve = resolve;
     activeAudioStreamFinalReject = reject;
     activeAudioSocket.send(JSON.stringify({type: "finish"}));
-    setRecordingStatus(activeJobId, "Finalizing transcription...");
+    setRecordingStatus(activeJobId, "Transcoding audio...");
   });
 }
 
@@ -644,7 +650,7 @@ function streamAudioChunk(activeJobId, audioChunk) {
 
   activeAudioSocket.send(audioChunk);
   hasRecordedAudio = true;
-  setRecordingStatus(activeJobId, "Recording notes...");
+  setRecordingStatus(activeJobId, "Recording audio...");
 }
 
 function buildTicketOptionText(ticketOption) {
@@ -857,6 +863,7 @@ async function startRecording(activeJobId) {
     ? new MediaRecorder(activeAudioStream, {mimeType: selectedMimeType})
     : new MediaRecorder(activeAudioStream);
   activeRecordingJobId = activeJobId;
+  setRecordingUi({jobId: activeJobId, isRecording: true});
   await openAudioTranscriptionStream(activeJobId, activeRecorder.mimeType || selectedMimeType || "audio/webm");
 
   activeRecorder.addEventListener("dataavailable", (event) => {
@@ -882,12 +889,12 @@ async function startRecording(activeJobId) {
 
       stopActiveStream();
       if (activeAudioStreamFailed) {
-        setRecordingStatus(jobId, "Recording stream failed. Press Record and try again.", true);
+        setRecordingStatus(jobId, "Recording stream failed. Press Record Audio and try again.", true);
         return;
       }
 
       if (!hasRecordedAudio) {
-        setRecordingStatus(jobId, "No audio was recorded. Press Record and try again.");
+        setRecordingStatus(jobId, "No audio was recorded. Press Record Audio and try again.");
         return;
       }
 
@@ -904,7 +911,7 @@ async function startRecording(activeJobId) {
 
   activeRecorder.start(RECORDING_CHUNK_INTERVAL_MS);
   setRecordingUi({jobId: activeJobId, isRecording: true});
-  setRecordingStatus(activeJobId, "Recording notes...");
+  setRecordingStatus(activeJobId, "Recording audio...");
 }
 
 function stopRecording(activeJobId) {
@@ -921,11 +928,11 @@ function stopRecording(activeJobId) {
     return;
   }
 
-  // The stop button finalizes the WebSocket stream. The button stays disabled
-  // until the server sends the final transcript or a bounded error response.
+  // Stopping capture finalizes the WebSocket stream. The button returns to its
+  // idle appearance while the status line tracks server-side transcription.
   isUploadingRecording = true;
   setRecordingUi({jobId: activeJobId, isUploading: true});
-  setRecordingStatus(activeJobId, "Stopping recording and finishing stream...");
+  setRecordingStatus(activeJobId, "Audio stopped. Transcoding audio...");
   activeRecorder.stop();
 }
 

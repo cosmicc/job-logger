@@ -116,17 +116,18 @@ Mobile recording is browser-side in `job_logger/static/mobile.js`.
 Current behavior:
 
 - Record Audio starts audio capture.
-- The Record Audio button keeps the same text while recording and turns red as
-  the recording-state indicator.
+- The button changes to Stop Recording and turns red while browser recording is
+  active.
 - The browser opens `WebSocket /jobs/{job_id}/description/audio/stream`,
   sends CSRF-protected stream metadata first, then streams `MediaRecorder`
   audio chunks as binary WebSocket messages.
 - The server starts an interim transcription attempt as soon as the first chunk
   arrives. The current faster-whisper provider is batch-oriented, so interim
   text is best-effort from the buffered media snapshot.
-- Clicking Record Audio again ends browser capture, lets `MediaRecorder` flush
-  its final chunk, sends WebSocket `finish`, and keeps the control disabled
-  until the final transcript or a bounded error response returns. The legacy
+- Clicking Stop Recording ends browser capture, lets `MediaRecorder` flush its
+  final chunk, sends WebSocket `finish`, and keeps the control disabled while
+  the status line shows transcode/transcription progress until the final
+  transcript or a bounded error response returns. The legacy
   `POST /jobs/{job_id}/description/audio` endpoint remains as a compatibility
   upload path, but the mobile UI should use the WebSocket stream.
 - Raw audio is not permanently stored by default.

@@ -758,13 +758,15 @@ a:focus-visible {
   font-weight: 650;
 }
 
-.is-recording {
+.record-notes-button.is-recording,
+.recording-control-stack .record-notes-button.is-recording {
   border-color: rgba(248, 113, 113, 0.78);
   background: var(--danger);
   color: var(--on-danger);
 }
 
-.is-recording:hover {
+.record-notes-button.is-recording:hover,
+.recording-control-stack .record-notes-button.is-recording:hover {
   background: #fb8181;
   color: var(--on-danger);
 }
