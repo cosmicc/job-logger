@@ -85,6 +85,15 @@ Ticket lookup uses `/review/{job_id}/tickets`.
 Ticket lookup should prefer the stored Autotask company ID. If no company ID is
 stored, it can fall back to client-name matching.
 
+Ticket options returned to the browser include safe ticket number, title, status
+label, and company name. When the user selects a ticket, persist the title as
+local job metadata so the review detail heading can show the chosen ticket name
+without repeatedly querying Autotask.
+
+On mobile, ticket numbers are populated from the open-ticket picker instead of
+manual entry. The ticket choice automatically submits the active-job save form
+so the hidden ticket number and title are persisted immediately.
+
 ## Caching Rules
 
 Caching is in-process and non-secret only.

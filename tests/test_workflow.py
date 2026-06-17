@@ -13,6 +13,7 @@ from job_logger.enums import JobStatus, TranscriptionStatus
 from job_logger.models import Job, SubmissionAttempt
 from job_logger.services.autotask import AutotaskConnectivityResult
 from job_logger.services.jobs import get_active_job
+from job_logger.time_utils import local_date_for, parse_local_form_datetime
 from tests.conftest import extract_csrf_token
 
 
@@ -32,7 +33,7 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
 
     start_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "ticket_number": "t20260326.0018"},
+        data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert start_response.status_code == 303
@@ -41,7 +42,7 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         active_job = get_active_job(database_session)
         assert active_job is not None
         active_job_id = active_job.id
-        assert active_job.ticket_number == "T20260326.0018"
+        assert active_job.ticket_number is None
 
     text_response = authenticated_client.post(
         f"/jobs/{active_job_id}/description/text",
@@ -58,7 +59,6 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
     assert end_response.status_code == 303
 
     review_page_response = authenticated_client.get(f"/review/{active_job_id}")
-    assert 'value="T20260326.0018"' in review_page_response.text
     review_csrf_token = extract_csrf_token(review_page_response.text)
 
     accept_response = authenticated_client.post(
@@ -127,7 +127,7 @@ def test_active_job_completion_requires_client_name(authenticated_client: TestCl
 
     start_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "ticket_number": "t20260326.0018"},
+        data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert start_response.status_code == 303
@@ -173,15 +173,23 @@ def test_mobile_autotask_company_lookup_returns_options(authenticated_client: Te
     assert response_payload["companies"][0]["company_name"] == "Acme Services"
 
 
-def test_mobile_job_start_stores_selected_autotask_company(authenticated_client: TestClient) -> None:
-    """Starting work can store the selected Autotask company for exact lookup."""
+def test_mobile_job_start_ignores_prestart_client_and_ticket_fields(authenticated_client: TestClient) -> None:
+    """Starting work creates a blank job even if stale form fields are posted."""
 
     mobile_page_response = authenticated_client.get("/mobile")
     csrf_token = extract_csrf_token(mobile_page_response.text)
+    assert "Autotask ticket number" not in mobile_page_response.text
+    assert 'name="ticket_number"' not in mobile_page_response.text
+    assert 'name="client_name"' not in mobile_page_response.text
 
     start_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
+        data={
+            "csrf_token": csrf_token,
+            "ticket_number": "T20260616.0001",
+            "client_name": "Acme Services",
+            "autotask_company_id": "1001",
+        },
         follow_redirects=False,
     )
     assert start_response.status_code == 303
@@ -189,8 +197,9 @@ def test_mobile_job_start_stores_selected_autotask_company(authenticated_client:
     with database.SessionLocal() as database_session:
         active_job = get_active_job(database_session)
         assert active_job is not None
-        assert active_job.client_name == "Acme Services"
-        assert active_job.autotask_company_id == 1001
+        assert active_job.ticket_number is None
+        assert active_job.client_name is None
+        assert active_job.autotask_company_id is None
 
 
 def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_client: TestClient) -> None:
@@ -200,7 +209,7 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
+        data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert start_response.status_code == 303
@@ -210,16 +219,32 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
         assert active_job is not None
         active_job_id = active_job.id
 
+    save_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
+
     updated_mobile_page_response = authenticated_client.get("/mobile")
     page_html = updated_mobile_page_response.text
 
     assert 'data-locked-client-field' in page_html
+    assert "AUTOTASK SELECTED" not in page_html
+    assert "Autotask selected" not in page_html
+    assert 'class="metric-card client-name-card"' in page_html
     assert f'id="active-client-name-{active_job_id}"' not in page_html
     assert 'class="end-client-name"' in page_html
     assert 'class="end-autotask-company-id"' in page_html
-    assert 'class="time-stepper-arrow-button"' in page_html
-    assert 'name="delta_minutes" value="15"' in page_html
-    assert 'name="delta_minutes" value="-15"' in page_html
+    assert 'data-rounded-start-time-form' in page_html
+    assert '<select' in page_html
+    assert 'name="rounded_start_time"' in page_html
+    assert 'value="00:00"' in page_html
+    assert 'value="00:15"' in page_html
+    assert "Autotask ticket number" not in page_html
+    assert 'class="active-ticket-number"' in page_html
+    assert 'pattern="[Tt][0-9]{8}\\.[0-9]{4}"' not in page_html
+    assert 'pattern="[Tt][0-9]{8}\\\\.[0-9]{4}"' not in page_html
     assert "&gt;+15&lt;" not in page_html
     assert "&gt;-15&lt;" not in page_html
 
@@ -231,7 +256,7 @@ def test_mobile_active_job_locked_autotask_company_rejects_form_tampering(authen
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
+        data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert start_response.status_code == 303
@@ -240,6 +265,13 @@ def test_mobile_active_job_locked_autotask_company_rejects_form_tampering(authen
         active_job = get_active_job(database_session)
         assert active_job is not None
         active_job_id = active_job.id
+
+    save_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
 
     tampered_save_response = authenticated_client.post(
         f"/jobs/{active_job_id}/ticket-number",
@@ -348,7 +380,7 @@ def test_review_save_active_job_without_stop_time(authenticated_client: TestClie
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "ticket_number": "T20260326.0018", "client_name": "Active List"},
+        data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert start_response.status_code == 303
@@ -395,7 +427,7 @@ def test_review_ticket_lookup_returns_open_tickets_for_job_client(authenticated_
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "client_name": "Ticket Lookup Client", "autotask_company_id": "1001"},
+        data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert start_response.status_code == 303
@@ -404,6 +436,17 @@ def test_review_ticket_lookup_returns_open_tickets_for_job_client(authenticated_
         active_job = get_active_job(database_session)
         assert active_job is not None
         active_job_id = active_job.id
+
+    save_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={"csrf_token": csrf_token, "client_name": "Ticket Lookup Client", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
         assert active_job.autotask_company_id == 1001
 
     end_response = authenticated_client.post(
@@ -421,6 +464,73 @@ def test_review_ticket_lookup_returns_open_tickets_for_job_client(authenticated_
     assert response_payload["autotask_company_id"] == 1001
     assert response_payload["tickets"][0]["ticket_number"] == "T20260616.0001"
     assert response_payload["tickets"][0]["company_name"] == "Ticket Lookup Client"
+
+
+def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authenticated_client: TestClient) -> None:
+    """Selected Autotask ticket titles become the review detail heading."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    save_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={"csrf_token": csrf_token, "client_name": "Ticket Title Client", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token, "client_name": "Ticket Title Client", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    assert "Unassigned Ticket" in review_page_response.text
+    assert "data-ticket-picker" in review_page_response.text
+    review_csrf_token = extract_csrf_token(review_page_response.text)
+
+    save_response = authenticated_client.post(
+        f"/review/{active_job_id}/save",
+        data={
+            "csrf_token": review_csrf_token,
+            "ticket_number": "T20260616.0001",
+            "ticket_title": "Mock open ticket for Ticket Title Client",
+            "ticket_status": "complete",
+            "client_name": "Ticket Title Client",
+            "autotask_company_id": "1001",
+            "start_date": "2026-06-16",
+            "start_time": "08:00",
+            "end_date": "2026-06-16",
+            "end_time": "08:15",
+            "summary_notes": "Review heading should use the selected ticket title.",
+        },
+        follow_redirects=False,
+    )
+    assert save_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        reviewed_job = database_session.get(Job, active_job_id)
+        assert reviewed_job is not None
+        assert reviewed_job.ticket_number == "T20260616.0001"
+        assert reviewed_job.ticket_title == "Mock open ticket for Ticket Title Client"
+
+    updated_review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    assert "Mock open ticket for Ticket Title Client" in updated_review_page_response.text
+    assert "Unassigned Ticket" not in updated_review_page_response.text
+    assert "data-ticket-picker" not in updated_review_page_response.text
 
 
 def test_review_accept_still_requires_ticket_number(authenticated_client: TestClient) -> None:
@@ -495,6 +605,7 @@ def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_
         data={
             "csrf_token": csrf_token,
             "ticket_number": "t20260326.0018",
+            "ticket_title": "Mock selected mobile ticket",
             "client_name": "Mobile Review Client",
             "autotask_company_id": "1002",
             "summary_notes": "Saved from mobile active form",
@@ -510,10 +621,14 @@ def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_
         assert active_job.autotask_company_id == 1002
         assert active_job.summary_notes == "Saved from mobile active form"
         assert active_job.ticket_number == "T20260326.0018"
+        assert active_job.ticket_title == "Mock selected mobile ticket"
+
+    updated_mobile_page_response = authenticated_client.get("/mobile")
+    assert "data-active-ticket-picker" not in updated_mobile_page_response.text
 
 
 def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient) -> None:
-    """The mobile page can save an optional Autotask ticket number during active work."""
+    """The active ticket picker save path can persist a selected Autotask ticket."""
 
     mobile_page_response = authenticated_client.get("/mobile")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -541,13 +656,13 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
 
 
 def test_mobile_active_job_ticket_update_preserves_client_name(authenticated_client: TestClient) -> None:
-    """Saving a ticket number from the active card should not erase the original client name."""
+    """Saving a selected ticket from the active card should not erase the client."""
 
     mobile_page_response = authenticated_client.get("/mobile")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "ticket_number": "T20260326.0018", "client_name": "North Bay"},
+        data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert start_response.status_code == 303
@@ -556,6 +671,17 @@ def test_mobile_active_job_ticket_update_preserves_client_name(authenticated_cli
         active_job = get_active_job(database_session)
         assert active_job is not None
         active_job_id = active_job.id
+
+    save_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={"csrf_token": csrf_token, "client_name": "North Bay"},
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
         assert active_job.client_name == "North Bay"
 
     save_ticket_response = authenticated_client.post(
@@ -579,7 +705,7 @@ def test_mobile_active_job_rounded_start_can_be_adjusted(authenticated_client: T
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "ticket_number": "T20260326.0018"},
+        data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert start_response.status_code == 303
@@ -601,6 +727,39 @@ def test_mobile_active_job_rounded_start_can_be_adjusted(authenticated_client: T
         active_job = database_session.get(Job, active_job_id)
         assert active_job is not None
         assert active_job.rounded_start_utc == original_start + timedelta(minutes=15)
+
+
+def test_mobile_active_job_rounded_start_can_be_set_from_time_selector(authenticated_client: TestClient) -> None:
+    """The mobile time selector can set a quarter-hour rounded start value."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+        original_start = active_job.rounded_start_utc
+
+    selected_local_time = (original_start + timedelta(minutes=30)).astimezone(ZoneInfo("America/Detroit")).strftime("%H:%M")
+    expected_start = parse_local_form_datetime(local_date_for(original_start).isoformat(), selected_local_time).replace(tzinfo=None)
+    adjust_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/start-time/adjust",
+        data={"csrf_token": csrf_token, "rounded_start_time": selected_local_time},
+        follow_redirects=False,
+    )
+    assert adjust_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
+        assert active_job.rounded_start_utc == expected_start
 
 
 def test_review_detail_force_purge_removes_job_and_attempts(authenticated_client: TestClient) -> None:
@@ -704,7 +863,7 @@ def test_manual_summary_carries_to_review_on_completion(authenticated_client: Te
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "ticket_number": "T20260326.0018", "client_name": "Acme Energy"},
+        data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert start_response.status_code == 303
@@ -739,21 +898,21 @@ def test_mobile_allows_two_active_jobs(authenticated_client: TestClient) -> None
 
     first_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "ticket_number": "T20260326.0018", "client_name": "Site A"},
+        data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert first_response.status_code == 303
 
     second_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "ticket_number": "T20260616.0001", "client_name": "Site B"},
+        data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert second_response.status_code == 303
 
     third_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "ticket_number": "T20260616.0002", "client_name": "Site C"},
+        data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert third_response.status_code == 303
@@ -763,6 +922,5 @@ def test_mobile_allows_two_active_jobs(authenticated_client: TestClient) -> None
         assert len(active_jobs) == 2
         active_slots = {job.job_slot for job in active_jobs if job.job_slot is not None}
         assert active_slots == {1, 2}
-        client_names = {job.client_name for job in active_jobs}
-        assert "Site A" in client_names
-        assert "Site B" in client_names
+        assert all(job.client_name is None for job in active_jobs)
+        assert all(job.ticket_number is None for job in active_jobs)

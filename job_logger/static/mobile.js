@@ -10,6 +10,7 @@ const endJobForms = document.querySelectorAll(".end-job-form");
 const activeTicketForms = document.querySelectorAll(".active-ticket-form");
 const companyInputs = document.querySelectorAll("[data-company-input]");
 const activeTicketPickers = document.querySelectorAll("[data-active-ticket-picker]");
+const roundedStartTimeForms = document.querySelectorAll("[data-rounded-start-time-form]");
 
 const descriptionSaveTimers = new Map();
 const companySearchTimers = new Map();
@@ -246,7 +247,7 @@ function renderCompanyResults(companyInput, companies) {
       companyInput.value = companyOption.company_name || "";
       companyIdInput.value = companyOption.company_id || "";
       resultsElement.replaceChildren();
-      setCompanyStatus(companyInput, "Autotask company selected.");
+      setCompanyStatus(companyInput, "Client selected.");
       if (parentForm && parentForm.classList.contains("active-ticket-form")) {
         const endJobForm = document.querySelector(
           `.end-job-form[data-job-id="${toSafeMapString(parentForm.dataset.jobId)}"]`,
@@ -434,11 +435,20 @@ async function loadActiveTicketOptions(ticketPicker) {
       optionButton.addEventListener("click", () => {
         const activeTicketForm = findActiveTicketForm(jobId);
         const ticketInput = activeTicketForm ? activeTicketForm.querySelector(".active-ticket-number") : null;
+        const ticketDisplay = activeTicketForm ? activeTicketForm.querySelector(".active-ticket-number-display") : null;
+        const ticketTitleInput = activeTicketForm ? activeTicketForm.querySelector(".active-ticket-title") : null;
         if (!ticketInput) {
           return;
         }
 
-        ticketInput.value = ticketOption.ticket_number || "";
+        ticketInput.value = toSafeMapString(ticketOption.ticket_number).trim().toUpperCase();
+        ticketInput.setCustomValidity("");
+        if (ticketDisplay) {
+          ticketDisplay.textContent = ticketInput.value;
+        }
+        if (ticketTitleInput) {
+          ticketTitleInput.value = toSafeMapString(ticketOption.title).trim();
+        }
         statusElement.textContent = `Selected ${ticketInput.value}.`;
         submitFormWithCurrentFields(activeTicketForm);
       });
@@ -625,6 +635,23 @@ for (const submitButton of submitButtons) {
   });
 }
 
+for (const roundedStartTimeForm of roundedStartTimeForms) {
+  const roundedStartTimeInput = roundedStartTimeForm.querySelector("[data-rounded-start-time-input]");
+  if (!roundedStartTimeInput) {
+    continue;
+  }
+
+  let lastSubmittedRoundedStartTime = roundedStartTimeInput.value;
+  roundedStartTimeInput.addEventListener("change", () => {
+    if (roundedStartTimeInput.value === lastSubmittedRoundedStartTime) {
+      return;
+    }
+
+    lastSubmittedRoundedStartTime = roundedStartTimeInput.value;
+    submitFormWithCurrentFields(roundedStartTimeForm);
+  });
+}
+
 for (const endJobForm of endJobForms) {
   const jobId = toSafeMapString(endJobForm.dataset.jobId);
   const summaryField = endJobForm.querySelector(".end-summary-notes");
@@ -644,7 +671,6 @@ for (const activeTicketForm of activeTicketForms) {
   }
 
   const summaryField = activeTicketForm.querySelector(".active-job-summary");
-  let initialTicketNumber = toSafeMapString(ticketInput.value).trim().toUpperCase();
 
   activeTicketForm.addEventListener("submit", () => {
     if (summaryField) {
@@ -656,17 +682,6 @@ for (const activeTicketForm of activeTicketForms) {
       clearDescriptionTimer(safeJobId);
       pendingDescriptionSaves.delete(safeJobId);
     }
-  });
-
-  ticketInput.addEventListener("change", () => {
-    const nextTicketNumber = toSafeMapString(ticketInput.value).trim().toUpperCase();
-    if (nextTicketNumber === initialTicketNumber) {
-      return;
-    }
-
-    initialTicketNumber = nextTicketNumber;
-    ticketInput.value = nextTicketNumber;
-    submitFormWithCurrentFields(activeTicketForm);
   });
 }
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import desc, select
 from sqlalchemy import update as sqlalchemy_update
@@ -15,6 +15,7 @@ from job_logger.models import Job, SubmissionAttempt
 from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider
 from job_logger.services.transcription import TranscriptionError, get_transcription_provider
 from job_logger.time_utils import (
+    ROUNDING_INTERVAL_MINUTES,
     enforce_minimum_rounded_end,
     local_date_for,
     now_utc,
@@ -25,6 +26,7 @@ from job_logger.time_utils import (
 AUTOTASK_TICKET_NUMBER_PATTERN = re.compile(r"^T\d{8}\.\d{4}$")
 MAX_ACTIVE_JOBS = 2
 MAX_CLIENT_NAME_LENGTH = 120
+MAX_TICKET_TITLE_LENGTH = 240
 ALLOWED_WORK_IN_PROGRESS_START_MINUTE_DELTA = {-15, 15}
 
 
@@ -35,6 +37,9 @@ class ReviewFields:
 
     # ticket_number is the reviewed Autotask ticket number.
     ticket_number: str | None
+
+    # ticket_title is the selected Autotask ticket title shown in review.
+    ticket_title: str | None
 
     # ticket_status is the requested ticket status from the allowed enum list.
     ticket_status: TicketStatus
@@ -102,6 +107,20 @@ def normalize_start_time_delta_minutes(delta_minutes: int | str) -> int:
         raise JobWorkflowError("Start-time adjustment must be in 15-minute increments.")
 
     return normalized_delta
+
+
+def normalize_rounded_start_time_value(rounded_start_time: str | None) -> time:
+    """Return a valid quarter-hour local time from the active rounded-start selector."""
+
+    try:
+        parsed_time = time.fromisoformat((rounded_start_time or "").strip())
+    except ValueError as exc:
+        raise JobWorkflowError("Rounded start time is invalid.") from exc
+
+    if parsed_time.second or parsed_time.microsecond or parsed_time.minute % ROUNDING_INTERVAL_MINUTES != 0:
+        raise JobWorkflowError("Rounded start time must use 15-minute increments.")
+
+    return parsed_time
 
 
 class JobWorkflowError(RuntimeError):
@@ -185,6 +204,12 @@ def normalize_ticket_number(ticket_number: str | None, *, required: bool) -> str
         raise JobWorkflowError("Ticket number must match the Autotask format TYYYYMMDD.####, such as T20260326.0018.")
 
     return normalized_ticket_number
+
+
+def normalize_ticket_title(ticket_title: str | None) -> str | None:
+    """Return a bounded Autotask ticket title captured from ticket lookup."""
+
+    return _normalize_optional_text(ticket_title, max_length=MAX_TICKET_TITLE_LENGTH)
 
 
 def normalize_client_name(client_name: str | None) -> str | None:
@@ -291,6 +316,7 @@ def update_active_job_ticket_number(
     ticket_number: str | None,
     client_name: str | None = None,
     autotask_company_id: int | str | None = None,
+    ticket_title: str | None = None,
 ) -> Job:
     """Update the optional Autotask ticket number and client while a job is active."""
 
@@ -303,7 +329,14 @@ def update_active_job_ticket_number(
         locked_autotask_client_preserved = preserve_locked_active_autotask_client(job, client_name, autotask_company_id)
 
     if ticket_number is not None:
-        job.ticket_number = normalize_ticket_number(ticket_number, required=False)
+        previous_ticket_number = job.ticket_number
+        normalized_ticket_number = normalize_ticket_number(ticket_number, required=False)
+        normalized_ticket_title = normalize_ticket_title(ticket_title) if normalized_ticket_number else None
+        job.ticket_number = normalized_ticket_number
+        if normalized_ticket_title is not None:
+            job.ticket_title = normalized_ticket_title
+        elif normalized_ticket_number is None or normalized_ticket_number != previous_ticket_number:
+            job.ticket_title = None
 
     if client_name is not None and not locked_autotask_client_preserved:
         job.client_name = normalize_client_name(client_name)
@@ -336,6 +369,23 @@ def adjust_active_job_rounded_start(database_session: Session, job_id: str, delt
     job.rounded_start_utc = round_to_nearest_quarter_hour(
         job.rounded_start_utc + timedelta(minutes=normalized_delta)
     )
+    job.local_work_date = local_date_for(job.rounded_start_utc)
+    return job
+
+
+def set_active_job_rounded_start_time(database_session: Session, job_id: str, rounded_start_time: str | None) -> Job:
+    """Set the active rounded start to a selected quarter-hour local time."""
+
+    job = get_job_or_raise(database_session, job_id)
+    if job.status != JobStatus.ACTIVE:
+        raise JobWorkflowError("Only active jobs can have rounded start times adjusted.")
+
+    selected_start_time = normalize_rounded_start_time_value(rounded_start_time)
+    # The mobile selector intentionally changes only the wall-clock time. The
+    # local work date remains the current rounded-start local date so a browser
+    # cannot move the job onto another day through this compact control.
+    selected_start_date = local_date_for(job.rounded_start_utc).isoformat()
+    job.rounded_start_utc = parse_local_form_datetime(selected_start_date, selected_start_time.strftime("%H:%M"))
     job.local_work_date = local_date_for(job.rounded_start_utc)
     return job
 
@@ -428,6 +478,7 @@ def validate_review_fields(
     ticket_number = normalize_ticket_number(form_values.get("ticket_number"), required=require_ticket_number)
     if ticket_number is None and require_ticket_number:
         raise JobWorkflowError("Ticket number is required.")
+    ticket_title = normalize_ticket_title(form_values.get("ticket_title")) if ticket_number else None
 
     try:
         ticket_status = TicketStatus(form_values.get("ticket_status", ""))
@@ -471,6 +522,7 @@ def validate_review_fields(
         rounded_end_utc = enforce_minimum_rounded_end(rounded_start_utc, rounded_end_utc)
     return ReviewFields(
         ticket_number=ticket_number,
+        ticket_title=ticket_title,
         ticket_status=ticket_status,
         summary_notes=summary_notes,
         rounded_start_utc=rounded_start_utc,
@@ -488,7 +540,12 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
         raise JobWorkflowError("Active jobs cannot receive an end time while active.")
 
     if review_fields.ticket_number is not None:
+        ticket_number_changed = review_fields.ticket_number != job.ticket_number
         job.ticket_number = review_fields.ticket_number
+        if review_fields.ticket_title is not None:
+            job.ticket_title = review_fields.ticket_title
+        elif ticket_number_changed:
+            job.ticket_title = None
     job.ticket_status = review_fields.ticket_status
     job.summary_notes = review_fields.summary_notes
     job.description_text = review_fields.summary_notes
@@ -534,6 +591,7 @@ def reset_ticket_data(database_session: Session) -> dict[str, int]:
         database_session.execute(
             sqlalchemy_update(Job).values(
                 ticket_number=None,
+                ticket_title=None,
                 autotask_company_id=None,
                 ticket_status=None,
                 autotask_provider=None,

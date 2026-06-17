@@ -75,7 +75,7 @@
             <div class="form-header-row">
               <div>
                 <p class="eyebrow-text">Selected job</p>
-                <h2>{{ selected_job.ticket_number or "Unassigned ticket" }}</h2>
+                <h2 data-selected-ticket-heading>{{ selected_job.ticket_title or "Unassigned Ticket" }}</h2>
               </div>
               <span class="status-chip status-{{ selected_job.status.value }}">{{ selected_job.status.value.replace("_", " ") }}</span>
             </div>
@@ -101,6 +101,12 @@
                   spellcheck="false"
                 >
               </label>
+              <input
+                type="hidden"
+                data-review-ticket-title-input
+                name="ticket_title"
+                value="{{ selected_job.ticket_title or '' }}"
+              >
               <label>
                 <span>Ticket status</span>
                 <select name="ticket_status" required>
@@ -204,29 +210,31 @@
               </label>
             </div>
 
-            <section
-              class="ticket-picker"
-              data-ticket-picker
-              data-ticket-lookup-url="/review/{{ selected_job.id }}/tickets"
-              aria-label="Open Autotask tickets"
-            >
-              <div class="ticket-picker-header">
-                <div>
-                  <h3>Open tickets</h3>
-                  <p class="muted-text">{{ selected_job.client_name or "No client name set" }}</p>
+            {% if not selected_job.ticket_number %}
+              <section
+                class="ticket-picker"
+                data-ticket-picker
+                data-ticket-lookup-url="/review/{{ selected_job.id }}/tickets"
+                aria-label="Open Autotask tickets"
+              >
+                <div class="ticket-picker-header">
+                  <div>
+                    <h3>Open tickets</h3>
+                    <p class="muted-text">{{ selected_job.client_name or "No client name set" }}</p>
+                  </div>
+                  <button
+                    class="secondary-button"
+                    type="button"
+                    data-ticket-lookup-button
+                    {% if not selected_job.client_name %}disabled{% endif %}
+                  >
+                    Find tickets
+                  </button>
                 </div>
-                <button
-                  class="secondary-button"
-                  type="button"
-                  data-ticket-lookup-button
-                  {% if not selected_job.client_name %}disabled{% endif %}
-                >
-                  Find tickets
-                </button>
-              </div>
-              <p class="ticket-picker-status muted-text" data-ticket-lookup-status aria-live="polite"></p>
-              <div class="ticket-picker-results" data-ticket-lookup-results></div>
-            </section>
+                <p class="ticket-picker-status muted-text" data-ticket-lookup-status aria-live="polite"></p>
+                <div class="ticket-picker-results" data-ticket-lookup-results></div>
+              </section>
+            {% endif %}
 
             <label class="wide-field">
               <span>Summary notes</span>

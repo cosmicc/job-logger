@@ -448,19 +448,20 @@ a:focus-visible {
 
 .metric-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 20px 0;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 16px 0 10px;
 }
 
-.metric-grid div {
-  padding: 13px;
+.metric-card {
+  padding: 11px 13px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-muted);
 }
 
-.metric-grid dt {
+.metric-grid dt,
+.metric-label {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
@@ -469,7 +470,7 @@ a:focus-visible {
 
 .metric-grid dd {
   margin: 4px 0 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 750;
 }
 
@@ -485,38 +486,35 @@ a:focus-visible {
 
 .ticket-number-form {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   align-items: end;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
-.locked-client-field {
+.client-name-card {
   display: grid;
-  min-height: 60px;
-  gap: 4px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-muted);
+  gap: 5px;
 }
 
-.locked-client-field .field-label {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
+.client-name-card label {
+  gap: 5px;
 }
 
-.locked-client-field strong {
+.client-name-card strong {
   overflow-wrap: anywhere;
   color: var(--text);
-  font-size: 16px;
+  font-size: 15px;
 }
 
-.locked-client-field small {
-  color: var(--accent-strong);
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
+.ticket-number-card {
+  display: grid;
+  gap: 5px;
+}
+
+.ticket-number-card strong {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 15px;
 }
 
 .start-work-form .primary-action-button {
@@ -536,73 +534,24 @@ a:focus-visible {
 }
 
 .time-stepper {
-  position: relative;
   display: grid;
   min-width: 0;
 }
 
 .time-stepper .time-field-input {
   width: 100%;
-  min-height: 42px;
-  padding-right: 44px;
+  min-height: 38px;
+  padding-right: 11px;
   text-align: center;
 }
 
-.time-stepper-arrows {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  bottom: 4px;
+.rounded-start-time-form {
   display: grid;
-  width: 34px;
-  grid-template-rows: 1fr 1fr;
-  overflow: hidden;
-  border-left: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-}
-
-.rounded-start-adjust-form,
-.time-stepper-form {
   margin: 0;
-  display: grid;
 }
 
-.time-stepper-arrow-button {
-  display: grid;
-  width: 100%;
-  min-height: 0;
-  padding: 0;
-  place-items: center;
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  background: transparent;
-  color: var(--muted);
+.rounded-start-time-input {
   cursor: pointer;
-}
-
-.time-stepper-form:last-child .time-stepper-arrow-button {
-  border-bottom: 0;
-}
-
-.time-stepper-arrow-button:hover,
-.time-stepper-arrow-button:focus-visible {
-  background: var(--surface-muted);
-  color: var(--accent-strong);
-}
-
-.time-stepper-arrow-button svg {
-  width: 15px;
-  height: 15px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.rounded-start-adjust-form > .time-stepper-arrow-button {
-  width: 100%;
 }
 
 .recording-status {

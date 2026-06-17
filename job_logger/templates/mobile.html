@@ -22,59 +22,38 @@
             <p class="eyebrow-text">Active job {{ job_label }}</p>
             <h1>Work in progress</h1>
             <dl class="metric-grid">
-              <div>
+              <div class="metric-card">
                 <dt>Started</dt>
                 <dd>{{ active_job.raw_start_utc|local_display }}</dd>
               </div>
-              <div>
+              <div class="metric-card">
                 <dt>Rounded start</dt>
                 <dd>
                   <div class="time-stepper">
-                    <input
-                      type="time"
-                      class="time-field-input"
-                      value="{{ active_job.rounded_start_utc|local_time }}"
-                      aria-label="Rounded start time"
-                      readonly
+                    <form
+                      method="post"
+                      action="/jobs/{{ active_job.id }}/start-time/adjust"
+                      class="rounded-start-time-form"
+                      data-rounded-start-time-form
                     >
-                    <div class="time-stepper-arrows" aria-label="Adjust rounded start in 15 minute increments">
-                      <form
-                        method="post"
-                        action="/jobs/{{ active_job.id }}/start-time/adjust"
-                        class="rounded-start-adjust-form time-stepper-form"
-                        aria-label="Increase rounded start"
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <select
+                        class="time-field-input rounded-start-time-input"
+                        name="rounded_start_time"
+                        aria-label="Rounded start time"
+                        data-rounded-start-time-input
                       >
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <input type="hidden" name="delta_minutes" value="15">
-                        <button
-                          type="submit"
-                          class="time-stepper-arrow-button"
-                          aria-label="Increase rounded start by 15 minutes"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M6 15l6-6 6 6"></path>
-                          </svg>
-                        </button>
-                      </form>
-                      <form
-                        method="post"
-                        action="/jobs/{{ active_job.id }}/start-time/adjust"
-                        class="rounded-start-adjust-form time-stepper-form"
-                        aria-label="Decrease rounded start"
-                      >
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <input type="hidden" name="delta_minutes" value="-15">
-                        <button
-                          type="submit"
-                          class="time-stepper-arrow-button"
-                          aria-label="Decrease rounded start by 15 minutes"
-                        >
-                          <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M6 9l6 6 6-6"></path>
-                          </svg>
-                        </button>
-                      </form>
-                    </div>
+                        {% set selected_rounded_start_time = active_job.rounded_start_utc|local_time %}
+                        {% for time_option in rounded_start_time_options %}
+                          <option
+                            value="{{ time_option.value }}"
+                            {% if time_option.value == selected_rounded_start_time %}selected{% endif %}
+                          >
+                            {{ time_option.label }}
+                          </option>
+                        {% endfor %}
+                      </select>
+                    </form>
                   </div>
                 </dd>
               </div>
@@ -88,10 +67,9 @@
             >
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               {% if active_job.autotask_company_id %}
-                <div class="locked-client-field" data-locked-client-field>
-                  <span class="field-label">Client name</span>
-                  <strong>{{ active_job.client_name or "Selected Autotask client" }}</strong>
-                  <small>Autotask selected</small>
+                <div class="metric-card client-name-card" data-locked-client-field>
+                  <span class="metric-label">Client name</span>
+                  <strong>{{ active_job.client_name or "Selected client" }}</strong>
                 </div>
                 <input
                   type="hidden"
@@ -101,22 +79,24 @@
                   value="{{ active_job.client_name or '' }}"
                 >
               {% else %}
-                <label>
-                  <span>Client name</span>
-                  <input
-                    id="active-client-name-{{ active_job.id }}"
-                    class="autotask-company-input active-client-name-source"
-                    data-company-input
-                    data-active-client-source
-                    name="client_name"
-                    value="{{ active_job.client_name or '' }}"
-                    placeholder="Client name for reference"
-                    maxlength="120"
-                    autocomplete="off"
-                    autocorrect="off"
-                    spellcheck="false"
-                  >
-                </label>
+                <div class="metric-card client-name-card">
+                  <label>
+                    <span class="metric-label">Client name</span>
+                    <input
+                      id="active-client-name-{{ active_job.id }}"
+                      class="autotask-company-input active-client-name-source"
+                      data-company-input
+                      data-active-client-source
+                      name="client_name"
+                      value="{{ active_job.client_name or '' }}"
+                      placeholder="Client name for reference"
+                      maxlength="120"
+                      autocomplete="off"
+                      autocorrect="off"
+                      spellcheck="false"
+                    >
+                  </label>
+                </div>
               {% endif %}
               <input
                 type="hidden"
@@ -127,21 +107,25 @@
               >
               <div class="company-search-results" data-company-results></div>
               <p class="company-search-status muted-text" data-company-status aria-live="polite"></p>
-              <label>
-                <span>Autotask ticket number</span>
-                <input
-                  id="active-ticket-number-{{ active_job.id }}"
-                  class="active-ticket-number"
-                  name="ticket_number"
-                  value="{{ active_job.ticket_number or '' }}"
-                  placeholder="T20260326.0018"
-                  maxlength="14"
-                  pattern="[Tt][0-9]{8}\\.[0-9]{4}"
-                  autocapitalize="characters"
-                  autocomplete="off"
-                  spellcheck="false"
-                >
-              </label>
+              {% if active_job.ticket_number %}
+                <div class="metric-card ticket-number-card">
+                  <span class="metric-label">Ticket number</span>
+                  <strong class="active-ticket-number-display">{{ active_job.ticket_number }}</strong>
+                </div>
+              {% endif %}
+              <input
+                type="hidden"
+                id="active-ticket-number-{{ active_job.id }}"
+                class="active-ticket-number"
+                name="ticket_number"
+                value="{{ active_job.ticket_number or '' }}"
+              >
+              <input
+                type="hidden"
+                class="active-ticket-title"
+                name="ticket_title"
+                value="{{ active_job.ticket_title or '' }}"
+              >
               <input type="hidden" class="active-job-summary" name="summary_notes" value="">
               <button class="secondary-button" type="submit">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -152,27 +136,29 @@
               </button>
             </form>
 
-            <section
-              class="mobile-ticket-picker"
-              data-active-ticket-picker
-              data-ticket-lookup-url="/review/{{ active_job.id }}/tickets"
-              data-ticket-form-job-id="{{ active_job.id }}"
-              data-auto-load-ticket-options="{% if active_job.autotask_company_id %}true{% else %}false{% endif %}"
-            >
-              <div class="mobile-ticket-picker-header">
-                <h3>Open tickets</h3>
-                <button
-                  class="secondary-button"
-                  type="button"
-                  data-active-ticket-lookup-button
-                  {% if not active_job.client_name %}disabled{% endif %}
-                >
-                  Find tickets
-                </button>
-              </div>
-              <p class="ticket-picker-status muted-text" data-active-ticket-lookup-status aria-live="polite"></p>
-              <div class="ticket-picker-results" data-active-ticket-lookup-results></div>
-            </section>
+            {% if not active_job.ticket_number %}
+              <section
+                class="mobile-ticket-picker"
+                data-active-ticket-picker
+                data-ticket-lookup-url="/review/{{ active_job.id }}/tickets"
+                data-ticket-form-job-id="{{ active_job.id }}"
+                data-auto-load-ticket-options="{% if active_job.autotask_company_id %}true{% else %}false{% endif %}"
+              >
+                <div class="mobile-ticket-picker-header">
+                  <h3>Open tickets</h3>
+                  <button
+                    class="secondary-button"
+                    type="button"
+                    data-active-ticket-lookup-button
+                    {% if not active_job.client_name %}disabled{% endif %}
+                  >
+                    Find tickets
+                  </button>
+                </div>
+                <p class="ticket-picker-status muted-text" data-active-ticket-lookup-status aria-live="polite"></p>
+                <div class="ticket-picker-results" data-active-ticket-lookup-results></div>
+              </section>
+            {% endif %}
 
             <div class="description-box">
               <label for="description-preview-{{ active_job.id }}">
@@ -246,43 +232,9 @@
         <section class="work-panel">
           <p class="eyebrow-text">Ready</p>
           <h1>Start a work entry</h1>
-          <p class="muted-text">Start work, record the summary notes during the job, then end work for review.</p>
+          <p class="muted-text">Start work, choose the client and open ticket during the job, then end work for review.</p>
           <form method="post" action="/jobs/start" class="start-work-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <label>
-              <span>Autotask ticket number</span>
-              <input
-                name="ticket_number"
-                placeholder="T20260326.0018"
-                maxlength="14"
-                pattern="[Tt][0-9]{8}\.[0-9]{4}"
-                autocapitalize="characters"
-                autocomplete="off"
-                spellcheck="false"
-              >
-            </label>
-            <label>
-              <span>Client name</span>
-              <input
-                class="autotask-company-input"
-                data-company-input
-                name="client_name"
-                placeholder="Client name for reference"
-                maxlength="120"
-                autocomplete="off"
-                autocorrect="off"
-                spellcheck="false"
-              >
-            </label>
-            <input
-              type="hidden"
-              class="autotask-company-id"
-              data-company-id-input
-              name="autotask_company_id"
-              value=""
-            >
-            <div class="company-search-results" data-company-results></div>
-            <p class="company-search-status muted-text" data-company-status aria-live="polite"></p>
             <button class="primary-action-button" type="submit">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M8 5v14l11-7z"></path>
@@ -299,43 +251,9 @@
       <section class="work-panel">
         <p class="eyebrow-text">Start another job</p>
         <h1>Add a concurrent job</h1>
-        <p class="muted-text">Up to two jobs can be active at once.</p>
+        <p class="muted-text">Up to two jobs can be active at once. Choose the client and open ticket after the job starts.</p>
         <form method="post" action="/jobs/start" class="start-work-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <label>
-            <span>Autotask ticket number</span>
-            <input
-              name="ticket_number"
-              placeholder="T20260326.0018"
-              maxlength="14"
-              pattern="[Tt][0-9]{8}\.[0-9]{4}"
-              autocapitalize="characters"
-              autocomplete="off"
-              spellcheck="false"
-            >
-          </label>
-          <label>
-            <span>Client name</span>
-            <input
-              class="autotask-company-input"
-              data-company-input
-              name="client_name"
-              placeholder="Client name for reference"
-              maxlength="120"
-              autocomplete="off"
-              autocorrect="off"
-              spellcheck="false"
-            >
-          </label>
-          <input
-            type="hidden"
-            class="autotask-company-id"
-            data-company-id-input
-            name="autotask_company_id"
-            value=""
-          >
-          <div class="company-search-results" data-company-results></div>
-          <p class="company-search-status muted-text" data-company-status aria-live="polite"></p>
           <button class="primary-action-button" type="submit">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M8 5v14l11-7z"></path>

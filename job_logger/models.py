@@ -54,6 +54,13 @@ class Job(Base):
     # ticket_number is the human Autotask ticket number entered during review.
     ticket_number: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Autotask ticket number.")
 
+    # ticket_title stores the selected Autotask ticket title shown in review.
+    ticket_title: Mapped[str | None] = mapped_column(
+        String(240),
+        nullable=True,
+        comment="Selected Autotask ticket title shown as the review detail heading.",
+    )
+
     # job_slot identifies the job position while one or two jobs are active concurrently.
     # Existing jobs are labeled as slot 1 and slot 2 for the overlapping workflow.
     job_slot: Mapped[int | None] = mapped_column(

@@ -14,29 +14,24 @@ function normalizeDateValue(dateValue) {
     return null;
   }
 
-  const date = new Date(year, month - 1, day);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return {date, year, month, day};
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function formatDateValue(date) {
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
+function formatUtcDateValue(date) {
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${date.getUTCFullYear()}-${month}-${day}`;
 }
 
 function addDaysToDateString(dateValue, dayDelta) {
-  const parsed = normalizeDateValue(dateValue);
-  if (!parsed) {
+  const date = normalizeDateValue(dateValue);
+  if (!date) {
     return dateValue;
   }
 
-  const nextDate = parsed.date;
-  nextDate.setDate(nextDate.getDate() + dayDelta);
-  return formatDateValue(nextDate);
+  date.setUTCDate(date.getUTCDate() + dayDelta);
+  return formatUtcDateValue(date);
 }
 
 function padTwo(value) {
@@ -58,7 +53,10 @@ function adjustTimeField(timeFieldName, dateFieldName, deltaMinutes) {
   const hours = timeParts[0];
   const minutes = timeParts[1];
   const totalMinutes = hours * 60 + minutes + deltaMinutes;
-  const dayDelta = Math.trunc(totalMinutes / (60 * 24));
+  // The date fields represent America/Detroit calendar dates. Rollover must
+  // happen at local midnight, so the calculation stays in displayed wall-clock
+  // minutes and then applies a pure calendar-day delta.
+  const dayDelta = Math.floor(totalMinutes / (60 * 24));
   const normalizedTotalMinutes = ((totalMinutes % (60 * 24)) + (60 * 24)) % (60 * 24);
   const adjustedHours = Math.floor(normalizedTotalMinutes / 60);
   const adjustedMinutes = normalizedTotalMinutes % 60;
@@ -105,6 +103,8 @@ function bindTicketLookup() {
   const statusElement = ticketPicker.querySelector("[data-ticket-lookup-status]");
   const resultsElement = ticketPicker.querySelector("[data-ticket-lookup-results]");
   const ticketNumberInput = document.querySelector('input[name="ticket_number"]');
+  const ticketTitleInput = document.querySelector("[data-review-ticket-title-input]");
+  const ticketHeading = document.querySelector("[data-selected-ticket-heading]");
   if (!lookupUrl || !lookupButton || !statusElement || !resultsElement || !ticketNumberInput) {
     return;
   }
@@ -134,9 +134,17 @@ function bindTicketLookup() {
         optionButton.className = "ticket-option-button";
         optionButton.textContent = buildTicketOptionText(ticketOption);
         optionButton.addEventListener("click", () => {
+          const selectedTicketTitle = ticketOption.title || "";
           ticketNumberInput.value = ticketOption.ticket_number || "";
+          if (ticketTitleInput) {
+            ticketTitleInput.value = selectedTicketTitle;
+          }
+          if (ticketHeading) {
+            ticketHeading.textContent = selectedTicketTitle || "Unassigned Ticket";
+          }
           ticketNumberInput.focus();
           statusElement.textContent = `Selected ${ticketNumberInput.value}.`;
+          ticketPicker.hidden = true;
         });
         resultsElement.append(optionButton);
       }
@@ -145,6 +153,25 @@ function bindTicketLookup() {
     } finally {
       lookupButton.disabled = false;
     }
+  });
+}
+
+function bindReviewTicketTitleClearing() {
+  const ticketNumberInput = document.querySelector('input[name="ticket_number"]');
+  const ticketTitleInput = document.querySelector("[data-review-ticket-title-input]");
+  const ticketHeading = document.querySelector("[data-selected-ticket-heading]");
+  if (!ticketNumberInput || !ticketTitleInput || !ticketHeading) {
+    return;
+  }
+
+  const initialTicketNumber = ticketNumberInput.value;
+  ticketNumberInput.addEventListener("input", () => {
+    if (ticketNumberInput.value === initialTicketNumber) {
+      return;
+    }
+
+    ticketTitleInput.value = "";
+    ticketHeading.textContent = "Unassigned Ticket";
   });
 }
 
@@ -184,4 +211,5 @@ for (const reviewRow of reviewRows) {
 
 bindTimeStepButtons();
 bindTicketLookup();
+bindReviewTicketTitleClearing();
 bindReviewCompanyClearing();

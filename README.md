@@ -297,8 +297,11 @@ original query body because Autotask rejects GET follow-up calls for those
 resources.
 
 The mobile and review pages can query open Autotask tickets from the selected
-job's stored company ID or stored client name. Selecting a returned ticket fills
-the editable ticket number field; the ticket number can still be typed manually.
+job's stored company ID or stored client name. Selecting a returned ticket
+fills the mobile job's hidden ticket number, stores the selected ticket title
+for the review detail heading, and automatically saves the active-job changes.
+Once a job has a ticket number, the open-ticket picker is hidden for that job;
+clear the ticket number from review and save if the job needs another lookup.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 
@@ -334,9 +337,10 @@ If rounding would produce a zero-minute job, the end time is advanced to the nex
 
 ## Ticket Numbers
 
-The mobile page accepts an optional Autotask ticket number before or during an
-active job. When provided, the ticket number is stored with the job and prefilled
-on the desktop review page.
+The mobile page starts jobs without ticket or client fields. After work starts,
+select the client on the active job card, then choose an open Autotask ticket
+from the returned list. The ticket number is not manually editable on mobile;
+the open-ticket selection fills and saves it automatically.
 
 Ticket numbers must use the Autotask format `TYYYYMMDD.####`, for example
 `T20260326.0018`.

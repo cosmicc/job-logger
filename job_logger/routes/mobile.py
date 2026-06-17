@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import time
+
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
@@ -22,6 +24,7 @@ from job_logger.services.jobs import (
     apply_manual_summary_to_job,
     end_job,
     list_active_jobs,
+    set_active_job_rounded_start_time,
     start_job,
     transcribe_active_job_audio,
     update_active_job_ticket_number,
@@ -31,6 +34,25 @@ from job_logger.services.transcription import TranscriptionError
 from job_logger.ui import template_context, templates
 
 router = APIRouter(tags=["mobile"])
+
+
+def _rounded_start_time_options() -> list[dict[str, str]]:
+    """Return quarter-hour options for the active rounded-start selector."""
+
+    # The selector submits a local HH:MM value that is revalidated by the
+    # workflow service before any timestamp is changed.
+    time_options: list[dict[str, str]] = []
+    for hour_value in range(24):
+        for minute_value in range(0, 60, 15):
+            option_time = time(hour=hour_value, minute=minute_value)
+            time_options.append(
+                {
+                    "value": option_time.strftime("%H:%M"),
+                    "label": option_time.strftime("%I:%M %p").lstrip("0"),
+                }
+            )
+
+    return time_options
 
 
 def _autotask_start_block_message(connectivity_result: AutotaskConnectivityResult) -> str:
@@ -64,7 +86,7 @@ def mobile_page(
     return templates.TemplateResponse(
         request,
         "mobile.html",
-        template_context(request, active_jobs=active_jobs),
+        template_context(request, active_jobs=active_jobs, rounded_start_time_options=_rounded_start_time_options()),
     )
 
 
@@ -108,9 +130,6 @@ async def start_work(
     actor = require_authenticated_username(request)
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
-    submitted_ticket_number = str(form_data.get("ticket_number", ""))
-    submitted_client_name = str(form_data.get("client_name", ""))
-    submitted_autotask_company_id = str(form_data.get("autotask_company_id", ""))
 
     connectivity_result = test_autotask_connectivity()
     if not connectivity_result.available:
@@ -131,12 +150,10 @@ async def start_work(
         return RedirectResponse(url="/mobile", status_code=303)
 
     try:
-        job = start_job(
-            database_session,
-            ticket_number=submitted_ticket_number,
-            client_name=submitted_client_name,
-            autotask_company_id=submitted_autotask_company_id,
-        )
+        # New mobile jobs intentionally start blank. Client and ticket data are
+        # selected while the job is active so stale or crafted pre-start fields
+        # cannot attach the job to the wrong Autotask customer or ticket.
+        job = start_job(database_session)
         record_audit_event(
             database_session,
             actor=actor,
@@ -169,6 +186,7 @@ async def save_ticket_number(
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
     submitted_ticket_number = str(form_data.get("ticket_number", ""))
+    submitted_ticket_title = str(form_data.get("ticket_title", ""))
     raw_client_name = form_data.get("client_name")
     submitted_client_name = str(raw_client_name) if raw_client_name is not None else None
     raw_autotask_company_id = form_data.get("autotask_company_id")
@@ -182,6 +200,7 @@ async def save_ticket_number(
             submitted_ticket_number,
             submitted_client_name,
             submitted_autotask_company_id,
+            submitted_ticket_title,
         )
         if raw_summary_text is not None:
             apply_manual_summary_to_job(database_session, job_id, str(raw_summary_text))
@@ -219,16 +238,22 @@ async def adjust_start_time(
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
     delta_minutes = form_data.get("delta_minutes")
+    rounded_start_time = str(form_data.get("rounded_start_time", "")).strip()
 
     try:
-        job = adjust_active_job_rounded_start(database_session, job_id=job_id, delta_minutes=delta_minutes)
+        if rounded_start_time:
+            job = set_active_job_rounded_start_time(database_session, job_id=job_id, rounded_start_time=rounded_start_time)
+            audit_details = {"rounded_start_time": rounded_start_time}
+        else:
+            job = adjust_active_job_rounded_start(database_session, job_id=job_id, delta_minutes=delta_minutes)
+            audit_details = {"delta_minutes": delta_minutes}
         record_audit_event(
             database_session,
             actor=actor,
             action="job.rounded_start.adjusted",
             job_id=job.id,
             request=request,
-            details={"delta_minutes": delta_minutes},
+            details=audit_details,
         )
         database_session.commit()
         add_flash_message(request, "Rounded start time adjusted.", "success")

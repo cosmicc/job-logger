@@ -300,9 +300,11 @@ The normal workflow is:
 3. Before a new job can start, the server checks mandatory Autotask API
    availability. If Autotask is down or misconfigured, job creation is blocked.
 4. User starts Job 1 or Job 2. At most two active jobs may exist at once.
-5. User enters/selects an Autotask company by client name. Manual client text is
-   allowed, but selected company IDs are preferred for exact ticket lookup.
-6. User can choose an open Autotask ticket or manually type a ticket number.
+5. After the job starts, the user enters/selects an Autotask company by client
+   name. Manual client text is allowed, but selected company IDs are preferred
+   for exact ticket lookup.
+6. User chooses an open Autotask ticket from the active-job ticket list. Mobile
+   ticket numbers are populated from that selection instead of manual entry.
 7. User records notes during an active job. The record button pauses/resumes;
    the separate submit button sends audio for transcription.
 8. User can save active job edits before ending work.

@@ -38,21 +38,27 @@ Security and data-integrity requirements for start:
   the job.
 - If Autotask is unavailable, no job may be created and an audit event must be
   recorded.
-- The server must validate ticket number format when provided.
-- The server must normalize the selected Autotask company ID when provided.
+- New mobile jobs intentionally start without client, company, or ticket values.
+  The route ignores stale or crafted pre-start client/ticket fields so those
+  values can only be attached through the active-job workflow.
 - The service layer must enforce the two-active-job limit.
 
 Active jobs support these updates before completion:
 
-- Ticket number.
+- Ticket number populated by selecting an Autotask open-ticket option.
+- Selected ticket title from Autotask open-ticket lookup.
 - Client name.
 - Selected Autotask company ID while the active job has not already locked an
   Autotask company.
 - Summary notes.
-- Rounded start time in 15-minute increments.
+- Rounded start time through a server-validated 15-minute mobile time selector.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job edits, not only ticket numbers.
+
+The mobile active-job ticket number is not a manual text entry. The open-ticket
+picker writes a hidden ticket number/title pair and automatically submits the
+active-job save form after the user chooses a ticket.
 
 The active mobile card should expose only one client entry point for each job.
 After an Autotask company is selected, the active job displays that client as a
@@ -112,6 +118,12 @@ Review supports:
 
 Ticket number is intentionally required only before Autotask submission, not for
 ordinary save operations.
+
+When a ticket is selected from Autotask lookup, store the ticket title with the
+job and use it as the selected-job detail heading. If no ticket has been
+selected, the detail heading should read `Unassigned Ticket`. Once a job has a
+ticket number, hide the open-ticket lookup panel for that job until the ticket
+number is cleared.
 
 ## Job Status Expectations
 
