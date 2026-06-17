@@ -4,6 +4,9 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Removed `billingCodeID` / Allocation Code from live Autotask `TimeEntries`
+  creation so ticket time entry submissions use Autotask defaults and do not
+  require Allocation Code edit permission.
 - Made review-page ticket number and client name read-only identity fields,
   persisted review ticket selections through a CSRF-protected server endpoint,
   and kept review save/accept from trusting crafted form values for selected

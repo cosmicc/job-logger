@@ -133,7 +133,9 @@ class Settings:
     # AUTOTASK_ROLE_ID is the Autotask role for created ticket time entries.
     autotask_role_id: int | None
 
-    # AUTOTASK_BILLING_CODE_ID optionally sets the work type/allocation code.
+    # AUTOTASK_BILLING_CODE_ID is retained for legacy .env files and discovery output.
+    # Ticket time-entry submission intentionally omits billingCodeID so Autotask
+    # uses the ticket/resource defaults and does not require Allocation Code edit permission.
     autotask_billing_code_id: int | None
 
     # AUTOTASK_TIME_ENTRY_TYPE defaults to ticket time entry type 2.

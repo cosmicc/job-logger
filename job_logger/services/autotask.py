@@ -878,9 +878,6 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             "hoursWorked": float(_job_duration_hours(job)),
             "summaryNotes": job.summary_notes or job.description_text or "",
         }
-        if self.application_settings.autotask_billing_code_id is not None:
-            payload["billingCodeID"] = self.application_settings.autotask_billing_code_id
-
         response = client.post("/TimeEntries", json=payload)
         self._raise_for_safe_response(response, "Autotask time entry creation")
         response_payload = response.json()
@@ -902,7 +899,6 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 "resourceID": self.application_settings.autotask_resource_id,
                 "roleID": self.application_settings.autotask_role_id,
                 "timeEntryType": self.application_settings.autotask_time_entry_type,
-                "billingCodeID": self.application_settings.autotask_billing_code_id,
                 "impersonationResourceIDConfigured": self.application_settings.autotask_impersonation_resource_id is not None,
             }
         )

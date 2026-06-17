@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 import pytest
 
 from job_logger.config import settings
+from job_logger.enums import JobStatus, TicketStatus
+from job_logger.models import Job
 from job_logger.services.autotask import (
     _COMPANY_ID_CACHE,
     _COMPANY_SEARCH_CACHE,
@@ -164,6 +167,23 @@ class FakeCompanyConnectivityFailureClient:
         return FakeAutotaskResponse({})
 
 
+class FakeTimeEntryCreateClient:
+    """Fake Autotask client that captures the TimeEntries create payload."""
+
+    def __init__(self) -> None:
+        """Initialize payload capture used by the TimeEntries test."""
+
+        # posted_payload stores the exact JSON body sent to the fake endpoint.
+        self.posted_payload: dict[str, Any] | None = None
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Capture one TimeEntries POST and return a successful response."""
+
+        assert endpoint_path == "/TimeEntries"
+        self.posted_payload = dict(json)
+        return FakeAutotaskResponse({"itemId": 987654})
+
+
 def _live_test_provider() -> LiveAutotaskProvider:
     """Return a configured live provider without real Autotask credentials."""
 
@@ -176,6 +196,7 @@ def _live_test_provider() -> LiveAutotaskProvider:
         autotask_api_integration_code="integration-code",
         autotask_resource_id=1,
         autotask_role_id=2,
+        autotask_billing_code_id=24746620,
         autotask_status_in_progress_id=1,
         autotask_status_waiting_customer_id=2,
         autotask_status_waiting_parts_id=3,
@@ -294,3 +315,33 @@ def test_safe_autotask_error_detail_extracts_nested_error_messages() -> None:
     assert "Autotask time entry creation failed with Autotask HTTP 500" in error_message
     assert "billingCodeID is invalid" in error_message
     assert "Use a billing code available" in error_message
+
+
+def test_time_entry_creation_omits_billing_code_id() -> None:
+    """Ticket TimeEntries must not try to change Autotask allocation code."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTimeEntryCreateClient()
+    rounded_start_utc = datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="time-entry-payload-test",
+        status=JobStatus.READY_FOR_REVIEW,
+        ticket_number="T20260616.0001",
+        ticket_status=TicketStatus.COMPLETE,
+        summary_notes="Payload must not include allocation code.",
+        description_text="Payload must not include allocation code.",
+        raw_start_utc=rounded_start_utc,
+        raw_end_utc=rounded_start_utc + timedelta(minutes=30),
+        rounded_start_utc=rounded_start_utc,
+        rounded_end_utc=rounded_start_utc + timedelta(minutes=30),
+    )
+
+    external_id = provider._create_time_entry(fake_client, job, ticket_id=123456)
+
+    assert external_id == "987654"
+    assert fake_client.posted_payload is not None
+    assert fake_client.posted_payload["ticketID"] == 123456
+    assert fake_client.posted_payload["resourceID"] == 1
+    assert fake_client.posted_payload["roleID"] == 2
+    assert fake_client.posted_payload["timeEntryType"] == 2
+    assert "billingCodeID" not in fake_client.posted_payload

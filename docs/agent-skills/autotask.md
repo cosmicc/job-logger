@@ -152,8 +152,12 @@ Required live Autotask values include:
 - Role ID.
 - Time entry type.
 - Tenant-specific ticket status picklist IDs.
-- Billing code ID when configured.
 - Impersonation resource ID when configured.
+
+Ticket `TimeEntries` creation must not include `billingCodeID`. Autotask labels
+that as Allocation Code, and tenants can reject it unless the API resource has
+permission to change allocation codes. Let Autotask use the ticket/resource
+defaults instead.
 
 `AUTOTASK_IMPERSONATION_RESOURCE_ID` should be blank by default. When blank, the
 provider omits `ImpersonationResourceId` and Autotask evaluates the API user's

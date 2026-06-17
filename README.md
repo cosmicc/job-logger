@@ -308,6 +308,12 @@ the open-ticket picker is hidden for that job.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 
+Ticket `TimeEntries` payloads intentionally omit `billingCodeID` / Allocation
+Code values. Autotask will use the ticket/resource defaults, which avoids
+requiring the API resource to have Allocation Code edit permission for ticket
+time entries. Existing `AUTOTASK_BILLING_CODE_ID` values in `.env` are ignored
+by the submit payload.
+
 Leave `AUTOTASK_IMPERSONATION_RESOURCE_ID` blank unless Autotask specifically
 requires impersonation for your tenant. When blank, Job Logger omits the
 `ImpersonationResourceId` header and uses the API user's own permissions. If the
