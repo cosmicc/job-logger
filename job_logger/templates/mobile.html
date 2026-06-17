@@ -62,7 +62,7 @@
               <div class="metric-card work-location-card" aria-label="Work type">
                 <dd>
                   {% set selected_work_location = active_job.work_location.value if active_job.work_location else "remote" %}
-                  <fieldset class="segmented-toggle work-location-toggle" data-work-location-toggle aria-label="Work type">
+                  <div class="work-location-switch" data-work-location-toggle role="radiogroup" aria-label="Work type">
                     <label>
                       <input
                         type="radio"
@@ -85,7 +85,7 @@
                       >
                       <span>On-Site</span>
                     </label>
-                  </fieldset>
+                  </div>
                 </dd>
               </div>
               {% if active_job.autotask_company_id %}
@@ -107,6 +107,13 @@
               >
                 <dt>Ticket name</dt>
                 <dd class="active-ticket-title-display" data-active-ticket-title-display>{{ active_job.ticket_title or "" }}</dd>
+              </div>
+              <div
+                class="metric-card ticket-description-card {% if not active_job.ticket_description %}is-hidden{% endif %}"
+                data-active-ticket-description-card
+              >
+                <dt>Ticket description</dt>
+                <dd class="active-ticket-description-display" data-active-ticket-description-display>{{ active_job.ticket_description or "" }}</dd>
               </div>
             </dl>
 
@@ -168,6 +175,12 @@
                 name="ticket_title"
                 value="{{ active_job.ticket_title or '' }}"
               >
+              <input
+                type="hidden"
+                class="active-ticket-description"
+                name="ticket_description"
+                value="{{ active_job.ticket_description or '' }}"
+              >
               <input type="hidden" class="active-job-summary" name="summary_notes" value="">
             </form>
 
@@ -227,13 +240,14 @@
                   class="secondary-button record-notes-button"
                   type="button"
                   data-job-id="{{ active_job.id }}"
+                  aria-pressed="false"
                 >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
                     <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                     <path d="M12 19v3"></path>
                   </svg>
-                  Record Notes
+                  Record Audio
                 </button>
               </div>
               <div class="work-finish-stack">

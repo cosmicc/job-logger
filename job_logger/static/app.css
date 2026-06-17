@@ -528,7 +528,8 @@ a:focus-visible {
 }
 
 .ticket-number-card,
-.ticket-title-card {
+.ticket-title-card,
+.ticket-description-card {
   display: grid;
   gap: 5px;
 }
@@ -536,69 +537,85 @@ a:focus-visible {
 .ticket-number-card dd,
 .ticket-number-card strong,
 .ticket-title-card dd,
-.ticket-title-card strong {
+.ticket-title-card strong,
+.ticket-description-card dd,
+.ticket-description-card strong {
   overflow-wrap: anywhere;
   color: var(--text);
   font-size: 15px;
 }
 
-/* Work type is a quick mode toggle, so it stays compact and horizontal. */
+.ticket-description-card dd,
+.ticket-description-card p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 .work-location-card {
-  display: flex;
-  min-height: 44px;
+  display: grid;
+  min-height: 42px;
   align-items: center;
-  padding: 7px 10px;
+  padding: 8px 10px;
 }
 
 .work-location-card dd {
   display: flex;
   align-items: center;
+  justify-content: center;
   margin: 0;
 }
 
-.work-location-toggle.segmented-toggle {
+.work-location-switch {
+  --switch-control-size: 30px;
   display: inline-flex;
-  width: auto;
-  max-width: none;
-  min-height: 0;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 999px;
-}
-
-.work-location-toggle.segmented-toggle label {
-  display: inline-flex;
-  flex: 0 0 auto;
-}
-
-.work-location-toggle.segmented-toggle input[type="radio"] {
-  position: absolute;
-  inset: auto;
-  width: 1px;
-  min-width: 1px;
-  height: 1px;
-  min-height: 1px;
-  margin: 0;
-  padding: 0;
+  align-items: center;
+  width: fit-content;
   overflow: hidden;
-  border: 0;
-  opacity: 0;
-  appearance: none;
-  clip: rect(0, 0, 0, 0);
+  border: 1px solid rgba(154, 168, 188, 0.28);
+  border-radius: 999px;
+  background: rgba(11, 18, 32, 0.58);
 }
 
-.work-location-toggle.segmented-toggle span {
-  min-height: 24px;
-  padding: 0 9px;
+.work-location-switch label {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.work-location-switch input[type="radio"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.work-location-switch span {
+  display: grid;
+  min-height: var(--switch-control-size);
+  min-width: 70px;
+  place-items: center;
+  padding: 0 10px;
   border-radius: 999px;
-  font-size: 11px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
   line-height: 1;
   white-space: nowrap;
+  pointer-events: none;
 }
 
-.work-location-toggle.segmented-toggle input[type="radio"]:focus-visible + span {
+.work-location-switch input[type="radio"]:checked + span {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.work-location-switch input[type="radio"]:focus-visible + span {
   outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .segmented-toggle {
@@ -700,25 +717,35 @@ a:focus-visible {
   width: 100%;
 }
 
-.rounded-start-time-form {
+.rounded-start-time-form,
+.time-step-controls {
   display: grid;
-  grid-template-columns: minmax(48px, auto) minmax(0, 1fr) minmax(48px, auto);
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   margin: 0;
 }
 
-.rounded-start-time-form .time-step-button {
+.rounded-start-time-form .time-step-button,
+.time-step-controls .time-step-button {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
   min-height: 36px;
-  padding: 7px 9px;
+  padding: 0;
   font-size: 13px;
+  justify-content: center;
 }
 
-.rounded-start-time-display {
+.rounded-start-time-display,
+.time-step-controls .time-field-input {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 36px;
   place-items: center;
-  padding: 7px 10px;
+  padding: 7px 6px;
   text-align: center;
   white-space: nowrap;
 }
@@ -732,9 +759,14 @@ a:focus-visible {
 }
 
 .is-recording {
-  border-color: rgba(245, 158, 11, 0.5);
-  background: var(--warning-soft);
-  color: var(--warning);
+  border-color: rgba(248, 113, 113, 0.78);
+  background: var(--danger);
+  color: var(--on-danger);
+}
+
+.is-recording:hover {
+  background: #fb8181;
+  color: var(--on-danger);
 }
 
 .recent-list {
@@ -881,6 +913,25 @@ td a {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-muted);
+}
+
+.readonly-context-card {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.readonly-context-card p {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .readonly-field-title,

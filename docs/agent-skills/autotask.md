@@ -84,37 +84,38 @@ Important rules:
 - On the active mobile card, a selected Autotask company is locked and should
   be shown as read-only so the visible client name cannot drift away from the
   company ID used for ticket lookup.
-- On review, stored client name, company ID, ticket number, and ticket title
-  are read-only identity fields. Save/accept handlers must overlay those values
-  from the database before validation so crafted form posts cannot change which
-  Autotask ticket receives time.
+- On review, stored client name, company ID, ticket number, ticket title, and
+  ticket description are read-only identity/context fields. Save/accept
+  handlers must overlay those values from the database before validation so
+  crafted form posts cannot change which Autotask ticket receives time or what
+  ticket context is displayed.
 
 Ticket lookup uses `/review/{job_id}/tickets`.
 
 Ticket lookup should prefer the stored Autotask company ID. If no company ID is
 stored, it can fall back to client-name matching.
 
-Ticket options returned to the browser include safe ticket number, title, status
-label, and company name. Review ticket selection uses
+Ticket options returned to the browser include safe ticket number, title,
+bounded description, status label, and company name. Review ticket selection uses
 `POST /review/{job_id}/ticket`; the route uses the server-verified open-ticket
 list that was just loaded when the short-lived selection cache is available,
 falls back to re-querying Autotask when that cache is expired or absent,
 verifies the submitted ticket number is valid for the job's stored
-client/company, then persists the ticket number and title as local job metadata.
-The review detail heading can then show the chosen ticket name without
-repeatedly querying Autotask.
+client/company, then persists the ticket number, title, and bounded description
+as local job metadata. The review detail heading and ticket-description card can
+then show the chosen ticket context without repeatedly querying Autotask.
 
 On mobile, ticket numbers are populated from the open-ticket picker instead of
 manual entry. The ticket choice posts to `POST /jobs/{job_id}/ticket`; that
 route uses the same server-side selection cache or a fresh Autotask lookup,
 verifies the selected ticket is valid for that job, and persists the ticket
-number and title returned by the provider. The mobile **Find tickets** button first
+number, title, and bounded description returned by the provider. The mobile **Find tickets** button first
 saves the active job's current client fields through
 `POST /jobs/{job_id}/ticket-number` with a JSON response, then loads open
 tickets from the server-verified lookup endpoint. After mobile or review
 selection succeeds, the UI hides the open-ticket list and updates visible ticket
-number/title fields from the verified JSON response rather than trusting the
-clicked browser option.
+number/title/description fields from the verified JSON response rather than
+trusting the clicked browser option.
 
 ## Caching Rules
 
@@ -148,7 +149,7 @@ the click-to-save path fast; it is not a durable authorization source.
 
 Autotask query endpoints are paginated.
 
-Live Companies and Tickets queries must:
+Live broad Companies and Tickets queries must:
 
 - Request `MaxRecords=500`.
 - Follow `pageDetails.nextPageUrl` when provided.
@@ -157,6 +158,13 @@ Live Companies and Tickets queries must:
 - Bound pagination to avoid runaway loops.
 - Fail safely if the result set exceeds the supported pagination bound instead
   of silently showing partial results.
+
+Interactive open-ticket picker queries are intentionally narrower than broad
+diagnostic or discovery queries. When a job already has a selected Autotask
+company ID, use that exact company, request only the fields needed by the
+picker, filter out completed tickets in the Autotask query, and request only the
+first small picker page. The server still caches that returned list briefly and
+validates a clicked ticket against it before persisting the ticket number.
 
 ## Submission Rules
 

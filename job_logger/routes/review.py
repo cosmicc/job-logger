@@ -112,6 +112,7 @@ def review_ticket_options(
                 {
                     "ticket_number": ticket_option.ticket_number,
                     "title": ticket_option.title,
+                    "description": ticket_option.description,
                     "status_label": ticket_option.status_label,
                     "company_name": ticket_option.company_name,
                 }
@@ -135,6 +136,7 @@ def _read_only_review_form_values(form_values: dict[str, str], job: object) -> d
     locked_form_values = dict(form_values)
     locked_form_values["ticket_number"] = getattr(job, "ticket_number", None) or ""
     locked_form_values["ticket_title"] = getattr(job, "ticket_title", None) or ""
+    locked_form_values["ticket_description"] = getattr(job, "ticket_description", None) or ""
     locked_form_values["client_name"] = getattr(job, "client_name", None) or ""
     autotask_company_id = getattr(job, "autotask_company_id", None)
     locked_form_values["autotask_company_id"] = str(autotask_company_id) if autotask_company_id is not None else ""
@@ -339,6 +341,7 @@ async def select_review_ticket(
             job,
             selected_ticket_option.ticket_number,
             selected_ticket_option.title,
+            selected_ticket_option.description,
         )
         record_audit_event(
             database_session,
@@ -349,6 +352,7 @@ async def select_review_ticket(
             details={
                 "ticket_number": job.ticket_number,
                 "ticket_title_present": bool(job.ticket_title),
+                "ticket_description_present": bool(job.ticket_description),
                 "autotask_company_selected": job.autotask_company_id is not None,
             },
         )
@@ -361,6 +365,7 @@ async def select_review_ticket(
         {
             "ticket_number": job.ticket_number,
             "ticket_title": job.ticket_title,
+            "ticket_description": job.ticket_description,
         }
     )
 

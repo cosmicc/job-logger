@@ -210,21 +210,19 @@ function setRecordingUi({
   }
 
   controls.recordButton.disabled = isUploading;
+  controls.recordButton.setAttribute("aria-pressed", isRecording ? "true" : "false");
 
   if (isUploading) {
     controls.recordButton.classList.remove("is-recording");
-    controls.recordButton.textContent = "Processing notes...";
     return;
   }
 
   if (isRecording) {
     controls.recordButton.classList.add("is-recording");
-    controls.recordButton.textContent = "Stop Notes";
     return;
   }
 
   controls.recordButton.classList.remove("is-recording");
-  controls.recordButton.textContent = "Record Notes";
 }
 
 function setAllRecordingControlsIdle() {
@@ -664,10 +662,13 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
 
   const ticketNumber = toSafeMapString(selectedTicket.ticket_number).trim().toUpperCase();
   const ticketTitle = toSafeMapString(selectedTicket.ticket_title || selectedTicket.title).trim();
+  const ticketDescription = toSafeMapString(selectedTicket.ticket_description || selectedTicket.description).trim();
   const ticketNumberCard = activeJobCard.querySelector("[data-active-ticket-number-card]");
   const ticketNumberDisplay = activeJobCard.querySelector("[data-active-ticket-number-display]");
   const ticketTitleCard = activeJobCard.querySelector("[data-active-ticket-title-card]");
   const ticketTitleDisplay = activeJobCard.querySelector("[data-active-ticket-title-display]");
+  const ticketDescriptionCard = activeJobCard.querySelector("[data-active-ticket-description-card]");
+  const ticketDescriptionDisplay = activeJobCard.querySelector("[data-active-ticket-description-display]");
 
   if (ticketNumberCard && ticketNumber) {
     ticketNumberCard.classList.remove("is-hidden");
@@ -681,6 +682,13 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   }
   if (ticketTitleDisplay) {
     ticketTitleDisplay.textContent = ticketTitle;
+  }
+
+  if (ticketDescriptionCard) {
+    ticketDescriptionCard.classList.toggle("is-hidden", !ticketDescription);
+  }
+  if (ticketDescriptionDisplay) {
+    ticketDescriptionDisplay.textContent = ticketDescription;
   }
 }
 
@@ -749,6 +757,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
         const activeTicketForm = findActiveTicketForm(jobId);
         const ticketInput = activeTicketForm ? activeTicketForm.querySelector(".active-ticket-number") : null;
         const ticketTitleInput = activeTicketForm ? activeTicketForm.querySelector(".active-ticket-title") : null;
+        const ticketDescriptionInput = activeTicketForm ? activeTicketForm.querySelector(".active-ticket-description") : null;
         if (!ticketInput) {
           return;
         }
@@ -764,6 +773,9 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
             if (ticketTitleInput) {
               ticketTitleInput.value = toSafeMapString(selectedTicket.ticket_title).trim();
             }
+            if (ticketDescriptionInput) {
+              ticketDescriptionInput.value = toSafeMapString(selectedTicket.ticket_description).trim();
+            }
             updateActiveTicketDisplay(jobId, selectedTicket);
             return;
           }
@@ -771,6 +783,9 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
           ticketInput.value = toSafeMapString(ticketOption.ticket_number).trim().toUpperCase();
           if (ticketTitleInput) {
             ticketTitleInput.value = toSafeMapString(ticketOption.title).trim();
+          }
+          if (ticketDescriptionInput) {
+            ticketDescriptionInput.value = toSafeMapString(ticketOption.description).trim();
           }
           updateActiveTicketDisplay(jobId, ticketOption);
           submitFormWithCurrentFields(activeTicketForm);

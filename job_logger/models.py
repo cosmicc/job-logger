@@ -61,6 +61,15 @@ class Job(Base):
         comment="Selected Autotask ticket title shown as the review detail heading.",
     )
 
+    # ticket_description stores bounded read-only context from the selected
+    # Autotask ticket. It is displayed to help review the correct ticket but is
+    # not submitted as time-entry notes.
+    ticket_description: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Selected Autotask ticket description shown as read-only job context.",
+    )
+
     # job_slot identifies the job position while one or two jobs are active concurrently.
     # Existing jobs are labeled as slot 1 and slot 2 for the overlapping workflow.
     job_slot: Mapped[int | None] = mapped_column(

@@ -49,6 +49,8 @@ Active jobs support these updates before completion:
 
 - Ticket number populated by selecting an Autotask open-ticket option.
 - Selected ticket title from Autotask open-ticket lookup.
+- Selected ticket description from Autotask open-ticket lookup, displayed as
+  read-only context after a ticket is chosen.
 - Client name.
 - Selected Autotask company ID while the active job has not already locked an
   Autotask company.
@@ -66,14 +68,14 @@ The mobile active-job ticket number is not a manual text entry. The open-ticket
 picker posts the clicked ticket number to `POST /jobs/{job_id}/ticket`. That
 route uses the recently loaded server-side open-ticket selection cache when it
 is still fresh, falls back to a live Autotask lookup when needed, verifies the
-submitted ticket belongs to that safe list, stores the ticket number and title,
-and records an audit event. When an active job has no ticket number, the mobile
-page shows the open-ticket panel under the client field. The **Find tickets**
-button saves the current active client fields before querying Autotask, and a
-job that already has a saved client auto-loads the picker. After selection, the
-browser should immediately hide the open-ticket panel and show both the selected
-ticket number and ticket title in Work in Progress without waiting for a page
-reload.
+submitted ticket belongs to that safe list, stores the ticket number, title,
+and bounded ticket description, and records an audit event. When an active job
+has no ticket number, the mobile page shows the open-ticket panel under the
+client field. The **Find tickets** button saves the current active client fields
+before querying Autotask, and a job that already has a saved client auto-loads
+the picker. After selection, the browser should immediately hide the open-ticket
+panel and show the selected ticket number, ticket title, and ticket description
+in Work in Progress without waiting for a page reload.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
@@ -113,17 +115,18 @@ Mobile recording is browser-side in `job_logger/static/mobile.js`.
 
 Current behavior:
 
-- Record starts audio capture.
-- Record button becomes Stop while capture is active.
+- Record Audio starts audio capture.
+- The Record Audio button keeps the same text while recording and turns red as
+  the recording-state indicator.
 - The browser opens `WebSocket /jobs/{job_id}/description/audio/stream`,
   sends CSRF-protected stream metadata first, then streams `MediaRecorder`
   audio chunks as binary WebSocket messages.
 - The server starts an interim transcription attempt as soon as the first chunk
   arrives. The current faster-whisper provider is batch-oriented, so interim
   text is best-effort from the buffered media snapshot.
-- Stop ends browser capture, lets `MediaRecorder` flush its final chunk, sends
-  WebSocket `finish`, and keeps the control disabled until the final transcript
-  or a bounded error response returns. The legacy
+- Clicking Record Audio again ends browser capture, lets `MediaRecorder` flush
+  its final chunk, sends WebSocket `finish`, and keeps the control disabled
+  until the final transcript or a bounded error response returns. The legacy
   `POST /jobs/{job_id}/description/audio` endpoint remains as a compatibility
   upload path, but the mobile UI should use the WebSocket stream.
 - Raw audio is not permanently stored by default.
@@ -157,18 +160,20 @@ ordinary save operations.
 Review ticket selection persists through `POST /review/{job_id}/ticket`. The
 route uses the recently loaded server-side open-ticket selection cache when it
 is still fresh, falls back to a live Autotask lookup when needed, verifies the
-submitted ticket number belongs to that safe list, stores the ticket number and
-title, and records an audit event. Do not trust browser-supplied ticket title,
-ticket number, client name, or company ID values on review save/accept; the
-route must overlay those fields from the stored job before validation.
+submitted ticket number belongs to that safe list, stores the ticket number,
+title, and bounded ticket description, and records an audit event. Do not trust
+browser-supplied ticket title, ticket description, ticket number, client name,
+or company ID values on review save/accept; the route must overlay those fields
+from the stored job before validation.
 
 When a ticket is selected from Autotask lookup, store the ticket title with the
 job and use it as the selected-job detail heading. If no ticket has been
 selected, the detail heading should read `Unassigned Ticket`. Older jobs that
 have a ticket number but no stored title may display the ticket number as a
 fallback. Once a job has a ticket number, hide the open-ticket lookup panel for
-that job. Review ticket selection should update the read-only ticket number and
-selected-job heading in place after the server verifies and stores the ticket.
+that job. Review ticket selection should update the read-only ticket number,
+selected-job heading, and read-only ticket description card in place after the
+server verifies and stores the ticket.
 
 ## Job Status Expectations
 

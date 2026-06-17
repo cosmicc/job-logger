@@ -108,6 +108,12 @@
                 name="ticket_title"
                 value="{{ selected_job.ticket_title or '' }}"
               >
+              <input
+                type="hidden"
+                data-review-ticket-description-input
+                name="ticket_description"
+                value="{{ selected_job.ticket_description or '' }}"
+              >
               <label>
                 <span>Ticket status</span>
                 <select name="ticket_status" required>
@@ -233,6 +239,15 @@
                 <div class="ticket-picker-results" data-ticket-lookup-results></div>
               </section>
             {% endif %}
+
+            <section
+              class="ticket-description-card readonly-context-card {% if not selected_job.ticket_description %}is-hidden{% endif %}"
+              data-review-ticket-description-card
+              aria-label="Selected ticket description"
+            >
+              <span class="metric-label readonly-field-title">Ticket description</span>
+              <p data-review-ticket-description-display>{{ selected_job.ticket_description or "" }}</p>
+            </section>
 
             <label class="wide-field">
               <span>Summary notes</span>

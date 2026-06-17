@@ -317,13 +317,18 @@ job's stored company ID or stored client name. On mobile, the **Find tickets**
 button saves the current active-job client fields before loading open tickets,
 and saved clients auto-load the list when the Work in Progress card renders.
 Selecting a returned ticket fills the mobile job's hidden ticket number, stores
-the selected ticket title for the review detail heading, and automatically saves
-the active-job changes or review ticket selection. The mobile Work in Progress
-card shows both the selected ticket number and ticket name after selection. On
-the review page, the stored ticket number and client name are read-only identity
-fields; review save and submit use the stored values instead of trusting form
-posts. Once a job has a ticket number, the open-ticket picker is hidden for that
-job.
+the selected ticket title for the review detail heading, stores the bounded
+ticket description for read-only context, and automatically saves the active-job
+changes or review ticket selection. The mobile Work in Progress card shows the
+selected ticket number, ticket name, and ticket description after selection. On
+the review page, the stored ticket number, ticket description, and client name
+are read-only identity/context fields; review save and submit use the stored
+values instead of trusting form posts. Once a job has a ticket number, the
+open-ticket picker is hidden for that job.
+
+The shared page data is styled through `app.css`, then viewport-specific
+`phone.css` or `desktop.css` loads automatically with media queries so phones
+and desktop browsers get appropriately sized layouts.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 

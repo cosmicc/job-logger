@@ -107,6 +107,9 @@ function bindTicketLookup() {
   const ticketNumberInput = document.querySelector("[data-review-ticket-number-input]");
   const ticketNumberDisplay = document.querySelector("[data-review-ticket-number-display]");
   const ticketTitleInput = document.querySelector("[data-review-ticket-title-input]");
+  const ticketDescriptionInput = document.querySelector("[data-review-ticket-description-input]");
+  const ticketDescriptionCard = document.querySelector("[data-review-ticket-description-card]");
+  const ticketDescriptionDisplay = document.querySelector("[data-review-ticket-description-display]");
   const ticketHeading = document.querySelector("[data-selected-ticket-heading]");
   const selectedRowTicketDisplay = document.querySelector("[data-review-selected-row-ticket]");
   if (!lookupUrl || !ticketSelectUrl || !lookupButton || !statusElement || !resultsElement || !ticketNumberInput) {
@@ -134,12 +137,22 @@ function bindTicketLookup() {
   function updateSelectedTicketDisplay(selectedTicket) {
     const selectedTicketNumber = selectedTicket.ticket_number || "";
     const selectedTicketTitle = selectedTicket.ticket_title || "";
+    const selectedTicketDescription = selectedTicket.ticket_description || "";
     ticketNumberInput.value = selectedTicketNumber;
     if (ticketNumberDisplay) {
       ticketNumberDisplay.textContent = selectedTicketNumber || "Unassigned Ticket";
     }
     if (ticketTitleInput) {
       ticketTitleInput.value = selectedTicketTitle;
+    }
+    if (ticketDescriptionInput) {
+      ticketDescriptionInput.value = selectedTicketDescription;
+    }
+    if (ticketDescriptionDisplay) {
+      ticketDescriptionDisplay.textContent = selectedTicketDescription;
+    }
+    if (ticketDescriptionCard) {
+      ticketDescriptionCard.classList.toggle("is-hidden", !selectedTicketDescription);
     }
     if (ticketHeading) {
       ticketHeading.textContent = selectedTicketTitle || selectedTicketNumber || "Unassigned Ticket";

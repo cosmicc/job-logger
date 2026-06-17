@@ -71,6 +71,7 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
     assert select_ticket_response.json() == {
         "ticket_number": "T20260616.0001",
         "ticket_title": "Mock open ticket for Acme Energy",
+        "ticket_description": "Mock ticket description for Acme Energy.",
     }
 
     end_response = authenticated_client.post(
@@ -274,11 +275,13 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'name="delta_minutes"' in page_html
     assert 'value="-15"' in page_html
     assert 'value="15"' in page_html
+    assert 'class="work-location-switch"' in page_html
     assert 'data-work-location-toggle' in page_html
     assert 'name="work_location"' in page_html
     assert 'value="remote"' in page_html
     assert 'value="on_site"' in page_html
     assert "<dt>Work type</dt>" not in page_html
+    assert 'class="segmented-toggle work-location-toggle"' not in page_html
     assert 'data-active-ticket-picker' in page_html
     assert f'data-ticket-select-url="/jobs/{active_job_id}/ticket"' in page_html
     assert 'data-auto-load-ticket-options="true"' in page_html
@@ -288,7 +291,8 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert page_html.index(f'id="active-ticket-form-{active_job_id}"') < page_html.index("<h3>Open tickets</h3>")
     assert 'class="secondary-button active-save-button"' in page_html
     assert "submit-notes-button" not in page_html
-    assert page_html.index("Summary notes") < page_html.index("Save Active Changes") < page_html.index("Record Notes")
+    assert page_html.index("Summary notes") < page_html.index("Save Active Changes") < page_html.index("Record Audio")
+    assert "Record Notes" not in page_html
     assert "Autotask ticket number" not in page_html
     assert 'class="active-ticket-number"' in page_html
     assert 'pattern="[Tt][0-9]{8}\\.[0-9]{4}"' not in page_html
@@ -510,6 +514,7 @@ def test_review_ticket_lookup_returns_open_tickets_for_job_client(authenticated_
     assert response_payload["autotask_company_id"] == 1001
     assert response_payload["tickets"][0]["ticket_number"] == "T20260616.0001"
     assert response_payload["tickets"][0]["company_name"] == "Ticket Lookup Client"
+    assert response_payload["tickets"][0]["description"] == "Mock ticket description for Ticket Lookup Client."
 
 
 def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authenticated_client: TestClient) -> None:
@@ -557,6 +562,7 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
     assert select_ticket_response.json() == {
         "ticket_number": "T20260616.0001",
         "ticket_title": "Mock open ticket for Ticket Title Client",
+        "ticket_description": "Mock ticket description for Ticket Title Client.",
     }
 
     with database.SessionLocal() as database_session:
@@ -564,12 +570,14 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
         assert reviewed_job is not None
         assert reviewed_job.ticket_number == "T20260616.0001"
         assert reviewed_job.ticket_title == "Mock open ticket for Ticket Title Client"
+        assert reviewed_job.ticket_description == "Mock ticket description for Ticket Title Client."
         assert reviewed_job.client_name == "Ticket Title Client"
         assert reviewed_job.autotask_company_id == 1001
 
     updated_review_page_response = authenticated_client.get(f"/review/{active_job_id}")
     updated_review_html = updated_review_page_response.text
     assert "Mock open ticket for Ticket Title Client" in updated_review_html
+    assert "Mock ticket description for Ticket Title Client." in updated_review_html
     assert "Unassigned Ticket" not in updated_review_html
     assert "data-ticket-picker" not in updated_review_html
     assert 'class="readonly-field-value" data-review-ticket-number-display' in updated_review_html
@@ -587,6 +595,7 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
             "csrf_token": review_csrf_token,
             "ticket_number": "T20260616.9999",
             "ticket_title": "Wrong ticket title",
+            "ticket_description": "Wrong ticket description",
             "ticket_status": "complete",
             "client_name": "Wrong Client",
             "autotask_company_id": "2002",
@@ -605,6 +614,7 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
         assert reviewed_job is not None
         assert reviewed_job.ticket_number == "T20260616.0001"
         assert reviewed_job.ticket_title == "Mock open ticket for Ticket Title Client"
+        assert reviewed_job.ticket_description == "Mock ticket description for Ticket Title Client."
         assert reviewed_job.client_name == "Ticket Title Client"
         assert reviewed_job.autotask_company_id == 1001
         assert reviewed_job.summary_notes == "Review save must not rewrite read-only identity fields."
@@ -860,6 +870,7 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
     assert select_ticket_response.json() == {
         "ticket_number": "T20260616.0001",
         "ticket_title": "Mock open ticket for Mobile Ticket Client",
+        "ticket_description": "Mock ticket description for Mobile Ticket Client.",
     }
 
     with database.SessionLocal() as database_session:
@@ -867,6 +878,7 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
         assert active_job is not None
         assert active_job.ticket_number == "T20260616.0001"
         assert active_job.ticket_title == "Mock open ticket for Mobile Ticket Client"
+        assert active_job.ticket_description == "Mock ticket description for Mobile Ticket Client."
 
     updated_mobile_page_response = authenticated_client.get("/mobile")
     updated_mobile_html = updated_mobile_page_response.text
@@ -875,7 +887,9 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
     assert '<dt>Ticket name</dt>' in updated_mobile_html
     assert "T20260616.0001" in updated_mobile_html
     assert "Mock open ticket for Mobile Ticket Client" in updated_mobile_html
+    assert "Mock ticket description for Mobile Ticket Client." in updated_mobile_html
     assert "data-active-ticket-title-card" in updated_mobile_html
+    assert "data-active-ticket-description-card" in updated_mobile_html
 
 
 def test_mobile_selected_ticket_title_drives_review_heading(authenticated_client: TestClient) -> None:

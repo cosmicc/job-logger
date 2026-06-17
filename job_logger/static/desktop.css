@@ -1,0 +1,48 @@
+/* Desktop browser page style: same server-rendered data, wider scanning layout. */
+
+.review-shell {
+  width: min(1400px, calc(100% - 36px));
+}
+
+.review-layout {
+  grid-template-columns: minmax(600px, 1.55fr) minmax(390px, 1fr);
+}
+
+.table-wrap {
+  overflow-x: visible;
+}
+
+.review-table {
+  table-layout: fixed;
+}
+
+.review-table th,
+.review-table td {
+  max-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mobile-shell {
+  width: min(820px, calc(100% - 36px));
+}
+
+.work-panel {
+  padding: 24px;
+}
+
+.metric-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.client-name-card,
+.ticket-description-card,
+.description-box,
+.mobile-ticket-picker,
+.active-save-button,
+.button-grid {
+  grid-column: 1 / -1;
+}
+
+.time-step-controls {
+  grid-template-columns: 36px minmax(92px, 1fr) 36px;
+}

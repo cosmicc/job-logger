@@ -4,6 +4,17 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Renamed the mobile recording control to **Record Audio** and kept that label
+  fixed across idle, recording, and finalizing states. Recording is now shown
+  by a red button state that clears immediately when the user clicks the button
+  again to stop capture while the existing WebSocket stream finalizes and
+  returns the transcript to summary notes.
+- Added automatic phone and desktop stylesheet loading, tightened the review
+  detail `-15` / time / `+15` controls so the time input no longer pushes the
+  buttons out of line, and added read-only selected-ticket description cards on
+  mobile Work in Progress and review detail. The description is captured from
+  the server-verified Autotask ticket lookup and is not used as submitted time
+  notes.
 - Started source-controlled application versioning at `0.0.1`, aligned package
   metadata to that value, and displayed the current version on the authenticated
   diagnostics page.
@@ -21,6 +32,11 @@ All recorded changes to Job Logger are documented in this file.
 - Moved the editable active-job client name field above the Work in Progress
   open-ticket list so the ticket choices always appear directly under the
   client they belong to.
+- Restyled the Work in Progress Remote/On-Site selector as a compact switch,
+  made the rounded-start `-15` and `+15` controls square buttons on either side
+  of the time, and narrowed Autotask open-ticket picker queries so they request
+  a small server-filtered open-ticket page instead of every ticket for the
+  selected company.
 - Replaced the mobile Work in Progress rounded-start dropdown with compact
   `-15` and `+15` minute buttons on either side of the displayed rounded start
   time.
@@ -32,10 +48,9 @@ All recorded changes to Job Logger are documented in this file.
   accepting audio bytes, starts best-effort interim transcription when the first
   chunk arrives, saves the final transcript on `finish`, keeps raw audio
   in-memory only, and adds Nginx WebSocket proxy support for the stream route.
-- Simplified the mobile recorder to a single **Record Notes** / **Stop Notes**
-  button. Stopping capture now flushes the final browser audio chunk, sends the
-  WebSocket finish message, and keeps the control disabled while the streamed
-  transcription completes.
+- Simplified the mobile recorder to one button. Stopping capture now flushes
+  the final browser audio chunk, sends the WebSocket finish message, and keeps
+  the control disabled while the streamed transcription completes.
 - Added a short server-side cache for open-ticket selection lists so choosing a
   ticket that was just loaded does not perform a second live Autotask ticket
   query, and made the mobile picker hide immediately on selection before the

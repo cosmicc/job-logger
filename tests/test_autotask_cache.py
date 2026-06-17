@@ -130,8 +130,8 @@ class FakeOpenTicketLookupClient:
     def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
         """Return company or ticket query responses based on the requested endpoint."""
 
-        assert json["MaxRecords"] == 500
         if endpoint_path == "/Companies/query":
+            assert json["MaxRecords"] == 500
             self.company_query_count += 1
             return FakeAutotaskResponse(
                 {
@@ -141,6 +141,11 @@ class FakeOpenTicketLookupClient:
             )
 
         if endpoint_path == "/Tickets/query":
+            assert json["MaxRecords"] == 25
+            assert json["IncludeFields"] == ["id", "ticketNumber", "title", "description", "status", "completedDate"]
+            assert {"op": "eq", "field": "companyID", "value": 1001} in json["filter"]
+            assert {"op": "notExist", "field": "completedDate"} in json["filter"]
+            assert {"op": "noteq", "field": "status", "value": 5} in json["filter"]
             self.ticket_query_count += 1
             return FakeAutotaskResponse(
                 {
@@ -148,6 +153,7 @@ class FakeOpenTicketLookupClient:
                         {
                             "ticketNumber": "T20260616.0001",
                             "title": "Cached open ticket",
+                            "description": "Cached open ticket description.",
                             "status": 1,
                         },
                         {
@@ -375,6 +381,7 @@ def test_open_ticket_lookup_reuses_recent_server_verified_list(monkeypatch: pyte
 
     monkeypatch.setattr(provider, "_client", fake_client_context)
 
+    provider._query_companies_by_name(fake_client, "Fast Client")
     first_lookup = provider.list_open_tickets_for_client("Fast Client", autotask_company_id=1001)
     second_lookup = provider.list_open_tickets_for_client("Fast Client", autotask_company_id=1001)
 

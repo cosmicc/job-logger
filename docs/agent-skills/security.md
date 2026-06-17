@@ -112,6 +112,11 @@ depends on company and ticket data. Start Work may use the short server-side
 connectivity cache for speed, but the debug API test must remain a fresh live
 diagnostic check.
 
+Autotask ticket descriptions are remote provider data shown as read-only job
+context. Store only the bounded description returned by the server-side verified
+open-ticket lookup, render it escaped, and keep review save/accept handlers
+from trusting browser-submitted description values.
+
 ## Database And Deletion Safety
 
 Jobs should not disappear silently.

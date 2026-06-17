@@ -1,0 +1,76 @@
+/* Phone page style: same server-rendered data, tighter touch-first sizing. */
+
+.app-header {
+  min-height: 58px;
+  padding: 0 14px;
+}
+
+.brand span:last-child {
+  display: none;
+}
+
+.mobile-shell,
+.review-shell,
+.debug-shell,
+.login-shell {
+  width: min(100% - 20px, 560px);
+  margin: 18px auto;
+}
+
+.work-panel,
+.edit-panel,
+.login-panel,
+.audit-panel,
+.debug-table-panel {
+  padding: 16px;
+}
+
+.review-layout,
+.form-grid,
+.metric-grid,
+.button-grid,
+.reject-form {
+  grid-template-columns: 1fr;
+}
+
+.review-header,
+.form-header-row,
+.mobile-status-row {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.review-table {
+  min-width: 720px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.time-step-controls,
+.rounded-start-time-form {
+  grid-template-columns: 36px minmax(92px, 1fr) 36px;
+}
+
+.action-row,
+.work-finish-stack {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.action-row button,
+.reject-form button,
+.purge-form button {
+  width: 100%;
+}
+
+.ticket-picker-header,
+.mobile-ticket-picker-header {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+h1 {
+  font-size: 32px;
+}

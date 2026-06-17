@@ -567,11 +567,11 @@ async def save_ticket_number(
         job = update_active_job_ticket_number(
             database_session,
             job_id,
-            None,
-            submitted_client_name,
-            submitted_autotask_company_id,
-            None,
-            submitted_work_location,
+            ticket_number=None,
+            client_name=submitted_client_name,
+            autotask_company_id=submitted_autotask_company_id,
+            ticket_title=None,
+            work_location=submitted_work_location,
         )
         if raw_summary_text is not None:
             apply_manual_summary_to_job(database_session, job_id, str(raw_summary_text))
@@ -598,6 +598,7 @@ async def save_ticket_number(
                     "autotask_company_id": job.autotask_company_id,
                     "ticket_number": job.ticket_number,
                     "ticket_title": job.ticket_title,
+                    "ticket_description": job.ticket_description,
                     "work_location": job.work_location.value,
                 }
             )
@@ -642,6 +643,7 @@ async def select_active_ticket(
             job,
             selected_ticket_option.ticket_number,
             selected_ticket_option.title,
+            selected_ticket_option.description,
         )
         record_audit_event(
             database_session,
@@ -652,6 +654,7 @@ async def select_active_ticket(
             details={
                 "ticket_number": job.ticket_number,
                 "ticket_title_present": bool(job.ticket_title),
+                "ticket_description_present": bool(job.ticket_description),
                 "autotask_company_selected": job.autotask_company_id is not None,
             },
         )
@@ -664,6 +667,7 @@ async def select_active_ticket(
         {
             "ticket_number": job.ticket_number,
             "ticket_title": job.ticket_title,
+            "ticket_description": job.ticket_description,
         }
     )
 

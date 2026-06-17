@@ -26,6 +26,7 @@ AUTOTASK_TICKET_NUMBER_PATTERN = re.compile(r"^T\d{8}\.\d{4}$")
 MAX_ACTIVE_JOBS = 2
 MAX_CLIENT_NAME_LENGTH = 120
 MAX_TICKET_TITLE_LENGTH = 240
+MAX_TICKET_DESCRIPTION_LENGTH = 8000
 ALLOWED_WORK_IN_PROGRESS_START_MINUTE_DELTA = {-15, 15}
 
 
@@ -39,6 +40,9 @@ class ReviewFields:
 
     # ticket_title is the selected Autotask ticket title shown in review.
     ticket_title: str | None
+
+    # ticket_description is read-only context from the selected Autotask ticket.
+    ticket_description: str | None
 
     # ticket_status is the requested ticket status from the allowed enum list.
     ticket_status: TicketStatus
@@ -197,6 +201,12 @@ def normalize_ticket_title(ticket_title: str | None) -> str | None:
     return _normalize_optional_text(ticket_title, max_length=MAX_TICKET_TITLE_LENGTH)
 
 
+def normalize_ticket_description(ticket_description: str | None) -> str | None:
+    """Return a bounded Autotask ticket description captured from ticket lookup."""
+
+    return _normalize_optional_text(ticket_description, max_length=MAX_TICKET_DESCRIPTION_LENGTH)
+
+
 def normalize_client_name(client_name: str | None) -> str | None:
     """Return a safe client name value for persistence."""
 
@@ -318,6 +328,7 @@ def update_active_job_ticket_number(
     client_name: str | None = None,
     autotask_company_id: int | str | None = None,
     ticket_title: str | None = None,
+    ticket_description: str | None = None,
     work_location: WorkLocation | str | None = None,
 ) -> Job:
     """Update the optional Autotask ticket number and client while a job is active."""
@@ -334,11 +345,21 @@ def update_active_job_ticket_number(
         previous_ticket_number = job.ticket_number
         normalized_ticket_number = normalize_ticket_number(ticket_number, required=False)
         normalized_ticket_title = normalize_ticket_title(ticket_title) if normalized_ticket_number else None
+        normalized_ticket_description = normalize_ticket_description(ticket_description) if normalized_ticket_number else None
         job.ticket_number = normalized_ticket_number
-        if normalized_ticket_title is not None:
-            job.ticket_title = normalized_ticket_title
-        elif normalized_ticket_number is None or normalized_ticket_number != previous_ticket_number:
+        if normalized_ticket_number is None:
             job.ticket_title = None
+            job.ticket_description = None
+        else:
+            ticket_number_changed = normalized_ticket_number != previous_ticket_number
+            if normalized_ticket_title is not None:
+                job.ticket_title = normalized_ticket_title
+            elif ticket_number_changed:
+                job.ticket_title = None
+            if normalized_ticket_description is not None:
+                job.ticket_description = normalized_ticket_description
+            elif ticket_number_changed:
+                job.ticket_description = None
 
     if client_name is not None and not locked_autotask_client_preserved:
         job.client_name = normalize_client_name(client_name)
@@ -512,6 +533,7 @@ def validate_review_fields(
     if ticket_number is None and require_ticket_number:
         raise JobWorkflowError("Ticket number is required.")
     ticket_title = normalize_ticket_title(form_values.get("ticket_title")) if ticket_number else None
+    ticket_description = normalize_ticket_description(form_values.get("ticket_description")) if ticket_number else None
 
     try:
         ticket_status = TicketStatus(form_values.get("ticket_status", ""))
@@ -556,6 +578,7 @@ def validate_review_fields(
     return ReviewFields(
         ticket_number=ticket_number,
         ticket_title=ticket_title,
+        ticket_description=ticket_description,
         ticket_status=ticket_status,
         summary_notes=summary_notes,
         rounded_start_utc=rounded_start_utc,
@@ -577,8 +600,11 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
         job.ticket_number = review_fields.ticket_number
         if review_fields.ticket_title is not None:
             job.ticket_title = review_fields.ticket_title
+        if review_fields.ticket_description is not None:
+            job.ticket_description = review_fields.ticket_description
         elif ticket_number_changed:
             job.ticket_title = None
+            job.ticket_description = None
     job.ticket_status = review_fields.ticket_status
     job.summary_notes = review_fields.summary_notes
     job.description_text = review_fields.summary_notes
@@ -591,13 +617,20 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
     return job
 
 
-def apply_selected_ticket_from_lookup(job: Job, ticket_number: str, ticket_title: str | None) -> Job:
+def apply_selected_ticket_from_lookup(
+    job: Job,
+    ticket_number: str,
+    ticket_title: str | None,
+    ticket_description: str | None,
+) -> Job:
     """Store a ticket selected from the server-side Autotask open-ticket lookup."""
 
     normalized_ticket_number = normalize_ticket_number(ticket_number, required=True)
     normalized_ticket_title = normalize_ticket_title(ticket_title)
+    normalized_ticket_description = normalize_ticket_description(ticket_description)
     job.ticket_number = normalized_ticket_number
     job.ticket_title = normalized_ticket_title
+    job.ticket_description = normalized_ticket_description
     return job
 
 
@@ -635,6 +668,7 @@ def reset_ticket_data(database_session: Session) -> dict[str, int]:
             sqlalchemy_update(Job).values(
                 ticket_number=None,
                 ticket_title=None,
+                ticket_description=None,
                 autotask_company_id=None,
                 ticket_status=None,
                 autotask_provider=None,

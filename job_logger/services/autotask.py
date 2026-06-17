@@ -18,6 +18,7 @@ from job_logger.time_utils import format_autotask_datetime, rounded_duration_min
 
 MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP = 10
 MAX_TICKET_LOOKUP_RESULTS = 25
+MAX_OPEN_TICKET_QUERY_RECORDS = MAX_TICKET_LOOKUP_RESULTS
 
 WORK_LOCATION_SUMMARY_PREFIXES = {
     WorkLocation.REMOTE: "Remote",
@@ -187,6 +188,9 @@ class AutotaskTicketOption:
     # title helps the reviewer choose the correct open ticket.
     title: str
 
+    # description is bounded read-only ticket context shown after selection.
+    description: str | None
+
     # status_label is the current Autotask ticket status label.
     status_label: str
 
@@ -317,12 +321,14 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             AutotaskTicketOption(
                 ticket_number="T20260616.0001",
                 title=f"Mock open ticket for {safe_client_name}",
+                description=f"Mock ticket description for {safe_client_name}.",
                 status_label="In Progress",
                 company_name=safe_client_name,
             ),
             AutotaskTicketOption(
                 ticket_number="T20260616.0002",
                 title=f"Mock follow-up ticket for {safe_client_name}",
+                description=f"Mock follow-up description for {safe_client_name}.",
                 status_label="Follow Up",
                 company_name=safe_client_name,
             ),
@@ -468,11 +474,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         endpoint_path: str,
         query_payload: dict[str, Any],
         action_description: str,
+        max_records: int = AUTOTASK_MAX_RECORDS_PER_PAGE,
+        follow_pagination: bool = True,
     ) -> list[dict[str, Any]]:
         """Return all Autotask query items using MaxRecords and next-page URLs."""
 
         paged_query_payload = dict(query_payload)
-        paged_query_payload["MaxRecords"] = AUTOTASK_MAX_RECORDS_PER_PAGE
+        paged_query_payload["MaxRecords"] = max(1, min(max_records, AUTOTASK_MAX_RECORDS_PER_PAGE))
 
         collected_items: list[dict[str, Any]] = []
         response = client.post(endpoint_path, json=paged_query_payload)
@@ -487,7 +495,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
             page_details = response_payload.get("pageDetails") if isinstance(response_payload, dict) else None
             next_page_url = page_details.get("nextPageUrl") if isinstance(page_details, dict) else None
-            if not next_page_url:
+            if not next_page_url or not follow_pagination:
                 break
 
             if page_number >= AUTOTASK_MAX_PAGINATED_PAGES:
@@ -749,6 +757,17 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         )
         if active_companies:
             _set_cached_value(_COMPANY_SEARCH_CACHE, cache_key, active_companies, COMPANY_CACHE_TTL_SECONDS)
+            for active_company in active_companies:
+                try:
+                    active_company_id = int(active_company["id"])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                _set_cached_value(
+                    _COMPANY_ID_CACHE,
+                    (self._cache_namespace(), active_company_id),
+                    active_company,
+                    COMPANY_CACHE_TTL_SECONDS,
+                )
         return active_companies[:MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP]
 
     def _query_company_by_id(self, client: httpx.Client, company_id: int) -> dict[str, Any] | None:
@@ -775,14 +794,32 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         return None
 
     def _query_tickets_for_company(self, client: httpx.Client, company_id: int) -> list[dict[str, Any]]:
-        """Return Autotask tickets for one company ID."""
+        """Return a small server-filtered page of open Autotask tickets for one company ID."""
 
-        query_payload = {"filter": [{"op": "eq", "field": "companyID", "value": company_id}]}
+        ticket_filters: list[dict[str, Any]] = [
+            {"op": "eq", "field": "companyID", "value": company_id},
+            {"op": "notExist", "field": "completedDate"},
+        ]
+        if self.application_settings.autotask_status_complete_id is not None:
+            ticket_filters.append(
+                {
+                    "op": "noteq",
+                    "field": "status",
+                    "value": self.application_settings.autotask_status_complete_id,
+                }
+            )
+
+        query_payload = {
+            "IncludeFields": ["id", "ticketNumber", "title", "description", "status", "completedDate"],
+            "filter": ticket_filters,
+        }
         return self._query_paginated_items(
             client,
             endpoint_path="/Tickets/query",
             query_payload=query_payload,
             action_description="Autotask ticket lookup",
+            max_records=MAX_OPEN_TICKET_QUERY_RECORDS,
+            follow_pagination=False,
         )
 
     def _is_open_ticket(self, ticket: dict[str, Any], status_labels: dict[int, str]) -> bool:
@@ -832,6 +869,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 AutotaskTicketOption(
                     ticket_number=ticket_number,
                     title=str(ticket.get("title") or "Untitled ticket")[:240],
+                    description=str(ticket.get("description") or "").strip()[:8000] or None,
                     status_label=status_labels.get(status_id, str(raw_status_id or "Unknown")),
                     company_name=company_name,
                 )
