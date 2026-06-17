@@ -31,6 +31,22 @@ AUTOTASK_CACHE_TTL_SECONDS = 15 * 60
 # COMPANY_CACHE_TTL_SECONDS is longer because company names are low-churn reference data.
 COMPANY_CACHE_TTL_SECONDS = 2 * 60 * 60
 
+# OPEN_TICKET_SELECTION_CACHE_TTL_SECONDS keeps the open-ticket list that the
+# server just returned to the browser long enough for a click selection to reuse
+# it. This avoids a second live Autotask Tickets query on the critical tap path
+# while still expiring quickly so stale ticket state is not treated as durable.
+OPEN_TICKET_SELECTION_CACHE_TTL_SECONDS = 2 * 60
+
+# START_CONNECTIVITY_SUCCESS_CACHE_TTL_SECONDS lets multiple quick Start Work
+# taps reuse a recent successful dependency probe instead of making a live
+# Autotask call for every job slot.
+START_CONNECTIVITY_SUCCESS_CACHE_TTL_SECONDS = 5 * 60
+
+# START_CONNECTIVITY_FAILURE_CACHE_TTL_SECONDS avoids hammering Autotask during
+# an outage while keeping failures short-lived enough for operators to retest
+# soon after fixing credentials, permissions, or connectivity.
+START_CONNECTIVITY_FAILURE_CACHE_TTL_SECONDS = 30
+
 # AUTOTASK_MAX_RECORDS_PER_PAGE uses Autotask's maximum documented query page size.
 AUTOTASK_MAX_RECORDS_PER_PAGE = 500
 
@@ -64,6 +80,14 @@ _COMPANY_ID_CACHE: dict[tuple[str, int], _AutotaskCacheEntry] = {}
 
 # _TICKET_STATUS_CACHE stores ticket status picklist labels keyed by tenant URL.
 _TICKET_STATUS_CACHE: dict[str, _AutotaskCacheEntry] = {}
+
+# _OPEN_TICKET_SELECTION_CACHE stores recently displayed open-ticket options
+# keyed by tenant URL, selected client text, and selected Autotask company ID.
+_OPEN_TICKET_SELECTION_CACHE: dict[tuple[str, str, int | None], _AutotaskCacheEntry] = {}
+
+# _START_CONNECTIVITY_CACHE stores one recent start-work dependency result per
+# non-secret tenant/provider context. The debug page bypasses this cache.
+_START_CONNECTIVITY_CACHE: dict[tuple[str, str, int | None], _AutotaskCacheEntry] = {}
 
 
 def _get_cached_value(cache_store: dict[Any, _AutotaskCacheEntry], cache_key: Any) -> Any | None:
@@ -366,6 +390,12 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Return the non-secret namespace used for tenant-specific cache keys."""
 
         return (self.application_settings.autotask_base_url or "").rstrip("/")
+
+    def _open_ticket_selection_cache_key(self, client_name: str, autotask_company_id: int | None) -> tuple[str, str, int | None]:
+        """Return the cache key for a recently displayed open-ticket list."""
+
+        normalized_client_name = client_name.strip().casefold()
+        return (self._cache_namespace(), normalized_client_name, autotask_company_id)
 
     def _raise_for_safe_response(self, response: httpx.Response, action_description: str) -> None:
         """Raise a safe Autotask error without exposing headers or secrets."""
@@ -816,6 +846,11 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if not safe_client_name:
             raise AutotaskSubmissionError("Client name is required before searching Autotask tickets.")
 
+        cache_key = self._open_ticket_selection_cache_key(safe_client_name, autotask_company_id)
+        cached_ticket_options = _get_cached_value(_OPEN_TICKET_SELECTION_CACHE, cache_key)
+        if isinstance(cached_ticket_options, list) and cached_ticket_options:
+            return cached_ticket_options[:MAX_TICKET_LOOKUP_RESULTS]
+
         ticket_options: list[AutotaskTicketOption] = []
         with self._client() as client:
             status_labels = self._query_ticket_status_labels(client)
@@ -841,7 +876,16 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     )
                 )
 
-        return ticket_options[:MAX_TICKET_LOOKUP_RESULTS]
+        selected_ticket_options = ticket_options[:MAX_TICKET_LOOKUP_RESULTS]
+        if selected_ticket_options:
+            _set_cached_value(
+                _OPEN_TICKET_SELECTION_CACHE,
+                cache_key,
+                selected_ticket_options,
+                OPEN_TICKET_SELECTION_CACHE_TTL_SECONDS,
+            )
+
+        return selected_ticket_options
 
     def search_companies(self, query_text: str) -> list[AutotaskCompanyOption]:
         """Return active Autotask companies matching a user-entered query."""
@@ -972,8 +1016,8 @@ def get_autotask_provider(application_settings: Settings = settings) -> BaseAuto
     raise AutotaskSubmissionError(f"Unsupported Autotask provider: {application_settings.autotask_provider}")
 
 
-def test_autotask_connectivity(application_settings: Settings = settings) -> AutotaskConnectivityResult:
-    """Return a safe Autotask dependency result for start-work gating and debug."""
+def _run_autotask_connectivity_check(application_settings: Settings) -> AutotaskConnectivityResult:
+    """Run the live provider connectivity check and normalize configuration errors."""
 
     try:
         provider = get_autotask_provider(application_settings)
@@ -990,3 +1034,38 @@ def test_autotask_connectivity(application_settings: Settings = settings) -> Aut
             ),
             checked_operations=("provider configuration",),
         )
+
+
+def _start_connectivity_cache_key(application_settings: Settings) -> tuple[str, str, int | None]:
+    """Return the non-secret cache key for start-work Autotask health."""
+
+    base_url_namespace = (application_settings.autotask_base_url or "").rstrip("/")
+    return (
+        application_settings.autotask_provider,
+        base_url_namespace,
+        application_settings.autotask_impersonation_resource_id,
+    )
+
+
+def test_autotask_connectivity(application_settings: Settings = settings) -> AutotaskConnectivityResult:
+    """Return a fresh safe Autotask dependency result for diagnostics."""
+
+    return _run_autotask_connectivity_check(application_settings)
+
+
+def test_cached_autotask_connectivity_for_start(application_settings: Settings = settings) -> AutotaskConnectivityResult:
+    """Return a short-cached Autotask dependency result for Start Work gating."""
+
+    cache_key = _start_connectivity_cache_key(application_settings)
+    cached_connectivity_result = _get_cached_value(_START_CONNECTIVITY_CACHE, cache_key)
+    if isinstance(cached_connectivity_result, AutotaskConnectivityResult):
+        return cached_connectivity_result
+
+    connectivity_result = _run_autotask_connectivity_check(application_settings)
+    cache_ttl_seconds = (
+        START_CONNECTIVITY_SUCCESS_CACHE_TTL_SECONDS
+        if connectivity_result.available
+        else START_CONNECTIVITY_FAILURE_CACHE_TTL_SECONDS
+    )
+    _set_cached_value(_START_CONNECTIVITY_CACHE, cache_key, connectivity_result, cache_ttl_seconds)
+    return connectivity_result

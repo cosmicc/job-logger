@@ -16,6 +16,17 @@ All recorded changes to Job Logger are documented in this file.
   ticket now hides the open-ticket list immediately, updates the saved ticket
   number/title in place on mobile and review, and shows the selected ticket name
   as a Work in Progress card.
+- Made the mobile Work Type switch a compact side-by-side segmented control so
+  Remote and On-Site no longer render as tall stacked radio controls.
+- Moved the editable active-job client name field above the Work in Progress
+  open-ticket list so the ticket choices always appear directly under the
+  client they belong to.
+- Replaced the mobile Work in Progress rounded-start dropdown with compact
+  `-15` and `+15` minute buttons on either side of the displayed rounded start
+  time.
+- Added a short Start Work Autotask health cache so repeated job starts do not
+  run the full live Autotask connectivity probe every tap; the debug API test
+  still performs a fresh live check.
 - Switched the mobile recorder to chunked WebSocket audio streaming. The server
   authenticates the session, validates CSRF in the first stream message before
   accepting audio bytes, starts best-effort interim transcription when the first
@@ -25,6 +36,10 @@ All recorded changes to Job Logger are documented in this file.
   button. Stopping capture now flushes the final browser audio chunk, sends the
   WebSocket finish message, and keeps the control disabled while the streamed
   transcription completes.
+- Added a short server-side cache for open-ticket selection lists so choosing a
+  ticket that was just loaded does not perform a second live Autotask ticket
+  query, and made the mobile picker hide immediately on selection before the
+  verified save response returns.
 - Removed `billingCodeID` / Allocation Code from live Autotask `TimeEntries`
   creation so ticket time entry submissions use Autotask defaults and do not
   require Allocation Code edit permission.
@@ -58,8 +73,8 @@ All recorded changes to Job Logger are documented in this file.
   surrounding action buttons,
   verifies active ticket selections through a server-side open-ticket lookup so
   the selected ticket title drives the review heading, moves **Save Active
-  Changes** below summary notes, uses a 15-minute rounded-start dropdown
-  selector, and keeps Job 1/Job 2 on the same shared layout. Fixed the active
+  Changes** below summary notes, uses bounded 15-minute rounded-start
+  adjustment controls, and keeps Job 1/Job 2 on the same shared layout. Fixed the active
   ticket-number pattern so selected Autotask ticket values like
   `T20260504.0018` pass browser validation.
 - Added stored Autotask ticket titles so the review detail heading shows the

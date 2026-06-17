@@ -11,7 +11,6 @@ const endJobForms = document.querySelectorAll(".end-job-form");
 const activeTicketForms = document.querySelectorAll(".active-ticket-form");
 const companyInputs = document.querySelectorAll("[data-company-input]");
 const activeTicketPickers = document.querySelectorAll("[data-active-ticket-picker]");
-const roundedStartTimeForms = document.querySelectorAll("[data-rounded-start-time-form]");
 const workLocationInputs = document.querySelectorAll("[data-work-location-input]");
 
 const descriptionSaveTimers = new Map();
@@ -757,6 +756,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
         optionButton.disabled = true;
         statusElement.textContent = "Saving selected ticket...";
         ticketPicker.hidden = true;
+        ticketPicker.classList.add("is-hidden");
         try {
           if (ticketSelectUrl) {
             const selectedTicket = await persistActiveSelectedTicket(ticketSelectUrl, ticketOption);
@@ -776,6 +776,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
           submitFormWithCurrentFields(activeTicketForm);
         } catch (error) {
           ticketPicker.hidden = false;
+          ticketPicker.classList.remove("is-hidden");
           optionButton.disabled = false;
           statusElement.textContent = error.message || "Selected ticket could not be saved.";
           statusElement.classList.add("error-text");
@@ -949,23 +950,6 @@ for (const recordButton of activeRecordButtons) {
       setRecordingStatus(jobId, error.message || "Recording could not start.", true);
       clearRecordingState();
     }
-  });
-}
-
-for (const roundedStartTimeForm of roundedStartTimeForms) {
-  const roundedStartTimeInput = roundedStartTimeForm.querySelector("[data-rounded-start-time-input]");
-  if (!roundedStartTimeInput) {
-    continue;
-  }
-
-  let lastSubmittedRoundedStartTime = roundedStartTimeInput.value;
-  roundedStartTimeInput.addEventListener("change", () => {
-    if (roundedStartTimeInput.value === lastSubmittedRoundedStartTime) {
-      return;
-    }
-
-    lastSubmittedRoundedStartTime = roundedStartTimeInput.value;
-    submitFormWithCurrentFields(roundedStartTimeForm);
   });
 }
 

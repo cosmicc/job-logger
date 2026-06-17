@@ -29,32 +29,34 @@
               <div class="metric-card">
                 <dt>Rounded start</dt>
                 <dd>
-                  <div class="time-stepper">
-                    <form
-                      method="post"
-                      action="/jobs/{{ active_job.id }}/start-time/adjust"
-                      class="rounded-start-time-form"
-                      data-rounded-start-time-form
+                  <form
+                    method="post"
+                    action="/jobs/{{ active_job.id }}/start-time/adjust"
+                    class="rounded-start-time-form active-time-step-controls"
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button
+                      type="submit"
+                      class="secondary-button time-step-button"
+                      name="delta_minutes"
+                      value="-15"
+                      aria-label="Decrease rounded start by 15 minutes"
                     >
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                      <select
-                        class="time-field-input rounded-start-time-input"
-                        name="rounded_start_time"
-                        aria-label="Rounded start time"
-                        data-rounded-start-time-input
-                      >
-                        {% set selected_rounded_start_time = active_job.rounded_start_utc|local_time %}
-                        {% for time_option in rounded_start_time_options %}
-                          <option
-                            value="{{ time_option.value }}"
-                            {% if time_option.value == selected_rounded_start_time %}selected{% endif %}
-                          >
-                            {{ time_option.label }}
-                          </option>
-                        {% endfor %}
-                      </select>
-                    </form>
-                  </div>
+                      -15
+                    </button>
+                    <output class="time-field-input rounded-start-time-display" aria-label="Rounded start time">
+                      {{ active_job.rounded_start_utc|local_time }}
+                    </output>
+                    <button
+                      type="submit"
+                      class="secondary-button time-step-button"
+                      name="delta_minutes"
+                      value="15"
+                      aria-label="Increase rounded start by 15 minutes"
+                    >
+                      +15
+                    </button>
+                  </form>
                 </dd>
               </div>
               <div class="metric-card work-location-card" aria-label="Work type">
@@ -107,32 +109,6 @@
                 <dd class="active-ticket-title-display" data-active-ticket-title-display>{{ active_job.ticket_title or "" }}</dd>
               </div>
             </dl>
-
-            {% if not active_job.ticket_number %}
-              <section
-                class="mobile-ticket-picker"
-                data-active-ticket-picker
-                data-ticket-lookup-url="/review/{{ active_job.id }}/tickets"
-                data-ticket-select-url="/jobs/{{ active_job.id }}/ticket"
-                data-ticket-form-job-id="{{ active_job.id }}"
-                {% if active_job.client_name %}data-auto-load-ticket-options="true"{% endif %}
-              >
-                <div class="mobile-ticket-picker-header">
-                  <h3>Open tickets</h3>
-                  <button
-                    class="secondary-button ticket-load-button"
-                    type="button"
-                    data-active-ticket-lookup-button
-                  >
-                    Find tickets
-                  </button>
-                </div>
-                <p class="ticket-picker-status muted-text" data-active-ticket-lookup-status aria-live="polite">
-                  {% if not active_job.client_name %}Choose a client, then find open tickets.{% endif %}
-                </p>
-                <div class="ticket-picker-results" data-active-ticket-lookup-results></div>
-              </section>
-            {% endif %}
 
             <form
               id="active-ticket-form-{{ active_job.id }}"
@@ -194,6 +170,32 @@
               >
               <input type="hidden" class="active-job-summary" name="summary_notes" value="">
             </form>
+
+            {% if not active_job.ticket_number %}
+              <section
+                class="mobile-ticket-picker"
+                data-active-ticket-picker
+                data-ticket-lookup-url="/review/{{ active_job.id }}/tickets"
+                data-ticket-select-url="/jobs/{{ active_job.id }}/ticket"
+                data-ticket-form-job-id="{{ active_job.id }}"
+                {% if active_job.client_name %}data-auto-load-ticket-options="true"{% endif %}
+              >
+                <div class="mobile-ticket-picker-header">
+                  <h3>Open tickets</h3>
+                  <button
+                    class="secondary-button ticket-load-button"
+                    type="button"
+                    data-active-ticket-lookup-button
+                  >
+                    Find tickets
+                  </button>
+                </div>
+                <p class="ticket-picker-status muted-text" data-active-ticket-lookup-status aria-live="polite">
+                  {% if not active_job.client_name %}Choose a client, then find open tickets.{% endif %}
+                </p>
+                <div class="ticket-picker-results" data-active-ticket-lookup-results></div>
+              </section>
+            {% endif %}
 
             <div class="description-box">
               <label for="description-preview-{{ active_job.id }}">

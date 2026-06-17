@@ -302,8 +302,9 @@ The normal workflow is:
 1. User authenticates through Cloudflare Access when enabled, then through the
    app login.
 2. User opens `/mobile`.
-3. Before a new job can start, the server checks mandatory Autotask API
-   availability. If Autotask is down or misconfigured, job creation is blocked.
+3. Before a new job can start, the server enforces mandatory Autotask API
+   availability with a short start-work health cache. If Autotask is down or
+   misconfigured, job creation is blocked.
 4. User starts Job 1 or Job 2. At most two active jobs may exist at once.
 5. After the job starts, the user enters/selects an Autotask company by client
    name. Manual client text is allowed, but selected company IDs are preferred

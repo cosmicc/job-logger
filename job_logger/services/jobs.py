@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import desc, select
 from sqlalchemy import update as sqlalchemy_update
@@ -15,7 +15,6 @@ from job_logger.models import Job, SubmissionAttempt
 from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider
 from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
 from job_logger.time_utils import (
-    ROUNDING_INTERVAL_MINUTES,
     enforce_minimum_rounded_end,
     local_date_for,
     now_utc,
@@ -107,20 +106,6 @@ def normalize_start_time_delta_minutes(delta_minutes: int | str) -> int:
         raise JobWorkflowError("Start-time adjustment must be in 15-minute increments.")
 
     return normalized_delta
-
-
-def normalize_rounded_start_time_value(rounded_start_time: str | None) -> time:
-    """Return a valid quarter-hour local time from the active rounded-start selector."""
-
-    try:
-        parsed_time = time.fromisoformat((rounded_start_time or "").strip())
-    except ValueError as exc:
-        raise JobWorkflowError("Rounded start time is invalid.") from exc
-
-    if parsed_time.second or parsed_time.microsecond or parsed_time.minute % ROUNDING_INTERVAL_MINUTES != 0:
-        raise JobWorkflowError("Rounded start time must use 15-minute increments.")
-
-    return parsed_time
 
 
 class JobWorkflowError(RuntimeError):
@@ -399,23 +384,6 @@ def adjust_active_job_rounded_start(database_session: Session, job_id: str, delt
     job.rounded_start_utc = round_to_nearest_quarter_hour(
         job.rounded_start_utc + timedelta(minutes=normalized_delta)
     )
-    job.local_work_date = local_date_for(job.rounded_start_utc)
-    return job
-
-
-def set_active_job_rounded_start_time(database_session: Session, job_id: str, rounded_start_time: str | None) -> Job:
-    """Set the active rounded start to a selected quarter-hour local time."""
-
-    job = get_job_or_raise(database_session, job_id)
-    if job.status != JobStatus.ACTIVE:
-        raise JobWorkflowError("Only active jobs can have rounded start times adjusted.")
-
-    selected_start_time = normalize_rounded_start_time_value(rounded_start_time)
-    # The mobile selector intentionally changes only the wall-clock time. The
-    # local work date remains the current rounded-start local date so a browser
-    # cannot move the job onto another day through this compact control.
-    selected_start_date = local_date_for(job.rounded_start_utc).isoformat()
-    job.rounded_start_utc = parse_local_form_datetime(selected_start_date, selected_start_time.strftime("%H:%M"))
     job.local_work_date = local_date_for(job.rounded_start_utc)
     return job
 

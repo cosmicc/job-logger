@@ -542,14 +542,63 @@ a:focus-visible {
   font-size: 15px;
 }
 
+/* Work type is a quick mode toggle, so it stays compact and horizontal. */
 .work-location-card {
-  display: grid;
-  padding: 8px;
+  display: flex;
+  min-height: 44px;
   align-items: center;
+  padding: 7px 10px;
 }
 
 .work-location-card dd {
+  display: flex;
+  align-items: center;
   margin: 0;
+}
+
+.work-location-toggle.segmented-toggle {
+  display: inline-flex;
+  width: auto;
+  max-width: none;
+  min-height: 0;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+}
+
+.work-location-toggle.segmented-toggle label {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.work-location-toggle.segmented-toggle input[type="radio"] {
+  position: absolute;
+  inset: auto;
+  width: 1px;
+  min-width: 1px;
+  height: 1px;
+  min-height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  opacity: 0;
+  appearance: none;
+  clip: rect(0, 0, 0, 0);
+}
+
+.work-location-toggle.segmented-toggle span {
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.work-location-toggle.segmented-toggle input[type="radio"]:focus-visible + span {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .segmented-toggle {
@@ -651,25 +700,27 @@ a:focus-visible {
   width: 100%;
 }
 
-.time-stepper {
-  display: grid;
-  min-width: 0;
-}
-
-.time-stepper .time-field-input {
-  width: 100%;
-  min-height: 38px;
-  padding-right: 11px;
-  text-align: center;
-}
-
 .rounded-start-time-form {
   display: grid;
+  grid-template-columns: minmax(48px, auto) minmax(0, 1fr) minmax(48px, auto);
+  align-items: center;
+  gap: 8px;
   margin: 0;
 }
 
-.rounded-start-time-input {
-  cursor: pointer;
+.rounded-start-time-form .time-step-button {
+  min-height: 36px;
+  padding: 7px 9px;
+  font-size: 13px;
+}
+
+.rounded-start-time-display {
+  display: grid;
+  min-height: 36px;
+  place-items: center;
+  padding: 7px 10px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .recording-status {

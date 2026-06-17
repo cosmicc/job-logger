@@ -15,7 +15,6 @@ from job_logger.enums import JobStatus, TranscriptionStatus, WorkLocation
 from job_logger.models import AuditEvent, Job, SubmissionAttempt
 from job_logger.services.autotask import AutotaskConnectivityResult
 from job_logger.services.jobs import get_active_job
-from job_logger.time_utils import local_date_for, parse_local_form_datetime
 from tests.conftest import extract_csrf_token
 
 
@@ -127,7 +126,7 @@ def test_start_work_blocks_when_autotask_is_unavailable(authenticated_client: Te
             checked_operations=("configuration", "companies"),
         )
 
-    monkeypatch.setattr("job_logger.routes.mobile.test_autotask_connectivity", failed_connectivity_check)
+    monkeypatch.setattr("job_logger.routes.mobile.test_cached_autotask_connectivity_for_start", failed_connectivity_check)
     mobile_page_response = authenticated_client.get("/mobile")
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
@@ -232,6 +231,7 @@ def test_mobile_job_start_ignores_prestart_client_and_ticket_fields(authenticate
     assert "Choose a client, then find open tickets." in active_mobile_html
     assert 'data-active-ticket-picker' in active_mobile_html
     assert 'data-auto-load-ticket-options="true"' not in active_mobile_html
+    assert active_mobile_html.index('<span class="metric-label">Client name</span>') < active_mobile_html.index("<h3>Open tickets</h3>")
 
 
 def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_client: TestClient) -> None:
@@ -268,11 +268,12 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert f'id="active-client-name-{active_job_id}"' not in page_html
     assert 'class="end-client-name"' in page_html
     assert 'class="end-autotask-company-id"' in page_html
-    assert 'data-rounded-start-time-form' in page_html
-    assert '<select' in page_html
-    assert 'name="rounded_start_time"' in page_html
-    assert 'value="00:00"' in page_html
-    assert 'value="00:15"' in page_html
+    assert 'class="rounded-start-time-form active-time-step-controls"' in page_html
+    assert 'name="rounded_start_time"' not in page_html
+    assert 'class="time-field-input rounded-start-time-display"' in page_html
+    assert 'name="delta_minutes"' in page_html
+    assert 'value="-15"' in page_html
+    assert 'value="15"' in page_html
     assert 'data-work-location-toggle' in page_html
     assert 'name="work_location"' in page_html
     assert 'value="remote"' in page_html
@@ -284,7 +285,7 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'data-active-ticket-lookup-button' in page_html
     assert "Find tickets" in page_html
     assert page_html.index("<dt>Client name</dt>") < page_html.index("<h3>Open tickets</h3>")
-    assert page_html.index("<h3>Open tickets</h3>") < page_html.index(f'id="active-ticket-form-{active_job_id}"')
+    assert page_html.index(f'id="active-ticket-form-{active_job_id}"') < page_html.index("<h3>Open tickets</h3>")
     assert 'class="secondary-button active-save-button"' in page_html
     assert "submit-notes-button" not in page_html
     assert page_html.index("Summary notes") < page_html.index("Save Active Changes") < page_html.index("Record Notes")
@@ -292,8 +293,8 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'class="active-ticket-number"' in page_html
     assert 'pattern="[Tt][0-9]{8}\\.[0-9]{4}"' not in page_html
     assert 'pattern="[Tt][0-9]{8}\\\\.[0-9]{4}"' not in page_html
-    assert "&gt;+15&lt;" not in page_html
-    assert "&gt;-15&lt;" not in page_html
+    assert re.search(r">\s*\+15\s*</button>", page_html)
+    assert re.search(r">\s*-15\s*</button>", page_html)
 
 
 def test_mobile_active_job_locked_autotask_company_rejects_form_tampering(authenticated_client: TestClient) -> None:
@@ -1027,8 +1028,8 @@ def test_mobile_active_job_rounded_start_can_be_adjusted(authenticated_client: T
         assert active_job.rounded_start_utc == original_start + timedelta(minutes=15)
 
 
-def test_mobile_active_job_rounded_start_can_be_set_from_time_selector(authenticated_client: TestClient) -> None:
-    """The mobile time selector can set a quarter-hour rounded start value."""
+def test_mobile_active_job_rounded_start_rejects_selector_payload(authenticated_client: TestClient) -> None:
+    """The active rounded-start route accepts bounded deltas, not arbitrary selector values."""
 
     mobile_page_response = authenticated_client.get("/mobile")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -1045,11 +1046,9 @@ def test_mobile_active_job_rounded_start_can_be_set_from_time_selector(authentic
         active_job_id = active_job.id
         original_start = active_job.rounded_start_utc
 
-    selected_local_time = (original_start + timedelta(minutes=30)).astimezone(ZoneInfo("America/Detroit")).strftime("%H:%M")
-    expected_start = parse_local_form_datetime(local_date_for(original_start).isoformat(), selected_local_time).replace(tzinfo=None)
     adjust_response = authenticated_client.post(
         f"/jobs/{active_job_id}/start-time/adjust",
-        data={"csrf_token": csrf_token, "rounded_start_time": selected_local_time},
+        data={"csrf_token": csrf_token, "rounded_start_time": "12:00"},
         follow_redirects=False,
     )
     assert adjust_response.status_code == 303
@@ -1057,7 +1056,9 @@ def test_mobile_active_job_rounded_start_can_be_set_from_time_selector(authentic
     with database.SessionLocal() as database_session:
         active_job = database_session.get(Job, active_job_id)
         assert active_job is not None
-        assert active_job.rounded_start_utc == expected_start
+        assert active_job.rounded_start_utc == original_start
+        adjustment_audit_events = database_session.query(AuditEvent).filter_by(action="job.rounded_start.adjusted").all()
+        assert adjustment_audit_events == []
 
 
 def test_review_detail_force_purge_removes_job_and_attempts(authenticated_client: TestClient) -> None:

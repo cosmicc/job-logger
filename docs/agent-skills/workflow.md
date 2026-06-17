@@ -35,10 +35,11 @@ Security and data-integrity requirements for start:
 
 - The user must be authenticated.
 - CSRF must be valid.
-- The server must run the mandatory Autotask connectivity check before creating
-  the job.
-- If Autotask is unavailable, no job may be created and an audit event must be
-  recorded.
+- The server must enforce the mandatory Autotask connectivity gate before
+  creating the job. This can use the short start-work connectivity cache so
+  repeated Start Work taps do not run a live Autotask probe every time.
+- If the live or cached Autotask result is unavailable, no job may be created
+  and an audit event must be recorded.
 - New mobile jobs intentionally start without client, company, or ticket values.
   The route ignores stale or crafted pre-start client/ticket fields so those
   values can only be attached through the active-job workflow.
@@ -54,7 +55,8 @@ Active jobs support these updates before completion:
 - Summary notes.
 - Work location mode, either Remote or On-Site, which is stored separately from
   the visible notes.
-- Rounded start time through a server-validated 15-minute mobile time selector.
+- Rounded start time through server-validated mobile `-15` and `+15` minute
+  buttons on either side of the displayed time.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job client and summary edits, not ticket
@@ -62,14 +64,16 @@ selection from the open-ticket picker.
 
 The mobile active-job ticket number is not a manual text entry. The open-ticket
 picker posts the clicked ticket number to `POST /jobs/{job_id}/ticket`. That
-route re-queries the selected job's open Autotask ticket list, verifies the
+route uses the recently loaded server-side open-ticket selection cache when it
+is still fresh, falls back to a live Autotask lookup when needed, verifies the
 submitted ticket belongs to that safe list, stores the ticket number and title,
 and records an audit event. When an active job has no ticket number, the mobile
 page shows the open-ticket panel under the client field. The **Find tickets**
 button saves the current active client fields before querying Autotask, and a
 job that already has a saved client auto-loads the picker. After selection, the
-browser should hide the open-ticket panel and show both the selected ticket
-number and ticket title in Work in Progress without waiting for a page reload.
+browser should immediately hide the open-ticket panel and show both the selected
+ticket number and ticket title in Work in Progress without waiting for a page
+reload.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
@@ -151,7 +155,8 @@ Ticket number is intentionally required only before Autotask submission, not for
 ordinary save operations.
 
 Review ticket selection persists through `POST /review/{job_id}/ticket`. The
-route re-queries the selected job's open Autotask ticket list, verifies the
+route uses the recently loaded server-side open-ticket selection cache when it
+is still fresh, falls back to a live Autotask lookup when needed, verifies the
 submitted ticket number belongs to that safe list, stores the ticket number and
 title, and records an audit event. Do not trust browser-supplied ticket title,
 ticket number, client name, or company ID values on review save/accept; the

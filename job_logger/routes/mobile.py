@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import time as monotonic_time
-from datetime import time
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +29,7 @@ from job_logger.services.autotask import (
     AutotaskSubmissionError,
     AutotaskTicketOption,
     get_autotask_provider,
-    test_autotask_connectivity,
+    test_cached_autotask_connectivity_for_start,
 )
 from job_logger.services.jobs import (
     JobWorkflowError,
@@ -43,7 +42,6 @@ from job_logger.services.jobs import (
     get_job_or_raise,
     list_active_jobs,
     mark_active_job_transcription_failed,
-    set_active_job_rounded_start_time,
     start_job,
     transcribe_active_job_audio,
     update_active_job_ticket_number,
@@ -60,25 +58,6 @@ SUPPORTED_AUDIO_STREAM_SUFFIXES = {".webm", ".ogg", ".mp3", ".m4a", ".wav", ".mp
 
 class AudioStreamProtocolError(RuntimeError):
     """Raised when a WebSocket audio client sends an invalid stream message."""
-
-
-def _rounded_start_time_options() -> list[dict[str, str]]:
-    """Return quarter-hour options for the active rounded-start selector."""
-
-    # The selector submits a local HH:MM value that is revalidated by the
-    # workflow service before any timestamp is changed.
-    time_options: list[dict[str, str]] = []
-    for hour_value in range(24):
-        for minute_value in range(0, 60, 15):
-            option_time = time(hour=hour_value, minute=minute_value)
-            time_options.append(
-                {
-                    "value": option_time.strftime("%H:%M"),
-                    "label": option_time.strftime("%I:%M %p").lstrip("0"),
-                }
-            )
-
-    return time_options
 
 
 def _autotask_start_block_message(connectivity_result: AutotaskConnectivityResult) -> str:
@@ -476,7 +455,7 @@ def mobile_page(
     return templates.TemplateResponse(
         request,
         "mobile.html",
-        template_context(request, active_jobs=active_jobs, rounded_start_time_options=_rounded_start_time_options()),
+        template_context(request, active_jobs=active_jobs),
     )
 
 
@@ -521,7 +500,7 @@ async def start_work(
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
 
-    connectivity_result = test_autotask_connectivity()
+    connectivity_result = test_cached_autotask_connectivity_for_start()
     if not connectivity_result.available:
         record_audit_event(
             database_session,
@@ -738,15 +717,10 @@ async def adjust_start_time(
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
     delta_minutes = form_data.get("delta_minutes")
-    rounded_start_time = str(form_data.get("rounded_start_time", "")).strip()
 
     try:
-        if rounded_start_time:
-            job = set_active_job_rounded_start_time(database_session, job_id=job_id, rounded_start_time=rounded_start_time)
-            audit_details = {"rounded_start_time": rounded_start_time}
-        else:
-            job = adjust_active_job_rounded_start(database_session, job_id=job_id, delta_minutes=delta_minutes)
-            audit_details = {"delta_minutes": delta_minutes}
+        job = adjust_active_job_rounded_start(database_session, job_id=job_id, delta_minutes=delta_minutes)
+        audit_details = {"delta_minutes": delta_minutes}
         record_audit_event(
             database_session,
             actor=actor,

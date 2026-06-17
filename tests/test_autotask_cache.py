@@ -15,9 +15,18 @@ from job_logger.models import Job
 from job_logger.services.autotask import (
     _COMPANY_ID_CACHE,
     _COMPANY_SEARCH_CACHE,
+    _OPEN_TICKET_SELECTION_CACHE,
+    _START_CONNECTIVITY_CACHE,
     _TICKET_STATUS_CACHE,
+    AutotaskConnectivityResult,
     AutotaskSubmissionError,
     LiveAutotaskProvider,
+)
+from job_logger.services.autotask import (
+    test_autotask_connectivity as run_autotask_connectivity,
+)
+from job_logger.services.autotask import (
+    test_cached_autotask_connectivity_for_start as run_cached_autotask_connectivity_for_start,
 )
 
 
@@ -92,6 +101,71 @@ class FakeTicketStatusClient:
         """Return ticket status picklist values."""
 
         self.get_call_count += 1
+        assert endpoint_path == "/Tickets/entityInformation/fields/status"
+        return FakeAutotaskResponse(
+            {
+                "picklistValues": [
+                    {"value": "1", "label": "In Progress"},
+                    {"value": "5", "label": "Complete"},
+                ]
+            }
+        )
+
+
+class FakeOpenTicketLookupClient:
+    """Fake Autotask client that exposes company, status, and ticket lookup calls."""
+
+    def __init__(self) -> None:
+        """Initialize counters used to prove open-ticket cache behavior."""
+
+        # company_query_count counts selected-company metadata requests.
+        self.company_query_count = 0
+
+        # ticket_query_count counts live Tickets/query requests.
+        self.ticket_query_count = 0
+
+        # status_lookup_count counts ticket status picklist metadata requests.
+        self.status_lookup_count = 0
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return company or ticket query responses based on the requested endpoint."""
+
+        assert json["MaxRecords"] == 500
+        if endpoint_path == "/Companies/query":
+            self.company_query_count += 1
+            return FakeAutotaskResponse(
+                {
+                    "items": [{"id": 1001, "companyName": "Fast Client", "isActive": True}],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/Tickets/query":
+            self.ticket_query_count += 1
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "ticketNumber": "T20260616.0001",
+                            "title": "Cached open ticket",
+                            "status": 1,
+                        },
+                        {
+                            "ticketNumber": "T20260616.0002",
+                            "title": "Completed ticket should not be returned",
+                            "status": 5,
+                        },
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
+
+    def get(self, endpoint_path: str) -> FakeAutotaskResponse:
+        """Return ticket status picklist values for open-ticket filtering."""
+
+        self.status_lookup_count += 1
         assert endpoint_path == "/Tickets/entityInformation/fields/status"
         return FakeAutotaskResponse(
             {
@@ -184,6 +258,29 @@ class FakeTimeEntryCreateClient:
         return FakeAutotaskResponse({"itemId": 987654})
 
 
+class FakeConnectivityProvider:
+    """Fake provider that counts connectivity checks for cache tests."""
+
+    provider_name = "autotask"
+
+    def __init__(self) -> None:
+        """Initialize the live-check counter."""
+
+        # check_count increments each time the fake provider is asked to test connectivity.
+        self.check_count = 0
+
+    def test_connectivity(self) -> AutotaskConnectivityResult:
+        """Return a successful dependency result while recording the call."""
+
+        self.check_count += 1
+        return AutotaskConnectivityResult(
+            provider=self.provider_name,
+            available=True,
+            summary="Fake Autotask connectivity succeeded.",
+            checked_operations=("configuration", "companies", "tickets"),
+        )
+
+
 def _live_test_provider() -> LiveAutotaskProvider:
     """Return a configured live provider without real Autotask credentials."""
 
@@ -212,6 +309,8 @@ def _clear_autotask_lookup_caches() -> None:
     _COMPANY_SEARCH_CACHE.clear()
     _COMPANY_ID_CACHE.clear()
     _TICKET_STATUS_CACHE.clear()
+    _OPEN_TICKET_SELECTION_CACHE.clear()
+    _START_CONNECTIVITY_CACHE.clear()
 
 
 def test_company_lookup_uses_pagination_and_cache() -> None:
@@ -258,6 +357,66 @@ def test_ticket_status_lookup_uses_cache() -> None:
     assert first_lookup == {1: "In Progress", 5: "Complete"}
     assert second_lookup == first_lookup
     assert fake_client.get_call_count == 1
+
+
+def test_open_ticket_lookup_reuses_recent_server_verified_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Selecting a displayed ticket should not re-query live Autotask immediately."""
+
+    _clear_autotask_lookup_caches()
+    provider = _live_test_provider()
+    fake_client = FakeOpenTicketLookupClient()
+
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeConnectivityContext:
+        """Return one fake client while matching the provider client signature."""
+
+        # timeout_seconds is accepted so the fake matches LiveAutotaskProvider._client.
+        assert timeout_seconds == 30.0
+        return FakeConnectivityContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    first_lookup = provider.list_open_tickets_for_client("Fast Client", autotask_company_id=1001)
+    second_lookup = provider.list_open_tickets_for_client("Fast Client", autotask_company_id=1001)
+
+    assert [ticket.ticket_number for ticket in first_lookup] == ["T20260616.0001"]
+    assert second_lookup == first_lookup
+    assert fake_client.company_query_count == 1
+    assert fake_client.ticket_query_count == 1
+    assert fake_client.status_lookup_count == 1
+
+
+def test_start_connectivity_check_uses_short_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Start Work should not run a live Autotask probe for every quick tap."""
+
+    _clear_autotask_lookup_caches()
+    fake_provider = FakeConnectivityProvider()
+    provider_settings = _live_test_provider().application_settings
+
+    monkeypatch.setattr("job_logger.services.autotask.get_autotask_provider", lambda application_settings: fake_provider)
+
+    first_result = run_cached_autotask_connectivity_for_start(provider_settings)
+    second_result = run_cached_autotask_connectivity_for_start(provider_settings)
+
+    assert first_result.available is True
+    assert second_result == first_result
+    assert fake_provider.check_count == 1
+
+
+def test_debug_connectivity_check_bypasses_start_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The debug Autotask test should always run a fresh provider check."""
+
+    _clear_autotask_lookup_caches()
+    fake_provider = FakeConnectivityProvider()
+    provider_settings = _live_test_provider().application_settings
+
+    monkeypatch.setattr("job_logger.services.autotask.get_autotask_provider", lambda application_settings: fake_provider)
+
+    cached_result = run_cached_autotask_connectivity_for_start(provider_settings)
+    fresh_debug_result = run_autotask_connectivity(provider_settings)
+
+    assert cached_result.available is True
+    assert fresh_debug_result.available is True
+    assert fake_provider.check_count == 2
 
 
 def test_blank_impersonation_resource_omits_autotask_header() -> None:

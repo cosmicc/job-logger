@@ -108,7 +108,9 @@ Autotask failures should produce safe user-facing messages and troubleshooting
 tips. Do not expose protocol details, headers, credentials, or full raw payloads.
 
 Autotask API availability gates new job starts because production workflow
-depends on company and ticket data.
+depends on company and ticket data. Start Work may use the short server-side
+connectivity cache for speed, but the debug API test must remain a fresh live
+diagnostic check.
 
 ## Database And Deletion Safety
 

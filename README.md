@@ -300,13 +300,17 @@ Autotask company search results and selected-company metadata are cached
 in-process for two hours because company names rarely change. Empty company
 search results are not treated as authoritative cache hits, so a company missing
 from cache can still be queried from Autotask. Ticket status picklist labels and
-other Autotask lookup data remain on a 15-minute cache. Live company and ticket
-queries request `MaxRecords=500` and follow Autotask pagination links so larger
-tenants are not limited to the first page of results. Pagination is bounded and
-fails safely instead of silently showing partial customer or ticket lists. For
-POST query pagination, Job Logger follows `nextPageUrl` with POST and the
-original query body because Autotask rejects GET follow-up calls for those
-resources.
+other Autotask lookup data remain on a 15-minute cache. Recently displayed
+open-ticket selection lists are cached server-side for two minutes so selecting
+a ticket that was just shown does not re-query Autotask on the critical tap
+path. Start Work uses a separate short Autotask health cache: successful checks
+are reused for five minutes, and failures are reused for thirty seconds. Live
+company and ticket queries request `MaxRecords=500` and follow Autotask
+pagination links so larger tenants are not limited to the first page of results.
+Pagination is bounded and fails safely instead of silently showing partial
+customer or ticket lists. For POST query pagination, Job Logger follows
+`nextPageUrl` with POST and the original query body because Autotask rejects GET
+follow-up calls for those resources.
 
 The mobile and review pages can query open Autotask tickets from the selected
 job's stored company ID or stored client name. On mobile, the **Find tickets**
@@ -346,7 +350,8 @@ The `/debug` page shows the source-controlled application version and includes a
 **Test Autotask API** button. That check verifies required workflow
 configuration and the live Companies/Tickets API calls used by the app. If the
 check fails, new jobs cannot be started until Autotask connectivity or
-configuration is fixed.
+configuration is fixed. The debug button always runs a fresh live check instead
+of using the Start Work health cache.
 
 The `scripts/discover_autotask_ids.py` helper also prints a workflow endpoint
 preflight section. Role, billing-code, and ticket-status ID discovery can

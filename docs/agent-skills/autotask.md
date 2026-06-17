@@ -14,9 +14,10 @@ Production startup requires:
 - `AUTOTASK_PROVIDER=autotask`.
 - Valid application authentication settings.
 
-Starting a new job also requires the server-side Autotask connectivity check to
+Starting a new job also requires the server-side Autotask connectivity gate to
 pass. This is enforced in `job_logger/routes/mobile.py` before `start_job()` is
-called.
+called. Start Work uses a short server-side health cache so repeated taps do not
+run the full live Autotask workflow probe every time.
 
 Mock mode remains available for tests and isolated development only.
 
@@ -63,6 +64,12 @@ The live check currently verifies:
 
 If this check fails, new job starts are blocked with a clear message.
 
+Start Work uses `test_cached_autotask_connectivity_for_start()` instead of the
+debug function. A successful result is cached for five minutes, and a failed
+result is cached for thirty seconds. Keep the debug page on
+`test_autotask_connectivity()` so operator-triggered diagnostics always run a
+fresh live check.
+
 ## Company Search And Ticket Lookup
 
 The browser calls `/autotask/companies` while the user types a client name.
@@ -89,17 +96,19 @@ stored, it can fall back to client-name matching.
 
 Ticket options returned to the browser include safe ticket number, title, status
 label, and company name. Review ticket selection uses
-`POST /review/{job_id}/ticket`; the route re-queries the open-ticket list,
-verifies the submitted ticket number is still valid for the job's stored
+`POST /review/{job_id}/ticket`; the route uses the server-verified open-ticket
+list that was just loaded when the short-lived selection cache is available,
+falls back to re-querying Autotask when that cache is expired or absent,
+verifies the submitted ticket number is valid for the job's stored
 client/company, then persists the ticket number and title as local job metadata.
 The review detail heading can then show the chosen ticket name without
 repeatedly querying Autotask.
 
 On mobile, ticket numbers are populated from the open-ticket picker instead of
 manual entry. The ticket choice posts to `POST /jobs/{job_id}/ticket`; that
-route re-queries the open-ticket list for the stored client/company, verifies
-the selected ticket is still valid for that job, and persists the ticket number
-and title returned by the provider. The mobile **Find tickets** button first
+route uses the same server-side selection cache or a fresh Autotask lookup,
+verifies the selected ticket is valid for that job, and persists the ticket
+number and title returned by the provider. The mobile **Find tickets** button first
 saves the active job's current client fields through
 `POST /jobs/{job_id}/ticket-number` with a JSON response, then loads open
 tickets from the server-verified lookup endpoint. After mobile or review
@@ -116,6 +125,9 @@ Current cache policy:
 - Company search results: two hours.
 - Selected company metadata by ID: two hours.
 - Ticket status picklist labels: 15 minutes.
+- Recently displayed open-ticket selection lists: two minutes.
+- Start Work Autotask connectivity success: five minutes.
+- Start Work Autotask connectivity failure: thirty seconds.
 - Other short-lived Autotask lookup data: 15 minutes unless documented
   otherwise.
 
@@ -127,6 +139,10 @@ Company cache must be treated carefully:
 - If a company is not in cache, the app must still be willing to query Autotask.
 
 The cache is process-local. Multiple app containers do not share it.
+
+The open-ticket selection cache stores only positive, non-secret ticket options
+that the server already returned to the authenticated browser. It exists to keep
+the click-to-save path fast; it is not a durable authorization source.
 
 ## Pagination Rules
 
