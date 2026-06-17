@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus
 from job_logger.models import Job, SubmissionAttempt
 from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider
-from job_logger.services.transcription import TranscriptionError, get_transcription_provider
+from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
 from job_logger.time_utils import (
     ROUNDING_INTERVAL_MINUTES,
     enforce_minimum_rounded_end,
@@ -444,6 +444,43 @@ def update_description_text(database_session: Session, job_id: str, description_
     return _apply_summary_text(job, safe_description_text)
 
 
+def apply_transcription_result_to_active_job(
+    database_session: Session,
+    *,
+    job_id: str,
+    transcription_result: TranscriptionResult,
+) -> Job:
+    """Persist a completed speech-to-text result on an active job."""
+
+    job = get_job_or_raise(database_session, job_id)
+    if job.status != JobStatus.ACTIVE:
+        raise JobWorkflowError("Audio descriptions can only be recorded during an active job.")
+
+    job.summary_notes = transcription_result.text
+    job.description_text = transcription_result.text
+    job.transcription_provider = transcription_result.provider
+    job.transcription_status = TranscriptionStatus.SUCCEEDED
+    job.transcription_error = None
+    return job
+
+
+def mark_active_job_transcription_failed(
+    database_session: Session,
+    *,
+    job_id: str,
+    error_message: str,
+) -> Job:
+    """Persist a safe transcription failure message on an active job."""
+
+    job = get_job_or_raise(database_session, job_id)
+    if job.status != JobStatus.ACTIVE:
+        raise JobWorkflowError("Audio descriptions can only be recorded during an active job.")
+
+    job.transcription_status = TranscriptionStatus.FAILED
+    job.transcription_error = error_message
+    return job
+
+
 def transcribe_active_job_audio(
     database_session: Session,
     *,
@@ -465,16 +502,14 @@ def transcribe_active_job_audio(
             content_type=content_type,
         )
     except TranscriptionError as exc:
-        job.transcription_status = TranscriptionStatus.FAILED
-        job.transcription_error = str(exc)
+        mark_active_job_transcription_failed(database_session, job_id=job_id, error_message=str(exc))
         raise
 
-    job.summary_notes = transcription_result.text
-    job.description_text = transcription_result.text
-    job.transcription_provider = transcription_result.provider
-    job.transcription_status = TranscriptionStatus.SUCCEEDED
-    job.transcription_error = None
-    return job
+    return apply_transcription_result_to_active_job(
+        database_session,
+        job_id=job_id,
+        transcription_result=transcription_result,
+    )
 
 
 def validate_review_fields(

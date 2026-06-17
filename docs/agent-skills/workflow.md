@@ -55,13 +55,16 @@ Active jobs support these updates before completion:
 - Rounded start time through a server-validated 15-minute mobile time selector.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
-historical; it now saves active-job edits, not only ticket numbers.
+historical; it now saves active-job client and summary edits, not ticket
+selection from the open-ticket picker.
 
 The mobile active-job ticket number is not a manual text entry. The open-ticket
-picker writes a hidden ticket number/title pair and automatically submits the
-active-job save form after the user chooses a ticket. When an active job has a
-client but no ticket number, the mobile page auto-loads the open-ticket picker
-without requiring a separate find button.
+picker posts the clicked ticket number to `POST /jobs/{job_id}/ticket`. That
+route re-queries the selected job's open Autotask ticket list, verifies the
+submitted ticket belongs to that safe list, stores the ticket number and title,
+and records an audit event. When an active job has a client but no ticket
+number, the mobile page auto-loads the open-ticket picker without requiring a
+separate find button.
 
 The active mobile card should expose only one client entry point for each job.
 After an Autotask company is selected, the active job displays that client as a
@@ -98,8 +101,16 @@ Current behavior:
 
 - Record starts audio capture.
 - Record button becomes pause/resume while capture is active.
-- Submit stops capture and uploads the recorded audio.
-- Raw audio is sent to `POST /jobs/{job_id}/description/audio`.
+- The browser opens `WebSocket /jobs/{job_id}/description/audio/stream`,
+  sends CSRF-protected stream metadata first, then streams `MediaRecorder`
+  audio chunks as binary WebSocket messages.
+- The server starts an interim transcription attempt as soon as the first chunk
+  arrives. The current faster-whisper provider is batch-oriented, so interim
+  text is best-effort from the buffered media snapshot; the final transcript is
+  generated from the full in-memory recording when Submit sends `finish`.
+- Submit stops capture and finalizes the streamed transcription. The legacy
+  `POST /jobs/{job_id}/description/audio` endpoint remains as a compatibility
+  upload path, but the mobile UI should use the WebSocket stream.
 - Raw audio is not permanently stored by default.
 - Transcription text updates the same summary field that review and Autotask
   submission use.
@@ -137,8 +148,10 @@ route must overlay those fields from the stored job before validation.
 
 When a ticket is selected from Autotask lookup, store the ticket title with the
 job and use it as the selected-job detail heading. If no ticket has been
-selected, the detail heading should read `Unassigned Ticket`. Once a job has a
-ticket number, hide the open-ticket lookup panel for that job.
+selected, the detail heading should read `Unassigned Ticket`. Older jobs that
+have a ticket number but no stored title may display the ticket number as a
+fallback. Once a job has a ticket number, hide the open-ticket lookup panel for
+that job.
 
 ## Job Status Expectations
 

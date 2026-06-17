@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -61,6 +62,34 @@ class DisabledTranscriptionProvider(BaseTranscriptionProvider):
         raise TranscriptionError("Speech-to-text is disabled by configuration.")
 
 
+@lru_cache(maxsize=4)
+def _load_faster_whisper_model(
+    *,
+    model_name: str,
+    device: str,
+    compute_type: str,
+    cpu_threads: int,
+    download_root: str,
+    local_files_only: bool,
+) -> object:
+    """Load and cache a faster-whisper model for repeated transcription calls."""
+
+    from faster_whisper import WhisperModel
+
+    # The model directory is created before loading so Docker volume mounts work
+    # for both first-run downloads and local-files-only deployments.
+    model_cache_path = Path(download_root)
+    model_cache_path.mkdir(parents=True, exist_ok=True)
+    return WhisperModel(
+        model_name,
+        device=device,
+        compute_type=compute_type,
+        cpu_threads=cpu_threads,
+        download_root=str(model_cache_path),
+        local_files_only=local_files_only,
+    )
+
+
 class FasterWhisperTranscriptionProvider(BaseTranscriptionProvider):
     """Local faster-whisper provider for real speech-to-text transcription."""
 
@@ -77,14 +106,6 @@ class FasterWhisperTranscriptionProvider(BaseTranscriptionProvider):
         if not audio_bytes:
             raise TranscriptionError("No audio bytes were submitted.")
 
-        try:
-            from faster_whisper import WhisperModel
-        except ImportError as exc:
-            raise TranscriptionError("The faster-whisper package is not installed.") from exc
-
-        model_cache_path = Path(self.application_settings.faster_whisper_download_root)
-        model_cache_path.mkdir(parents=True, exist_ok=True)
-
         # faster-whisper reads through local media tooling, so a short-lived file
         # is used instead of permanently storing raw audio in the database or app.
         temporary_audio_path: Path | None = None
@@ -94,12 +115,12 @@ class FasterWhisperTranscriptionProvider(BaseTranscriptionProvider):
                 audio_file.write(audio_bytes)
                 temporary_audio_path = Path(audio_file.name)
 
-            model = WhisperModel(
-                self.application_settings.faster_whisper_model,
+            model = _load_faster_whisper_model(
+                model_name=self.application_settings.faster_whisper_model,
                 device=self.application_settings.faster_whisper_device,
                 compute_type=self.application_settings.faster_whisper_compute_type,
                 cpu_threads=self.application_settings.faster_whisper_cpu_threads,
-                download_root=str(model_cache_path),
+                download_root=self.application_settings.faster_whisper_download_root,
                 local_files_only=self.application_settings.faster_whisper_local_files_only,
             )
             segments, _transcription_info = model.transcribe(
@@ -108,6 +129,8 @@ class FasterWhisperTranscriptionProvider(BaseTranscriptionProvider):
                 beam_size=self.application_settings.faster_whisper_beam_size,
             )
             transcript_text = " ".join(segment.text.strip() for segment in segments if segment.text.strip()).strip()
+        except ImportError as exc:
+            raise TranscriptionError("The faster-whisper package is not installed.") from exc
         except Exception as exc:
             raise TranscriptionError(f"Local faster-whisper transcription failed: {exc}") from exc
         finally:

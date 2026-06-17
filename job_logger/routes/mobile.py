@@ -2,19 +2,33 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+import time as monotonic_time
 from datetime import time
+from pathlib import Path
+from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 
 from job_logger.config import settings
 from job_logger.database import get_database_session
-from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_header, validate_csrf_token
+from job_logger.enums import JobStatus
+from job_logger.security import (
+    add_flash_message,
+    require_authenticated_username,
+    require_authenticated_username_from_session,
+    validate_csrf_header,
+    validate_csrf_session_token,
+    validate_csrf_token,
+)
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import (
     AutotaskConnectivityResult,
     AutotaskSubmissionError,
+    AutotaskTicketOption,
     get_autotask_provider,
     test_autotask_connectivity,
 )
@@ -22,20 +36,30 @@ from job_logger.services.jobs import (
     JobWorkflowError,
     adjust_active_job_rounded_start,
     apply_manual_summary_to_job,
+    apply_selected_ticket_from_lookup,
+    apply_transcription_result_to_active_job,
     delete_active_job,
     end_job,
     get_job_or_raise,
     list_active_jobs,
+    mark_active_job_transcription_failed,
     set_active_job_rounded_start_time,
     start_job,
     transcribe_active_job_audio,
     update_active_job_ticket_number,
     update_description_text,
 )
-from job_logger.services.transcription import TranscriptionError
+from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
 from job_logger.ui import template_context, templates
 
 router = APIRouter(tags=["mobile"])
+
+AUDIO_STREAM_PARTIAL_INTERVAL_SECONDS = 12.0
+SUPPORTED_AUDIO_STREAM_SUFFIXES = {".webm", ".ogg", ".mp3", ".m4a", ".wav", ".mp4"}
+
+
+class AudioStreamProtocolError(RuntimeError):
+    """Raised when a WebSocket audio client sends an invalid stream message."""
 
 
 def _rounded_start_time_options() -> list[dict[str, str]]:
@@ -65,6 +89,370 @@ def _autotask_start_block_message(connectivity_result: AutotaskConnectivityResul
         return f"Autotask API is down and needs fixing. {connectivity_result.summary} Tips: {leading_tips}"
 
     return f"Autotask API is down and needs fixing. {connectivity_result.summary}"
+
+
+def _find_matching_ticket_option(ticket_options: list[AutotaskTicketOption], ticket_number: str) -> AutotaskTicketOption | None:
+    """Return a selected open-ticket option by normalized ticket number."""
+
+    normalized_ticket_number = ticket_number.strip().upper()
+    for ticket_option in ticket_options:
+        if ticket_option.ticket_number.strip().upper() == normalized_ticket_number:
+            return ticket_option
+
+    return None
+
+
+def _normalize_audio_stream_content_type(raw_content_type: Any) -> str:
+    """Return a bounded audio content type accepted by the streaming endpoint."""
+
+    content_type = str(raw_content_type or "audio/webm").strip()[:120]
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    if media_type.startswith("audio/") or media_type == "video/webm":
+        return content_type
+
+    raise AudioStreamProtocolError("Only audio streams are accepted.")
+
+
+def _safe_audio_stream_filename(raw_filename: Any) -> str:
+    """Return a server-controlled filename with only a safe media suffix kept."""
+
+    submitted_suffix = Path(str(raw_filename or "")).suffix.lower()
+    if submitted_suffix not in SUPPORTED_AUDIO_STREAM_SUFFIXES:
+        submitted_suffix = ".webm"
+
+    return f"streamed-recording{submitted_suffix}"
+
+
+def _json_dict_from_websocket_text(message_text: str | None) -> dict[str, Any]:
+    """Decode a text WebSocket message into a JSON object."""
+
+    if message_text is None:
+        raise AudioStreamProtocolError("Audio stream metadata must be sent as JSON text.")
+
+    try:
+        decoded_message = json.loads(message_text)
+    except json.JSONDecodeError as exc:
+        raise AudioStreamProtocolError("Audio stream metadata must be valid JSON.") from exc
+
+    if not isinstance(decoded_message, dict):
+        raise AudioStreamProtocolError("Audio stream metadata must be a JSON object.")
+
+    return decoded_message
+
+
+async def _receive_audio_stream_json(websocket: WebSocket) -> dict[str, Any]:
+    """Receive one JSON object from an audio WebSocket."""
+
+    websocket_message = await websocket.receive()
+    if websocket_message.get("type") == "websocket.disconnect":
+        raise WebSocketDisconnect()
+
+    return _json_dict_from_websocket_text(websocket_message.get("text"))
+
+
+async def _send_audio_stream_error(websocket: WebSocket, detail: str, close_code: int) -> None:
+    """Send a safe WebSocket error response and close the connection."""
+
+    try:
+        await websocket.send_json({"type": "error", "detail": detail})
+    except RuntimeError:
+        return
+
+    try:
+        await websocket.close(code=close_code)
+    except RuntimeError:
+        return
+
+
+async def _transcribe_audio_snapshot(audio_bytes: bytes, filename: str, content_type: str) -> TranscriptionResult:
+    """Run the configured synchronous transcription provider without blocking the event loop."""
+
+    return await asyncio.to_thread(
+        get_transcription_provider().transcribe,
+        audio_bytes=audio_bytes,
+        filename=filename,
+        content_type=content_type,
+    )
+
+
+def _record_audio_stream_failure(
+    database_session: Session,
+    *,
+    actor: str,
+    job_id: str,
+    safe_error: str,
+    audio_size_bytes: int,
+    chunk_count: int,
+) -> None:
+    """Persist safe failure status for a streamed transcription attempt."""
+
+    job = mark_active_job_transcription_failed(
+        database_session,
+        job_id=job_id,
+        error_message=safe_error,
+    )
+    record_audit_event(
+        database_session,
+        actor=actor,
+        action="job.description.audio_stream_failed",
+        job_id=job.id,
+        details={
+            "audio_size_bytes": audio_size_bytes,
+            "chunk_count": chunk_count,
+            "error": safe_error,
+        },
+    )
+    database_session.commit()
+
+
+async def _receive_audio_stream_chunks(
+    *,
+    websocket: WebSocket,
+    database_session: Session,
+    actor: str,
+    job_id: str,
+    filename: str,
+    content_type: str,
+) -> None:
+    """Receive audio chunks, start early transcription, and save the final transcript."""
+
+    # audio_buffer is intentionally process memory only. It is cleared when the
+    # WebSocket handler exits, and raw audio is never written to the database.
+    audio_buffer = bytearray()
+    chunk_count = 0
+    partial_snapshot_bytes = 0
+    last_partial_started_at = 0.0
+    partial_wait_notice_sent = False
+    stream_finished = False
+    partial_task: asyncio.Task[TranscriptionResult] | None = None
+
+    async def collect_completed_partial_transcription() -> None:
+        """Send a completed interim transcription result if one is available."""
+
+        nonlocal partial_task, partial_wait_notice_sent
+        if partial_task is None or not partial_task.done():
+            return
+
+        try:
+            partial_result = partial_task.result()
+        except TranscriptionError:
+            # Early media snapshots can be too short for faster-whisper or ffmpeg
+            # to decode. That is not a final failure; the route continues
+            # buffering and will make the final attempt with the full recording.
+            if not partial_wait_notice_sent:
+                await websocket.send_json(
+                    {
+                        "type": "partial_pending",
+                        "detail": "Collecting enough audio to return transcription text.",
+                    }
+                )
+                partial_wait_notice_sent = True
+        else:
+            await websocket.send_json(
+                {
+                    "type": "partial",
+                    "summary_notes": partial_result.text,
+                    "description_text": partial_result.text,
+                    "provider": partial_result.provider,
+                    "bytes_transcribed": partial_snapshot_bytes,
+                }
+            )
+        finally:
+            partial_task = None
+
+    async def start_partial_transcription_if_ready() -> None:
+        """Start a throttled interim transcription on the buffered audio."""
+
+        nonlocal last_partial_started_at, partial_snapshot_bytes, partial_task
+        if partial_task is not None or not audio_buffer:
+            return
+
+        current_time = monotonic_time.monotonic()
+        if chunk_count != 1 and current_time - last_partial_started_at < AUDIO_STREAM_PARTIAL_INTERVAL_SECONDS:
+            return
+
+        partial_audio_bytes = bytes(audio_buffer)
+        partial_snapshot_bytes = len(partial_audio_bytes)
+        last_partial_started_at = current_time
+        partial_task = asyncio.create_task(
+            _transcribe_audio_snapshot(partial_audio_bytes, filename, content_type)
+        )
+        await websocket.send_json(
+            {
+                "type": "transcription_started",
+                "phase": "partial",
+                "bytes_queued": partial_snapshot_bytes,
+            }
+        )
+
+    try:
+        while True:
+            await collect_completed_partial_transcription()
+            try:
+                websocket_message = await asyncio.wait_for(websocket.receive(), timeout=0.25)
+            except TimeoutError:
+                continue
+
+            if websocket_message.get("type") == "websocket.disconnect":
+                if audio_buffer:
+                    record_audit_event(
+                        database_session,
+                        actor=actor,
+                        action="job.description.audio_stream_canceled",
+                        job_id=job_id,
+                        details={
+                            "audio_size_bytes": len(audio_buffer),
+                            "chunk_count": chunk_count,
+                        },
+                    )
+                    database_session.commit()
+                return
+
+            binary_chunk = websocket_message.get("bytes")
+            if binary_chunk:
+                audio_buffer.extend(binary_chunk)
+                chunk_count += 1
+                if len(audio_buffer) > settings.max_audio_upload_bytes:
+                    database_session.rollback()
+                    _record_audio_stream_failure(
+                        database_session,
+                        actor=actor,
+                        job_id=job_id,
+                        safe_error="Audio upload is too large.",
+                        audio_size_bytes=len(audio_buffer),
+                        chunk_count=chunk_count,
+                    )
+                    await _send_audio_stream_error(
+                        websocket,
+                        "Audio upload is too large.",
+                        status.WS_1009_MESSAGE_TOO_BIG,
+                    )
+                    return
+
+                await websocket.send_json(
+                    {
+                        "type": "chunk_received",
+                        "bytes_received": len(audio_buffer),
+                        "chunk_count": chunk_count,
+                    }
+                )
+                await start_partial_transcription_if_ready()
+                continue
+
+            websocket_payload = _json_dict_from_websocket_text(websocket_message.get("text"))
+            message_type = str(websocket_payload.get("type", "")).strip().lower()
+            if message_type == "finish":
+                stream_finished = True
+                break
+
+            if message_type == "cancel":
+                record_audit_event(
+                    database_session,
+                    actor=actor,
+                    action="job.description.audio_stream_canceled",
+                    job_id=job_id,
+                    details={
+                        "audio_size_bytes": len(audio_buffer),
+                        "chunk_count": chunk_count,
+                    },
+                )
+                database_session.commit()
+                await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
+                return
+
+            raise AudioStreamProtocolError("Unsupported audio stream command.")
+    finally:
+        if not stream_finished and partial_task is not None and not partial_task.done():
+            partial_task.cancel()
+
+    if not audio_buffer:
+        database_session.rollback()
+        _record_audio_stream_failure(
+            database_session,
+            actor=actor,
+            job_id=job_id,
+            safe_error="No audio was recorded.",
+            audio_size_bytes=0,
+            chunk_count=chunk_count,
+        )
+        await _send_audio_stream_error(
+            websocket,
+            "No audio was recorded. Press Record and try again.",
+            status.WS_1008_POLICY_VIOLATION,
+        )
+        return
+
+    await collect_completed_partial_transcription()
+    if partial_task is not None:
+        try:
+            partial_result = await partial_task
+        except TranscriptionError:
+            pass
+        else:
+            await websocket.send_json(
+                {
+                    "type": "partial",
+                    "summary_notes": partial_result.text,
+                    "description_text": partial_result.text,
+                    "provider": partial_result.provider,
+                    "bytes_transcribed": partial_snapshot_bytes,
+                }
+            )
+        finally:
+            partial_task = None
+
+    await websocket.send_json(
+        {
+            "type": "transcription_started",
+            "phase": "final",
+            "bytes_queued": len(audio_buffer),
+        }
+    )
+    try:
+        final_result = await _transcribe_audio_snapshot(bytes(audio_buffer), filename, content_type)
+        job = apply_transcription_result_to_active_job(
+            database_session,
+            job_id=job_id,
+            transcription_result=final_result,
+        )
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.description.audio_stream_transcribed",
+            job_id=job.id,
+            details={
+                "provider": job.transcription_provider,
+                "audio_size_bytes": len(audio_buffer),
+                "chunk_count": chunk_count,
+            },
+        )
+        database_session.commit()
+    except (JobWorkflowError, TranscriptionError) as exc:
+        database_session.rollback()
+        safe_error = str(exc)
+        try:
+            _record_audio_stream_failure(
+                database_session,
+                actor=actor,
+                job_id=job_id,
+                safe_error=safe_error,
+                audio_size_bytes=len(audio_buffer),
+                chunk_count=chunk_count,
+            )
+        except JobWorkflowError:
+            database_session.rollback()
+        await _send_audio_stream_error(websocket, safe_error, status.WS_1011_INTERNAL_ERROR)
+        return
+
+    await websocket.send_json(
+        {
+            "type": "final",
+            "summary_notes": job.summary_notes or "",
+            "description_text": job.description_text or "",
+            "provider": job.transcription_provider,
+        }
+    )
+    await websocket.close(code=status.WS_1000_NORMAL_CLOSURE)
 
 
 @router.get("/", include_in_schema=False)
@@ -187,8 +575,6 @@ async def save_ticket_number(
     actor = require_authenticated_username(request)
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
-    submitted_ticket_number = str(form_data.get("ticket_number", ""))
-    submitted_ticket_title = str(form_data.get("ticket_title", ""))
     raw_client_name = form_data.get("client_name")
     submitted_client_name = str(raw_client_name) if raw_client_name is not None else None
     raw_autotask_company_id = form_data.get("autotask_company_id")
@@ -199,10 +585,10 @@ async def save_ticket_number(
         job = update_active_job_ticket_number(
             database_session,
             job_id,
-            submitted_ticket_number,
+            None,
             submitted_client_name,
             submitted_autotask_company_id,
-            submitted_ticket_title,
+            None,
         )
         if raw_summary_text is not None:
             apply_manual_summary_to_job(database_session, job_id, str(raw_summary_text))
@@ -226,6 +612,63 @@ async def save_ticket_number(
         add_flash_message(request, str(exc), "error")
 
     return RedirectResponse(url="/mobile", status_code=303)
+
+
+@router.post("/jobs/{job_id}/ticket")
+async def select_active_ticket(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Persist an active-job ticket chosen from the server-verified open-ticket list."""
+
+    actor = require_authenticated_username(request)
+    validate_csrf_header(request)
+    payload = await request.json()
+    submitted_ticket_number = str(payload.get("ticket_number", ""))
+    try:
+        job = get_job_or_raise(database_session, job_id)
+        if job.status != JobStatus.ACTIVE:
+            raise JobWorkflowError("Tickets can only be selected from mobile during an active job.")
+        if not job.client_name:
+            raise JobWorkflowError("Client name is required before selecting an Autotask ticket.")
+
+        ticket_options = get_autotask_provider().list_open_tickets_for_client(
+            job.client_name,
+            job.autotask_company_id,
+        )
+        selected_ticket_option = _find_matching_ticket_option(ticket_options, submitted_ticket_number)
+        if selected_ticket_option is None:
+            raise JobWorkflowError("Selected ticket was not found in the open-ticket list for this client.")
+
+        apply_selected_ticket_from_lookup(
+            job,
+            selected_ticket_option.ticket_number,
+            selected_ticket_option.title,
+        )
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.active.ticket_selected",
+            job_id=job.id,
+            request=request,
+            details={
+                "ticket_number": job.ticket_number,
+                "ticket_title_present": bool(job.ticket_title),
+                "autotask_company_selected": job.autotask_company_id is not None,
+            },
+        )
+        database_session.commit()
+    except (AutotaskSubmissionError, JobWorkflowError) as exc:
+        database_session.rollback()
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+
+    return JSONResponse(
+        {
+            "ticket_number": job.ticket_number,
+            "ticket_title": job.ticket_title,
+        }
+    )
 
 
 @router.post("/jobs/{job_id}/delete")
@@ -377,6 +820,73 @@ async def save_browser_description(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     return JSONResponse({"summary_notes": job.summary_notes or "", "description_text": job.description_text or ""})
+
+
+@router.websocket("/jobs/{job_id}/description/audio/stream")
+async def stream_audio_description(
+    job_id: str,
+    websocket: WebSocket,
+    database_session: Session = Depends(get_database_session),
+) -> None:
+    """Accept chunked microphone audio over WebSocket and transcribe it."""
+
+    await websocket.accept()
+    try:
+        actor = require_authenticated_username_from_session(websocket.session)
+    except HTTPException as exc:
+        await _send_audio_stream_error(websocket, str(exc.detail), status.WS_1008_POLICY_VIOLATION)
+        return
+
+    try:
+        start_payload = await _receive_audio_stream_json(websocket)
+        if str(start_payload.get("type", "")).strip().lower() != "start":
+            raise AudioStreamProtocolError("Audio stream must start with metadata.")
+
+        # Browser WebSocket APIs cannot send custom CSRF headers. The token is
+        # therefore sent in the first JSON message rather than the URL, keeping
+        # it out of reverse-proxy access logs while still validating before any
+        # audio bytes are accepted or transcribed.
+        validate_csrf_session_token(websocket.session, str(start_payload.get("csrf_token", "")))
+        content_type = _normalize_audio_stream_content_type(start_payload.get("content_type"))
+        filename = _safe_audio_stream_filename(start_payload.get("filename"))
+
+        job = get_job_or_raise(database_session, job_id)
+        if job.status != JobStatus.ACTIVE:
+            raise JobWorkflowError("Audio descriptions can only be recorded during an active job.")
+
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.description.audio_stream_started",
+            job_id=job.id,
+            details={
+                "content_type": content_type,
+                "max_audio_bytes": settings.max_audio_upload_bytes,
+            },
+        )
+        database_session.commit()
+        await websocket.send_json(
+            {
+                "type": "ready",
+                "max_audio_bytes": settings.max_audio_upload_bytes,
+            }
+        )
+        await _receive_audio_stream_chunks(
+            websocket=websocket,
+            database_session=database_session,
+            actor=actor,
+            job_id=job_id,
+            filename=filename,
+            content_type=content_type,
+        )
+    except WebSocketDisconnect:
+        database_session.rollback()
+    except HTTPException as exc:
+        database_session.rollback()
+        await _send_audio_stream_error(websocket, str(exc.detail), status.WS_1008_POLICY_VIOLATION)
+    except (AudioStreamProtocolError, JobWorkflowError) as exc:
+        database_session.rollback()
+        await _send_audio_stream_error(websocket, str(exc), status.WS_1008_POLICY_VIOLATION)
 
 
 @router.post("/jobs/{job_id}/description/audio")

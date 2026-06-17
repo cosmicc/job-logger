@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from job_logger import database
 from job_logger.enums import JobStatus, TranscriptionStatus
@@ -51,18 +52,27 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         json={"summary_notes": "Replaced a failed workstation power supply."},
     )
     assert text_response.status_code == 200
-    save_ticket_response = authenticated_client.post(
+    save_client_response = authenticated_client.post(
         f"/jobs/{active_job_id}/ticket-number",
         data={
             "csrf_token": csrf_token,
-            "ticket_number": "T20260616.0001",
-            "ticket_title": "Mock open ticket for Acme Energy",
             "client_name": "Acme Energy",
             "autotask_company_id": "1001",
         },
         follow_redirects=False,
     )
-    assert save_ticket_response.status_code == 303
+    assert save_client_response.status_code == 303
+
+    select_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0001"},
+    )
+    assert select_ticket_response.status_code == 200
+    assert select_ticket_response.json() == {
+        "ticket_number": "T20260616.0001",
+        "ticket_title": "Mock open ticket for Acme Energy",
+    }
 
     end_response = authenticated_client.post(
         f"/jobs/{active_job_id}/end",
@@ -255,9 +265,14 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'value="00:00"' in page_html
     assert 'value="00:15"' in page_html
     assert 'data-active-ticket-picker' in page_html
+    assert f'data-ticket-select-url="/jobs/{active_job_id}/ticket"' in page_html
     assert 'data-auto-load-ticket-options="true"' in page_html
     assert 'data-active-ticket-lookup-button' not in page_html
     assert "Find tickets" not in page_html
+    assert page_html.index("<dt>Client name</dt>") < page_html.index("<h3>Open tickets</h3>")
+    assert page_html.index("<h3>Open tickets</h3>") < page_html.index(f'id="active-ticket-form-{active_job_id}"')
+    assert 'class="secondary-button active-save-button"' in page_html
+    assert page_html.index("Summary notes") < page_html.index("Save Active Changes") < page_html.index("Record Notes")
     assert "Autotask ticket number" not in page_html
     assert 'class="active-ticket-number"' in page_html
     assert 'pattern="[Tt][0-9]{8}\\.[0-9]{4}"' not in page_html
@@ -650,8 +665,6 @@ def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_
         f"/jobs/{active_job_id}/ticket-number",
         data={
             "csrf_token": csrf_token,
-            "ticket_number": "t20260326.0018",
-            "ticket_title": "Mock selected mobile ticket",
             "client_name": "Mobile Review Client",
             "autotask_company_id": "1002",
             "summary_notes": "Saved from mobile active form",
@@ -666,15 +679,97 @@ def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_
         assert active_job.client_name == "Mobile Review Client"
         assert active_job.autotask_company_id == 1002
         assert active_job.summary_notes == "Saved from mobile active form"
-        assert active_job.ticket_number == "T20260326.0018"
-        assert active_job.ticket_title == "Mock selected mobile ticket"
+        assert active_job.ticket_number is None
+        assert active_job.ticket_title is None
 
     updated_mobile_page_response = authenticated_client.get("/mobile")
-    assert "data-active-ticket-picker" not in updated_mobile_page_response.text
+    assert "data-active-ticket-picker" in updated_mobile_page_response.text
+
+
+def test_mobile_audio_stream_requires_csrf(authenticated_client: TestClient) -> None:
+    """The WebSocket audio stream validates CSRF before accepting audio bytes."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    with authenticated_client.websocket_connect(f"/jobs/{active_job_id}/description/audio/stream") as websocket:
+        websocket.send_json(
+            {
+                "type": "start",
+                "csrf_token": "not-the-session-token",
+                "content_type": "audio/webm",
+                "filename": "recording.webm",
+            }
+        )
+        error_payload = websocket.receive_json()
+        assert error_payload["type"] == "error"
+        assert "CSRF" in error_payload["detail"]
+        with pytest.raises(WebSocketDisconnect):
+            websocket.receive_json()
+
+
+def test_mobile_audio_stream_transcribes_chunks(authenticated_client: TestClient) -> None:
+    """Chunked WebSocket audio is transcribed and saved on finish."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    with authenticated_client.websocket_connect(f"/jobs/{active_job_id}/description/audio/stream") as websocket:
+        websocket.send_json(
+            {
+                "type": "start",
+                "csrf_token": csrf_token,
+                "content_type": "audio/webm",
+                "filename": "recording.webm",
+            }
+        )
+        ready_payload = websocket.receive_json()
+        assert ready_payload["type"] == "ready"
+
+        websocket.send_bytes(b"first audio chunk")
+        websocket.send_bytes(b"second audio chunk")
+        websocket.send_json({"type": "finish"})
+
+        final_payload = None
+        for _message_number in range(10):
+            received_payload = websocket.receive_json()
+            if received_payload["type"] == "final":
+                final_payload = received_payload
+                break
+
+        assert final_payload is not None
+        assert final_payload["summary_notes"] == "Mock transcript from streamed-recording.webm. Replace this text during review."
+        with pytest.raises(WebSocketDisconnect):
+            websocket.receive_json()
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
+        assert active_job.summary_notes == "Mock transcript from streamed-recording.webm. Replace this text during review."
+        assert active_job.transcription_status == TranscriptionStatus.SUCCEEDED
+        stream_started_event = database_session.query(AuditEvent).filter_by(action="job.description.audio_stream_started").one()
+        stream_transcribed_event = database_session.query(AuditEvent).filter_by(action="job.description.audio_stream_transcribed").one()
+        assert stream_started_event.job_id == active_job_id
+        assert stream_transcribed_event.job_id == active_job_id
+        assert stream_transcribed_event.details["chunk_count"] == 2
 
 
 def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient) -> None:
-    """The active ticket picker save path can persist a selected Autotask ticket."""
+    """The active ticket picker endpoint persists a server-verified Autotask ticket."""
 
     mobile_page_response = authenticated_client.get("/mobile")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -688,17 +783,80 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
         active_job_id = active_job.id
         assert active_job.ticket_number is None
 
-    save_ticket_response = authenticated_client.post(
+    save_client_response = authenticated_client.post(
         f"/jobs/{active_job_id}/ticket-number",
-        data={"csrf_token": csrf_token, "ticket_number": "t20260326.0018"},
+        data={"csrf_token": csrf_token, "client_name": "Mobile Ticket Client", "autotask_company_id": "1001"},
         follow_redirects=False,
     )
-    assert save_ticket_response.status_code == 303
+    assert save_client_response.status_code == 303
+
+    select_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0001"},
+    )
+    assert select_ticket_response.status_code == 200
+    assert select_ticket_response.json() == {
+        "ticket_number": "T20260616.0001",
+        "ticket_title": "Mock open ticket for Mobile Ticket Client",
+    }
 
     with database.SessionLocal() as database_session:
         active_job = get_active_job(database_session)
         assert active_job is not None
-        assert active_job.ticket_number == "T20260326.0018"
+        assert active_job.ticket_number == "T20260616.0001"
+        assert active_job.ticket_title == "Mock open ticket for Mobile Ticket Client"
+
+    updated_mobile_page_response = authenticated_client.get("/mobile")
+    updated_mobile_html = updated_mobile_page_response.text
+    assert "data-active-ticket-picker" not in updated_mobile_html
+    assert '<dt>Ticket number</dt>' in updated_mobile_html
+    assert "T20260616.0001" in updated_mobile_html
+
+
+def test_mobile_selected_ticket_title_drives_review_heading(authenticated_client: TestClient) -> None:
+    """Tickets selected on mobile keep their Autotask title through review."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    save_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={"csrf_token": csrf_token, "client_name": "Mobile Heading Client", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
+
+    select_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0001"},
+    )
+    assert select_ticket_response.status_code == 200
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_html = review_page_response.text
+
+    assert "Mock open ticket for Mobile Heading Client" in review_html
+    assert "Unassigned Ticket" not in review_html
 
 
 def test_mobile_active_job_delete_discards_open_job_with_audit(authenticated_client: TestClient) -> None:
@@ -732,7 +890,7 @@ def test_mobile_active_job_delete_discards_open_job_with_audit(authenticated_cli
 
 
 def test_mobile_active_job_ticket_update_preserves_client_name(authenticated_client: TestClient) -> None:
-    """Saving a selected ticket from the active card should not erase the client."""
+    """Selecting a ticket from the active card should not erase the client."""
 
     mobile_page_response = authenticated_client.get("/mobile")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -761,16 +919,17 @@ def test_mobile_active_job_ticket_update_preserves_client_name(authenticated_cli
         assert active_job.client_name == "North Bay"
 
     save_ticket_response = authenticated_client.post(
-        f"/jobs/{active_job_id}/ticket-number",
-        data={"csrf_token": csrf_token, "ticket_number": "T20260616.0001"},
-        follow_redirects=False,
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0001"},
     )
-    assert save_ticket_response.status_code == 303
+    assert save_ticket_response.status_code == 200
 
     with database.SessionLocal() as database_session:
         active_job = database_session.get(Job, active_job_id)
         assert active_job is not None
         assert active_job.ticket_number == "T20260616.0001"
+        assert active_job.ticket_title == "Mock open ticket for North Bay"
         assert active_job.client_name == "North Bay"
 
 
@@ -861,18 +1020,23 @@ def test_review_detail_force_purge_removes_job_and_attempts(authenticated_client
         json={"summary_notes": "Purge workflow test notes"},
     )
     assert text_response.status_code == 200
-    save_ticket_response = authenticated_client.post(
+    save_client_response = authenticated_client.post(
         f"/jobs/{active_job_id}/ticket-number",
         data={
             "csrf_token": csrf_token,
-            "ticket_number": "T20260616.0001",
-            "ticket_title": "Mock open ticket for Test Client",
             "client_name": "Test Client",
             "autotask_company_id": "1001",
         },
         follow_redirects=False,
     )
-    assert save_ticket_response.status_code == 303
+    assert save_client_response.status_code == 303
+
+    select_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0001"},
+    )
+    assert select_ticket_response.status_code == 200
 
     end_response = authenticated_client.post(
         f"/jobs/{active_job_id}/end",

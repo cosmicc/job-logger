@@ -4,6 +4,11 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Switched the mobile recorder to chunked WebSocket audio streaming. The server
+  authenticates the session, validates CSRF in the first stream message before
+  accepting audio bytes, starts best-effort interim transcription when the first
+  chunk arrives, saves the final transcript on `finish`, keeps raw audio
+  in-memory only, and adds Nginx WebSocket proxy support for the stream route.
 - Removed `billingCodeID` / Allocation Code from live Autotask `TimeEntries`
   creation so ticket time entry submissions use Autotask defaults and do not
   require Allocation Code edit permission.
@@ -32,9 +37,15 @@ All recorded changes to Job Logger are documented in this file.
   entry point, locks a selected Autotask client as read-only during active work,
   shows populated client and ticket values in the same rounded metric-card style
   as start-time values, auto-loads open tickets without a manual find button,
-  uses a 15-minute rounded-start dropdown selector, and keeps Job 1/Job 2 on the
-  same shared layout. Fixed the active ticket-number pattern so selected Autotask
-  ticket values like `T20260504.0018` pass browser validation.
+  places the open-ticket list directly under the selected client and hides it
+  after ticket selection, keeps the active-job delete button aligned with the
+  surrounding action buttons,
+  verifies active ticket selections through a server-side open-ticket lookup so
+  the selected ticket title drives the review heading, moves **Save Active
+  Changes** below summary notes, uses a 15-minute rounded-start dropdown
+  selector, and keeps Job 1/Job 2 on the same shared layout. Fixed the active
+  ticket-number pattern so selected Autotask ticket values like
+  `T20260504.0018` pass browser validation.
 - Added stored Autotask ticket titles so the review detail heading shows the
   selected ticket name, leaves untitled jobs as `Unassigned Ticket`, and hides
   open-ticket lookup panels after a job has a ticket number.

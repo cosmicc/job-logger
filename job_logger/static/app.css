@@ -356,7 +356,7 @@ a:focus-visible {
 .mobile-ticket-picker {
   display: grid;
   gap: 10px;
-  margin-top: 14px;
+  margin: 0 0 14px;
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -488,7 +488,7 @@ a:focus-visible {
   display: grid;
   gap: 10px;
   align-items: end;
-  margin-bottom: 14px;
+  margin: 0;
 }
 
 .client-name-card {
@@ -530,6 +530,11 @@ a:focus-visible {
   margin-top: 16px;
 }
 
+.active-save-button {
+  width: 100%;
+  margin-top: 14px;
+}
+
 .recording-control-stack {
   display: grid;
   gap: 10px;
@@ -538,6 +543,13 @@ a:focus-visible {
 .work-finish-stack {
   display: grid;
   gap: 10px;
+}
+
+.recording-control-stack .secondary-button,
+.work-finish-stack .danger-button,
+.work-finish-stack .danger-outline-button {
+  width: 100%;
+  min-height: 44px;
 }
 
 .delete-active-job-form {

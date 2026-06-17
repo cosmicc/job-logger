@@ -244,12 +244,21 @@ For reliable local transcription, run the Docker stack on a server with at least
 8 GB faster-whisper allocation while leaving memory for PostgreSQL, Nginx, and
 the host operating system.
 
-`TRANSCRIPTION_PROVIDER=mock` proves the upload path without loading a local
-model. `TRANSCRIPTION_PROVIDER=disabled` rejects transcription attempts.
+`TRANSCRIPTION_PROVIDER=mock` proves the transcription path without loading a
+local model. `TRANSCRIPTION_PROVIDER=disabled` rejects transcription attempts.
 
-Raw audio is not stored by default. The app reads the upload into memory, sends
-it to the local provider through a temporary file, deletes that temporary file,
-and stores only the returned text and safe status.
+The mobile recorder streams `MediaRecorder` chunks to
+`WebSocket /jobs/{job_id}/description/audio/stream`. The first WebSocket
+message carries metadata and the CSRF token, then binary audio chunks are sent
+as soon as the browser produces them. The server starts a best-effort interim
+transcription from the first buffered chunk and creates the final saved
+transcript when the browser sends `finish`.
+
+Raw audio is not stored by default. The app keeps the streamed recording in
+memory only, sends buffered bytes to the local provider through a temporary
+file, deletes that temporary file, and stores only the returned text and safe
+status. The existing `MAX_AUDIO_UPLOAD_BYTES` setting also limits streamed
+recordings.
 
 ### Autotask
 

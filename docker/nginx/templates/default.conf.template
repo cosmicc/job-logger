@@ -33,6 +33,30 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
     }
 
+    location ~ ^/jobs/[^/]+/description/audio/stream$ {
+        proxy_pass http://${APP_UPSTREAM_HOST}:8000;
+        proxy_http_version 1.1;
+
+        # WebSocket audio streaming must preserve the upgrade handshake through
+        # Nginx so FastAPI receives each MediaRecorder chunk as it is produced.
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Preserve the same request context as normal proxied app requests.
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+
+        # Recordings can stay open while the user pauses or adds notes.
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+
     location / {
         proxy_pass http://${APP_UPSTREAM_HOST}:8000;
         proxy_http_version 1.1;

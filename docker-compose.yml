@@ -64,7 +64,7 @@ services:
     environment:
       # APP_UPSTREAM_HOST is the Docker DNS name for the FastAPI service.
       APP_UPSTREAM_HOST: app
-      # NGINX_CLIENT_MAX_BODY_SIZE must allow mobile audio upload requests.
+      # NGINX_CLIENT_MAX_BODY_SIZE bounds compatibility uploads and streamed audio.
       NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-12m}
     depends_on:
       app:

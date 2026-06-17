@@ -82,16 +82,18 @@ Audit-worthy actions include:
 Do not include secrets, raw headers, raw audio, or excessive user text in audit
 details.
 
-## Raw Audio And Uploads
+## Raw Audio And Streaming
 
 Raw audio must not be permanently stored by default.
 
-Audio upload handling must:
+Audio stream or compatibility upload handling must:
 
 - Require authentication.
-- Require CSRF header validation.
+- Require CSRF validation before accepting audio bytes. WebSocket streams send
+  the CSRF token in the first JSON message instead of the URL so reverse-proxy
+  access logs do not capture it.
 - Check content type.
-- Enforce maximum upload size.
+- Enforce maximum audio size.
 - Pass bytes to the transcription provider without writing persistent raw audio.
 
 If raw audio retention is ever added, it must be explicit, configurable,

@@ -270,8 +270,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/routes/auth.py` handles login/logout and local authenticated
   sessions.
 - `job_logger/routes/mobile.py` handles `/mobile`, active job start/end/save,
-  active rounded-start adjustment, recording uploads, description text saves,
-  and Autotask company autocomplete.
+  active rounded-start adjustment, WebSocket recording streams, compatibility
+  recording uploads, description text saves, and Autotask company autocomplete.
 - `job_logger/routes/review.py` handles review listing, edit/save/accept/retry,
   ticket lookup for a selected job, rejection, and force purge behavior.
 - `job_logger/routes/debug.py` handles the authenticated diagnostic page and the
@@ -309,7 +309,8 @@ The normal workflow is:
 6. User chooses an open Autotask ticket from the active-job ticket list. Mobile
    ticket numbers are populated from that selection instead of manual entry.
 7. User records notes during an active job. The record button pauses/resumes;
-   the separate submit button sends audio for transcription.
+   audio chunks stream to the server over WebSocket, and the separate submit
+   button finalizes transcription.
 8. User can save active job edits before ending work.
 9. User ends work with a mandatory client name. The job moves to review.
 10. User reviews the job from `/review`, edits time/status/notes if needed, and

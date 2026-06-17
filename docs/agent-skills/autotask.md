@@ -96,8 +96,10 @@ The review detail heading can then show the chosen ticket name without
 repeatedly querying Autotask.
 
 On mobile, ticket numbers are populated from the open-ticket picker instead of
-manual entry. The ticket choice automatically submits the active-job save form
-so the hidden ticket number and title are persisted immediately.
+manual entry. The ticket choice posts to `POST /jobs/{job_id}/ticket`; that
+route re-queries the open-ticket list for the stored client/company, verifies
+the selected ticket is still valid for that job, and persists the ticket number
+and title returned by the provider.
 
 ## Caching Rules
 

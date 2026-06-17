@@ -35,18 +35,23 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
         assert active_job is not None
         active_job_id = active_job.id
 
-    save_ticket_response = authenticated_client.post(
+    save_client_response = authenticated_client.post(
         f"/jobs/{active_job_id}/ticket-number",
         data={
             "csrf_token": csrf_token,
-            "ticket_number": "T20260326.0018",
-            "ticket_title": "Debug diagnostics ticket",
             "client_name": "Debug Client",
             "autotask_company_id": "1001",
         },
         follow_redirects=False,
     )
-    assert save_ticket_response.status_code == 303
+    assert save_client_response.status_code == 303
+
+    select_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0001"},
+    )
+    assert select_ticket_response.status_code == 200
 
     description_response = authenticated_client.post(
         f"/jobs/{active_job_id}/description/text",

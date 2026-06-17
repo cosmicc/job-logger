@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hmac
 import secrets
+from collections.abc import Mapping
 from typing import Any
 
 from fastapi import HTTPException, Request, status
@@ -49,24 +50,36 @@ def logout_session(request: Request) -> None:
     request.session.clear()
 
 
-def current_username(request: Request) -> str | None:
-    """Return the authenticated local app username, if one exists."""
+def current_username_from_session(session: Mapping[str, Any]) -> str | None:
+    """Return the authenticated local app username stored in session data."""
 
-    username = request.session.get(SESSION_USERNAME_KEY)
+    username = session.get(SESSION_USERNAME_KEY)
     if isinstance(username, str) and username:
         return username
 
     return None
 
 
-def require_authenticated_username(request: Request) -> str:
-    """Return the authenticated username or raise a 401 error."""
+def current_username(request: Request) -> str | None:
+    """Return the authenticated local app username, if one exists."""
 
-    username = current_username(request)
+    return current_username_from_session(request.session)
+
+
+def require_authenticated_username_from_session(session: Mapping[str, Any]) -> str:
+    """Return the authenticated username from session data or raise a 401 error."""
+
+    username = current_username_from_session(session)
     if username is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
 
     return username
+
+
+def require_authenticated_username(request: Request) -> str:
+    """Return the authenticated username or raise a 401 error."""
+
+    return require_authenticated_username_from_session(request.session)
 
 
 def csrf_token(request: Request) -> str:
@@ -81,15 +94,21 @@ def csrf_token(request: Request) -> str:
     return new_token
 
 
-def validate_csrf_token(request: Request, submitted_token: str | None) -> None:
-    """Validate a submitted CSRF token for a state-changing request."""
+def validate_csrf_session_token(session: Mapping[str, Any], submitted_token: str | None) -> None:
+    """Validate a submitted CSRF token against session data."""
 
-    expected_token = request.session.get(SESSION_CSRF_TOKEN_KEY)
+    expected_token = session.get(SESSION_CSRF_TOKEN_KEY)
     if not isinstance(expected_token, str) or not submitted_token:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing CSRF token.")
 
     if not hmac.compare_digest(expected_token, submitted_token):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid CSRF token.")
+
+
+def validate_csrf_token(request: Request, submitted_token: str | None) -> None:
+    """Validate a submitted CSRF token for a state-changing request."""
+
+    validate_csrf_session_token(request.session, submitted_token)
 
 
 def validate_csrf_header(request: Request) -> None:

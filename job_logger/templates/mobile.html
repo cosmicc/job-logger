@@ -71,7 +71,25 @@
               {% endif %}
             </dl>
 
+            {% if active_job.client_name and not active_job.ticket_number %}
+              <section
+                class="mobile-ticket-picker"
+                data-active-ticket-picker
+                data-ticket-lookup-url="/review/{{ active_job.id }}/tickets"
+                data-ticket-select-url="/jobs/{{ active_job.id }}/ticket"
+                data-ticket-form-job-id="{{ active_job.id }}"
+                data-auto-load-ticket-options="true"
+              >
+                <div class="mobile-ticket-picker-header">
+                  <h3>Open tickets</h3>
+                </div>
+                <p class="ticket-picker-status muted-text" data-active-ticket-lookup-status aria-live="polite"></p>
+                <div class="ticket-picker-results" data-active-ticket-lookup-results></div>
+              </section>
+            {% endif %}
+
             <form
+              id="active-ticket-form-{{ active_job.id }}"
               method="post"
               action="/jobs/{{ active_job.id }}/ticket-number"
               class="ticket-number-form active-ticket-form"
@@ -129,30 +147,7 @@
                 value="{{ active_job.ticket_title or '' }}"
               >
               <input type="hidden" class="active-job-summary" name="summary_notes" value="">
-              <button class="secondary-button" type="submit">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M20 6H10a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9.414a1 1 0 0 0-.293-.707l-2.414-2.414A1 1 0 0 0 17 6h-7" />
-                  <path d="M18.5 6.5v-2a2.5 2.5 0 0 0-5 0V6" />
-                </svg>
-                Save Active Changes
-              </button>
             </form>
-
-            {% if active_job.client_name and not active_job.ticket_number %}
-              <section
-                class="mobile-ticket-picker"
-                data-active-ticket-picker
-                data-ticket-lookup-url="/review/{{ active_job.id }}/tickets"
-                data-ticket-form-job-id="{{ active_job.id }}"
-                data-auto-load-ticket-options="true"
-              >
-                <div class="mobile-ticket-picker-header">
-                  <h3>Open tickets</h3>
-                </div>
-                <p class="ticket-picker-status muted-text" data-active-ticket-lookup-status aria-live="polite"></p>
-                <div class="ticket-picker-results" data-active-ticket-lookup-results></div>
-              </section>
-            {% endif %}
 
             <div class="description-box">
               <label for="description-preview-{{ active_job.id }}">
@@ -169,6 +164,14 @@
                 <p class="error-text">{{ active_job.transcription_error }}</p>
               {% endif %}
             </div>
+
+            <button class="secondary-button active-save-button" type="submit" form="active-ticket-form-{{ active_job.id }}">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 6H10a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9.414a1 1 0 0 0-.293-.707l-2.414-2.414A1 1 0 0 0 17 6h-7" />
+                <path d="M18.5 6.5v-2a2.5 2.5 0 0 0-5 0V6" />
+              </svg>
+              Save Active Changes
+            </button>
 
             <div class="button-grid">
               <div class="recording-control-stack">

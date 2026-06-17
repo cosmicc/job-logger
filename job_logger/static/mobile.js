@@ -1,6 +1,8 @@
 const DESCRIPTION_SAVE_DELAY_MS = 650;
 const COMPANY_SEARCH_DELAY_MS = 400;
 const MIN_COMPANY_SEARCH_CHARACTERS = 3;
+const RECORDING_CHUNK_INTERVAL_MS = 2500;
+const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 
 const activeRecordButtons = document.querySelectorAll(".record-notes-button");
@@ -19,10 +21,14 @@ const pendingDescriptionSaves = new Set();
 
 let activeRecorder = null;
 let activeAudioStream = null;
-let activeAudioChunks = [];
+let activeAudioSocket = null;
+let activeAudioStreamFinalResolve = null;
+let activeAudioStreamFinalReject = null;
 let activeRecordingJobId = "";
 let isUploadingRecording = false;
 let hasRecordedAudio = false;
+let activeAudioStreamReady = false;
+let activeAudioStreamFailed = false;
 
 function toSafeMapString(value) {
   return String(value || "");
@@ -198,14 +204,20 @@ function clearRecordingState() {
 
   activeAudioStream = null;
   activeRecorder = null;
-  activeAudioChunks = [];
+  if (activeAudioSocket && activeAudioSocket.readyState === WebSocket.OPEN) {
+    activeAudioSocket.close(1000, "Recording finished.");
+  }
+  activeAudioSocket = null;
+  activeAudioStreamFinalResolve = null;
+  activeAudioStreamFinalReject = null;
+  activeAudioStreamReady = false;
+  activeAudioStreamFailed = false;
   hasRecordedAudio = false;
   const jobId = activeRecordingJobId;
   activeRecordingJobId = "";
   if (jobId) {
     setRecordingUi({jobId, isRecording: false, isUploading: false});
   }
-  setRecordingStatus(jobId, "");
 }
 
 function stopActiveStream() {
@@ -365,30 +377,225 @@ function queueDescriptionSave(jobId, immediate = false) {
   }
 }
 
-async function uploadRecording(activeJobId, audioBlob) {
-  const formData = new FormData();
-  formData.append("audio", audioBlob, "recording.webm");
+function websocketUrlForAudioStream(activeJobId) {
+  const websocketProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${websocketProtocol}//${window.location.host}/jobs/${encodeURIComponent(activeJobId)}/description/audio/stream`;
+}
 
-  const response = await fetch(`/jobs/${activeJobId}/description/audio`, {
-    method: "POST",
-    headers: {
-      "X-CSRF-Token": csrfToken,
-    },
-    body: formData,
-  });
+function preferredRecorderMimeType() {
+  const candidateMimeTypes = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "video/webm;codecs=opus",
+    "video/webm",
+    "audio/ogg;codecs=opus",
+  ];
 
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.detail || "Recording could not be transcribed.");
+  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) {
+    return "";
+  }
+
+  for (const candidateMimeType of candidateMimeTypes) {
+    if (MediaRecorder.isTypeSupported(candidateMimeType)) {
+      return candidateMimeType;
+    }
+  }
+
+  return "";
+}
+
+function updateDescriptionFromTranscription(activeJobId, payload, shouldMarkSaved) {
+  const nextDescriptionText = payload.summary_notes || payload.description_text || "";
+  if (!nextDescriptionText) {
+    return;
   }
 
   const descriptionElement = findDescriptionTextarea(activeJobId);
   if (descriptionElement) {
-    descriptionElement.value = payload.summary_notes || payload.description_text || "";
-    queueDescriptionSave(activeJobId, true);
+    descriptionElement.value = nextDescriptionText;
   }
 
-  return payload;
+  if (shouldMarkSaved) {
+    lastSavedDescriptions.set(toSafeMapString(activeJobId), nextDescriptionText);
+  }
+}
+
+function rejectActiveAudioStream(errorMessage) {
+  activeAudioStreamFailed = true;
+  if (activeAudioStreamFinalReject) {
+    activeAudioStreamFinalReject(new Error(errorMessage));
+    activeAudioStreamFinalReject = null;
+    activeAudioStreamFinalResolve = null;
+  }
+}
+
+function handleAudioStreamMessage(activeJobId, rawMessage, readyHandlers) {
+  let payload = null;
+  try {
+    payload = JSON.parse(rawMessage);
+  } catch (error) {
+    rejectActiveAudioStream("Audio stream returned an invalid server message.");
+    if (readyHandlers && readyHandlers.reject) {
+      readyHandlers.reject(new Error("Audio stream returned an invalid server message."));
+    }
+    return;
+  }
+
+  if (payload.type === "ready") {
+    activeAudioStreamReady = true;
+    setRecordingStatus(activeJobId, "Streaming audio to server...");
+    if (readyHandlers && readyHandlers.resolve) {
+      readyHandlers.resolve(payload);
+    }
+    return;
+  }
+
+  if (payload.type === "chunk_received") {
+    setRecordingStatus(activeJobId, "Recording notes...");
+    return;
+  }
+
+  if (payload.type === "transcription_started") {
+    if (payload.phase === "final") {
+      setRecordingStatus(activeJobId, "Finalizing transcription...");
+      return;
+    }
+    setRecordingStatus(activeJobId, "Transcribing streamed audio...");
+    return;
+  }
+
+  if (payload.type === "partial_pending") {
+    setRecordingStatus(activeJobId, payload.detail || "Collecting enough audio to transcribe...");
+    return;
+  }
+
+  if (payload.type === "partial") {
+    updateDescriptionFromTranscription(activeJobId, payload, false);
+    setRecordingStatus(activeJobId, "Streaming transcript preview...");
+    return;
+  }
+
+  if (payload.type === "final") {
+    updateDescriptionFromTranscription(activeJobId, payload, true);
+    if (activeAudioStreamFinalResolve) {
+      activeAudioStreamFinalResolve(payload);
+      activeAudioStreamFinalResolve = null;
+      activeAudioStreamFinalReject = null;
+    }
+    return;
+  }
+
+  if (payload.type === "error") {
+    const errorMessage = payload.detail || "Recording could not be transcribed.";
+    rejectActiveAudioStream(errorMessage);
+    if (activeRecorder && activeRecordingJobId === activeJobId && activeRecorder.state !== "inactive") {
+      activeRecorder.stop();
+    }
+    if (readyHandlers && readyHandlers.reject) {
+      readyHandlers.reject(new Error(errorMessage));
+    }
+  }
+}
+
+async function openAudioTranscriptionStream(activeJobId, contentType) {
+  return new Promise((resolve, reject) => {
+    const audioSocket = new WebSocket(websocketUrlForAudioStream(activeJobId));
+    let readySettled = false;
+    const readyTimeout = window.setTimeout(() => {
+      if (!readySettled) {
+        readySettled = true;
+        reject(new Error("Audio stream did not become ready."));
+        audioSocket.close();
+      }
+    }, 10000);
+
+    activeAudioSocket = audioSocket;
+    activeAudioStreamReady = false;
+    activeAudioStreamFailed = false;
+
+    const readyHandlers = {
+      resolve: (payload) => {
+        if (readySettled) {
+          return;
+        }
+        readySettled = true;
+        window.clearTimeout(readyTimeout);
+        resolve(payload);
+      },
+      reject: (error) => {
+        if (readySettled) {
+          return;
+        }
+        readySettled = true;
+        window.clearTimeout(readyTimeout);
+        reject(error);
+      },
+    };
+
+    audioSocket.addEventListener("open", () => {
+      audioSocket.send(JSON.stringify({
+        type: "start",
+        csrf_token: csrfToken,
+        content_type: contentType || "audio/webm",
+        filename: "recording.webm",
+      }));
+    });
+
+    audioSocket.addEventListener("message", (event) => {
+      handleAudioStreamMessage(activeJobId, event.data, readyHandlers);
+    });
+
+    audioSocket.addEventListener("error", () => {
+      const error = new Error("Audio stream connection failed.");
+      readyHandlers.reject(error);
+      rejectActiveAudioStream(error.message);
+    });
+
+    audioSocket.addEventListener("close", () => {
+      if (!readySettled) {
+        readyHandlers.reject(new Error("Audio stream closed before it was ready."));
+        return;
+      }
+
+      if (activeAudioStreamFinalReject && !activeAudioStreamFailed) {
+        activeAudioStreamFinalReject(new Error("Audio stream closed before transcription finished."));
+        activeAudioStreamFinalResolve = null;
+        activeAudioStreamFinalReject = null;
+      }
+
+      if (activeRecorder && activeRecordingJobId === activeJobId && activeRecorder.state !== "inactive") {
+        activeAudioStreamFailed = true;
+        activeRecorder.stop();
+      }
+    });
+  });
+}
+
+async function finishAudioTranscriptionStream(activeJobId) {
+  if (!activeAudioSocket || activeAudioSocket.readyState !== WebSocket.OPEN || activeAudioStreamFailed) {
+    throw new Error("Audio transcription stream is not available.");
+  }
+
+  return new Promise((resolve, reject) => {
+    activeAudioStreamFinalResolve = resolve;
+    activeAudioStreamFinalReject = reject;
+    activeAudioSocket.send(JSON.stringify({type: "finish"}));
+    setRecordingStatus(activeJobId, "Finalizing transcription...");
+  });
+}
+
+function streamAudioChunk(activeJobId, audioChunk) {
+  if (!activeAudioSocket || activeAudioSocket.readyState !== WebSocket.OPEN || !activeAudioStreamReady) {
+    throw new Error("Audio stream is not ready.");
+  }
+
+  if (activeAudioSocket.bufferedAmount > MAX_SOCKET_BUFFERED_BYTES) {
+    throw new Error("Audio stream is backed up. Check the connection and try again.");
+  }
+
+  activeAudioSocket.send(audioChunk);
+  hasRecordedAudio = true;
+  setRecordingStatus(activeJobId, "Recording notes...");
 }
 
 function buildTicketOptionText(ticketOption) {
@@ -400,6 +607,7 @@ function buildTicketOptionText(ticketOption) {
 
 async function loadActiveTicketOptions(ticketPicker) {
   const lookupUrl = ticketPicker.dataset.ticketLookupUrl || "";
+  const ticketSelectUrl = ticketPicker.dataset.ticketSelectUrl || "";
   const jobId = toSafeMapString(ticketPicker.dataset.ticketFormJobId);
   const lookupButton = ticketPicker.querySelector("[data-active-ticket-lookup-button]");
   const statusElement = ticketPicker.querySelector("[data-active-ticket-lookup-status]");
@@ -434,25 +642,37 @@ async function loadActiveTicketOptions(ticketPicker) {
       optionButton.type = "button";
       optionButton.className = "ticket-option-button";
       optionButton.textContent = buildTicketOptionText(ticketOption);
-      optionButton.addEventListener("click", () => {
+      optionButton.addEventListener("click", async () => {
         const activeTicketForm = findActiveTicketForm(jobId);
         const ticketInput = activeTicketForm ? activeTicketForm.querySelector(".active-ticket-number") : null;
-        const ticketDisplay = activeTicketForm ? activeTicketForm.querySelector(".active-ticket-number-display") : null;
         const ticketTitleInput = activeTicketForm ? activeTicketForm.querySelector(".active-ticket-title") : null;
         if (!ticketInput) {
           return;
         }
 
-        ticketInput.value = toSafeMapString(ticketOption.ticket_number).trim().toUpperCase();
-        ticketInput.setCustomValidity("");
-        if (ticketDisplay) {
-          ticketDisplay.textContent = ticketInput.value;
+        optionButton.disabled = true;
+        statusElement.textContent = "Saving selected ticket...";
+        try {
+          if (ticketSelectUrl) {
+            const selectedTicket = await persistActiveSelectedTicket(ticketSelectUrl, ticketOption);
+            ticketInput.value = toSafeMapString(selectedTicket.ticket_number).trim().toUpperCase();
+            if (ticketTitleInput) {
+              ticketTitleInput.value = toSafeMapString(selectedTicket.ticket_title).trim();
+            }
+            window.location.reload();
+            return;
+          }
+
+          ticketInput.value = toSafeMapString(ticketOption.ticket_number).trim().toUpperCase();
+          if (ticketTitleInput) {
+            ticketTitleInput.value = toSafeMapString(ticketOption.title).trim();
+          }
+          submitFormWithCurrentFields(activeTicketForm);
+        } catch (error) {
+          optionButton.disabled = false;
+          statusElement.textContent = error.message || "Selected ticket could not be saved.";
+          statusElement.classList.add("error-text");
         }
-        if (ticketTitleInput) {
-          ticketTitleInput.value = toSafeMapString(ticketOption.title).trim();
-        }
-        statusElement.textContent = `Selected ${ticketInput.value}.`;
-        submitFormWithCurrentFields(activeTicketForm);
       });
       resultsElement.append(optionButton);
     }
@@ -464,6 +684,24 @@ async function loadActiveTicketOptions(ticketPicker) {
       lookupButton.disabled = false;
     }
   }
+}
+
+async function persistActiveSelectedTicket(ticketSelectUrl, ticketOption) {
+  const response = await fetch(ticketSelectUrl, {
+    method: "POST",
+    headers: {
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
+    body: JSON.stringify({ticket_number: ticketOption.ticket_number || ""}),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || "Selected ticket could not be saved.");
+  }
+
+  return payload;
 }
 
 async function startRecording(activeJobId) {
@@ -492,16 +730,26 @@ async function startRecording(activeJobId) {
   }
 
   setRecordingStatus(activeJobId, "Preparing recorder...");
-  activeAudioChunks = [];
   hasRecordedAudio = false;
   activeAudioStream = await navigator.mediaDevices.getUserMedia({audio: true});
-  activeRecorder = new MediaRecorder(activeAudioStream);
+  const selectedMimeType = preferredRecorderMimeType();
+  activeRecorder = selectedMimeType
+    ? new MediaRecorder(activeAudioStream, {mimeType: selectedMimeType})
+    : new MediaRecorder(activeAudioStream);
   activeRecordingJobId = activeJobId;
+  await openAudioTranscriptionStream(activeJobId, activeRecorder.mimeType || selectedMimeType || "audio/webm");
 
   activeRecorder.addEventListener("dataavailable", (event) => {
     if (event.data && event.data.size > 0) {
-      activeAudioChunks.push(event.data);
-      hasRecordedAudio = true;
+      try {
+        streamAudioChunk(activeJobId, event.data);
+      } catch (error) {
+        setRecordingStatus(activeJobId, error.message || "Audio chunk could not be streamed.", true);
+        activeAudioStreamFailed = true;
+        if (activeRecorder && activeRecorder.state !== "inactive") {
+          activeRecorder.stop();
+        }
+      }
     }
   });
 
@@ -523,16 +771,19 @@ async function startRecording(activeJobId) {
       }
 
       stopActiveStream();
-      if (!hasRecordedAudio || activeAudioChunks.length === 0) {
+      if (activeAudioStreamFailed) {
+        setRecordingStatus(jobId, "Recording stream failed. Press Record and try again.", true);
+        return;
+      }
+
+      if (!hasRecordedAudio) {
         setRecordingStatus(jobId, "No audio was recorded. Press Record and try again.");
         return;
       }
 
-      const audioBlob = new Blob(activeAudioChunks, {type: "audio/webm"});
       isUploadingRecording = true;
       setRecordingUi({jobId, isUploading: true});
-      setRecordingStatus(jobId, "Uploading recording for transcription...");
-      await uploadRecording(jobId, audioBlob);
+      await finishAudioTranscriptionStream(jobId);
       setRecordingStatus(jobId, "Notes updated.");
     } catch (error) {
       setRecordingStatus(jobId, error.message, true);
@@ -541,7 +792,7 @@ async function startRecording(activeJobId) {
     }
   });
 
-  activeRecorder.start();
+  activeRecorder.start(RECORDING_CHUNK_INTERVAL_MS);
   setRecordingUi({jobId: activeJobId, isRecording: true, isPaused: false});
   setRecordingStatus(activeJobId, "Recording notes...");
 }

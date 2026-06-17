@@ -75,7 +75,7 @@
             <div class="form-header-row">
               <div>
                 <p class="eyebrow-text">Selected job</p>
-                <h2 data-selected-ticket-heading>{{ selected_job.ticket_title or "Unassigned Ticket" }}</h2>
+                <h2 data-selected-ticket-heading>{{ selected_job.ticket_title or selected_job.ticket_number or "Unassigned Ticket" }}</h2>
               </div>
               <span class="status-chip status-{{ selected_job.status.value }}">{{ selected_job.status.value.replace("_", " ") }}</span>
             </div>
