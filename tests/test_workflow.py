@@ -225,6 +225,14 @@ def test_mobile_job_start_ignores_prestart_client_and_ticket_fields(authenticate
         assert active_job.autotask_company_id is None
         assert active_job.work_location == WorkLocation.REMOTE
 
+    active_mobile_page_response = authenticated_client.get("/mobile")
+    active_mobile_html = active_mobile_page_response.text
+    assert "Open tickets" in active_mobile_html
+    assert "Find tickets" in active_mobile_html
+    assert "Choose a client, then find open tickets." in active_mobile_html
+    assert 'data-active-ticket-picker' in active_mobile_html
+    assert 'data-auto-load-ticket-options="true"' not in active_mobile_html
+
 
 def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_client: TestClient) -> None:
     """The active mobile card renders selected Autotask clients as read-only."""
@@ -273,8 +281,7 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert f'data-ticket-select-url="/jobs/{active_job_id}/ticket"' in page_html
     assert 'data-auto-load-ticket-options="true"' in page_html
     assert 'data-active-ticket-lookup-button' in page_html
-    assert "Load" in page_html
-    assert "Find tickets" not in page_html
+    assert "Find tickets" in page_html
     assert page_html.index("<dt>Client name</dt>") < page_html.index("<h3>Open tickets</h3>")
     assert page_html.index("<h3>Open tickets</h3>") < page_html.index(f'id="active-ticket-form-{active_job_id}"')
     assert 'class="secondary-button active-save-button"' in page_html
@@ -694,6 +701,47 @@ def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_
     updated_mobile_html = updated_mobile_page_response.text
     assert "data-active-ticket-picker" in updated_mobile_html
     assert "On-Site Saved from mobile active form" not in updated_mobile_html
+
+
+def test_mobile_active_job_background_save_returns_ticket_lookup_context(authenticated_client: TestClient) -> None:
+    """Background active saves return JSON for in-place open-ticket loading."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    save_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        headers={"Accept": "application/json"},
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Background Save Client",
+            "autotask_company_id": "1001",
+            "summary_notes": "Save before loading tickets.",
+            "work_location": "remote",
+        },
+    )
+
+    assert save_response.status_code == 200
+    response_payload = save_response.json()
+    assert response_payload["client_name"] == "Background Save Client"
+    assert response_payload["autotask_company_id"] == 1001
+    assert response_payload["ticket_number"] is None
+    assert response_payload["work_location"] == "remote"
+
+    ticket_lookup_response = authenticated_client.get(f"/review/{active_job_id}/tickets")
+    assert ticket_lookup_response.status_code == 200
+    assert ticket_lookup_response.json()["tickets"][0]["ticket_number"] == "T20260616.0001"
 
 
 def test_mobile_audio_stream_requires_csrf(authenticated_client: TestClient) -> None:

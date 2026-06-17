@@ -307,13 +307,15 @@ original query body because Autotask rejects GET follow-up calls for those
 resources.
 
 The mobile and review pages can query open Autotask tickets from the selected
-job's stored company ID or stored client name. Selecting a returned ticket
-fills the mobile job's hidden ticket number, stores the selected ticket title
-for the review detail heading, and automatically saves the active-job changes
-or review ticket selection. On the review page, the stored ticket number and
-client name are read-only identity fields; review save and submit use the
-stored values instead of trusting form posts. Once a job has a ticket number,
-the open-ticket picker is hidden for that job.
+job's stored company ID or stored client name. On mobile, the **Find tickets**
+button saves the current active-job client fields before loading open tickets,
+and saved clients auto-load the list when the Work in Progress card renders.
+Selecting a returned ticket fills the mobile job's hidden ticket number, stores
+the selected ticket title for the review detail heading, and automatically saves
+the active-job changes or review ticket selection. On the review page, the
+stored ticket number and client name are read-only identity fields; review save
+and submit use the stored values instead of trusting form posts. Once a job has
+a ticket number, the open-ticket picker is hidden for that job.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 
@@ -336,10 +338,11 @@ value is set, Autotask evaluates Companies/Tickets query permissions for the
 impersonated resource context, which can fail even when the API user itself has
 access.
 
-The `/debug` page includes a **Test Autotask API** button. That check verifies
-required workflow configuration and the live Companies/Tickets API calls used by
-the app. If the check fails, new jobs cannot be started until Autotask
-connectivity or configuration is fixed.
+The `/debug` page shows the source-controlled application version and includes a
+**Test Autotask API** button. That check verifies required workflow
+configuration and the live Companies/Tickets API calls used by the app. If the
+check fails, new jobs cannot be started until Autotask connectivity or
+configuration is fixed.
 
 The `scripts/discover_autotask_ids.py` helper also prints a workflow endpoint
 preflight section. Role, billing-code, and ticket-status ID discovery can

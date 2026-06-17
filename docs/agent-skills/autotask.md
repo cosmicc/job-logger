@@ -99,7 +99,10 @@ On mobile, ticket numbers are populated from the open-ticket picker instead of
 manual entry. The ticket choice posts to `POST /jobs/{job_id}/ticket`; that
 route re-queries the open-ticket list for the stored client/company, verifies
 the selected ticket is still valid for that job, and persists the ticket number
-and title returned by the provider.
+and title returned by the provider. The mobile **Find tickets** button first
+saves the active job's current client fields through
+`POST /jobs/{job_id}/ticket-number` with a JSON response, then loads open
+tickets from the server-verified lookup endpoint.
 
 ## Caching Rules
 
@@ -181,8 +184,9 @@ falling back to generic HTTP client exception text.
 
 ## Diagnostics And Scripts
 
-The debug page is for runtime visibility. It should show sanitized config,
-connectivity test results, and submission attempts.
+The debug page is for runtime visibility. It should show the source-controlled
+application version, sanitized config, connectivity test results, and submission
+attempts.
 
 The script `scripts/discover_autotask_ids.py` is for read-only tenant metadata
 discovery using `.env` configuration. Keep it read-only and never print

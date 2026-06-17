@@ -4,11 +4,15 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Started source-controlled application versioning at `0.0.1`, aligned package
+  metadata to that value, and displayed the current version on the authenticated
+  diagnostics page.
 - Added a persisted Remote/On-Site switch to the mobile Work in Progress card,
   defaulting to Remote. The selected mode stays out of the visible summary text
   and is prefixed onto Autotask `summaryNotes` only when a time entry is
-  created. Restored a manual **Load** button inside the active open-ticket
-  picker while keeping guarded auto-load behavior.
+  created. Kept the active open-ticket picker visible before ticket selection,
+  added a manual **Find tickets** button inside it, and made client selection
+  save in the background before automatically loading open tickets.
 - Switched the mobile recorder to chunked WebSocket audio streaming. The server
   authenticates the session, validates CSRF in the first stream message before
   accepting audio bytes, starts best-effort interim transcription when the first

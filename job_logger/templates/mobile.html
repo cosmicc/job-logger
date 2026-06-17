@@ -102,14 +102,14 @@
               {% endif %}
             </dl>
 
-            {% if active_job.client_name and not active_job.ticket_number %}
+            {% if not active_job.ticket_number %}
               <section
                 class="mobile-ticket-picker"
                 data-active-ticket-picker
                 data-ticket-lookup-url="/review/{{ active_job.id }}/tickets"
                 data-ticket-select-url="/jobs/{{ active_job.id }}/ticket"
                 data-ticket-form-job-id="{{ active_job.id }}"
-                data-auto-load-ticket-options="true"
+                {% if active_job.client_name %}data-auto-load-ticket-options="true"{% endif %}
               >
                 <div class="mobile-ticket-picker-header">
                   <h3>Open tickets</h3>
@@ -118,10 +118,12 @@
                     type="button"
                     data-active-ticket-lookup-button
                   >
-                    Load
+                    Find tickets
                   </button>
                 </div>
-                <p class="ticket-picker-status muted-text" data-active-ticket-lookup-status aria-live="polite"></p>
+                <p class="ticket-picker-status muted-text" data-active-ticket-lookup-status aria-live="polite">
+                  {% if not active_job.client_name %}Choose a client, then find open tickets.{% endif %}
+                </p>
                 <div class="ticket-picker-results" data-active-ticket-lookup-results></div>
               </section>
             {% endif %}

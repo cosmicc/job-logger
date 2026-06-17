@@ -57,6 +57,9 @@ Never commit or print:
 - Raw audio.
 
 Diagnostic pages and audit details must use safe summaries only.
+The diagnostics page may show the source-controlled application version because
+it is non-secret build metadata; do not source that value from environment
+variables that could drift between containers.
 
 ## Audit Requirements
 

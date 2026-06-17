@@ -64,9 +64,10 @@ The mobile active-job ticket number is not a manual text entry. The open-ticket
 picker posts the clicked ticket number to `POST /jobs/{job_id}/ticket`. That
 route re-queries the selected job's open Autotask ticket list, verifies the
 submitted ticket belongs to that safe list, stores the ticket number and title,
-and records an audit event. When an active job has a client but no ticket
-number, the mobile page auto-loads the open-ticket picker and also exposes a
-manual Load button inside the open-ticket panel.
+and records an audit event. When an active job has no ticket number, the mobile
+page shows the open-ticket panel under the client field. The **Find tickets**
+button saves the current active client fields before querying Autotask, and a
+job that already has a saved client auto-loads the picker.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission

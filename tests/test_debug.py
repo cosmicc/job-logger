@@ -2,12 +2,26 @@
 
 from __future__ import annotations
 
+import tomllib
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from job_logger import database
 from job_logger.models import SubmissionAttempt
 from job_logger.services.jobs import get_active_job
+from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
+
+
+def test_application_version_matches_package_metadata() -> None:
+    """The displayed runtime version should match packaging metadata."""
+
+    # pyproject_version is read from source metadata so future version bumps do
+    # not accidentally update diagnostics without updating the built package.
+    pyproject_path = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    pyproject_version = tomllib.loads(pyproject_path.read_text()).get("project", {}).get("version")
+    assert pyproject_version == APP_VERSION
 
 
 def test_debug_route_requires_login(client: TestClient) -> None:
@@ -92,6 +106,8 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     debug_response = authenticated_client.get("/debug")
     assert debug_response.status_code == 200
     assert "Autotask debug" in debug_response.text
+    assert "Application version" in debug_response.text
+    assert APP_VERSION in debug_response.text
     assert attempts[0].id in debug_response.text
     assert "mock-time-entry" in debug_response.text
 

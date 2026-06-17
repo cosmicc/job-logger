@@ -60,6 +60,14 @@ function findActiveTicketForm(jobId) {
   return document.querySelector(`.active-ticket-form[data-job-id="${toSafeMapString(jobId)}"]`);
 }
 
+function findActiveTicketPicker(jobId) {
+  if (!jobId) {
+    return null;
+  }
+
+  return document.querySelector(`[data-active-ticket-picker][data-ticket-form-job-id="${toSafeMapString(jobId)}"]`);
+}
+
 function readActiveJobClientFields(jobId) {
   const activeTicketForm = findActiveTicketForm(jobId);
   if (!activeTicketForm) {
@@ -144,6 +152,44 @@ function submitFormWithCurrentFields(formElement) {
   if (shouldSubmit) {
     formElement.submit();
   }
+}
+
+function populateActiveFormSummaryField(activeTicketForm) {
+  if (!activeTicketForm) {
+    return;
+  }
+
+  const summaryField = activeTicketForm.querySelector(".active-job-summary");
+  if (!summaryField) {
+    return;
+  }
+
+  const safeJobId = toSafeMapString(activeTicketForm.dataset.jobId);
+  const descriptionElement = findDescriptionTextarea(safeJobId);
+  if (descriptionElement) {
+    summaryField.value = descriptionElement.value || "";
+  }
+  clearDescriptionTimer(safeJobId);
+  pendingDescriptionSaves.delete(safeJobId);
+}
+
+async function saveActiveJobFormInBackground(activeTicketForm) {
+  if (!activeTicketForm) {
+    throw new Error("Active job form was not found.");
+  }
+
+  populateActiveFormSummaryField(activeTicketForm);
+  const response = await fetch(activeTicketForm.action, {
+    method: "POST",
+    headers: {Accept: "application/json"},
+    body: new FormData(activeTicketForm),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || "Active job changes could not be saved.");
+  }
+
+  return payload;
 }
 
 function setRecordingStatus(jobId, message, isError = false) {
@@ -263,11 +309,24 @@ function renderCompanyResults(companyInput, companies) {
       resultsElement.replaceChildren();
       setCompanyStatus(companyInput, "Client selected.");
       if (parentForm && parentForm.classList.contains("active-ticket-form")) {
+        const jobId = toSafeMapString(parentForm.dataset.jobId);
         const endJobForm = document.querySelector(
-          `.end-job-form[data-job-id="${toSafeMapString(parentForm.dataset.jobId)}"]`,
+          `.end-job-form[data-job-id="${jobId}"]`,
         );
         if (endJobForm) {
           syncEndJobClientFields(endJobForm);
+        }
+        const ticketPicker = findActiveTicketPicker(jobId);
+        if (ticketPicker) {
+          loadActiveTicketOptions(ticketPicker, {saveActiveFormFirst: true})
+            .then(() => {
+              companyInput.readOnly = true;
+              setCompanyStatus(companyInput, "Client selected.");
+            })
+            .catch((error) => {
+              setCompanyStatus(companyInput, error.message || "Open tickets could not be loaded.", true);
+            });
+          return;
         }
         submitFormWithCurrentFields(parentForm);
       }
@@ -607,18 +666,28 @@ function buildTicketOptionText(ticketOption) {
   return `${ticketNumber} | ${ticketTitle} | ${ticketStatus}`;
 }
 
-async function loadActiveTicketOptions(ticketPicker) {
+async function loadActiveTicketOptions(ticketPicker, options = {}) {
   if (activeTicketLookupRequests.has(ticketPicker)) {
     return;
   }
 
+  const saveActiveFormFirst = Boolean(options.saveActiveFormFirst);
   const lookupUrl = ticketPicker.dataset.ticketLookupUrl || "";
   const ticketSelectUrl = ticketPicker.dataset.ticketSelectUrl || "";
   const jobId = toSafeMapString(ticketPicker.dataset.ticketFormJobId);
+  const activeTicketForm = findActiveTicketForm(jobId);
   const lookupButton = ticketPicker.querySelector("[data-active-ticket-lookup-button]");
   const statusElement = ticketPicker.querySelector("[data-active-ticket-lookup-status]");
   const resultsElement = ticketPicker.querySelector("[data-active-ticket-lookup-results]");
   if (!lookupUrl || !statusElement || !resultsElement) {
+    return;
+  }
+
+  const clientFields = readActiveJobClientFields(jobId);
+  if (!clientFields.clientName.trim()) {
+    statusElement.classList.remove("error-text");
+    statusElement.textContent = "Choose a client before finding open tickets.";
+    resultsElement.replaceChildren();
     return;
   }
 
@@ -627,10 +696,19 @@ async function loadActiveTicketOptions(ticketPicker) {
     lookupButton.disabled = true;
   }
   statusElement.classList.remove("error-text");
-  statusElement.textContent = "Searching Autotask tickets...";
+  statusElement.textContent = saveActiveFormFirst ? "Saving client before ticket lookup..." : "Searching Autotask tickets...";
   resultsElement.replaceChildren();
 
   try {
+    if (saveActiveFormFirst) {
+      await saveActiveJobFormInBackground(activeTicketForm);
+      const endJobForm = document.querySelector(`.end-job-form[data-job-id="${jobId}"]`);
+      if (endJobForm) {
+        syncEndJobClientFields(endJobForm);
+      }
+    }
+
+    statusElement.textContent = "Searching Autotask tickets...";
     const response = await fetch(lookupUrl, {headers: {Accept: "application/json"}});
     const payload = await response.json();
     if (!response.ok) {
@@ -944,18 +1022,8 @@ for (const activeTicketForm of activeTicketForms) {
     continue;
   }
 
-  const summaryField = activeTicketForm.querySelector(".active-job-summary");
-
   activeTicketForm.addEventListener("submit", () => {
-    if (summaryField) {
-      const safeJobId = toSafeMapString(activeTicketForm.dataset.jobId);
-      const descriptionElement = findDescriptionTextarea(safeJobId);
-      if (descriptionElement) {
-        summaryField.value = descriptionElement.value || "";
-      }
-      clearDescriptionTimer(safeJobId);
-      pendingDescriptionSaves.delete(safeJobId);
-    }
+    populateActiveFormSummaryField(activeTicketForm);
   });
 }
 
@@ -969,7 +1037,7 @@ for (const ticketPicker of activeTicketPickers) {
   const lookupButton = ticketPicker.querySelector("[data-active-ticket-lookup-button]");
   if (lookupButton) {
     lookupButton.addEventListener("click", () => {
-      loadActiveTicketOptions(ticketPicker);
+      loadActiveTicketOptions(ticketPicker, {saveActiveFormFirst: true});
     });
   }
 

@@ -17,6 +17,7 @@ from job_logger.security import add_flash_message, require_authenticated_usernam
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
 from job_logger.ui import template_context, templates
+from job_logger.version import APP_VERSION
 
 router = APIRouter(prefix="/debug", tags=["debug"])
 
@@ -133,6 +134,7 @@ def debug_page(request: Request, database_session: Session = Depends(get_databas
         "debug.html",
         template_context(
             request,
+            app_version=APP_VERSION,
             autotask_settings=_safe_autotask_config(),
             autotask_connectivity=request.session.get("autotask_connectivity_result"),
             submission_attempts=debug_submission_attempts,

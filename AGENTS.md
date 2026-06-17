@@ -258,6 +258,8 @@ The application is a FastAPI project under `job_logger/`.
 
 - `job_logger/main.py` creates the FastAPI app, registers routers, applies
   TrustedHost, session, Cloudflare Access, CSP, and security-header middleware.
+- `job_logger/version.py` owns the source-controlled application version shown
+  on authenticated diagnostics and must only be advanced when requested.
 - `job_logger/config.py` loads every runtime setting from environment variables.
   Production must use `AUTOTASK_PROVIDER=autotask`.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.

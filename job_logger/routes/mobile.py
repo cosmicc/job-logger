@@ -569,10 +569,11 @@ async def save_ticket_number(
     job_id: str,
     request: Request,
     database_session: Session = Depends(get_database_session),
-) -> RedirectResponse:
+) -> Response:
     """Save active-job edits before completing work."""
 
     actor = require_authenticated_username(request)
+    wants_json_response = "application/json" in request.headers.get("accept", "").lower()
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
     raw_client_name = form_data.get("client_name")
@@ -610,9 +611,22 @@ async def save_ticket_number(
             },
         )
         database_session.commit()
+        if wants_json_response:
+            return JSONResponse(
+                {
+                    "job_id": job.id,
+                    "client_name": job.client_name,
+                    "autotask_company_id": job.autotask_company_id,
+                    "ticket_number": job.ticket_number,
+                    "ticket_title": job.ticket_title,
+                    "work_location": job.work_location.value,
+                }
+            )
         add_flash_message(request, "Active job changes saved.", "success")
     except JobWorkflowError as exc:
         database_session.rollback()
+        if wants_json_response:
+            return JSONResponse({"detail": str(exc)}, status_code=400)
         add_flash_message(request, str(exc), "error")
 
     return RedirectResponse(url="/mobile", status_code=303)
