@@ -4,6 +4,10 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Moved the Secure session indicator into the authenticated top header next to
+  the Autotask API status on desktop, removed the mobile-only duplicate secure
+  pill, and kept the Autotask API status visible in the mobile top bar.
+
 - Standardized user-facing time display on 12-hour `am`/`pm` values in
   `America/Detroit` across mobile, review, audit, and diagnostics screens.
   Review time forms continue to accept legacy 24-hour submissions for stale

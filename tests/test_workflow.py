@@ -143,6 +143,19 @@ def test_start_work_blocks_when_autotask_is_unavailable(authenticated_client: Te
         assert get_active_job(database_session) is None
 
 
+def test_authenticated_header_shows_api_status_and_desktop_secure_indicator(authenticated_client: TestClient) -> None:
+    """The top header should own connection indicators for responsive layouts."""
+
+    response = authenticated_client.get("/mobile")
+
+    assert response.status_code == 200
+    assert 'class="header-status-group"' in response.text
+    assert response.text.count("autotask-api-indicator") == 1
+    assert "Autotask API: Online" in response.text
+    assert 'class="secure-pill secure-connection-indicator"' in response.text
+    assert '<div class="mobile-status-row">\n      <a href="/review" class="text-link">Review jobs</a>' in response.text
+
+
 def test_active_job_completion_requires_client_name(authenticated_client: TestClient) -> None:
     """Jobs without a client name cannot be moved from active to review."""
 

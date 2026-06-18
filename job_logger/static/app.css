@@ -143,6 +143,13 @@ svg {
   margin-left: auto;
 }
 
+.header-status-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .autotask-api-indicator {
   display: inline-flex;
   align-items: center;
@@ -527,6 +534,17 @@ a:focus-visible {
   color: var(--accent-strong);
   font-size: 13px;
   font-weight: 800;
+}
+
+.secure-pill svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .work-panel {
@@ -1312,7 +1330,11 @@ td a {
     display: none;
   }
 
-  .autotask-api-indicator {
+  .header-status-group {
+    margin-left: auto;
+  }
+
+  .secure-connection-indicator {
     display: none;
   }
 
