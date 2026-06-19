@@ -49,6 +49,7 @@ from job_logger.services.jobs import (
     update_description_text,
 )
 from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
+from job_logger.time_utils import format_local_compact_time_range
 from job_logger.ui import template_context, templates
 
 router = APIRouter(tags=["mobile"])
@@ -116,6 +117,10 @@ def _service_call_option_payload(service_call_option: AutotaskServiceCallOption)
         "service_call_ticket_id": service_call_option.service_call_ticket_id,
         "client_name": service_call_option.client_name,
         "ticket_title": service_call_option.ticket_title,
+        "scheduled_time_range": format_local_compact_time_range(
+            service_call_option.start_datetime_utc,
+            service_call_option.end_datetime_utc,
+        ),
         "work_location_label": service_call_option.work_location_label,
         "work_location_class": _service_call_location_class(service_call_option),
     }

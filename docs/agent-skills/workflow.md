@@ -113,8 +113,9 @@ event, `job_logger/static/mobile.js` loads `/mobile/service-calls` to fetch safe
 card data. Service-call options are provided by
 `list_todays_service_calls_for_resource()`, which derives Remote/On-Site from
 the service-call details text. Each rendered card should stay compact and show
-only the client name, Remote/On-Site label, and associated ticket title, with
-different Remote and On-Site coloring for quick scanning. Use the specific
+the client name, Remote/On-Site label, local start/end time range, and
+associated ticket title, with different Remote and On-Site coloring for quick
+scanning. Use the specific
 `.service-call-option-button.service-call-location-*` styling hooks so these
 cards do not regress to the generic grey button treatment. Clicking a service
 call starts an active job with the associated ticket number, ticket title,
@@ -133,8 +134,8 @@ Selected ticket descriptions on mobile are read-only Autotask context. Long
 descriptions should stay escaped, bounded to an internal scroll area, and
 available in full through scrolling inside the description box instead of
 expanding the entire Work in Progress card indefinitely. Phone-sized layouts
-cap the visible description box at about 50 text lines, while wider layouts can
-use the larger desktop cap.
+cap the visible description box at about 12 text lines, while wider layouts use
+about a 25-line cap.
 
 The active mobile card should expose only one client entry point for each job.
 After an Autotask company is selected, the active job displays that client as a
@@ -169,7 +170,8 @@ Mobile recording is browser-side in `job_logger/static/mobile.js`.
 
 Current behavior:
 
-- Record Audio starts audio capture.
+- Record Audio starts audio capture and is placed above the optional AI Cleanup
+  action in the active Summary notes area.
 - The Record Audio button uses an orange treatment, and the button label changes
   to **Stop recording** while browser recording is active.
 - The browser opens `WebSocket /jobs/{job_id}/description/audio/stream`,

@@ -566,6 +566,8 @@ def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypat
     assert service_call_option.ticket_description == "Replace firewall and verify VPN."
     assert service_call_option.client_name == "Acme Services"
     assert service_call_option.autotask_company_id == 1001
+    assert service_call_option.start_datetime_utc == datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
+    assert service_call_option.end_datetime_utc == datetime(2026, 6, 16, 14, 0, tzinfo=UTC)
     assert second_lookup == first_lookup
     assert [endpoint_path for endpoint_path, _payload in fake_client.post_requests] == [
         "/ServiceCalls/query",

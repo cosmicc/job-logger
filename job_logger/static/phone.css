@@ -97,8 +97,8 @@
 
 .ticket-description-card dd,
 .ticket-description-card p {
-  max-height: 72.5em;
-  max-height: 50lh;
+  max-height: 18.125em;
+  max-height: 12.5lh;
 }
 
 h1 {

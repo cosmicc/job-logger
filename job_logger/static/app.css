@@ -595,7 +595,8 @@ a:focus-visible {
 }
 
 .service-call-client,
-.service-call-ticket {
+.service-call-ticket,
+.service-call-time-range {
   overflow-wrap: anywhere;
   font-size: 14px;
   font-weight: 750;
@@ -605,6 +606,12 @@ a:focus-visible {
 .service-call-ticket {
   color: var(--text);
   font-weight: 650;
+}
+
+.service-call-time-range {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .service-call-location-badge {
@@ -912,8 +919,8 @@ a:focus-visible {
 .ticket-description-card dd,
 .ticket-description-card p {
   margin: 0;
-  max-height: 145em;
-  max-height: 100lh;
+  max-height: 36.25em;
+  max-height: 25lh;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 6px;

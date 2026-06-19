@@ -4,6 +4,10 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Added local start/end time ranges to mobile service-call start cards, moved
+  **Record Audio** above mobile **AI Cleanup**, and shortened the scrollable
+  ticket description boxes on Work in Progress and review detail.
+
 - Removed the review job rejection workflow and the rejection reason field.
   Unsubmitted review details now show **Delete time entry** for explicit local
   cleanup, review detail buttons and Work in Progress action buttons use
@@ -48,7 +52,7 @@ All recorded changes to Job Logger are documented in this file.
   **Find tickets** button was removed. Review detail now displays the complete
   Autotask-bound summary notes, including the leading Remote or On-Site prefix,
   and parses edits to that prefix back into the stored work-location mode.
-  Phone-sized ticket description boxes now cap at about 50 lines while
+  Phone-sized ticket description boxes now cap at about 12 lines while
   remaining scrollable.
 
 - Replaced the phone-sized `/mobile` top-bar logout action with an X close

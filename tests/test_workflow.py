@@ -514,8 +514,9 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".mobile-page-loading" in stylesheet
     assert "button:not(:disabled):active" in stylesheet
     assert "transform: translateY(1px) scale(0.985);" in stylesheet
-    assert "max-height: 100lh;" in stylesheet
-    assert "max-height: 50lh;" in phone_stylesheet
+    assert ".service-call-time-range" in stylesheet
+    assert "max-height: 25lh;" in stylesheet
+    assert "max-height: 12.5lh;" in phone_stylesheet
     assert "overscroll-behavior: contain;" in stylesheet
     assert ".mobile-ticket-picker.is-clickable" in stylesheet
     assert ".ticket-picker.is-clickable" in stylesheet
@@ -529,6 +530,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "background: #3b82f6;" in stylesheet
     assert ".mobile-close-action {\n  display: inline-grid;" in phone_stylesheet
     assert ".mobile-logout-action {\n  display: none;" in phone_stylesheet
+    mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    assert mobile_template.index("data-record-audio-label") < mobile_template.index("data-ai-cleanup-button")
 
 
 def test_active_job_completion_requires_client_name(authenticated_client: TestClient) -> None:
@@ -1444,6 +1447,7 @@ def test_mobile_service_call_start_populates_active_job(authenticated_client: Te
         "service_call_ticket_id": 6101,
         "client_name": "Scheduled Service Client",
         "ticket_title": "Mock open ticket for Scheduled Service Client",
+        "scheduled_time_range": "12:00pm-1:00pm",
         "work_location_label": "On-Site",
         "work_location_class": "service-call-location-on_site",
     }

@@ -346,11 +346,12 @@ The provider value `grok` uses GroqCloud. `GROK_API_KEY`,
 `GROK_CLEANUP_MODEL`, and `GROK_CLEANUP_API_BASE_URL` are accepted as
 compatibility fallbacks, but the `GROQ_*` names match Groq's official docs.
 
-When enabled, active mobile jobs and review detail show **AI Cleanup** next to
-the summary box. On mobile, the cleaned text replaces the textarea and is saved
-through the existing active-summary save endpoint. Mobile cleanup progress,
-success, and failure details use the same status line as audio recording with
-the shared spinner while cleanup is in progress, and cleanup waits until audio
+When enabled, active mobile jobs and review detail show **AI Cleanup** with the
+summary box. On mobile, **Record Audio** appears above **AI Cleanup**, the
+cleaned text replaces the textarea, and that text is saved through the existing
+active-summary save endpoint. Mobile cleanup progress, success, and failure
+details use the same status line as audio recording with the shared spinner
+while cleanup is in progress, and cleanup waits until audio
 recording/transcription is finished. On review detail, the cleaned text replaces
 the textarea; non-submitted jobs autosave as usual, while submitted jobs still
 require **Edit Entry** to patch the existing Autotask time entry.
@@ -435,10 +436,11 @@ changes or review ticket selection. The mobile Work in Progress card shows the
 selected ticket number, ticket name, and ticket description after selection.
 Long ticket descriptions stay inside a scrollable read-only box instead of
 expanding the mobile page indefinitely; phone-sized layouts cap that visible
-box at about 50 lines. On the review page, the stored ticket number, ticket
-description, and client name are read-only identity/context fields; review save
-and submit use the stored values instead of trusting form posts. Once a job has
-a ticket number, the open-ticket picker is hidden for that job.
+box at about 12 lines, and wider layouts cap it at about 25 lines. On the
+review page, the stored ticket number, ticket description, and client name are
+read-only identity/context fields; review save and submit use the stored values
+instead of trusting form posts. Once a job has a ticket number, the open-ticket
+picker is hidden for that job.
 
 When an active job slot is available, the mobile start panel also lists today's
 Autotask service calls assigned to `AUTOTASK_RESOURCE_ID`. The mobile page
@@ -446,9 +448,10 @@ renders first with a loading state and no synchronous Autotask calls. After the
 window load event, the browser fetches `/mobile/service-calls` so slow Autotask
 service-call lookups show progress instead of delaying the whole start screen.
 Each service-call choice shows the client name, the detected `Remote` or
-`On-Site` value from the service-call details text, and the associated ticket
-title. Remote and On-Site cards use stronger distinct accent colors and badges
-so scheduled call type is easy to scan without wasting mobile screen space.
+`On-Site` value from the service-call details text, the local start/end time
+range such as `4:00pm-5:00pm`, and the associated ticket title. Remote and
+On-Site cards use stronger distinct accent colors and badges so scheduled call
+type is easy to scan without wasting mobile screen space.
 Tapping a service call starts an active job with
 the server-verified ticket number, ticket title, bounded ticket description,
 client name, company ID, and detected work-location mode. The browser submits

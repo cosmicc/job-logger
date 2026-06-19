@@ -238,26 +238,6 @@
                   placeholder="Type notes here, then refine with recorded speech if needed."
                 >{{ active_job.summary_notes or active_job.description_text or "" }}</textarea>
               </label>
-              {% if ai_cleanup_enabled %}
-                <div class="summary-tool-row">
-                  <button
-                    type="button"
-                    class="secondary-button ai-cleanup-button"
-                    data-ai-cleanup-button
-                    data-job-id="{{ active_job.id }}"
-                    data-cleanup-url="/jobs/{{ active_job.id }}/summary/cleanup"
-                  >
-                    AI Cleanup
-                  </button>
-                </div>
-              {% endif %}
-              {% if active_job.transcription_error %}
-                <p class="error-text">{{ active_job.transcription_error }}</p>
-              {% endif %}
-            </div>
-            <p class="muted-text" data-active-save-status data-job-id="{{ active_job.id }}" aria-live="polite"></p>
-
-            <div class="button-grid">
               <div class="recording-control-stack">
                 <button
                   class="secondary-button record-notes-button"
@@ -273,6 +253,27 @@
                   <span data-record-audio-label>Record Audio</span>
                 </button>
               </div>
+              {% if ai_cleanup_enabled %}
+                <div class="summary-tool-row">
+                  <button
+                    type="button"
+                    class="secondary-button ai-cleanup-button"
+                    data-ai-cleanup-button
+                    data-job-id="{{ active_job.id }}"
+                    data-cleanup-url="/jobs/{{ active_job.id }}/summary/cleanup"
+                  >
+                    AI Cleanup
+                  </button>
+                </div>
+              {% endif %}
+              <p class="recording-status" data-job-id="{{ active_job.id }}" aria-live="polite"></p>
+              {% if active_job.transcription_error %}
+                <p class="error-text">{{ active_job.transcription_error }}</p>
+              {% endif %}
+            </div>
+            <p class="muted-text" data-active-save-status data-job-id="{{ active_job.id }}" aria-live="polite"></p>
+
+            <div class="button-grid">
               <div class="work-finish-stack">
                 <form
                   method="post"
@@ -324,7 +325,6 @@
                 </form>
               </div>
             </div>
-            <p class="recording-status" data-job-id="{{ active_job.id }}" aria-live="polite"></p>
           </section>
         {% endfor %}
       {% else %}

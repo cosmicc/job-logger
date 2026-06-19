@@ -362,7 +362,7 @@ The normal workflow is:
 3. The `/mobile` page renders from local application state without running an
    Autotask API contactability check. After the page has loaded, browser
    JavaScript queries `/mobile/service-calls` to populate today's service-call
-   start cards.
+   start cards, including each call's local start/end time range.
 4. User starts Job 1 or Job 2. Blank Start Work creates a local active job
    without first probing Autotask. At most two active jobs may exist at once.
 5. After the job starts, the user enters/selects an Autotask company by client
@@ -371,14 +371,17 @@ The normal workflow is:
 6. User chooses an open Autotask ticket from the active-job ticket panel. If no
    tickets are loaded yet, the whole panel is the load control and shows a
    spinner while Autotask data is being queried. Mobile ticket numbers are
-   populated from that selection instead of manual entry.
+   populated from that selection instead of manual entry. Read-only ticket
+   descriptions stay in short scrollable boxes on Work in Progress and review
+   detail.
 7. User chooses whether the work is Remote or On-Site. The mode is stored on
    the job and appears as the leading prefix in the review summary textarea so
    it can be corrected before Autotask submission.
-8. User records notes during an active job. The record button becomes a stop
-   button while audio chunks stream to the server over WebSocket, and stopping
-   capture shows sending/converting/completed progress with a status-line
-   spinner until the final transcript returns.
+8. User records notes during an active job from the Summary notes area above
+   the optional AI Cleanup action. The record button becomes a stop button
+   while audio chunks stream to the server over WebSocket, and stopping capture
+   shows sending/converting/completed progress with a status-line spinner until
+   the final transcript returns.
 9. When enabled, user can click **AI Cleanup** to send the current summary text
    through the configured server-side Gemini or Groq cleanup provider. On
    mobile, progress and failure details use the same status line as audio

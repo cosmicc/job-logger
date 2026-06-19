@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 from job_logger.time_utils import (
     enforce_minimum_rounded_end,
+    format_local_compact_time_range,
     format_local_display,
     format_local_time,
     parse_local_form_datetime,
@@ -48,6 +49,15 @@ def test_format_local_time_uses_detroit_twelve_hour_display() -> None:
 
     assert format_local_time(timestamp) == "8:15 am"
     assert format_local_display(timestamp) == "Jun 16, 2026 8:15 am"
+
+
+def test_format_local_compact_time_range_uses_detroit_twelve_hour_display() -> None:
+    """Compact service-call card ranges should omit spaces around am/pm."""
+
+    start_timestamp = datetime(2026, 6, 16, 20, 0, tzinfo=UTC)
+    end_timestamp = datetime(2026, 6, 16, 21, 0, tzinfo=UTC)
+
+    assert format_local_compact_time_range(start_timestamp, end_timestamp) == "4:00pm-5:00pm"
 
 
 def test_parse_local_form_datetime_accepts_twelve_hour_display() -> None:

@@ -6,7 +6,7 @@ import re
 import time
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from threading import RLock
 from typing import Any
@@ -241,8 +241,10 @@ class AutotaskServiceCallOption:
     # autotask_company_id is the selected Autotask company/account ID stored on the new active job.
     autotask_company_id: int
 
-    # start_datetime_utc is kept only for stable sorting and concise audit context.
+    # start_datetime_utc and end_datetime_utc are safe scheduled times used for
+    # sorting, concise card display, and audit context.
     start_datetime_utc: datetime | None
+    end_datetime_utc: datetime | None
 
 
 class AutotaskSubmissionError(RuntimeError):
@@ -555,9 +557,12 @@ class MockAutotaskProvider(BaseAutotaskProvider):
     ) -> list[AutotaskServiceCallOption]:
         """Return deterministic service-call options for local mobile testing."""
 
-        # current_time_utc is accepted so the mock matches the live provider
-        # contract; mock data is intentionally static for stable tests.
-        _ = current_time_utc
+        safe_current_time_utc = ensure_utc(current_time_utc or now_utc())
+        local_day_start_utc, _local_day_end_utc = local_day_bounds_utc(local_date_for(safe_current_time_utc))
+        first_start_utc = local_day_start_utc + timedelta(hours=12)
+        first_end_utc = first_start_utc + timedelta(hours=1)
+        second_start_utc = local_day_start_utc + timedelta(hours=14)
+        second_end_utc = second_start_utc + timedelta(hours=1)
         onsite_details = "Onsite service call for scheduled firewall replacement."
         remote_details = "Remote follow-up service call for backup verification."
         onsite_work_location = detect_work_location_from_service_call_details(onsite_details)
@@ -575,7 +580,8 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 ticket_description="Mock ticket description from scheduled service call.",
                 client_name="Scheduled Service Client",
                 autotask_company_id=1001,
-                start_datetime_utc=None,
+                start_datetime_utc=first_start_utc,
+                end_datetime_utc=first_end_utc,
             ),
             AutotaskServiceCallOption(
                 service_call_id=6002,
@@ -589,7 +595,8 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 ticket_description="Mock follow-up description from scheduled service call.",
                 client_name="Scheduled Service Client",
                 autotask_company_id=1001,
-                start_datetime_utc=None,
+                start_datetime_utc=second_start_utc,
+                end_datetime_utc=second_end_utc,
             ),
         ]
 
@@ -998,6 +1005,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             )
             detected_work_location = detect_work_location_from_service_call_details(service_call_details)
             start_datetime_utc = _parse_autotask_datetime(service_call_record.get("startDateTime"))
+            end_datetime_utc = _parse_autotask_datetime(service_call_record.get("endDateTime"))
 
             for service_call_ticket_record in service_call_tickets_by_service_call_id.get(service_call_id, []):
                 service_call_ticket_id = _coerce_positive_autotask_id(service_call_ticket_record.get("id"))
@@ -1041,6 +1049,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                         client_name=client_name,
                         autotask_company_id=company_id,
                         start_datetime_utc=start_datetime_utc,
+                        end_datetime_utc=end_datetime_utc,
                     )
                 )
                 if len(service_call_options) >= MAX_SERVICE_CALL_LOOKUP_RESULTS:

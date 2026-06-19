@@ -141,6 +141,23 @@ def format_local_time(timestamp: datetime | None) -> str:
     return format_time_for_display(to_local(timestamp).time())
 
 
+def format_local_compact_time(timestamp: datetime | None) -> str:
+    """Format a local display time without the space before am/pm."""
+
+    return format_local_time(timestamp).replace(" ", "")
+
+
+def format_local_compact_time_range(start_timestamp: datetime | None, end_timestamp: datetime | None) -> str:
+    """Format a concise local time range for compact service-call cards."""
+
+    safe_start_time = format_local_compact_time(start_timestamp)
+    safe_end_time = format_local_compact_time(end_timestamp)
+    if safe_start_time and safe_end_time:
+        return f"{safe_start_time}-{safe_end_time}"
+
+    return safe_start_time or safe_end_time
+
+
 def format_local_display(timestamp: datetime | None) -> str:
     """Format a timestamp for readable America/Detroit display."""
 

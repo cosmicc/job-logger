@@ -147,6 +147,11 @@ creating a job. Never accept ticket number, ticket title, ticket description,
 client name, company ID, or work-location values from hidden fields for this
 path.
 
+The `/mobile/service-calls` response may include a preformatted local
+start/end time range for display, such as `4:00pm-5:00pm`. Treat that range as
+read-only card context; it must not be submitted back by the browser or used as
+the authorization source for starting a job.
+
 Remote/On-Site detection is intentionally simple and auditable: scan the
 service-call details for `remote`, `onsite`, `on-site`, or `on site`. If neither
 word is present, display `Not specified` and let the started job use the normal

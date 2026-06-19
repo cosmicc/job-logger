@@ -1113,8 +1113,17 @@ function createServiceCallStartForm(serviceCallOption) {
   ticketTitle.className = "service-call-ticket";
   ticketTitle.textContent = serviceCallOption.ticket_title || "Untitled ticket";
 
+  const scheduledTimeRange = toSafeMapString(serviceCallOption.scheduled_time_range).trim();
+  const timeRange = document.createElement("span");
+  timeRange.className = "service-call-time-range";
+  timeRange.textContent = scheduledTimeRange;
+
   cardHeader.append(clientName, workLocationBadge);
-  optionButton.append(cardHeader, ticketTitle);
+  optionButton.append(cardHeader);
+  if (scheduledTimeRange) {
+    optionButton.append(timeRange);
+  }
+  optionButton.append(ticketTitle);
   serviceCallForm.append(csrfInput, serviceCallTicketInput, optionButton);
   return serviceCallForm;
 }
