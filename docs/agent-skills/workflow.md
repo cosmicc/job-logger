@@ -95,10 +95,12 @@ entry.
 The mobile start panels show today's Autotask service calls when an active job
 slot is available. Service-call options are provided by
 `list_todays_service_calls_for_resource()`, which derives Remote/On-Site from
-the service-call details text and shows the associated ticket title. Clicking a
-service call starts an active job with the associated ticket number, ticket
-title, bounded ticket description, client name, company ID, and detected
-work-location mode.
+the service-call details text. Each rendered card should stay compact and show
+only the client name, Remote/On-Site label, and associated ticket title, with
+different Remote and On-Site coloring for quick scanning. Clicking a service
+call starts an active job with the associated ticket number, ticket title,
+bounded ticket description, client name, company ID, and detected work-location
+mode.
 
 The active mobile card should expose only one client entry point for each job.
 After an Autotask company is selected, the active job displays that client as a

@@ -5,12 +5,13 @@ All recorded changes to Job Logger are documented in this file.
 ## Unreleased
 
 - Added a mobile start-from-service-call option that lists today's Autotask
-  service calls for `AUTOTASK_RESOURCE_ID`, shows the service-call name,
-  Remote/On-Site detection from the service-call details, and the associated
-  ticket title. Starting from a service call now creates an active job with
-  server-verified ticket number, ticket title, bounded ticket description,
-  client name, company ID, and work-location while accepting only the
-  service-call ticket association ID from the browser.
+  service calls for `AUTOTASK_RESOURCE_ID`, shows compact cards with the client
+  name, Remote/On-Site detection from the service-call details, and the
+  associated ticket title, with distinct coloring for Remote and On-Site calls.
+  Starting from a service call now creates an active job with server-verified
+  ticket number, ticket title, bounded ticket description, client name, company
+  ID, and work-location while accepting only the service-call ticket association
+  ID from the browser.
 
 - Removed the mobile **Save Active Changes** button and the review **Save**
   button. Active-job client/work-location edits and review field edits now save

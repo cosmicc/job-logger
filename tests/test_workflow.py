@@ -1119,9 +1119,13 @@ def test_mobile_service_call_start_populates_active_job(authenticated_client: Te
     csrf_token = extract_csrf_token(mobile_html)
 
     assert "Today's service calls" in mobile_html
-    assert "Mock onsite service call" in mobile_html
-    assert "On-Site - Scheduled Service Client" in mobile_html
-    assert "T20260616.0001 - Mock open ticket for Scheduled Service Client" in mobile_html
+    assert "Mock onsite service call" not in mobile_html
+    assert "Scheduled Service Client" in mobile_html
+    assert "On-Site" in mobile_html
+    assert "Mock open ticket for Scheduled Service Client" in mobile_html
+    assert "service-call-location-on_site" in mobile_html
+    assert "service-call-location-remote" in mobile_html
+    assert "T20260616.0001 - Mock open ticket for Scheduled Service Client" not in mobile_html
 
     start_response = authenticated_client.post(
         "/jobs/start/service-call",

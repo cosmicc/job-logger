@@ -372,13 +372,14 @@ open-ticket picker is hidden for that job.
 
 When an active job slot is available, the mobile start panel also lists today's
 Autotask service calls assigned to `AUTOTASK_RESOURCE_ID`. Each service-call
-choice shows the service-call name/details label, the detected `Remote` or
-`On-Site` value from the service-call details text, and the associated ticket
-title. Tapping a service call starts an active job with the server-verified
-ticket number, ticket title, bounded ticket description, client name, company
-ID, and detected work-location mode. The browser submits only the service-call
-ticket association ID and CSRF token; the server re-checks today's
-resource-specific service-call list before creating the job. If service-call
+choice shows the client name, the detected `Remote` or `On-Site` value from the
+service-call details text, and the associated ticket title. Remote and On-Site
+cards use distinct accent colors so scheduled call type is easy to scan without
+wasting mobile screen space. Tapping a service call starts an active job with
+the server-verified ticket number, ticket title, bounded ticket description,
+client name, company ID, and detected work-location mode. The browser submits
+only the service-call ticket association ID and CSRF token; the server re-checks
+today's resource-specific service-call list before creating the job. If service-call
 lookup fails because permissions are missing, the blank Start Work path remains
 available as long as the normal Autotask start gate is online.
 

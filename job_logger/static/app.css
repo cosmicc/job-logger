@@ -460,7 +460,7 @@ a:focus-visible {
 
 .service-call-start-list {
   display: grid;
-  gap: 9px;
+  gap: 8px;
 }
 
 .service-call-start-form {
@@ -469,15 +469,16 @@ a:focus-visible {
 
 .service-call-option-button {
   display: grid;
-  gap: 5px;
+  gap: 6px;
   width: 100%;
-  min-height: 72px;
+  min-height: 62px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--surface-muted);
+  background: var(--surface);
   color: var(--text);
-  padding: 10px 12px;
+  padding: 9px 11px;
   text-align: left;
+  box-shadow: inset 4px 0 0 var(--border);
 }
 
 .service-call-option-button:hover {
@@ -485,7 +486,31 @@ a:focus-visible {
   background: var(--surface-strong);
 }
 
-.service-call-name,
+.service-call-location-remote {
+  border-color: rgba(45, 212, 191, 0.48);
+  background: rgba(45, 212, 191, 0.08);
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+
+.service-call-location-on_site {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: var(--warning-soft);
+  box-shadow: inset 4px 0 0 var(--warning);
+}
+
+.service-call-location-unknown {
+  border-color: rgba(154, 168, 188, 0.34);
+  background: var(--surface-strong);
+}
+
+.service-call-card-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.service-call-client,
 .service-call-ticket {
   overflow-wrap: anywhere;
   font-size: 14px;
@@ -493,13 +518,37 @@ a:focus-visible {
   line-height: 1.25;
 }
 
-.service-call-meta {
-  overflow-wrap: anywhere;
+.service-call-ticket {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.service-call-location-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border: 1px solid rgba(154, 168, 188, 0.28);
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: rgba(11, 18, 32, 0.58);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
-  line-height: 1.25;
+  line-height: 1;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.service-call-location-remote .service-call-location-badge {
+  border-color: rgba(45, 212, 191, 0.42);
+  background: rgba(45, 212, 191, 0.18);
+  color: var(--accent);
+}
+
+.service-call-location-on_site .service-call-location-badge {
+  border-color: rgba(245, 158, 11, 0.42);
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--warning);
 }
 
 .ticket-load-button {
