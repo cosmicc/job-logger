@@ -16,6 +16,7 @@ from job_logger.services.autotask import (
     _COMPANY_ID_CACHE,
     _COMPANY_SEARCH_CACHE,
     _OPEN_TICKET_SELECTION_CACHE,
+    _SERVICE_CALL_SELECTION_CACHE,
     _START_CONNECTIVITY_CACHE,
     _TICKET_STATUS_CACHE,
     AutotaskConnectivityResult,
@@ -183,6 +184,118 @@ class FakeOpenTicketLookupClient:
         )
 
 
+class FakeServiceCallLookupClient:
+    """Fake Autotask client that exposes the service-call relationship chain."""
+
+    def __init__(self) -> None:
+        """Initialize captured requests for endpoint and cache assertions."""
+
+        # post_requests stores each fake Autotask query for later assertions.
+        self.post_requests: list[tuple[str, dict[str, Any]]] = []
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return related service-call, ticket, resource, and company records."""
+
+        self.post_requests.append((endpoint_path, dict(json)))
+        assert json["MaxRecords"] == 500
+
+        if endpoint_path == "/ServiceCalls/query":
+            assert json["IncludeFields"] == ["id", "description", "startDateTime", "endDateTime", "companyID"]
+            assert {
+                "op": "gte",
+                "field": "startDateTime",
+                "value": "2026-06-16T04:00:00Z",
+            } in json["filter"]
+            assert {
+                "op": "lt",
+                "field": "startDateTime",
+                "value": "2026-06-17T04:00:00Z",
+            } in json["filter"]
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "id": 7001,
+                            "description": "Onsite firewall replacement",
+                            "startDateTime": "2026-06-16T13:00:00Z",
+                            "endDateTime": "2026-06-16T14:00:00Z",
+                            "companyID": 1001,
+                        },
+                        {
+                            "id": 7002,
+                            "description": "Remote service call assigned to another resource",
+                            "startDateTime": "2026-06-16T15:00:00Z",
+                            "endDateTime": "2026-06-16T16:00:00Z",
+                            "companyID": 1002,
+                        },
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/ServiceCallTickets/query":
+            assert json["IncludeFields"] == ["id", "serviceCallID", "ticketID"]
+            assert json["filter"] == [{"op": "in", "field": "serviceCallID", "value": [7001, 7002]}]
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 8001, "serviceCallID": 7001, "ticketID": 9001},
+                        {"id": 8002, "serviceCallID": 7002, "ticketID": 9002},
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/ServiceCallTicketResources/query":
+            assert json["IncludeFields"] == ["id", "resourceID", "serviceCallTicketID"]
+            assert {"op": "eq", "field": "resourceID", "value": 1} in json["filter"]
+            assert {"op": "in", "field": "serviceCallTicketID", "value": [8001, 8002]} in json["filter"]
+            return FakeAutotaskResponse(
+                {
+                    "items": [{"id": 8101, "resourceID": 1, "serviceCallTicketID": 8001}],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/Tickets/query":
+            assert json["IncludeFields"] == ["id", "ticketNumber", "title", "description", "companyID"]
+            assert json["filter"] == [{"op": "in", "field": "id", "value": [9001]}]
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "id": 9001,
+                            "ticketNumber": "T20260616.0007",
+                            "title": "Firewall replacement",
+                            "description": "Replace firewall and verify VPN.",
+                            "companyID": 1001,
+                        }
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/Companies/query":
+            assert json["IncludeFields"] == ["id", "companyName", "isActive"]
+            assert json["filter"] == [{"op": "in", "field": "id", "value": [1001, 1002]}]
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 1001, "companyName": "Acme Services", "isActive": True},
+                        {"id": 1002, "companyName": "Other Client", "isActive": True},
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
+
+    def get(self, endpoint_path: str) -> FakeAutotaskResponse:
+        """Fail if the service-call workflow performs unexpected metadata GET calls."""
+
+        raise AssertionError(f"Unexpected fake Autotask GET endpoint: {endpoint_path}")
+
+
 class FakeEmptyCompanyQueryClient:
     """Fake Autotask client that returns no companies for each live query."""
 
@@ -316,6 +429,7 @@ def _clear_autotask_lookup_caches() -> None:
     _COMPANY_ID_CACHE.clear()
     _TICKET_STATUS_CACHE.clear()
     _OPEN_TICKET_SELECTION_CACHE.clear()
+    _SERVICE_CALL_SELECTION_CACHE.clear()
     _START_CONNECTIVITY_CACHE.clear()
 
 
@@ -390,6 +504,48 @@ def test_open_ticket_lookup_reuses_recent_server_verified_list(monkeypatch: pyte
     assert fake_client.company_query_count == 1
     assert fake_client.ticket_query_count == 1
     assert fake_client.status_lookup_count == 1
+
+
+def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Today's service calls should be resolved through ticket-resource assignments."""
+
+    _clear_autotask_lookup_caches()
+    provider = _live_test_provider()
+    fake_client = FakeServiceCallLookupClient()
+
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeConnectivityContext:
+        """Return one fake service-call client while matching the provider signature."""
+
+        # timeout_seconds is accepted so the fake matches LiveAutotaskProvider._client.
+        assert timeout_seconds == 30.0
+        return FakeConnectivityContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    current_time_utc = datetime(2026, 6, 16, 15, 30, tzinfo=UTC)
+    first_lookup = provider.list_todays_service_calls_for_resource(current_time_utc=current_time_utc)
+    second_lookup = provider.list_todays_service_calls_for_resource(current_time_utc=current_time_utc)
+
+    assert len(first_lookup) == 1
+    service_call_option = first_lookup[0]
+    assert service_call_option.service_call_id == 7001
+    assert service_call_option.service_call_ticket_id == 8001
+    assert service_call_option.service_call_name == "Onsite firewall replacement"
+    assert service_call_option.work_location_label == "On-Site"
+    assert service_call_option.detected_work_location == WorkLocation.ON_SITE
+    assert service_call_option.ticket_number == "T20260616.0007"
+    assert service_call_option.ticket_title == "Firewall replacement"
+    assert service_call_option.ticket_description == "Replace firewall and verify VPN."
+    assert service_call_option.client_name == "Acme Services"
+    assert service_call_option.autotask_company_id == 1001
+    assert second_lookup == first_lookup
+    assert [endpoint_path for endpoint_path, _payload in fake_client.post_requests] == [
+        "/ServiceCalls/query",
+        "/ServiceCallTickets/query",
+        "/ServiceCallTicketResources/query",
+        "/Tickets/query",
+        "/Companies/query",
+    ]
 
 
 def test_start_connectivity_check_uses_short_cache(monkeypatch: pytest.MonkeyPatch) -> None:

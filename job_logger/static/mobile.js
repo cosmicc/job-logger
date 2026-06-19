@@ -1,4 +1,5 @@
 const DESCRIPTION_SAVE_DELAY_MS = 650;
+const ACTIVE_FORM_SAVE_DELAY_MS = 650;
 const COMPANY_SEARCH_DELAY_MS = 400;
 const MIN_COMPANY_SEARCH_CHARACTERS = 3;
 const RECORDING_CHUNK_INTERVAL_MS = 2500;
@@ -16,6 +17,8 @@ const activeTicketPickers = document.querySelectorAll("[data-active-ticket-picke
 const workLocationInputs = document.querySelectorAll("[data-work-location-input]");
 
 const descriptionSaveTimers = new Map();
+const activeFormSaveTimers = new WeakMap();
+const lastSavedActiveFormSnapshots = new WeakMap();
 const companySearchTimers = new Map();
 const lastSavedDescriptions = new Map();
 const pendingDescriptionSaves = new Set();
@@ -52,6 +55,14 @@ function findRecordingStatusElement(jobId) {
   }
 
   return document.querySelector(`.recording-status[data-job-id="${toSafeMapString(jobId)}"]`);
+}
+
+function findActiveSaveStatusElement(jobId) {
+  if (!jobId) {
+    return null;
+  }
+
+  return document.querySelector(`[data-active-save-status][data-job-id="${toSafeMapString(jobId)}"]`);
 }
 
 function findActiveTicketForm(jobId) {
@@ -179,6 +190,16 @@ function submitFormWithCurrentFields(formElement) {
   }
 }
 
+function setActiveSaveStatus(jobId, message, isError = false) {
+  const statusElement = findActiveSaveStatusElement(jobId);
+  if (!statusElement) {
+    return;
+  }
+
+  statusElement.textContent = message;
+  statusElement.classList.toggle("error-text", isError);
+}
+
 function populateActiveFormSummaryField(activeTicketForm) {
   if (!activeTicketForm) {
     return;
@@ -198,6 +219,15 @@ function populateActiveFormSummaryField(activeTicketForm) {
   pendingDescriptionSaves.delete(safeJobId);
 }
 
+function buildActiveJobFormSnapshot(activeTicketForm) {
+  if (!activeTicketForm) {
+    return "";
+  }
+
+  populateActiveFormSummaryField(activeTicketForm);
+  return new URLSearchParams(new FormData(activeTicketForm)).toString();
+}
+
 async function saveActiveJobFormInBackground(activeTicketForm) {
   if (!activeTicketForm) {
     throw new Error("Active job form was not found.");
@@ -215,6 +245,58 @@ async function saveActiveJobFormInBackground(activeTicketForm) {
   }
 
   return payload;
+}
+
+function clearActiveFormSaveTimer(activeTicketForm) {
+  const timerId = activeFormSaveTimers.get(activeTicketForm);
+  if (timerId) {
+    clearTimeout(timerId);
+    activeFormSaveTimers.delete(activeTicketForm);
+  }
+}
+
+function persistActiveJobFormSnapshot(activeTicketForm, queuedSnapshot) {
+  const jobId = toSafeMapString(activeTicketForm.dataset.jobId);
+  setActiveSaveStatus(jobId, "Saving changes...");
+  saveActiveJobFormInBackground(activeTicketForm)
+    .then(() => {
+      const endJobForm = document.querySelector(`.end-job-form[data-job-id="${jobId}"]`);
+      if (endJobForm) {
+        syncEndJobClientFields(endJobForm);
+      }
+
+      const latestSnapshot = buildActiveJobFormSnapshot(activeTicketForm);
+      if (latestSnapshot === queuedSnapshot) {
+        lastSavedActiveFormSnapshots.set(activeTicketForm, latestSnapshot);
+        setActiveSaveStatus(jobId, "Changes saved.");
+        return;
+      }
+
+      queueActiveJobFormSave(activeTicketForm, true);
+    })
+    .catch((error) => {
+      setActiveSaveStatus(jobId, error.message || "Active job changes could not be saved.", true);
+    });
+}
+
+function queueActiveJobFormSave(activeTicketForm, immediate = false) {
+  if (!activeTicketForm) {
+    return;
+  }
+
+  const nextSnapshot = buildActiveJobFormSnapshot(activeTicketForm);
+  if (nextSnapshot === lastSavedActiveFormSnapshots.get(activeTicketForm)) {
+    return;
+  }
+
+  clearActiveFormSaveTimer(activeTicketForm);
+  activeFormSaveTimers.set(
+    activeTicketForm,
+    setTimeout(() => {
+      activeFormSaveTimers.delete(activeTicketForm);
+      persistActiveJobFormSnapshot(activeTicketForm, nextSnapshot);
+    }, immediate ? 0 : ACTIVE_FORM_SAVE_DELAY_MS),
+  );
 }
 
 function setRecordingStatus(jobId, message, isError = false) {
@@ -341,7 +423,7 @@ async function searchAutotaskCompanies(queryText) {
 }
 
 function renderCompanyResults(companyInput, companies) {
-  const parentForm = companyInput.closest("form");
+  const parentForm = resolveFormForControl(companyInput);
   const {companyIdInput, resultsElement} = getCompanyPickerElements(companyInput);
   if (!companyIdInput || !resultsElement) {
     return;
@@ -378,7 +460,7 @@ function renderCompanyResults(companyInput, companies) {
             });
           return;
         }
-        submitFormWithCurrentFields(parentForm);
+        queueActiveJobFormSave(parentForm, true);
       }
     });
     resultsElement.append(optionButton);
@@ -388,8 +470,13 @@ function renderCompanyResults(companyInput, companies) {
 function queueCompanySearch(companyInput) {
   const queryText = toSafeMapString(companyInput.value).trim();
   const {companyIdInput} = getCompanyPickerElements(companyInput);
+  const parentForm = resolveFormForControl(companyInput);
   if (companyIdInput) {
     companyIdInput.value = "";
+  }
+
+  if (parentForm && parentForm.classList.contains("active-ticket-form")) {
+    queueActiveJobFormSave(parentForm);
   }
 
   clearTimeout(companySearchTimers.get(companyInput));
@@ -429,6 +516,9 @@ function clearDescriptionTimer(jobId) {
 }
 
 async function saveDescriptionText(jobId, descriptionText) {
+  // descriptionText is the exact textarea value at the time autosave was
+  // queued. It may intentionally include a trailing space while the user is
+  // between words on a mobile keyboard.
   const response = await fetch(`/jobs/${jobId}/description/text`, {
     method: "POST",
     headers: {
@@ -443,13 +533,11 @@ async function saveDescriptionText(jobId, descriptionText) {
     throw new Error(payload.detail || "Notes could not be saved.");
   }
 
-  if (payload.summary_notes) {
-    const summaryElement = findDescriptionTextarea(jobId);
-    if (summaryElement) {
-      summaryElement.value = payload.summary_notes || "";
-    }
-    lastSavedDescriptions.set(jobId, payload.summary_notes || "");
-  }
+  // The server trims persisted summary notes for clean storage and Autotask
+  // payloads. Do not write that normalized value back into the focused mobile
+  // textarea during manual autosave, because trimming a just-typed trailing
+  // space makes the phone keyboard appear unable to type normal sentences.
+  return payload;
 }
 
 function queueDescriptionSave(jobId, immediate = false) {
@@ -469,10 +557,15 @@ function queueDescriptionSave(jobId, immediate = false) {
     safeJobId,
     setTimeout(() => {
       descriptionSaveTimers.delete(safeJobId);
-        saveDescriptionText(safeJobId, nextValue)
+      saveDescriptionText(safeJobId, nextValue)
         .then(() => {
           setRecordingStatus(safeJobId, "", false);
-          lastSavedDescriptions.set(safeJobId, nextValue || "");
+          const latestDescriptionElement = findDescriptionTextarea(safeJobId);
+          // Only mark this queued value as current if the user has not typed a
+          // newer value while the network request was in flight.
+          if (!latestDescriptionElement || latestDescriptionElement.value === nextValue) {
+            lastSavedDescriptions.set(safeJobId, nextValue || "");
+          }
           pendingDescriptionSaves.delete(safeJobId);
         })
         .catch((error) => {
@@ -521,13 +614,22 @@ function updateDescriptionFromTranscription(activeJobId, payload, shouldMarkSave
     return;
   }
 
+  const safeActiveJobId = toSafeMapString(activeJobId);
+  if (shouldMarkSaved) {
+    // A final audio transcript is the authoritative replacement text for the
+    // mobile summary box. Cancel any queued manual autosave so stale typed text
+    // cannot fire after the transcript has been pasted into the field.
+    clearDescriptionTimer(safeActiveJobId);
+    pendingDescriptionSaves.delete(safeActiveJobId);
+  }
+
   const descriptionElement = findDescriptionTextarea(activeJobId);
   if (descriptionElement) {
     descriptionElement.value = nextDescriptionText;
   }
 
   if (shouldMarkSaved) {
-    lastSavedDescriptions.set(toSafeMapString(activeJobId), nextDescriptionText);
+    lastSavedDescriptions.set(safeActiveJobId, nextDescriptionText);
   }
 }
 
@@ -581,8 +683,9 @@ function handleAudioStreamMessage(activeJobId, rawMessage, readyHandlers) {
   }
 
   if (payload.type === "partial") {
-    updateDescriptionFromTranscription(activeJobId, payload, false);
-    setRecordingStatus(activeJobId, "Updating transcript preview...");
+    // Keep streaming transcription progress visible without changing the
+    // summary textarea until the server returns the final transcript.
+    setRecordingStatus(activeJobId, "Transcribing audio...");
     return;
   }
 
@@ -1063,7 +1166,7 @@ for (const workLocationInput of workLocationInputs) {
     }
 
     const activeTicketForm = document.getElementById(workLocationInput.getAttribute("form") || "");
-    submitFormWithCurrentFields(activeTicketForm);
+    queueActiveJobFormSave(activeTicketForm, true);
   });
 }
 
@@ -1085,8 +1188,10 @@ for (const activeTicketForm of activeTicketForms) {
     continue;
   }
 
-  activeTicketForm.addEventListener("submit", () => {
+  activeTicketForm.addEventListener("submit", (event) => {
+    event.preventDefault();
     populateActiveFormSummaryField(activeTicketForm);
+    queueActiveJobFormSave(activeTicketForm, true);
   });
 }
 

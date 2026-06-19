@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import time
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from threading import RLock
 from typing import Any
@@ -14,17 +16,23 @@ import httpx
 from job_logger.config import Settings, settings
 from job_logger.enums import TicketStatus, WorkLocation
 from job_logger.models import Job
-from job_logger.time_utils import format_autotask_datetime, rounded_duration_minutes
+from job_logger.time_utils import ensure_utc, format_autotask_datetime, local_date_for, local_day_bounds_utc, now_utc, rounded_duration_minutes
 
 MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP = 10
 MAX_TICKET_LOOKUP_RESULTS = 25
 MAX_OPEN_TICKET_QUERY_RECORDS = MAX_TICKET_LOOKUP_RESULTS
+MAX_SERVICE_CALL_LOOKUP_RESULTS = 25
+MAX_SERVICE_CALL_NAME_LENGTH = 240
+MAX_SERVICE_CALL_DETAIL_LENGTH = 2000
+MAX_AUTOTASK_IN_FILTER_VALUES = 500
 
 WORK_LOCATION_SUMMARY_PREFIXES = {
     WorkLocation.REMOTE: "Remote",
     WorkLocation.ON_SITE: "On-Site",
 }
 MIN_COMPANY_SEARCH_CHARACTERS = 3
+REMOTE_SERVICE_CALL_PATTERN = re.compile(r"\bremote\b", re.IGNORECASE)
+ON_SITE_SERVICE_CALL_PATTERN = re.compile(r"\bon[\s-]?site\b", re.IGNORECASE)
 
 # AUTOTASK_CACHE_TTL_SECONDS is the default short TTL for status metadata and non-company lookups.
 AUTOTASK_CACHE_TTL_SECONDS = 15 * 60
@@ -37,6 +45,10 @@ COMPANY_CACHE_TTL_SECONDS = 2 * 60 * 60
 # it. This avoids a second live Autotask Tickets query on the critical tap path
 # while still expiring quickly so stale ticket state is not treated as durable.
 OPEN_TICKET_SELECTION_CACHE_TTL_SECONDS = 2 * 60
+
+# SERVICE_CALL_SELECTION_CACHE_TTL_SECONDS keeps today's service-call list long
+# enough for a tap-to-start action to reuse the server-resolved Autotask data.
+SERVICE_CALL_SELECTION_CACHE_TTL_SECONDS = 2 * 60
 
 # START_CONNECTIVITY_SUCCESS_CACHE_TTL_SECONDS lets multiple quick Start Work
 # taps reuse a recent successful dependency probe instead of making a live
@@ -85,6 +97,11 @@ _TICKET_STATUS_CACHE: dict[str, _AutotaskCacheEntry] = {}
 # _OPEN_TICKET_SELECTION_CACHE stores recently displayed open-ticket options
 # keyed by tenant URL, selected client text, and selected Autotask company ID.
 _OPEN_TICKET_SELECTION_CACHE: dict[tuple[str, str, int | None], _AutotaskCacheEntry] = {}
+
+# _SERVICE_CALL_SELECTION_CACHE stores today's rendered service-call options
+# keyed by tenant URL, resource, and local-day UTC bounds. It contains only
+# non-secret ticket and company metadata already safe for the authenticated UI.
+_SERVICE_CALL_SELECTION_CACHE: dict[tuple[str, int, str, str], _AutotaskCacheEntry] = {}
 
 # _START_CONNECTIVITY_CACHE stores one recent start-work dependency result per
 # non-secret tenant/provider context. The debug page bypasses this cache.
@@ -198,6 +215,47 @@ class AutotaskTicketOption:
     company_name: str
 
 
+@dataclass(frozen=True)
+class AutotaskServiceCallOption:
+    """Safe service-call data returned to the mobile start-work panel."""
+
+    # service_call_id identifies the Autotask ServiceCalls row for display and audit.
+    service_call_id: int
+
+    # service_call_ticket_id identifies the specific ServiceCallTickets row the user clicked.
+    service_call_ticket_id: int
+
+    # service_call_name is the bounded display label from the service-call details.
+    service_call_name: str
+
+    # service_call_details stores bounded read-only context used for keyword detection.
+    service_call_details: str | None
+
+    # detected_work_location is set only when Remote or On-Site is found in the service-call details.
+    detected_work_location: WorkLocation | None
+
+    # work_location_label is the user-facing result of the service-call details keyword scan.
+    work_location_label: str
+
+    # ticket_number is the Autotask ticket number that will be stored on the started job.
+    ticket_number: str
+
+    # ticket_title is the associated Autotask ticket title shown in the service-call list.
+    ticket_title: str
+
+    # ticket_description is bounded Autotask ticket context stored on the job after the click.
+    ticket_description: str | None
+
+    # client_name is the selected Autotask company name stored on the new active job.
+    client_name: str
+
+    # autotask_company_id is the selected Autotask company/account ID stored on the new active job.
+    autotask_company_id: int
+
+    # start_datetime_utc is kept only for stable sorting and concise audit context.
+    start_datetime_utc: datetime | None
+
+
 class AutotaskSubmissionError(RuntimeError):
     """Raised for configuration or remote Autotask failures."""
 
@@ -227,6 +285,14 @@ class BaseAutotaskProvider:
 
         raise NotImplementedError
 
+    def list_todays_service_calls_for_resource(
+        self,
+        current_time_utc: datetime | None = None,
+    ) -> list[AutotaskServiceCallOption]:
+        """Return today's service calls for the configured Autotask resource."""
+
+        raise NotImplementedError
+
 
 def _job_duration_hours(job: Job) -> Decimal:
     """Return rounded duration as decimal hours for Autotask."""
@@ -249,6 +315,85 @@ def _work_location_for_job(job: Job) -> WorkLocation:
         return WorkLocation(str(raw_work_location))
     except ValueError:
         return WorkLocation.REMOTE
+
+
+def detect_work_location_from_service_call_details(service_call_details: str | None) -> WorkLocation | None:
+    """Return Remote or On-Site when a service-call details field names one."""
+
+    detail_text = service_call_details or ""
+    remote_match = REMOTE_SERVICE_CALL_PATTERN.search(detail_text)
+    on_site_match = ON_SITE_SERVICE_CALL_PATTERN.search(detail_text)
+    if remote_match is None and on_site_match is None:
+        return None
+    if remote_match is None:
+        return WorkLocation.ON_SITE
+    if on_site_match is None:
+        return WorkLocation.REMOTE
+    return WorkLocation.ON_SITE if on_site_match.start() < remote_match.start() else WorkLocation.REMOTE
+
+
+def work_location_label_for_detection(work_location: WorkLocation | None) -> str:
+    """Return the service-call list label for a detected work location."""
+
+    if work_location is None:
+        return "Not specified"
+
+    return WORK_LOCATION_SUMMARY_PREFIXES[work_location]
+
+
+def _safe_service_call_text(raw_text: Any, fallback_text: str, max_length: int) -> str:
+    """Return bounded Autotask display text for service-call and ticket data."""
+
+    safe_text = str(raw_text or "").strip()
+    if not safe_text:
+        safe_text = fallback_text
+
+    return safe_text[:max_length]
+
+
+def _parse_autotask_datetime(raw_datetime: Any) -> datetime | None:
+    """Parse an Autotask UTC datetime string for local sorting and audit context."""
+
+    if raw_datetime in (None, ""):
+        return None
+
+    normalized_datetime = str(raw_datetime).strip()
+    if not normalized_datetime:
+        return None
+
+    if normalized_datetime.endswith("Z"):
+        normalized_datetime = f"{normalized_datetime[:-1]}+00:00"
+
+    try:
+        parsed_datetime = datetime.fromisoformat(normalized_datetime)
+    except ValueError:
+        return None
+
+    return ensure_utc(parsed_datetime)
+
+
+def _coerce_positive_autotask_id(raw_identifier: Any) -> int | None:
+    """Return a positive Autotask identifier or None for malformed records."""
+
+    try:
+        coerced_identifier = int(raw_identifier)
+    except (TypeError, ValueError):
+        return None
+
+    if coerced_identifier <= 0:
+        return None
+
+    return coerced_identifier
+
+
+def _chunked_autotask_ids(autotask_ids: list[int]) -> list[list[int]]:
+    """Return chunks that fit Autotask's documented list-query limits."""
+
+    ordered_unique_ids = list(dict.fromkeys(autotask_ids))
+    return [
+        ordered_unique_ids[start_index : start_index + MAX_AUTOTASK_IN_FILTER_VALUES]
+        for start_index in range(0, len(ordered_unique_ids), MAX_AUTOTASK_IN_FILTER_VALUES)
+    ]
 
 
 def build_autotask_summary_notes(job: Job) -> str:
@@ -346,6 +491,50 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             AutotaskCompanyOption(company_id=1002, company_name=f"{safe_query_text} Holdings"),
         ]
 
+    def list_todays_service_calls_for_resource(
+        self,
+        current_time_utc: datetime | None = None,
+    ) -> list[AutotaskServiceCallOption]:
+        """Return deterministic service-call options for local mobile testing."""
+
+        # current_time_utc is accepted so the mock matches the live provider
+        # contract; mock data is intentionally static for stable tests.
+        _ = current_time_utc
+        onsite_details = "Onsite service call for scheduled firewall replacement."
+        remote_details = "Remote follow-up service call for backup verification."
+        onsite_work_location = detect_work_location_from_service_call_details(onsite_details)
+        remote_work_location = detect_work_location_from_service_call_details(remote_details)
+        return [
+            AutotaskServiceCallOption(
+                service_call_id=6001,
+                service_call_ticket_id=6101,
+                service_call_name="Mock onsite service call",
+                service_call_details=onsite_details,
+                detected_work_location=onsite_work_location,
+                work_location_label=work_location_label_for_detection(onsite_work_location),
+                ticket_number="T20260616.0001",
+                ticket_title="Mock open ticket for Scheduled Service Client",
+                ticket_description="Mock ticket description from scheduled service call.",
+                client_name="Scheduled Service Client",
+                autotask_company_id=1001,
+                start_datetime_utc=None,
+            ),
+            AutotaskServiceCallOption(
+                service_call_id=6002,
+                service_call_ticket_id=6102,
+                service_call_name="Mock remote service call",
+                service_call_details=remote_details,
+                detected_work_location=remote_work_location,
+                work_location_label=work_location_label_for_detection(remote_work_location),
+                ticket_number="T20260616.0002",
+                ticket_title="Mock follow-up ticket for Scheduled Service Client",
+                ticket_description="Mock follow-up description from scheduled service call.",
+                client_name="Scheduled Service Client",
+                autotask_company_id=1001,
+                start_datetime_utc=None,
+            ),
+        ]
+
 
 class LiveAutotaskProvider(BaseAutotaskProvider):
     """Autotask REST API provider for reviewed time-entry submission."""
@@ -402,6 +591,21 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         normalized_client_name = client_name.strip().casefold()
         return (self._cache_namespace(), normalized_client_name, autotask_company_id)
+
+    def _service_call_selection_cache_key(
+        self,
+        resource_id: int,
+        local_day_start_utc: datetime,
+        local_day_end_utc: datetime,
+    ) -> tuple[str, int, str, str]:
+        """Return the cache key for today's service-call start list."""
+
+        return (
+            self._cache_namespace(),
+            resource_id,
+            format_autotask_datetime(local_day_start_utc),
+            format_autotask_datetime(local_day_end_utc),
+        )
 
     def _raise_for_safe_response(self, response: httpx.Response, action_description: str) -> None:
         """Raise a safe Autotask error without exposing headers or secrets."""
@@ -510,6 +714,281 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             page_number += 1
 
         return collected_items
+
+    def _query_todays_service_calls(
+        self,
+        client: httpx.Client,
+        *,
+        local_day_start_utc: datetime,
+        local_day_end_utc: datetime,
+    ) -> list[dict[str, Any]]:
+        """Return service calls whose scheduled start falls within the local day."""
+
+        query_payload = {
+            "IncludeFields": ["id", "description", "startDateTime", "endDateTime", "companyID"],
+            "filter": [
+                {
+                    "op": "gte",
+                    "field": "startDateTime",
+                    "value": format_autotask_datetime(local_day_start_utc),
+                },
+                {
+                    "op": "lt",
+                    "field": "startDateTime",
+                    "value": format_autotask_datetime(local_day_end_utc),
+                },
+            ],
+        }
+        return self._query_paginated_items(
+            client,
+            endpoint_path="/ServiceCalls/query",
+            query_payload=query_payload,
+            action_description="Autotask service-call lookup",
+        )
+
+    def _query_service_call_tickets_for_service_calls(
+        self,
+        client: httpx.Client,
+        service_call_ids: list[int],
+    ) -> list[dict[str, Any]]:
+        """Return ticket links for the supplied service-call IDs."""
+
+        service_call_ticket_records: list[dict[str, Any]] = []
+        for service_call_id_chunk in _chunked_autotask_ids(service_call_ids):
+            query_payload = {
+                "IncludeFields": ["id", "serviceCallID", "ticketID"],
+                "filter": [
+                    {
+                        "op": "in",
+                        "field": "serviceCallID",
+                        "value": service_call_id_chunk,
+                    }
+                ],
+            }
+            service_call_ticket_records.extend(
+                self._query_paginated_items(
+                    client,
+                    endpoint_path="/ServiceCallTickets/query",
+                    query_payload=query_payload,
+                    action_description="Autotask service-call ticket lookup",
+                )
+            )
+
+        return service_call_ticket_records
+
+    def _query_service_call_ticket_resources(
+        self,
+        client: httpx.Client,
+        *,
+        resource_id: int,
+        service_call_ticket_ids: list[int],
+    ) -> list[dict[str, Any]]:
+        """Return service-call ticket resource assignments for one Autotask resource."""
+
+        service_call_ticket_resource_records: list[dict[str, Any]] = []
+        for service_call_ticket_id_chunk in _chunked_autotask_ids(service_call_ticket_ids):
+            query_payload = {
+                "IncludeFields": ["id", "resourceID", "serviceCallTicketID"],
+                "filter": [
+                    {
+                        "op": "eq",
+                        "field": "resourceID",
+                        "value": resource_id,
+                    },
+                    {
+                        "op": "in",
+                        "field": "serviceCallTicketID",
+                        "value": service_call_ticket_id_chunk,
+                    },
+                ],
+            }
+            service_call_ticket_resource_records.extend(
+                self._query_paginated_items(
+                    client,
+                    endpoint_path="/ServiceCallTicketResources/query",
+                    query_payload=query_payload,
+                    action_description="Autotask service-call resource lookup",
+                )
+            )
+
+        return service_call_ticket_resource_records
+
+    def _query_tickets_by_ids(self, client: httpx.Client, ticket_ids: list[int]) -> dict[int, dict[str, Any]]:
+        """Return safe ticket records keyed by Autotask ticket ID."""
+
+        ticket_records_by_id: dict[int, dict[str, Any]] = {}
+        for ticket_id_chunk in _chunked_autotask_ids(ticket_ids):
+            query_payload = {
+                "IncludeFields": ["id", "ticketNumber", "title", "description", "companyID"],
+                "filter": [
+                    {
+                        "op": "in",
+                        "field": "id",
+                        "value": ticket_id_chunk,
+                    }
+                ],
+            }
+            ticket_records = self._query_paginated_items(
+                client,
+                endpoint_path="/Tickets/query",
+                query_payload=query_payload,
+                action_description="Autotask service-call ticket detail lookup",
+            )
+            for ticket_record in ticket_records:
+                ticket_id = _coerce_positive_autotask_id(ticket_record.get("id"))
+                if ticket_id is not None:
+                    ticket_records_by_id[ticket_id] = ticket_record
+
+        return ticket_records_by_id
+
+    def _query_companies_by_ids(self, client: httpx.Client, company_ids: list[int]) -> dict[int, dict[str, Any]]:
+        """Return active Autotask company records keyed by company ID."""
+
+        company_records_by_id: dict[int, dict[str, Any]] = {}
+        missing_company_ids: list[int] = []
+        for company_id in dict.fromkeys(company_ids):
+            cache_key = (self._cache_namespace(), company_id)
+            cached_company = _get_cached_value(_COMPANY_ID_CACHE, cache_key)
+            if isinstance(cached_company, dict):
+                company_records_by_id[company_id] = cached_company
+            else:
+                missing_company_ids.append(company_id)
+
+        for company_id_chunk in _chunked_autotask_ids(missing_company_ids):
+            query_payload = {
+                "IncludeFields": ["id", "companyName", "isActive"],
+                "filter": [
+                    {
+                        "op": "in",
+                        "field": "id",
+                        "value": company_id_chunk,
+                    }
+                ],
+            }
+            company_records = self._query_paginated_items(
+                client,
+                endpoint_path="/Companies/query",
+                query_payload=query_payload,
+                action_description="Autotask service-call company lookup",
+            )
+            for company_record in company_records:
+                company_id = _coerce_positive_autotask_id(company_record.get("id"))
+                if company_id is None or not company_record.get("isActive", True):
+                    continue
+                company_records_by_id[company_id] = company_record
+                _set_cached_value(
+                    _COMPANY_ID_CACHE,
+                    (self._cache_namespace(), company_id),
+                    company_record,
+                    COMPANY_CACHE_TTL_SECONDS,
+                )
+
+        return company_records_by_id
+
+    def _build_service_call_options(
+        self,
+        *,
+        service_call_records: list[dict[str, Any]],
+        service_call_ticket_records: list[dict[str, Any]],
+        service_call_ticket_resource_records: list[dict[str, Any]],
+        ticket_records_by_id: dict[int, dict[str, Any]],
+        company_records_by_id: dict[int, dict[str, Any]],
+    ) -> list[AutotaskServiceCallOption]:
+        """Build mobile-safe service-call choices from related Autotask rows."""
+
+        service_call_records_by_id = {
+            service_call_id: service_call_record
+            for service_call_record in service_call_records
+            if (service_call_id := _coerce_positive_autotask_id(service_call_record.get("id"))) is not None
+        }
+        assigned_service_call_ticket_ids = {
+            service_call_ticket_id
+            for resource_record in service_call_ticket_resource_records
+            if (service_call_ticket_id := _coerce_positive_autotask_id(resource_record.get("serviceCallTicketID"))) is not None
+        }
+        service_call_tickets_by_service_call_id: dict[int, list[dict[str, Any]]] = {}
+        for service_call_ticket_record in service_call_ticket_records:
+            service_call_ticket_id = _coerce_positive_autotask_id(service_call_ticket_record.get("id"))
+            service_call_id = _coerce_positive_autotask_id(service_call_ticket_record.get("serviceCallID"))
+            if service_call_ticket_id is None or service_call_id is None or service_call_ticket_id not in assigned_service_call_ticket_ids:
+                continue
+            service_call_tickets_by_service_call_id.setdefault(service_call_id, []).append(service_call_ticket_record)
+
+        sorted_service_calls = sorted(
+            service_call_records_by_id.values(),
+            key=lambda service_call_record: (
+                _parse_autotask_datetime(service_call_record.get("startDateTime")) or datetime.max.replace(tzinfo=UTC),
+                _coerce_positive_autotask_id(service_call_record.get("id")) or 0,
+            ),
+        )
+        service_call_options: list[AutotaskServiceCallOption] = []
+        for service_call_record in sorted_service_calls:
+            service_call_id = _coerce_positive_autotask_id(service_call_record.get("id"))
+            if service_call_id is None:
+                continue
+
+            service_call_detail_text = _safe_service_call_text(
+                service_call_record.get("description"),
+                "",
+                MAX_SERVICE_CALL_DETAIL_LENGTH,
+            )
+            service_call_details = service_call_detail_text or None
+            service_call_name = _safe_service_call_text(
+                service_call_record.get("name") or service_call_record.get("title") or service_call_detail_text,
+                f"Service call {service_call_id}",
+                MAX_SERVICE_CALL_NAME_LENGTH,
+            )
+            detected_work_location = detect_work_location_from_service_call_details(service_call_details)
+            start_datetime_utc = _parse_autotask_datetime(service_call_record.get("startDateTime"))
+
+            for service_call_ticket_record in service_call_tickets_by_service_call_id.get(service_call_id, []):
+                service_call_ticket_id = _coerce_positive_autotask_id(service_call_ticket_record.get("id"))
+                ticket_id = _coerce_positive_autotask_id(service_call_ticket_record.get("ticketID"))
+                if service_call_ticket_id is None or ticket_id is None:
+                    continue
+
+                ticket_record = ticket_records_by_id.get(ticket_id)
+                if ticket_record is None:
+                    continue
+
+                ticket_number = str(ticket_record.get("ticketNumber") or "").strip()
+                if not ticket_number:
+                    continue
+
+                company_id = (
+                    _coerce_positive_autotask_id(service_call_record.get("companyID"))
+                    or _coerce_positive_autotask_id(ticket_record.get("companyID"))
+                )
+                if company_id is None:
+                    continue
+
+                company_record = company_records_by_id.get(company_id)
+                client_name = _safe_service_call_text(
+                    company_record.get("companyName") if company_record else None,
+                    f"Company {company_id}",
+                    120,
+                )
+                ticket_description = _safe_service_call_text(ticket_record.get("description"), "", 8000) or None
+                service_call_options.append(
+                    AutotaskServiceCallOption(
+                        service_call_id=service_call_id,
+                        service_call_ticket_id=service_call_ticket_id,
+                        service_call_name=service_call_name,
+                        service_call_details=service_call_details,
+                        detected_work_location=detected_work_location,
+                        work_location_label=work_location_label_for_detection(detected_work_location),
+                        ticket_number=ticket_number,
+                        ticket_title=_safe_service_call_text(ticket_record.get("title"), "Untitled ticket", 240),
+                        ticket_description=ticket_description,
+                        client_name=client_name,
+                        autotask_company_id=company_id,
+                        start_datetime_utc=start_datetime_utc,
+                    )
+                )
+                if len(service_call_options) >= MAX_SERVICE_CALL_LOOKUP_RESULTS:
+                    return service_call_options
+
+        return service_call_options
 
     def _workflow_configuration_gaps(self) -> list[str]:
         """Return missing settings that would prevent the full Autotask workflow."""
@@ -942,6 +1421,111 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             )
             for company in companies
         ]
+
+    def list_todays_service_calls_for_resource(
+        self,
+        current_time_utc: datetime | None = None,
+    ) -> list[AutotaskServiceCallOption]:
+        """Return today's service calls assigned to AUTOTASK_RESOURCE_ID."""
+
+        resource_id = self.application_settings.autotask_resource_id
+        if resource_id is None:
+            raise AutotaskSubmissionError("AUTOTASK_RESOURCE_ID is required before loading today's service calls.")
+
+        safe_current_time_utc = ensure_utc(current_time_utc or now_utc())
+        local_day_start_utc, local_day_end_utc = local_day_bounds_utc(local_date_for(safe_current_time_utc))
+        cache_key = self._service_call_selection_cache_key(resource_id, local_day_start_utc, local_day_end_utc)
+        cached_service_call_options = _get_cached_value(_SERVICE_CALL_SELECTION_CACHE, cache_key)
+        if isinstance(cached_service_call_options, list):
+            return cached_service_call_options[:MAX_SERVICE_CALL_LOOKUP_RESULTS]
+
+        with self._client() as client:
+            service_call_records = self._query_todays_service_calls(
+                client,
+                local_day_start_utc=local_day_start_utc,
+                local_day_end_utc=local_day_end_utc,
+            )
+            service_call_ids = [
+                service_call_id
+                for service_call_record in service_call_records
+                if (service_call_id := _coerce_positive_autotask_id(service_call_record.get("id"))) is not None
+            ]
+            if not service_call_ids:
+                _set_cached_value(
+                    _SERVICE_CALL_SELECTION_CACHE,
+                    cache_key,
+                    [],
+                    SERVICE_CALL_SELECTION_CACHE_TTL_SECONDS,
+                )
+                return []
+
+            service_call_ticket_records = self._query_service_call_tickets_for_service_calls(client, service_call_ids)
+            service_call_ticket_ids = [
+                service_call_ticket_id
+                for service_call_ticket_record in service_call_ticket_records
+                if (service_call_ticket_id := _coerce_positive_autotask_id(service_call_ticket_record.get("id"))) is not None
+            ]
+            if not service_call_ticket_ids:
+                _set_cached_value(
+                    _SERVICE_CALL_SELECTION_CACHE,
+                    cache_key,
+                    [],
+                    SERVICE_CALL_SELECTION_CACHE_TTL_SECONDS,
+                )
+                return []
+
+            service_call_ticket_resource_records = self._query_service_call_ticket_resources(
+                client,
+                resource_id=resource_id,
+                service_call_ticket_ids=service_call_ticket_ids,
+            )
+            assigned_service_call_ticket_ids = {
+                service_call_ticket_id
+                for resource_record in service_call_ticket_resource_records
+                if (service_call_ticket_id := _coerce_positive_autotask_id(resource_record.get("serviceCallTicketID"))) is not None
+            }
+            assigned_ticket_ids = [
+                ticket_id
+                for service_call_ticket_record in service_call_ticket_records
+                if _coerce_positive_autotask_id(service_call_ticket_record.get("id")) in assigned_service_call_ticket_ids
+                if (ticket_id := _coerce_positive_autotask_id(service_call_ticket_record.get("ticketID"))) is not None
+            ]
+            if not assigned_ticket_ids:
+                _set_cached_value(
+                    _SERVICE_CALL_SELECTION_CACHE,
+                    cache_key,
+                    [],
+                    SERVICE_CALL_SELECTION_CACHE_TTL_SECONDS,
+                )
+                return []
+
+            ticket_records_by_id = self._query_tickets_by_ids(client, assigned_ticket_ids)
+            company_ids = [
+                company_id
+                for service_call_record in service_call_records
+                if (company_id := _coerce_positive_autotask_id(service_call_record.get("companyID"))) is not None
+            ]
+            company_ids.extend(
+                company_id
+                for ticket_record in ticket_records_by_id.values()
+                if (company_id := _coerce_positive_autotask_id(ticket_record.get("companyID"))) is not None
+            )
+            company_records_by_id = self._query_companies_by_ids(client, company_ids)
+            service_call_options = self._build_service_call_options(
+                service_call_records=service_call_records,
+                service_call_ticket_records=service_call_ticket_records,
+                service_call_ticket_resource_records=service_call_ticket_resource_records,
+                ticket_records_by_id=ticket_records_by_id,
+                company_records_by_id=company_records_by_id,
+            )[:MAX_SERVICE_CALL_LOOKUP_RESULTS]
+
+        _set_cached_value(
+            _SERVICE_CALL_SELECTION_CACHE,
+            cache_key,
+            service_call_options,
+            SERVICE_CALL_SELECTION_CACHE_TTL_SECONDS,
+        )
+        return service_call_options
 
     def _query_ticket_id(self, client: httpx.Client, ticket_number: str) -> int:
         """Find the Autotask ticket ID for the reviewed ticket number."""

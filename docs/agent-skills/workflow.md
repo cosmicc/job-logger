@@ -29,7 +29,9 @@ Important workflow service responsibilities include:
 The mobile page is `/mobile`, implemented by `job_logger/routes/mobile.py` and
 `job_logger/templates/mobile.html`.
 
-New work starts through `POST /jobs/start`.
+New blank work starts through `POST /jobs/start`. A user can also start work
+from a current-day Autotask service call through
+`POST /jobs/start/service-call`.
 
 Security and data-integrity requirements for start:
 
@@ -40,9 +42,15 @@ Security and data-integrity requirements for start:
   repeated Start Work taps do not run a live Autotask probe every time.
 - If the live or cached Autotask result is unavailable, no job may be created
   and an audit event must be recorded.
-- New mobile jobs intentionally start without client, company, or ticket values.
-  The route ignores stale or crafted pre-start client/ticket fields so those
-  values can only be attached through the active-job workflow.
+- New blank mobile jobs intentionally start without client, company, or ticket
+  values. The route ignores stale or crafted pre-start client/ticket fields so
+  those values can only be attached through the active-job workflow.
+- Service-call starts must submit only the selected service-call ticket
+  association ID plus CSRF. The route must resolve today's service-call list
+  server-side for the configured `AUTOTASK_RESOURCE_ID`, verify the selected
+  association belongs to that list, then populate the job from the provider's
+  ticket/client data. Do not trust browser-submitted ticket number, title,
+  description, client name, company ID, or work-location values for this path.
 - The service layer must enforce the two-active-job limit.
 
 Active jobs support these updates before completion:
@@ -62,7 +70,9 @@ Active jobs support these updates before completion:
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job client and summary edits, not ticket
-selection from the open-ticket picker.
+selection from the open-ticket picker. The mobile page does not expose a manual
+active-save button; client, work-location, and summary edits are saved through
+CSRF-protected background requests as the user changes them.
 
 The mobile active-job ticket number is not a manual text entry. The open-ticket
 picker posts the clicked ticket number to `POST /jobs/{job_id}/ticket`. That
@@ -81,6 +91,14 @@ The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
 prefix `summaryNotes` with `Remote` or `On-Site` only when creating the time
 entry.
+
+The mobile start panels show today's Autotask service calls when an active job
+slot is available. Service-call options are provided by
+`list_todays_service_calls_for_resource()`, which derives Remote/On-Site from
+the service-call details text and shows the associated ticket title. Clicking a
+service call starts an active job with the associated ticket number, ticket
+title, bounded ticket description, client name, company ID, and detected
+work-location mode.
 
 The active mobile card should expose only one client entry point for each job.
 After an Autotask company is selected, the active job displays that client as a
@@ -123,7 +141,8 @@ Current behavior:
   audio chunks as binary WebSocket messages.
 - The server starts an interim transcription attempt as soon as the first chunk
   arrives. The current faster-whisper provider is batch-oriented, so interim
-  text is best-effort from the buffered media snapshot.
+  text is best-effort from the buffered media snapshot. Browser-side partial
+  stream messages must update status only, not the editable summary textarea.
 - Clicking **Stop recording** ends browser capture, lets `MediaRecorder` flush its
   final chunk, sends WebSocket `finish`, and keeps the control disabled while
   the status line shows transcode/transcription progress until the final
@@ -132,10 +151,17 @@ Current behavior:
   upload path, but the mobile UI should use the WebSocket stream.
 - Raw audio is not permanently stored by default.
 - Transcription text updates the same summary field that review and Autotask
-  submission use.
+  submission use. The final streamed transcript replaces the current summary
+  field in one browser update even when manually typed notes are already
+  present.
 
 Manual summary notes typed in the textarea must be preserved when active job
 changes are saved or work is ended.
+
+Manual summary autosave must not replace the focused mobile textarea with the
+server-normalized response. The server trims persisted notes for storage and
+Autotask payloads, but trailing whitespace in the active textarea can be normal
+typing state between words on mobile keyboards.
 
 ## Review Flow
 
@@ -149,7 +175,7 @@ Review supports:
   identity fields.
 - Editing ticket status, start date/time, end date/time, and summary notes
   before successful Autotask submission.
-- Saving edits without a ticket number.
+- Automatically saving edits without a ticket number.
 - Saving active jobs without an end date/time.
 - Accepting or retrying submission only when the ticket number and required
   submission fields are present.
@@ -158,6 +184,11 @@ Review supports:
 
 Ticket number is intentionally required only before Autotask submission, not for
 ordinary save operations.
+
+The review detail form does not expose a manual Save button. Editable review
+fields are saved through debounced background posts to `POST /review/{job_id}/save`.
+The route still supports normal form posts for compatibility, and the Accept,
+Retry, Reject, and Force purge actions remain explicit workflow actions.
 
 Review ticket selection persists through `POST /review/{job_id}/ticket`. The
 route uses the recently loaded server-side open-ticket selection cache when it

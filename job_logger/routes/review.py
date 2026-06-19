@@ -26,6 +26,7 @@ from job_logger.services.jobs import (
     submit_job_to_autotask,
     validate_review_fields,
 )
+from job_logger.time_utils import format_local_date, format_local_time
 from job_logger.ui import template_context, templates
 
 router = APIRouter(prefix="/review", tags=["review"])
@@ -157,6 +158,24 @@ def _find_matching_ticket_option(ticket_options: list[AutotaskTicketOption], tic
     return None
 
 
+def _review_save_payload(job: object) -> dict[str, object]:
+    """Return non-secret review state after a background save completes."""
+
+    rounded_end_utc = getattr(job, "rounded_end_utc", None)
+    ticket_status = getattr(job, "ticket_status", None)
+    job_status = getattr(job, "status", None)
+    return {
+        "job_id": getattr(job, "id", ""),
+        "status": job_status.value if job_status is not None else "",
+        "ticket_status": ticket_status.value if ticket_status is not None else "",
+        "summary_notes": getattr(job, "summary_notes", "") or "",
+        "start_date": format_local_date(getattr(job, "rounded_start_utc", None)),
+        "start_time": format_local_time(getattr(job, "rounded_start_utc", None)),
+        "end_date": format_local_date(rounded_end_utc),
+        "end_time": format_local_time(rounded_end_utc),
+    }
+
+
 def _render_review(
     request: Request,
     database_session: Session,
@@ -192,10 +211,11 @@ async def save_review(
     job_id: str,
     request: Request,
     database_session: Session = Depends(get_database_session),
-) -> RedirectResponse:
+) -> Response:
     """Save reviewer edits without submitting to Autotask."""
 
     actor = require_authenticated_username(request)
+    wants_json_response = "application/json" in request.headers.get("accept", "").lower()
     try:
         form_values = await _form_values(request)
         job = get_job_or_raise(database_session, job_id)
@@ -209,9 +229,13 @@ async def save_review(
         apply_review_fields(job, review_fields)
         record_audit_event(database_session, actor=actor, action="job.review.saved", job_id=job.id, request=request)
         database_session.commit()
+        if wants_json_response:
+            return JSONResponse(_review_save_payload(job))
         add_flash_message(request, "Review edits saved.", "success")
     except JobWorkflowError as exc:
         database_session.rollback()
+        if wants_json_response:
+            return JSONResponse({"detail": str(exc)}, status_code=400)
         add_flash_message(request, str(exc), "error")
 
     return RedirectResponse(url=f"/review/{job_id}", status_code=303)

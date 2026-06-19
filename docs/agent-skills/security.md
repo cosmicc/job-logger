@@ -127,6 +127,12 @@ context. Store only the bounded description returned by the server-side verified
 open-ticket lookup, render it escaped, and keep review save/accept handlers
 from trusting browser-submitted description values.
 
+Autotask service-call starts must also be server verified. The mobile browser
+may submit only the service-call ticket association ID and CSRF token; the
+server must confirm the association is in today's service-call list for the
+configured `AUTOTASK_RESOURCE_ID` before it creates a job or stores any
+ticket/client details.
+
 Successfully submitted Autotask jobs are immutable local audit records for the
 external time entry. The server must reject later review edits, ticket
 selection, reject, purge, accept/resend, and retry requests even if a crafted

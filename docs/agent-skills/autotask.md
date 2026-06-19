@@ -37,6 +37,9 @@ Current provider responsibilities:
 - Search companies for client autocomplete.
 - Query one selected company by ID.
 - Query open tickets for a company.
+- Query today's service calls for the configured resource.
+- Resolve service-call ticket/resource relationships before starting a job from
+  a service call.
 - Query ticket status picklist metadata.
 - Query a ticket ID from a ticket number.
 - Update selected ticket status when configured.
@@ -117,6 +120,40 @@ selection succeeds, the UI hides the open-ticket list and updates visible ticket
 number/title/description fields from the verified JSON response rather than
 trusting the clicked browser option.
 
+## Service Call Lookup
+
+The mobile start panels can list today's Autotask service calls for
+`AUTOTASK_RESOURCE_ID`. This is a read-only convenience path for starting a job
+from scheduled dispatch data, not a separate trust boundary.
+
+Service-call lookup must stay inside `job_logger/services/autotask.py` because
+it needs several related Autotask entities:
+
+- `ServiceCalls` for today's scheduled call details.
+- `ServiceCallTickets` to identify tickets associated with each service call.
+- `ServiceCallTicketResources` to verify the configured resource is assigned
+  to that specific service-call ticket row.
+- `Tickets` for ticket number, title, and bounded description.
+- `Companies` for the client name stored with the new active job.
+
+The browser must submit only `service_call_ticket_id` plus CSRF to
+`POST /jobs/start/service-call`. The route re-reads the provider's
+server-verified list for the current local day and configured resource before
+creating a job. Never accept ticket number, ticket title, ticket description,
+client name, company ID, or work-location values from hidden fields for this
+path.
+
+Remote/On-Site detection is intentionally simple and auditable: scan the
+service-call details for `remote`, `onsite`, `on-site`, or `on site`. If neither
+word is present, display `Not specified` and let the started job use the normal
+Remote default. If both words are present, the first match in the details text
+wins.
+
+The Autotask API user's security level must be able to read `ServiceCalls`,
+`ServiceCallTickets`, and `ServiceCallTicketResources` in addition to the
+existing Companies/Tickets permissions. Service-call lookup failures should be
+shown as safe, bounded UI errors without blocking the blank Start Work path.
+
 ## Caching Rules
 
 Caching is in-process and non-secret only.
@@ -127,6 +164,7 @@ Current cache policy:
 - Selected company metadata by ID: two hours.
 - Ticket status picklist labels: 15 minutes.
 - Recently displayed open-ticket selection lists: two minutes.
+- Today's displayed service-call start list: two minutes.
 - Start Work Autotask connectivity success: five minutes.
 - Start Work Autotask connectivity failure: thirty seconds.
 - Other short-lived Autotask lookup data: 15 minutes unless documented

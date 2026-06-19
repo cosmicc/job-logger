@@ -2,6 +2,37 @@
 
 {% block title %}Mobile Work Log - Job Logger{% endblock %}
 
+{% macro render_service_call_start_options(service_call_options, service_call_error, csrf_token) %}
+  <section class="service-call-start-panel" aria-labelledby="service-call-start-heading">
+    <div class="mobile-ticket-picker-header">
+      <h3 id="service-call-start-heading">Today's service calls</h3>
+    </div>
+    {% if service_call_error %}
+      <p class="error-text">{{ service_call_error }}</p>
+    {% elif service_call_options %}
+      <div class="service-call-start-list">
+        {% for service_call_option in service_call_options %}
+          <form method="post" action="/jobs/start/service-call" class="service-call-start-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="service_call_ticket_id" value="{{ service_call_option.service_call_ticket_id }}">
+            <button class="service-call-option-button" type="submit">
+              <span class="service-call-name">{{ service_call_option.service_call_name }}</span>
+              <span class="service-call-meta">
+                {{ service_call_option.work_location_label }} - {{ service_call_option.client_name }}
+              </span>
+              <span class="service-call-ticket">
+                {{ service_call_option.ticket_number }} - {{ service_call_option.ticket_title }}
+              </span>
+            </button>
+          </form>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted-text">No service calls are scheduled for today.</p>
+    {% endif %}
+  </section>
+{% endmacro %}
+
 {% block content %}
   <section class="mobile-shell">
     <div class="mobile-status-row">
@@ -221,14 +252,7 @@
                 <p class="error-text">{{ active_job.transcription_error }}</p>
               {% endif %}
             </div>
-
-            <button class="secondary-button active-save-button" type="submit" form="active-ticket-form-{{ active_job.id }}">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M20 6H10a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9.414a1 1 0 0 0-.293-.707l-2.414-2.414A1 1 0 0 0 17 6h-7" />
-                <path d="M18.5 6.5v-2a2.5 2.5 0 0 0-5 0V6" />
-              </svg>
-              Save Active Changes
-            </button>
+            <p class="muted-text" data-active-save-status data-job-id="{{ active_job.id }}" aria-live="polite"></p>
 
             <div class="button-grid">
               <div class="recording-control-stack">
@@ -305,6 +329,7 @@
               Start Work
             </button>
           </form>
+          {{ render_service_call_start_options(service_call_options, service_call_error, csrf_token) }}
         </section>
       {% endif %}
     </section>
@@ -324,6 +349,7 @@
             Start Job
           </button>
         </form>
+        {{ render_service_call_start_options(service_call_options, service_call_error, csrf_token) }}
       </section>
       {% else %}
       <section class="work-panel">

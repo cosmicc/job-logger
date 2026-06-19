@@ -450,6 +450,58 @@ a:focus-visible {
   margin: 0;
 }
 
+.service-call-start-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.service-call-start-list {
+  display: grid;
+  gap: 9px;
+}
+
+.service-call-start-form {
+  margin: 0;
+}
+
+.service-call-option-button {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  min-height: 72px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  color: var(--text);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.service-call-option-button:hover {
+  border-color: var(--accent);
+  background: var(--surface-strong);
+}
+
+.service-call-name,
+.service-call-ticket {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.service-call-meta {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
 .ticket-load-button {
   min-height: 36px;
   padding: 7px 12px;

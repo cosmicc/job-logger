@@ -4,6 +4,25 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Added a mobile start-from-service-call option that lists today's Autotask
+  service calls for `AUTOTASK_RESOURCE_ID`, shows the service-call name,
+  Remote/On-Site detection from the service-call details, and the associated
+  ticket title. Starting from a service call now creates an active job with
+  server-verified ticket number, ticket title, bounded ticket description,
+  client name, company ID, and work-location while accepting only the
+  service-call ticket association ID from the browser.
+
+- Removed the mobile **Save Active Changes** button and the review **Save**
+  button. Active-job client/work-location edits and review field edits now save
+  automatically through CSRF-protected background requests while keeping
+  Accept/Retry/Reject/Force purge as explicit workflow actions.
+
+- Fixed mobile Summary notes autosave so typing a space between words is not
+  removed by the server-normalized save response while the textarea is still
+  focused. Streaming audio still starts on Record Audio, but partial stream
+  transcript messages no longer rewrite the Summary notes field; the final
+  transcript is pasted into the field all at once.
+
 - Locked successfully submitted Autotask jobs in review. Submitted jobs now
   render as read-only, remove save/accept/retry/reject/force-purge controls,
   and reject crafted review POSTs that try to edit, purge, reject, or resend

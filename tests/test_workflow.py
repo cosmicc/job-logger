@@ -474,9 +474,10 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert "Find tickets" in page_html
     assert page_html.index("<dt>Client name</dt>") < page_html.index("<h3>Open tickets</h3>")
     assert page_html.index(f'id="active-ticket-form-{active_job_id}"') < page_html.index("<h3>Open tickets</h3>")
-    assert 'class="secondary-button active-save-button"' in page_html
+    assert 'class="secondary-button active-save-button"' not in page_html
+    assert "Save Active Changes" not in page_html
     assert "submit-notes-button" not in page_html
-    assert page_html.index("Summary notes") < page_html.index("Save Active Changes") < page_html.index("Record Audio")
+    assert page_html.index("Summary notes") < page_html.index("Record Audio")
     assert "Stop Recording" not in page_html
     assert "Record Notes" not in page_html
     assert "Autotask ticket number" not in page_html
@@ -586,6 +587,9 @@ def test_review_save_does_not_require_ticket_number(authenticated_client: TestCl
 
     review_page_response = authenticated_client.get(f"/review/{active_job_id}")
     review_csrf_token = extract_csrf_token(review_page_response.text)
+    assert "data-review-autosave-form" in review_page_response.text
+    assert "data-review-autosave-status" in review_page_response.text
+    assert f'formaction="/review/{active_job_id}/save"' not in review_page_response.text
 
     save_response = authenticated_client.post(
         f"/review/{active_job_id}/save",
@@ -603,12 +607,36 @@ def test_review_save_does_not_require_ticket_number(authenticated_client: TestCl
     )
     assert save_response.status_code == 303
 
+    autosave_response = authenticated_client.post(
+        f"/review/{active_job_id}/save",
+        headers={"Accept": "application/json"},
+        data={
+            "csrf_token": review_csrf_token,
+            "ticket_number": "",
+            "ticket_status": "follow_up",
+            "start_date": "2026-06-16",
+            "start_time": "08:00",
+            "end_date": "2026-06-16",
+            "end_time": "08:15",
+            "summary_notes": "Autosaved without ticket during review.",
+        },
+    )
+    assert autosave_response.status_code == 200
+    autosave_payload = autosave_response.json()
+    assert autosave_payload["job_id"] == active_job_id
+    assert autosave_payload["ticket_status"] == "follow_up"
+    assert autosave_payload["summary_notes"] == "Autosaved without ticket during review."
+    assert autosave_payload["start_date"] == "2026-06-16"
+    assert autosave_payload["start_time"] == "8:00 am"
+    assert autosave_payload["end_date"] == "2026-06-16"
+    assert autosave_payload["end_time"] == "8:15 am"
+
     with database.SessionLocal() as database_session:
         reviewed_job = database_session.get(Job, active_job_id)
         assert reviewed_job is not None
         assert reviewed_job.status == JobStatus.READY_FOR_REVIEW
         assert reviewed_job.ticket_number is None
-        assert reviewed_job.summary_notes == "Editable without ticket during save."
+        assert reviewed_job.summary_notes == "Autosaved without ticket during review."
 
 
 def test_review_save_active_job_without_stop_time(authenticated_client: TestClient) -> None:
@@ -1081,6 +1109,65 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
     assert "Mock ticket description for Mobile Ticket Client." in updated_mobile_html
     assert "data-active-ticket-title-card" in updated_mobile_html
     assert "data-active-ticket-description-card" in updated_mobile_html
+
+
+def test_mobile_service_call_start_populates_active_job(authenticated_client: TestClient) -> None:
+    """Clicking a service call starts a job from server-resolved Autotask data."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    mobile_html = mobile_page_response.text
+    csrf_token = extract_csrf_token(mobile_html)
+
+    assert "Today's service calls" in mobile_html
+    assert "Mock onsite service call" in mobile_html
+    assert "On-Site - Scheduled Service Client" in mobile_html
+    assert "T20260616.0001 - Mock open ticket for Scheduled Service Client" in mobile_html
+
+    start_response = authenticated_client.post(
+        "/jobs/start/service-call",
+        data={"csrf_token": csrf_token, "service_call_ticket_id": "6101"},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+    assert start_response.headers["location"] == "/mobile"
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        assert active_job.client_name == "Scheduled Service Client"
+        assert active_job.autotask_company_id == 1001
+        assert active_job.ticket_number == "T20260616.0001"
+        assert active_job.ticket_title == "Mock open ticket for Scheduled Service Client"
+        assert active_job.ticket_description == "Mock ticket description from scheduled service call."
+        assert active_job.work_location == WorkLocation.ON_SITE
+        start_audit_event = database_session.query(AuditEvent).filter_by(action="job.started").one()
+        assert start_audit_event.details["source"] == "autotask_service_call"
+        assert start_audit_event.details["service_call_id"] == 6001
+        assert start_audit_event.details["service_call_ticket_id"] == 6101
+
+    updated_mobile_page_response = authenticated_client.get("/mobile")
+    updated_mobile_html = updated_mobile_page_response.text
+    assert "T20260616.0001" in updated_mobile_html
+    assert "Mock open ticket for Scheduled Service Client" in updated_mobile_html
+    assert "Mock ticket description from scheduled service call." in updated_mobile_html
+    assert "data-active-ticket-picker" not in updated_mobile_html
+
+
+def test_mobile_service_call_start_rejects_unlisted_selection(authenticated_client: TestClient) -> None:
+    """Crafted service-call IDs must not create jobs from unverified browser data."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+
+    start_response = authenticated_client.post(
+        "/jobs/start/service-call",
+        data={"csrf_token": csrf_token, "service_call_ticket_id": "9999"},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        assert get_active_job(database_session) is None
 
 
 def test_mobile_selected_ticket_title_drives_review_heading(authenticated_client: TestClient) -> None:

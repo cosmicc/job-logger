@@ -1,5 +1,11 @@
 const TIME_STEP_MINUTES = 15;
+const REVIEW_AUTOSAVE_DELAY_MS = 650;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
+const reviewAutosaveForm = document.querySelector("[data-review-autosave-form]");
+const reviewAutosaveStatus = document.querySelector("[data-review-autosave-status]");
+
+let reviewAutosaveTimer = null;
+let lastReviewAutosaveSnapshot = "";
 
 function normalizeDateValue(dateValue) {
   const parsedDate = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -103,6 +109,88 @@ function adjustTimeField(timeFieldName, dateFieldName, deltaMinutes) {
   }
 }
 
+function setReviewAutosaveStatus(message, isError = false) {
+  if (!reviewAutosaveStatus) {
+    return;
+  }
+
+  reviewAutosaveStatus.textContent = message;
+  reviewAutosaveStatus.classList.toggle("error-text", isError);
+}
+
+function buildReviewAutosaveSnapshot() {
+  if (!reviewAutosaveForm) {
+    return "";
+  }
+
+  return new URLSearchParams(new FormData(reviewAutosaveForm)).toString();
+}
+
+function clearReviewAutosaveTimer() {
+  if (reviewAutosaveTimer) {
+    clearTimeout(reviewAutosaveTimer);
+    reviewAutosaveTimer = null;
+  }
+}
+
+async function saveReviewFormInBackground() {
+  if (!reviewAutosaveForm) {
+    return {};
+  }
+
+  const saveUrl = reviewAutosaveForm.dataset.reviewSaveUrl || "";
+  if (!saveUrl) {
+    throw new Error("Review autosave endpoint is not configured.");
+  }
+
+  const response = await fetch(saveUrl, {
+    method: "POST",
+    headers: {Accept: "application/json"},
+    body: new FormData(reviewAutosaveForm),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || "Review changes could not be saved.");
+  }
+
+  return payload;
+}
+
+function persistReviewAutosaveSnapshot(queuedSnapshot) {
+  setReviewAutosaveStatus("Saving changes...");
+  saveReviewFormInBackground()
+    .then(() => {
+      const latestSnapshot = buildReviewAutosaveSnapshot();
+      if (latestSnapshot === queuedSnapshot) {
+        lastReviewAutosaveSnapshot = latestSnapshot;
+        setReviewAutosaveStatus("Changes saved.");
+        return;
+      }
+
+      queueReviewAutosave(true);
+    })
+    .catch((error) => {
+      setReviewAutosaveStatus(error.message || "Review changes could not be saved.", true);
+    });
+}
+
+function queueReviewAutosave(immediate = false) {
+  if (!reviewAutosaveForm) {
+    return;
+  }
+
+  const nextSnapshot = buildReviewAutosaveSnapshot();
+  if (nextSnapshot === lastReviewAutosaveSnapshot) {
+    return;
+  }
+
+  clearReviewAutosaveTimer();
+  reviewAutosaveTimer = setTimeout(() => {
+    reviewAutosaveTimer = null;
+    persistReviewAutosaveSnapshot(nextSnapshot);
+  }, immediate ? 0 : REVIEW_AUTOSAVE_DELAY_MS);
+}
+
 function bindTimeStepButtons() {
   const timeStepButtons = document.querySelectorAll(".time-step-button");
   for (const button of timeStepButtons) {
@@ -116,6 +204,35 @@ function bindTimeStepButtons() {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       adjustTimeField(timeFieldName, dateFieldName, deltaMinutes);
+      queueReviewAutosave(true);
+    });
+  }
+}
+
+function bindReviewAutosave() {
+  if (!reviewAutosaveForm) {
+    return;
+  }
+
+  lastReviewAutosaveSnapshot = buildReviewAutosaveSnapshot();
+  const autosaveControls = reviewAutosaveForm.querySelectorAll("input, select, textarea");
+  for (const control of autosaveControls) {
+    if (control.type === "hidden" || control.name === "csrf_token" || control.disabled) {
+      continue;
+    }
+
+    if (control.tagName === "SELECT" || control.type === "date") {
+      control.addEventListener("change", () => {
+        queueReviewAutosave(true);
+      });
+      continue;
+    }
+
+    control.addEventListener("input", () => {
+      queueReviewAutosave();
+    });
+    control.addEventListener("blur", () => {
+      queueReviewAutosave(true);
     });
   }
 }
@@ -266,3 +383,4 @@ for (const reviewRow of reviewRows) {
 
 bindTimeStepButtons();
 bindTicketLookup();
+bindReviewAutosave();

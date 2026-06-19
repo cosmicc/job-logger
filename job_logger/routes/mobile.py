@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from job_logger.config import settings
 from job_logger.database import get_database_session
-from job_logger.enums import JobStatus
+from job_logger.enums import JobStatus, WorkLocation
 from job_logger.security import (
     add_flash_message,
     require_authenticated_username,
@@ -26,12 +26,14 @@ from job_logger.security import (
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import (
     AutotaskConnectivityResult,
+    AutotaskServiceCallOption,
     AutotaskSubmissionError,
     AutotaskTicketOption,
     get_autotask_provider,
     test_cached_autotask_connectivity_for_start,
 )
 from job_logger.services.jobs import (
+    MAX_ACTIVE_JOBS,
     JobWorkflowError,
     adjust_active_job_rounded_start,
     apply_manual_summary_to_job,
@@ -79,6 +81,34 @@ def _find_matching_ticket_option(ticket_options: list[AutotaskTicketOption], tic
             return ticket_option
 
     return None
+
+
+def _find_matching_service_call_option(
+    service_call_options: list[AutotaskServiceCallOption],
+    service_call_ticket_id: int,
+) -> AutotaskServiceCallOption | None:
+    """Return a service-call option by the server-rendered ticket association ID."""
+
+    for service_call_option in service_call_options:
+        if service_call_option.service_call_ticket_id == service_call_ticket_id:
+            return service_call_option
+
+    return None
+
+
+def _service_call_start_work_location(service_call_option: AutotaskServiceCallOption) -> WorkLocation:
+    """Return the work-location mode stored when a service call starts a job."""
+
+    return service_call_option.detected_work_location or WorkLocation.REMOTE
+
+
+def _load_todays_service_calls_for_mobile_start() -> tuple[list[AutotaskServiceCallOption], str | None]:
+    """Return today's service calls and a safe display error for the start panel."""
+
+    try:
+        return get_autotask_provider().list_todays_service_calls_for_resource(), None
+    except AutotaskSubmissionError as exc:
+        return [], str(exc)
 
 
 def _normalize_audio_stream_content_type(raw_content_type: Any) -> str:
@@ -452,10 +482,20 @@ def mobile_page(
         return RedirectResponse(url="/login", status_code=303)
 
     active_jobs = list_active_jobs(database_session)
+    service_call_options: list[AutotaskServiceCallOption] = []
+    service_call_error: str | None = None
+    if len(active_jobs) < MAX_ACTIVE_JOBS:
+        service_call_options, service_call_error = _load_todays_service_calls_for_mobile_start()
+
     return templates.TemplateResponse(
         request,
         "mobile.html",
-        template_context(request, active_jobs=active_jobs),
+        template_context(
+            request,
+            active_jobs=active_jobs,
+            service_call_options=service_call_options,
+            service_call_error=service_call_error,
+        ),
     )
 
 
@@ -537,6 +577,91 @@ async def start_work(
         database_session.commit()
         add_flash_message(request, "Work started.", "success")
     except JobWorkflowError as exc:
+        database_session.rollback()
+        add_flash_message(request, str(exc), "error")
+
+    return RedirectResponse(url="/mobile", status_code=303)
+
+
+@router.post("/jobs/start/service-call")
+async def start_work_from_service_call(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Start a new active work job from a server-verified Autotask service call."""
+
+    actor = require_authenticated_username(request)
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+
+    connectivity_result = test_cached_autotask_connectivity_for_start()
+    if not connectivity_result.available:
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.start.blocked_autotask_unavailable",
+            request=request,
+            details={
+                "provider": connectivity_result.provider,
+                "summary": connectivity_result.summary,
+                "checked_operations": list(connectivity_result.checked_operations),
+                "tip_count": len(connectivity_result.tips),
+                "source": "autotask_service_call",
+            },
+        )
+        database_session.commit()
+        add_flash_message(request, _autotask_start_block_message(connectivity_result), "error")
+        return RedirectResponse(url="/mobile", status_code=303)
+
+    raw_service_call_ticket_id = form_data.get("service_call_ticket_id")
+    try:
+        service_call_ticket_id = int(str(raw_service_call_ticket_id or "").strip())
+    except ValueError:
+        add_flash_message(request, "Selected service call is invalid.", "error")
+        return RedirectResponse(url="/mobile", status_code=303)
+
+    if service_call_ticket_id <= 0:
+        add_flash_message(request, "Selected service call is invalid.", "error")
+        return RedirectResponse(url="/mobile", status_code=303)
+
+    try:
+        service_call_options = get_autotask_provider().list_todays_service_calls_for_resource()
+        selected_service_call = _find_matching_service_call_option(service_call_options, service_call_ticket_id)
+        if selected_service_call is None:
+            raise JobWorkflowError("Selected service call is not assigned to this resource for today.")
+
+        job = start_job(
+            database_session,
+            ticket_number=selected_service_call.ticket_number,
+            client_name=selected_service_call.client_name,
+            autotask_company_id=selected_service_call.autotask_company_id,
+            work_location=_service_call_start_work_location(selected_service_call),
+        )
+        apply_selected_ticket_from_lookup(
+            job,
+            selected_service_call.ticket_number,
+            selected_service_call.ticket_title,
+            selected_service_call.ticket_description,
+        )
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.started",
+            job_id=job.id,
+            request=request,
+            details={
+                "source": "autotask_service_call",
+                "service_call_id": selected_service_call.service_call_id,
+                "service_call_ticket_id": selected_service_call.service_call_ticket_id,
+                "ticket_number": job.ticket_number,
+                "autotask_company_selected": job.autotask_company_id is not None,
+                "work_location": job.work_location.value,
+                "work_location_detected": selected_service_call.detected_work_location is not None,
+            },
+        )
+        database_session.commit()
+        add_flash_message(request, "Work started from service call.", "success")
+    except (AutotaskSubmissionError, JobWorkflowError) as exc:
         database_session.rollback()
         add_flash_message(request, str(exc), "error")
 

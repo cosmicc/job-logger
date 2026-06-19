@@ -45,6 +45,14 @@ def local_date_for(timestamp: datetime) -> date:
     return to_local(timestamp).date()
 
 
+def local_day_bounds_utc(local_day: date) -> tuple[datetime, datetime]:
+    """Return the UTC half-open bounds for one America/Detroit calendar day."""
+
+    local_day_start = datetime.combine(local_day, time.min, tzinfo=LOCAL_TIMEZONE)
+    local_next_day_start = datetime.combine(local_day + timedelta(days=1), time.min, tzinfo=LOCAL_TIMEZONE)
+    return local_day_start.astimezone(UTC), local_next_day_start.astimezone(UTC)
+
+
 def round_to_nearest_quarter_hour(timestamp: datetime) -> datetime:
     """Round a timestamp to the closest 15-minute interval in America/Detroit.
 
