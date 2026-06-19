@@ -15,6 +15,9 @@ const activeTicketForms = document.querySelectorAll(".active-ticket-form");
 const companyInputs = document.querySelectorAll("[data-company-input]");
 const activeTicketPickers = document.querySelectorAll("[data-active-ticket-picker]");
 const workLocationInputs = document.querySelectorAll("[data-work-location-input]");
+const serviceCallPanels = document.querySelectorAll("[data-service-call-panel]");
+const mobilePageLoadingOverlay = document.querySelector("[data-mobile-page-loading]");
+const mobilePageLoadingMessage = document.querySelector("[data-mobile-page-loading-message]");
 
 const descriptionSaveTimers = new Map();
 const activeFormSaveTimers = new WeakMap();
@@ -188,6 +191,73 @@ function submitFormWithCurrentFields(formElement) {
   if (shouldSubmit) {
     formElement.submit();
   }
+}
+
+function showMobilePageLoading(message) {
+  if (!mobilePageLoadingOverlay) {
+    return;
+  }
+
+  if (mobilePageLoadingMessage) {
+    mobilePageLoadingMessage.textContent = message || "Loading...";
+  }
+  mobilePageLoadingOverlay.classList.remove("is-hidden");
+}
+
+function markSubmitFormPending(formElement) {
+  const submitButton = formElement.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.classList.add("is-loading");
+    submitButton.setAttribute("aria-busy", "true");
+    submitButton.setAttribute("aria-disabled", "true");
+  }
+  showMobilePageLoading(formElement.dataset.loadingMessage || "Loading...");
+}
+
+function handlePageLoadingSubmitButtonClick(event) {
+  const submitButton = event.target.closest('button[type="submit"]');
+  if (!submitButton) {
+    return;
+  }
+
+  const formElement = submitButton.form;
+  if (!formElement || !formElement.matches("[data-page-loading-form]")) {
+    return;
+  }
+
+  if (typeof formElement.reportValidity === "function" && !formElement.reportValidity()) {
+    event.preventDefault();
+    return;
+  }
+
+  const confirmationMessage = formElement.dataset.confirmMessage || "";
+  if (confirmationMessage && !window.confirm(confirmationMessage)) {
+    event.preventDefault();
+    return;
+  }
+
+  formElement.dataset.loadingConfirmed = "true";
+  markSubmitFormPending(formElement);
+}
+
+function handlePageLoadingFormSubmit(event) {
+  const formElement = event.target.closest("[data-page-loading-form]");
+  if (!formElement || event.defaultPrevented) {
+    return;
+  }
+
+  if (formElement.dataset.loadingConfirmed === "true") {
+    delete formElement.dataset.loadingConfirmed;
+    return;
+  }
+
+  const confirmationMessage = formElement.dataset.confirmMessage || "";
+  if (confirmationMessage && !window.confirm(confirmationMessage)) {
+    event.preventDefault();
+    return;
+  }
+
+  markSubmitFormPending(formElement);
 }
 
 function setActiveSaveStatus(jobId, message, isError = false) {
@@ -819,6 +889,115 @@ function buildTicketOptionText(ticketOption) {
   return `${ticketNumber} | ${ticketTitle} | ${ticketStatus}`;
 }
 
+function clearServiceCallPanel(panel) {
+  const resultsElement = panel.querySelector("[data-service-call-results]");
+  const errorElement = panel.querySelector("[data-service-call-error]");
+  const emptyElement = panel.querySelector("[data-service-call-empty]");
+  if (resultsElement) {
+    resultsElement.replaceChildren();
+  }
+  if (errorElement) {
+    errorElement.textContent = "";
+    errorElement.classList.add("is-hidden");
+  }
+  if (emptyElement) {
+    emptyElement.classList.add("is-hidden");
+  }
+}
+
+function setServiceCallPanelLoading(panel, isLoading) {
+  const loadingElement = panel.querySelector("[data-service-call-loading]");
+  if (loadingElement) {
+    loadingElement.classList.toggle("is-hidden", !isLoading);
+  }
+}
+
+function setServiceCallPanelError(panel, message) {
+  const errorElement = panel.querySelector("[data-service-call-error]");
+  if (errorElement) {
+    errorElement.textContent = message || "Service calls could not be loaded.";
+    errorElement.classList.remove("is-hidden");
+  }
+}
+
+function createServiceCallStartForm(serviceCallOption) {
+  const serviceCallForm = document.createElement("form");
+  serviceCallForm.method = "post";
+  serviceCallForm.action = "/jobs/start/service-call";
+  serviceCallForm.className = "service-call-start-form";
+  serviceCallForm.dataset.pageLoadingForm = "";
+  serviceCallForm.dataset.loadingMessage = "Starting from service call...";
+
+  const csrfInput = document.createElement("input");
+  csrfInput.type = "hidden";
+  csrfInput.name = "csrf_token";
+  csrfInput.value = csrfToken;
+
+  const serviceCallTicketInput = document.createElement("input");
+  serviceCallTicketInput.type = "hidden";
+  serviceCallTicketInput.name = "service_call_ticket_id";
+  serviceCallTicketInput.value = toSafeMapString(serviceCallOption.service_call_ticket_id);
+
+  const optionButton = document.createElement("button");
+  optionButton.type = "submit";
+  optionButton.className = `service-call-option-button ${serviceCallOption.work_location_class || "service-call-location-unknown"}`;
+
+  const cardHeader = document.createElement("span");
+  cardHeader.className = "service-call-card-header";
+
+  const clientName = document.createElement("span");
+  clientName.className = "service-call-client";
+  clientName.textContent = serviceCallOption.client_name || "Unknown client";
+
+  const workLocationBadge = document.createElement("span");
+  workLocationBadge.className = "service-call-location-badge";
+  workLocationBadge.textContent = serviceCallOption.work_location_label || "Unknown";
+
+  const ticketTitle = document.createElement("span");
+  ticketTitle.className = "service-call-ticket";
+  ticketTitle.textContent = serviceCallOption.ticket_title || "Untitled ticket";
+
+  cardHeader.append(clientName, workLocationBadge);
+  optionButton.append(cardHeader, ticketTitle);
+  serviceCallForm.append(csrfInput, serviceCallTicketInput, optionButton);
+  return serviceCallForm;
+}
+
+async function loadServiceCallPanel(panel) {
+  const serviceCallUrl = panel.dataset.serviceCallUrl || "";
+  const resultsElement = panel.querySelector("[data-service-call-results]");
+  const emptyElement = panel.querySelector("[data-service-call-empty]");
+  if (!serviceCallUrl || !resultsElement) {
+    return;
+  }
+
+  clearServiceCallPanel(panel);
+  setServiceCallPanelLoading(panel, true);
+  try {
+    const response = await fetch(serviceCallUrl, {headers: {Accept: "application/json"}});
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.detail || "Service calls could not be loaded.");
+    }
+
+    const serviceCallOptions = Array.isArray(payload.service_calls) ? payload.service_calls : [];
+    if (serviceCallOptions.length === 0) {
+      if (emptyElement) {
+        emptyElement.classList.remove("is-hidden");
+      }
+      return;
+    }
+
+    for (const serviceCallOption of serviceCallOptions) {
+      resultsElement.append(createServiceCallStartForm(serviceCallOption));
+    }
+  } catch (error) {
+    setServiceCallPanelError(panel, error.message || "Service calls could not be loaded.");
+  } finally {
+    setServiceCallPanelLoading(panel, false);
+  }
+}
+
 function updateActiveTicketDisplay(jobId, selectedTicket) {
   const activeJobCard = document.querySelector(`[data-active-job-card="${toSafeMapString(jobId)}"]`);
   if (!activeJobCard) {
@@ -1214,6 +1393,13 @@ for (const ticketPicker of activeTicketPickers) {
       loadActiveTicketOptions(ticketPicker);
     }, 50);
   }
+}
+
+document.addEventListener("click", handlePageLoadingSubmitButtonClick);
+document.addEventListener("submit", handlePageLoadingFormSubmit);
+
+for (const serviceCallPanel of serviceCallPanels) {
+  loadServiceCallPanel(serviceCallPanel);
 }
 
 setAllRecordingControlsIdle();

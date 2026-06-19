@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -313,8 +314,8 @@ def test_start_work_blocks_when_autotask_is_unavailable(authenticated_client: Te
         assert get_active_job(database_session) is None
 
 
-def test_authenticated_header_shows_api_status_and_desktop_secure_indicator(authenticated_client: TestClient) -> None:
-    """The top header should own connection indicators for responsive layouts."""
+def test_authenticated_mobile_header_renders_responsive_close_and_logout_controls(authenticated_client: TestClient) -> None:
+    """The mobile route should let CSS choose close on phones and logout on desktop."""
 
     response = authenticated_client.get("/mobile")
 
@@ -324,7 +325,44 @@ def test_authenticated_header_shows_api_status_and_desktop_secure_indicator(auth
     assert 'class="secure-pill autotask-api-indicator is-available"' in response.text
     assert "Autotask API: Online" in response.text
     assert 'class="secure-pill secure-connection-indicator"' in response.text
+    assert 'data-close-app-button' in response.text
+    assert 'class="icon-button close-app-button mobile-close-action"' in response.text
+    assert 'aria-label="Close app"' in response.text
+    assert 'class="logout-form mobile-logout-action"' in response.text
+    assert 'action="/logout"' in response.text
+    assert '/static/mobile.js?v=' in response.text
     assert '<div class="mobile-status-row">\n      <a href="/review" class="text-link">Review jobs</a>' in response.text
+
+
+def test_non_mobile_authenticated_header_keeps_logout_control(authenticated_client: TestClient) -> None:
+    """Non-mobile pages should still expose explicit local-session logout."""
+
+    response = authenticated_client.get("/review")
+
+    assert response.status_code == 200
+    assert 'action="/logout"' in response.text
+    assert 'aria-label="Sign out"' in response.text
+    assert 'data-close-app-button' not in response.text
+
+
+def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrollable() -> None:
+    """CSS should keep mobile service-call cards distinct and long ticket descriptions bounded."""
+
+    stylesheet_path = Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css"
+    stylesheet = stylesheet_path.read_text(encoding="utf-8")
+    phone_stylesheet_path = Path(__file__).resolve().parents[1] / "job_logger" / "static" / "phone.css"
+    phone_stylesheet = phone_stylesheet_path.read_text(encoding="utf-8")
+
+    assert ".service-call-option-button.service-call-location-remote" in stylesheet
+    assert ".service-call-option-button.service-call-location-on_site" in stylesheet
+    assert "linear-gradient(90deg, rgba(45, 212, 191" in stylesheet
+    assert "linear-gradient(90deg, rgba(245, 158, 11" in stylesheet
+    assert ".service-call-loading-state" in stylesheet
+    assert ".mobile-page-loading" in stylesheet
+    assert "max-height: 100lh;" in stylesheet
+    assert "overscroll-behavior: contain;" in stylesheet
+    assert ".mobile-close-action {\n  display: inline-grid;" in phone_stylesheet
+    assert ".mobile-logout-action {\n  display: none;" in phone_stylesheet
 
 
 def test_active_job_completion_requires_client_name(authenticated_client: TestClient) -> None:
@@ -1119,13 +1157,25 @@ def test_mobile_service_call_start_populates_active_job(authenticated_client: Te
     csrf_token = extract_csrf_token(mobile_html)
 
     assert "Today's service calls" in mobile_html
+    assert "Loading service calls..." in mobile_html
+    assert 'data-service-call-url="/mobile/service-calls"' in mobile_html
     assert "Mock onsite service call" not in mobile_html
-    assert "Scheduled Service Client" in mobile_html
-    assert "On-Site" in mobile_html
-    assert "Mock open ticket for Scheduled Service Client" in mobile_html
-    assert "service-call-location-on_site" in mobile_html
-    assert "service-call-location-remote" in mobile_html
+    assert "Scheduled Service Client" not in mobile_html
+    assert "Mock open ticket for Scheduled Service Client" not in mobile_html
     assert "T20260616.0001 - Mock open ticket for Scheduled Service Client" not in mobile_html
+
+    service_calls_response = authenticated_client.get("/mobile/service-calls")
+    assert service_calls_response.status_code == 200
+    service_calls_payload = service_calls_response.json()
+    assert service_calls_payload["active_job_slots_available"] is True
+    assert service_calls_payload["service_calls"][0] == {
+        "service_call_ticket_id": 6101,
+        "client_name": "Scheduled Service Client",
+        "ticket_title": "Mock open ticket for Scheduled Service Client",
+        "work_location_label": "On-Site",
+        "work_location_class": "service-call-location-on_site",
+    }
+    assert service_calls_payload["service_calls"][1]["work_location_class"] == "service-call-location-remote"
 
     start_response = authenticated_client.post(
         "/jobs/start/service-call",

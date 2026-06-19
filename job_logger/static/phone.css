@@ -22,6 +22,14 @@
   margin-left: auto;
 }
 
+.mobile-close-action {
+  display: inline-grid;
+}
+
+.mobile-logout-action {
+  display: none;
+}
+
 .secure-connection-indicator {
   display: none;
 }

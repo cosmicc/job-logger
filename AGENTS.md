@@ -138,6 +138,12 @@ Do not permanently store raw audio by default.
 
 The mobile interface must be optimized for quick use from a phone.
 
+On phone-sized `/mobile` layouts, the authenticated top bar uses an X close
+control instead of the logout action so an installed mobile web app can be
+dismissed without ending the local server-side session. Full-width `/mobile`,
+review, debug, and other non-mobile authenticated views still expose the
+explicit logout control.
+
 The standard review interface must work well on a full computer screen.
 
 The review interface must allow editing of reviewed job summary notes, ticket

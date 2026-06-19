@@ -2,40 +2,34 @@
 
 {% block title %}Mobile Work Log - Job Logger{% endblock %}
 
-{% macro render_service_call_start_options(service_call_options, service_call_error, csrf_token) %}
-  <section class="service-call-start-panel" aria-labelledby="service-call-start-heading">
+{% macro render_service_call_start_options() %}
+  <section
+    class="service-call-start-panel"
+    aria-labelledby="service-call-start-heading"
+    data-service-call-panel
+    data-service-call-url="/mobile/service-calls"
+  >
     <div class="mobile-ticket-picker-header">
       <h3 id="service-call-start-heading">Today's service calls</h3>
     </div>
-    {% if service_call_error %}
-      <p class="error-text">{{ service_call_error }}</p>
-    {% elif service_call_options %}
-      <div class="service-call-start-list">
-        {% for service_call_option in service_call_options %}
-          {% set service_call_location_class = "service-call-location-unknown" %}
-          {% if service_call_option.detected_work_location %}
-            {% set service_call_location_class = "service-call-location-" ~ service_call_option.detected_work_location.value %}
-          {% endif %}
-          <form method="post" action="/jobs/start/service-call" class="service-call-start-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="hidden" name="service_call_ticket_id" value="{{ service_call_option.service_call_ticket_id }}">
-            <button class="service-call-option-button {{ service_call_location_class }}" type="submit">
-              <span class="service-call-card-header">
-                <span class="service-call-client">{{ service_call_option.client_name }}</span>
-                <span class="service-call-location-badge">{{ service_call_option.work_location_label }}</span>
-              </span>
-              <span class="service-call-ticket">{{ service_call_option.ticket_title }}</span>
-            </button>
-          </form>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="muted-text">No service calls are scheduled for today.</p>
-    {% endif %}
+    <div class="service-call-loading-state" data-service-call-loading role="status" aria-live="polite">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <span>Loading service calls...</span>
+    </div>
+    <p class="error-text is-hidden" data-service-call-error></p>
+    <div class="service-call-start-list" data-service-call-results></div>
+    <p class="muted-text is-hidden" data-service-call-empty>No service calls are scheduled for today.</p>
   </section>
 {% endmacro %}
 
 {% block content %}
+  <div class="mobile-page-loading is-hidden" data-mobile-page-loading role="status" aria-live="assertive" aria-busy="true">
+    <div class="mobile-page-loading-card">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <span data-mobile-page-loading-message>Loading...</span>
+    </div>
+  </div>
+
   <section class="mobile-shell">
     <div class="mobile-status-row">
       <a href="/review" class="text-link">Review jobs</a>
@@ -60,6 +54,8 @@
                     method="post"
                     action="/jobs/{{ active_job.id }}/start-time/adjust"
                     class="rounded-start-time-form active-time-step-controls"
+                    data-page-loading-form
+                    data-loading-message="Updating rounded start..."
                   >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button
@@ -273,7 +269,14 @@
                 </button>
               </div>
               <div class="work-finish-stack">
-                <form method="post" action="/jobs/{{ active_job.id }}/end" class="end-job-form" data-job-id="{{ active_job.id }}">
+                <form
+                  method="post"
+                  action="/jobs/{{ active_job.id }}/end"
+                  class="end-job-form"
+                  data-job-id="{{ active_job.id }}"
+                  data-page-loading-form
+                  data-loading-message="Ending work..."
+                >
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <input
                     type="hidden"
@@ -299,7 +302,9 @@
                   method="post"
                   action="/jobs/{{ active_job.id }}/delete"
                   class="delete-active-job-form"
-                  onsubmit="return confirm('Delete this open job? This removes the in-progress entry without sending it to review.')"
+                  data-page-loading-form
+                  data-loading-message="Deleting active job..."
+                  data-confirm-message="Delete this open job? This removes the in-progress entry without sending it to review."
                 >
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <button class="danger-outline-button" type="submit">
@@ -322,7 +327,7 @@
           <p class="eyebrow-text">Ready</p>
           <h1>Start a work entry</h1>
           <p class="muted-text">Start work, choose the client and open ticket during the job, then end work for review.</p>
-          <form method="post" action="/jobs/start" class="start-work-form">
+          <form method="post" action="/jobs/start" class="start-work-form" data-page-loading-form data-loading-message="Starting work...">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="primary-action-button" type="submit">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -331,7 +336,7 @@
               Start Work
             </button>
           </form>
-          {{ render_service_call_start_options(service_call_options, service_call_error, csrf_token) }}
+          {{ render_service_call_start_options() }}
         </section>
       {% endif %}
     </section>
@@ -342,7 +347,7 @@
         <p class="eyebrow-text">Start another job</p>
         <h1>Add a concurrent job</h1>
         <p class="muted-text">Up to two jobs can be active at once. Choose the client and open ticket after the job starts.</p>
-        <form method="post" action="/jobs/start" class="start-work-form">
+        <form method="post" action="/jobs/start" class="start-work-form" data-page-loading-form data-loading-message="Starting another job...">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button class="primary-action-button" type="submit">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -351,7 +356,7 @@
             Start Job
           </button>
         </form>
-        {{ render_service_call_start_options(service_call_options, service_call_error, csrf_token) }}
+        {{ render_service_call_start_options() }}
       </section>
       {% else %}
       <section class="work-panel">
@@ -362,5 +367,5 @@
       {% endif %}
     {% endif %}
   </section>
-  <script src="/static/mobile.js" defer></script>
+  <script src="/static/mobile.js?v={{ static_asset_version }}" defer></script>
 {% endblock %}

@@ -4,6 +4,24 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Replaced the phone-sized `/mobile` top-bar logout action with an X close
+  button for the installed/mobile web app experience while keeping logout
+  available on full-width `/mobile` and other authenticated pages. Static asset
+  links now include the source-controlled app version so phones load the updated
+  styles and script URL after deploy.
+
+- Changed the mobile service-call start panel to render immediately with a
+  loading state and fetch `/mobile/service-calls` after page load, so slow
+  Autotask service-call lookups no longer delay the whole start screen. Mobile
+  submit actions now show a loading overlay and disabled button state after an
+  accepted tap, including active-job delete while the app returns to the start
+  screen.
+
+- Strengthened the mobile service-call card styling so Remote and On-Site
+  entries render with obvious colored card treatments instead of falling back to
+  the generic grey button look, and capped read-only ticket descriptions inside
+  a scrollable box for long Autotask descriptions.
+
 - Added a mobile start-from-service-call option that lists today's Autotask
   service calls for `AUTOTASK_RESOURCE_ID`, shows compact cards with the client
   name, Remote/On-Site detection from the service-call details, and the

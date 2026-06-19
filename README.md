@@ -364,18 +364,23 @@ Selecting a returned ticket fills the mobile job's hidden ticket number, stores
 the selected ticket title for the review detail heading, stores the bounded
 ticket description for read-only context, and automatically saves the active-job
 changes or review ticket selection. The mobile Work in Progress card shows the
-selected ticket number, ticket name, and ticket description after selection. On
-the review page, the stored ticket number, ticket description, and client name
-are read-only identity/context fields; review save and submit use the stored
-values instead of trusting form posts. Once a job has a ticket number, the
-open-ticket picker is hidden for that job.
+selected ticket number, ticket name, and ticket description after selection.
+Long ticket descriptions stay inside a scrollable read-only box instead of
+expanding the mobile page indefinitely. On the review page, the stored ticket
+number, ticket description, and client name are read-only identity/context
+fields; review save and submit use the stored values instead of trusting form
+posts. Once a job has a ticket number, the open-ticket picker is hidden for that
+job.
 
 When an active job slot is available, the mobile start panel also lists today's
-Autotask service calls assigned to `AUTOTASK_RESOURCE_ID`. Each service-call
-choice shows the client name, the detected `Remote` or `On-Site` value from the
-service-call details text, and the associated ticket title. Remote and On-Site
-cards use distinct accent colors so scheduled call type is easy to scan without
-wasting mobile screen space. Tapping a service call starts an active job with
+Autotask service calls assigned to `AUTOTASK_RESOURCE_ID`. The mobile page
+renders first with a loading state, then fetches `/mobile/service-calls` so slow
+Autotask service-call lookups show progress instead of delaying the whole start
+screen. Each service-call choice shows the client name, the detected `Remote` or
+`On-Site` value from the service-call details text, and the associated ticket
+title. Remote and On-Site cards use stronger distinct accent colors and badges
+so scheduled call type is easy to scan without wasting mobile screen space.
+Tapping a service call starts an active job with
 the server-verified ticket number, ticket title, bounded ticket description,
 client name, company ID, and detected work-location mode. The browser submits
 only the service-call ticket association ID and CSRF token; the server re-checks
@@ -389,7 +394,12 @@ Companies and Tickets permissions already required by the app.
 
 The shared page data is styled through `app.css`, then viewport-specific
 `phone.css` or `desktop.css` loads automatically with media queries so phones
-and desktop browsers get appropriately sized layouts.
+and desktop browsers get appropriately sized layouts. Phone-sized `/mobile`
+layouts use an X button in the top bar to close the installed web app or browser
+tab without logging out; full-width `/mobile`, review, debug, and other
+non-mobile pages keep the explicit logout button. Mobile submit actions show a
+loading overlay once the tap is accepted so slow redirects or Autotask lookups
+do not look like ignored buttons.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 

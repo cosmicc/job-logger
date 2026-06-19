@@ -29,6 +29,14 @@ Important workflow service responsibilities include:
 The mobile page is `/mobile`, implemented by `job_logger/routes/mobile.py` and
 `job_logger/templates/mobile.html`.
 
+The `/mobile` top bar includes both the normal logout form and an X close button
+wired by `job_logger/static/pwa.js`. CSS decides which action is visible:
+full-width web layouts show logout, while phone-sized mobile layouts show the X.
+The close button should only attempt to close the installed web app or browser
+tab; it must not clear the authenticated local session, submit logout, or
+perform another state-changing action. Keep the explicit logout form available
+on non-mobile authenticated pages.
+
 New blank work starts through `POST /jobs/start`. A user can also start work
 from a current-day Autotask service call through
 `POST /jobs/start/service-call`.
@@ -93,14 +101,31 @@ prefix `summaryNotes` with `Remote` or `On-Site` only when creating the time
 entry.
 
 The mobile start panels show today's Autotask service calls when an active job
-slot is available. Service-call options are provided by
+slot is available. The page should render immediately with a **Loading service
+calls...** state, then `job_logger/static/mobile.js` loads `/mobile/service-calls`
+to fetch safe card data. Service-call options are provided by
 `list_todays_service_calls_for_resource()`, which derives Remote/On-Site from
 the service-call details text. Each rendered card should stay compact and show
 only the client name, Remote/On-Site label, and associated ticket title, with
-different Remote and On-Site coloring for quick scanning. Clicking a service
+different Remote and On-Site coloring for quick scanning. Use the specific
+`.service-call-option-button.service-call-location-*` styling hooks so these
+cards do not regress to the generic grey button treatment. Clicking a service
 call starts an active job with the associated ticket number, ticket title,
 bounded ticket description, client name, company ID, and detected work-location
 mode.
+
+The `/mobile/service-calls` endpoint is only for drawing already-verified
+candidate cards in the browser. `POST /jobs/start/service-call` must still
+re-read today's provider list and verify the submitted service-call ticket
+association ID before creating a job. Mobile forms that navigate or redirect,
+including start, service-call start, end, rounded-start adjustment, and active
+delete, should show the shared loading overlay once a submit is accepted so slow
+Autotask lookups do not look like ignored taps.
+
+Selected ticket descriptions on mobile are read-only Autotask context. Long
+descriptions should stay escaped, bounded to an internal scroll area, and
+available in full through scrolling inside the description box instead of
+expanding the entire Work in Progress card indefinitely.
 
 The active mobile card should expose only one client entry point for each job.
 After an Autotask company is selected, the active job displays that client as a

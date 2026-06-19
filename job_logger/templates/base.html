@@ -13,10 +13,10 @@
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="icon" href="/static/icons/job-logger-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/static/icons/job-logger-icon-192.png">
-    <link rel="stylesheet" href="/static/app.css">
-    <link rel="stylesheet" href="/static/phone.css" media="(max-width: 700px)">
-    <link rel="stylesheet" href="/static/desktop.css" media="(min-width: 701px)">
-    <script src="/static/pwa.js" defer></script>
+    <link rel="stylesheet" href="/static/app.css?v={{ static_asset_version }}">
+    <link rel="stylesheet" href="/static/phone.css?v={{ static_asset_version }}" media="(max-width: 700px)">
+    <link rel="stylesheet" href="/static/desktop.css?v={{ static_asset_version }}" media="(min-width: 701px)">
+    <script src="/static/pwa.js?v={{ static_asset_version }}" defer></script>
   </head>
   <body>
     <header class="app-header">
@@ -49,16 +49,35 @@
           <a href="/review">Review</a>
           <a href="/debug">Debug</a>
         </nav>
-        <form method="post" action="/logout" class="logout-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button class="icon-button" type="submit" title="Sign out" aria-label="Sign out">
+        {% if request.url.path == "/mobile" %}
+          <button class="icon-button close-app-button mobile-close-action" type="button" title="Close app" aria-label="Close app" data-close-app-button>
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M10 17l5-5-5-5"></path>
-              <path d="M15 12H3"></path>
-              <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
+              <path d="M18 6 6 18"></path>
+              <path d="M6 6l12 12"></path>
             </svg>
           </button>
-        </form>
+          <form method="post" action="/logout" class="logout-form mobile-logout-action">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="icon-button" type="submit" title="Sign out" aria-label="Sign out">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10 17l5-5-5-5"></path>
+                <path d="M15 12H3"></path>
+                <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
+              </svg>
+            </button>
+          </form>
+        {% else %}
+          <form method="post" action="/logout" class="logout-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="icon-button" type="submit" title="Sign out" aria-label="Sign out">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10 17l5-5-5-5"></path>
+                <path d="M15 12H3"></path>
+                <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
+              </svg>
+            </button>
+          </form>
+        {% endif %}
       {% endif %}
     </header>
 

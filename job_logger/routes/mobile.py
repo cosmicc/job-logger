@@ -111,6 +111,27 @@ def _load_todays_service_calls_for_mobile_start() -> tuple[list[AutotaskServiceC
         return [], str(exc)
 
 
+def _service_call_location_class(service_call_option: AutotaskServiceCallOption) -> str:
+    """Return the CSS class used for the mobile service-call location treatment."""
+
+    if service_call_option.detected_work_location is None:
+        return "service-call-location-unknown"
+
+    return f"service-call-location-{service_call_option.detected_work_location.value}"
+
+
+def _service_call_option_payload(service_call_option: AutotaskServiceCallOption) -> dict[str, object]:
+    """Return the non-secret service-call fields needed by mobile JavaScript."""
+
+    return {
+        "service_call_ticket_id": service_call_option.service_call_ticket_id,
+        "client_name": service_call_option.client_name,
+        "ticket_title": service_call_option.ticket_title,
+        "work_location_label": service_call_option.work_location_label,
+        "work_location_class": _service_call_location_class(service_call_option),
+    }
+
+
 def _normalize_audio_stream_content_type(raw_content_type: Any) -> str:
     """Return a bounded audio content type accepted by the streaming endpoint."""
 
@@ -482,10 +503,6 @@ def mobile_page(
         return RedirectResponse(url="/login", status_code=303)
 
     active_jobs = list_active_jobs(database_session)
-    service_call_options: list[AutotaskServiceCallOption] = []
-    service_call_error: str | None = None
-    if len(active_jobs) < MAX_ACTIVE_JOBS:
-        service_call_options, service_call_error = _load_todays_service_calls_for_mobile_start()
 
     return templates.TemplateResponse(
         request,
@@ -493,9 +510,34 @@ def mobile_page(
         template_context(
             request,
             active_jobs=active_jobs,
-            service_call_options=service_call_options,
-            service_call_error=service_call_error,
         ),
+    )
+
+
+@router.get("/mobile/service-calls")
+def mobile_service_call_options(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Return today's service-call start options for the already-rendered mobile page."""
+
+    require_authenticated_username(request)
+    active_jobs = list_active_jobs(database_session)
+    if len(active_jobs) >= MAX_ACTIVE_JOBS:
+        return JSONResponse({"service_calls": [], "active_job_slots_available": False})
+
+    service_call_options, service_call_error = _load_todays_service_calls_for_mobile_start()
+    if service_call_error:
+        return JSONResponse({"detail": service_call_error, "service_calls": []}, status_code=400)
+
+    return JSONResponse(
+        {
+            "active_job_slots_available": True,
+            "service_calls": [
+                _service_call_option_payload(service_call_option)
+                for service_call_option in service_call_options
+            ],
+        }
     )
 
 

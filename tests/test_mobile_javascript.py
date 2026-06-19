@@ -87,6 +87,7 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
               }
 
               const fakeDocument = {
+                addEventListener() {},
                 querySelector(selector) {
                   if (selector === 'meta[name="csrf-token"]') {
                     return csrfMetaElement;

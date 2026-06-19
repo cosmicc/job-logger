@@ -203,6 +203,16 @@ svg {
   color: var(--muted);
 }
 
+.mobile-close-action {
+  display: none;
+}
+
+.close-app-button:hover {
+  border-color: rgba(248, 113, 113, 0.45);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 .flash-stack {
   display: grid;
   gap: 10px;
@@ -342,6 +352,22 @@ textarea:disabled {
   opacity: 1;
 }
 
+button.is-loading {
+  position: relative;
+  pointer-events: none;
+}
+
+button.is-loading::after {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: loading-spin 0.75s linear infinite;
+}
+
 input:focus,
 select:focus,
 textarea:focus,
@@ -458,6 +484,20 @@ a:focus-visible {
   border-top: 1px solid var(--border);
 }
 
+.service-call-loading-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .service-call-start-list {
   display: grid;
   gap: 8px;
@@ -478,7 +518,7 @@ a:focus-visible {
   color: var(--text);
   padding: 9px 11px;
   text-align: left;
-  box-shadow: inset 4px 0 0 var(--border);
+  box-shadow: inset 5px 0 0 var(--border);
 }
 
 .service-call-option-button:hover {
@@ -486,21 +526,43 @@ a:focus-visible {
   background: var(--surface-strong);
 }
 
-.service-call-location-remote {
-  border-color: rgba(45, 212, 191, 0.48);
-  background: rgba(45, 212, 191, 0.08);
-  box-shadow: inset 4px 0 0 var(--accent);
+.service-call-option-button.service-call-location-remote {
+  border-color: rgba(45, 212, 191, 0.72);
+  background:
+    linear-gradient(90deg, rgba(45, 212, 191, 0.22), rgba(45, 212, 191, 0.1) 46%, rgba(17, 26, 44, 0.9)),
+    var(--surface);
+  box-shadow:
+    inset 5px 0 0 var(--accent),
+    0 12px 28px rgba(45, 212, 191, 0.1);
 }
 
-.service-call-location-on_site {
-  border-color: rgba(245, 158, 11, 0.5);
-  background: var(--warning-soft);
-  box-shadow: inset 4px 0 0 var(--warning);
+.service-call-option-button.service-call-location-on_site {
+  border-color: rgba(245, 158, 11, 0.74);
+  background:
+    linear-gradient(90deg, rgba(245, 158, 11, 0.24), rgba(245, 158, 11, 0.12) 46%, rgba(17, 26, 44, 0.9)),
+    var(--surface);
+  box-shadow:
+    inset 5px 0 0 var(--warning),
+    0 12px 28px rgba(245, 158, 11, 0.1);
 }
 
-.service-call-location-unknown {
+.service-call-option-button.service-call-location-unknown {
   border-color: rgba(154, 168, 188, 0.34);
   background: var(--surface-strong);
+}
+
+.service-call-option-button.service-call-location-remote:hover {
+  border-color: var(--accent);
+  background:
+    linear-gradient(90deg, rgba(45, 212, 191, 0.3), rgba(45, 212, 191, 0.14) 48%, rgba(26, 39, 64, 0.95)),
+    var(--surface-muted);
+}
+
+.service-call-option-button.service-call-location-on_site:hover {
+  border-color: var(--warning);
+  background:
+    linear-gradient(90deg, rgba(245, 158, 11, 0.32), rgba(245, 158, 11, 0.15) 48%, rgba(26, 39, 64, 0.95)),
+    var(--surface-muted);
 }
 
 .service-call-card-header {
@@ -588,6 +650,55 @@ a:focus-visible {
 
 .full-width {
   width: 100%;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(45, 212, 191, 0.22);
+  border-right-color: var(--accent);
+  border-radius: 999px;
+  animation: loading-spin 0.75s linear infinite;
+}
+
+.mobile-page-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 7, 18, 0.64);
+  backdrop-filter: blur(4px);
+}
+
+.mobile-page-loading-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(320px, 100%);
+  min-height: 52px;
+  border: 1px solid rgba(45, 212, 191, 0.38);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+  font-weight: 800;
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner,
+  button.is-loading::after {
+    animation: none;
+  }
 }
 
 .mobile-status-row,
@@ -721,6 +832,13 @@ a:focus-visible {
 .ticket-description-card dd,
 .ticket-description-card p {
   margin: 0;
+  max-height: 145em;
+  max-height: 100lh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+  line-height: 1.45;
   white-space: pre-wrap;
 }
 

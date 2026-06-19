@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from job_logger import time_utils
 from job_logger.security import csrf_token, current_username, pop_flash_messages
 from job_logger.services.autotask import AutotaskConnectivityResult, test_cached_autotask_connectivity_for_start
+from job_logger.version import APP_VERSION
 
 # templates is the single Jinja environment used by all server-rendered pages.
 templates = Jinja2Templates(directory="job_logger/templates")
@@ -51,6 +52,7 @@ def template_context(request: Request, **extra_context: object) -> dict[str, obj
             "provider": autotask_connectivity.provider,
             "label": "Online" if autotask_connectivity.available else "Offline",
         },
+        "static_asset_version": APP_VERSION,
     }
     context.update(extra_context)
     return context
