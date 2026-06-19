@@ -79,6 +79,16 @@ def _get_csv(environment_variable_name: str, default_value: str) -> list[str]:
     return [item.strip() for item in raw_value.split(",") if item.strip()]
 
 
+def _get_ai_cleanup_provider() -> str:
+    """Return the normalized provider key used by the AI cleanup service."""
+
+    normalized_provider = os.getenv("AI_CLEANUP_PROVIDER", "gemini").strip().lower().replace("-", "_")
+    if normalized_provider == "lmstudio":
+        return "lm_studio"
+
+    return normalized_provider or "gemini"
+
+
 @dataclass(frozen=True)
 class Settings:
     """Typed application settings loaded from environment variables."""
@@ -144,7 +154,7 @@ class Settings:
     # AI_CLEANUP_ENABLED gates external summary cleanup calls.
     ai_cleanup_enabled: bool
 
-    # AI_CLEANUP_PROVIDER selects the external cleanup backend: gemini or grok.
+    # AI_CLEANUP_PROVIDER selects the cleanup backend: gemini, grok, ollama, or lm_studio.
     ai_cleanup_provider: str
 
     # GEMINI_API_KEY authorizes Google Gemini cleanup requests.
@@ -166,13 +176,28 @@ class Settings:
     # GROQ_CLEANUP_API_BASE_URL supports Groq endpoint overrides.
     groq_cleanup_api_base_url: str
 
+    # OLLAMA_CLEANUP_MODEL selects the locally installed Ollama model used for cleanup.
+    ollama_cleanup_model: str
+
+    # OLLAMA_CLEANUP_API_BASE_URL points at a server-local Ollama API base URL.
+    ollama_cleanup_api_base_url: str
+
+    # LM_STUDIO_CLEANUP_MODEL selects the loaded LM Studio model identifier used for cleanup.
+    lm_studio_cleanup_model: str
+
+    # LM_STUDIO_CLEANUP_API_BASE_URL points at a server-local LM Studio OpenAI-compatible base URL.
+    lm_studio_cleanup_api_base_url: str
+
+    # LM_STUDIO_API_KEY is optional and only used if the local LM Studio server requires one.
+    lm_studio_api_key: str | None
+
     # AI_CLEANUP_INSTRUCTIONS stores the server-side cleanup prompt.
     ai_cleanup_instructions: str
 
     # AI_CLEANUP_TIMEOUT_SECONDS bounds cleanup latency from the UI.
     ai_cleanup_timeout_seconds: float
 
-    # AI_CLEANUP_MAX_INPUT_CHARS limits user text sent to the external provider.
+    # AI_CLEANUP_MAX_INPUT_CHARS limits user text sent to the selected provider.
     ai_cleanup_max_input_chars: int
 
     # AUTOTASK_PROVIDER selects the live Autotask REST client; mock is for tests/development only.
@@ -267,7 +292,7 @@ def load_settings() -> Settings:
             os.getenv("FASTER_WHISPER_INITIAL_PROMPT", DEFAULT_FASTER_WHISPER_INITIAL_PROMPT).strip() or None
         ),
         ai_cleanup_enabled=_get_boolean("AI_CLEANUP_ENABLED", False),
-        ai_cleanup_provider=os.getenv("AI_CLEANUP_PROVIDER", "gemini").strip().lower() or "gemini",
+        ai_cleanup_provider=_get_ai_cleanup_provider(),
         gemini_api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or None,
         gemini_cleanup_model=os.getenv("GEMINI_CLEANUP_MODEL", "gemini-3.5-flash").strip() or "gemini-3.5-flash",
         gemini_cleanup_api_base_url=os.getenv(
@@ -286,6 +311,17 @@ def load_settings() -> Settings:
             or os.getenv("GROK_CLEANUP_API_BASE_URL")
             or "https://api.groq.com/openai/v1"
         ).rstrip("/"),
+        ollama_cleanup_model=os.getenv("OLLAMA_CLEANUP_MODEL", "llama3.1").strip() or "llama3.1",
+        ollama_cleanup_api_base_url=os.getenv(
+            "OLLAMA_CLEANUP_API_BASE_URL",
+            "http://127.0.0.1:11434/api",
+        ).rstrip("/"),
+        lm_studio_cleanup_model=os.getenv("LM_STUDIO_CLEANUP_MODEL", "local-model").strip() or "local-model",
+        lm_studio_cleanup_api_base_url=os.getenv(
+            "LM_STUDIO_CLEANUP_API_BASE_URL",
+            "http://127.0.0.1:1234/v1",
+        ).rstrip("/"),
+        lm_studio_api_key=os.getenv("LM_STUDIO_API_KEY") or None,
         ai_cleanup_instructions=(
             os.getenv("AI_CLEANUP_INSTRUCTIONS", DEFAULT_AI_CLEANUP_INSTRUCTIONS).strip()
             or DEFAULT_AI_CLEANUP_INSTRUCTIONS

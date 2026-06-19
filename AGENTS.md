@@ -48,14 +48,15 @@ success, Autotask submission failure, and authentication-sensitive events.
 Raw audio must not be stored by default. If audio retention is ever added, it
 must be explicit, configurable, documented, access-controlled, and auditable.
 
-AI summary cleanup sends job summary text to the configured external provider
-only when `AI_CLEANUP_ENABLED=true`, `AI_CLEANUP_PROVIDER` is `gemini` or
-`grok`, and the matching provider API key is configured. Treat summary text as
-customer/work data. The server must validate authentication and CSRF, bound
-input length, keep API keys and cleanup instructions server-side in Docker or
-environment variables, set `store=false` on Gemini requests, and audit only
-metadata such as provider, model, source, and text lengths. Do not store raw
-cleanup prompts or full cleaned/uncleaned summaries in audit details.
+AI summary cleanup sends job summary text to the configured provider only when
+`AI_CLEANUP_ENABLED=true` and `AI_CLEANUP_PROVIDER` is `gemini`, `grok`,
+`ollama`, or `lm_studio`. Treat summary text as customer/work data. The server
+must validate authentication and CSRF, bound input length, keep API keys, local
+provider URLs, and cleanup instructions server-side in Docker or environment
+variables, set `store=false` on Gemini requests, constrain Ollama and LM Studio
+cleanup URLs to server-local hosts, and audit only metadata such as provider,
+model, source, and text lengths. Do not store raw cleanup prompts or full
+cleaned/uncleaned summaries in audit details.
 
 ## Core Workflow
 
@@ -161,7 +162,7 @@ punctuation marks. Treat it as a best-effort model hint, not a validation or
 security control.
 
 AI summary cleanup is separate from speech-to-text. It sends the current
-editable summary text to the server-side Gemini or Groq cleanup provider and
+editable summary text to the configured server-side cleanup provider and
 replaces the summary textarea with the returned cleaned text. It must not
 submit to Autotask or bypass review.
 
@@ -337,9 +338,9 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/autotask.py` owns Autotask providers, connectivity tests,
   company/ticket lookup, cache behavior, pagination, status mapping, time entry
   submission, existing-entry updates, and existing-entry deletes.
-- `job_logger/services/ai_cleanup.py` owns server-side Gemini and Groq summary
-  cleanup, including request construction, safe response parsing, and provider
-  error normalization.
+- `job_logger/services/ai_cleanup.py` owns server-side Gemini, Groq, Ollama,
+  and LM Studio summary cleanup, including request construction, local-provider
+  URL validation, safe response parsing, and provider error normalization.
 - `job_logger/services/transcription.py` owns speech-to-text provider behavior.
 - `job_logger/services/audit.py` records immutable audit events.
 - `job_logger/templates/` contains Jinja pages for mobile, review, debug, and
@@ -383,7 +384,7 @@ The normal workflow is:
    shows sending/converting/completed progress with a status-line spinner until
    the final transcript returns.
 9. When enabled, user can click **AI Cleanup** to send the current summary text
-   through the configured server-side Gemini or Groq cleanup provider. On
+   through the configured server-side cleanup provider. On
    mobile, progress and failure details use the same status line as audio
    recording, with a spinner while cleanup is in progress. The returned text
    replaces the summary textarea and remains subject to normal save/review

@@ -1,25 +1,36 @@
 """Provider-backed summary cleanup service.
 
-This module keeps AI cleanup as a server-side integration so API keys and
-summary-cleanup instructions never reach the browser. The service sends only
-bounded work-summary text and minimal job context to the configured external
-provider, then returns cleaned text for the UI to place back into the editable
-summary field.
+This module keeps AI cleanup as a server-side integration so API keys, local
+model URLs, and summary-cleanup instructions never reach the browser. The
+service sends only bounded work-summary text and minimal job context to the
+configured provider, then returns cleaned text for the UI to place back into the
+editable summary field.
 """
 
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
 from job_logger.config import Settings, settings
 
 GROQ_CHAT_COMPLETIONS_PATH = "/chat/completions"
+LM_STUDIO_CHAT_COMPLETIONS_PATH = "/chat/completions"
+OLLAMA_GENERATE_PATH = "/generate"
 MAX_CLEANED_SUMMARY_CHARS = 32000
-SUPPORTED_AI_CLEANUP_PROVIDERS = {"gemini", "grok"}
+SUPPORTED_AI_CLEANUP_PROVIDERS = {"gemini", "grok", "ollama", "lm_studio"}
+SUPPORTED_AI_CLEANUP_PROVIDERS_DISPLAY = "gemini, grok, ollama, or lm_studio"
+LOCAL_AI_CLEANUP_HOSTNAMES = {
+    "localhost",
+    "host.docker.internal",
+    "gateway.docker.internal",
+    "host.containers.internal",
+}
 
 
 class AiCleanupError(RuntimeError):
@@ -106,6 +117,39 @@ def _safe_provider_error_message(response_payload: Any, provider_label: str) -> 
                 return error_message.strip()[:300]
 
     return f"{provider_label} cleanup request failed."
+
+
+def _is_local_cleanup_hostname(hostname: str | None) -> bool:
+    """Return whether a local-provider hostname is limited to this server."""
+
+    if hostname is None:
+        return False
+
+    normalized_hostname = hostname.strip().strip("[]").lower()
+    if normalized_hostname in LOCAL_AI_CLEANUP_HOSTNAMES:
+        return True
+
+    try:
+        return ipaddress.ip_address(normalized_hostname).is_loopback
+    except ValueError:
+        return False
+
+
+def _validate_local_provider_base_url(provider_label: str, base_url: str) -> str:
+    """Return a normalized local provider base URL or reject non-local targets."""
+
+    normalized_base_url = (base_url or "").strip().rstrip("/")
+    parsed_url = urlparse(normalized_base_url)
+    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+        raise AiCleanupError(f"{provider_label} cleanup requires a valid local HTTP base URL.")
+
+    if not _is_local_cleanup_hostname(parsed_url.hostname):
+        raise AiCleanupError(
+            f"{provider_label} cleanup must use a local server URL such as localhost, "
+            "127.0.0.1, or host.docker.internal."
+        )
+
+    return normalized_base_url
 
 
 def _post_provider_json(
@@ -267,6 +311,86 @@ def _extract_groq_output_text(response_payload: dict[str, Any]) -> str:
     return "\n".join(collected_text).strip()
 
 
+def _build_ollama_payload(cleanup_input: str, application_settings: Settings) -> dict[str, Any]:
+    """Build an Ollama generate payload for server-local text cleanup."""
+
+    return {
+        "model": application_settings.ollama_cleanup_model,
+        "system": application_settings.ai_cleanup_instructions,
+        "prompt": cleanup_input,
+        "stream": False,
+        "options": {
+            "temperature": 0.2,
+        },
+    }
+
+
+def _create_ollama_response(request_payload: dict[str, Any], application_settings: Settings) -> dict[str, Any]:
+    """Call a server-local Ollama API and return a JSON object response."""
+
+    base_url = _validate_local_provider_base_url("Ollama", application_settings.ollama_cleanup_api_base_url)
+    return _post_provider_json(
+        provider_label="Ollama",
+        url=f"{base_url}{OLLAMA_GENERATE_PATH}",
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        request_payload=request_payload,
+        application_settings=application_settings,
+    )
+
+
+def _extract_ollama_output_text(response_payload: dict[str, Any]) -> str:
+    """Extract text from an Ollama generate response."""
+
+    response_text = response_payload.get("response")
+    if isinstance(response_text, str):
+        return response_text.strip()
+
+    return ""
+
+
+def _build_lm_studio_payload(cleanup_input: str, application_settings: Settings) -> dict[str, Any]:
+    """Build an LM Studio OpenAI-compatible chat-completions payload."""
+
+    return {
+        "model": application_settings.lm_studio_cleanup_model,
+        "messages": [
+            {
+                "role": "system",
+                "content": application_settings.ai_cleanup_instructions,
+            },
+            {
+                "role": "user",
+                "content": cleanup_input,
+            },
+        ],
+        "temperature": 0.2,
+        "stream": False,
+    }
+
+
+def _create_lm_studio_response(request_payload: dict[str, Any], application_settings: Settings) -> dict[str, Any]:
+    """Call a server-local LM Studio API and return a JSON object response."""
+
+    base_url = _validate_local_provider_base_url("LM Studio", application_settings.lm_studio_cleanup_api_base_url)
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    if application_settings.lm_studio_api_key:
+        headers["Authorization"] = f"Bearer {application_settings.lm_studio_api_key}"
+
+    return _post_provider_json(
+        provider_label="LM Studio",
+        url=f"{base_url}{LM_STUDIO_CHAT_COMPLETIONS_PATH}",
+        headers=headers,
+        request_payload=request_payload,
+        application_settings=application_settings,
+    )
+
+
 def cleanup_summary_text(
     *,
     summary_text: str,
@@ -274,14 +398,14 @@ def cleanup_summary_text(
     actor: str,
     application_settings: Settings = settings,
 ) -> AiCleanupResult:
-    """Return cleaned summary text using Gemini or Groq as configured."""
+    """Return cleaned summary text using the configured cleanup provider."""
 
     if not application_settings.ai_cleanup_enabled:
         raise AiCleanupError("AI cleanup is disabled by configuration.")
 
     provider = application_settings.ai_cleanup_provider
     if provider not in SUPPORTED_AI_CLEANUP_PROVIDERS:
-        raise AiCleanupError("AI cleanup provider must be gemini or grok.")
+        raise AiCleanupError(f"AI cleanup provider must be {SUPPORTED_AI_CLEANUP_PROVIDERS_DISPLAY}.")
 
     normalized_summary = _normalize_summary_input(summary_text, application_settings)
     cleanup_input = _build_cleanup_input(normalized_summary, cleanup_context)
@@ -294,7 +418,7 @@ def cleanup_summary_text(
         model = application_settings.gemini_cleanup_model
         cleaned_text = _extract_gemini_output_text(response_payload)
         provider_label = "Gemini"
-    else:
+    elif provider == "grok":
         response_payload = _create_groq_response(
             _build_groq_payload(cleanup_input, actor, application_settings),
             application_settings,
@@ -302,6 +426,22 @@ def cleanup_summary_text(
         model = application_settings.groq_cleanup_model
         cleaned_text = _extract_groq_output_text(response_payload)
         provider_label = "Groq"
+    elif provider == "ollama":
+        response_payload = _create_ollama_response(
+            _build_ollama_payload(cleanup_input, application_settings),
+            application_settings,
+        )
+        model = application_settings.ollama_cleanup_model
+        cleaned_text = _extract_ollama_output_text(response_payload)
+        provider_label = "Ollama"
+    else:
+        response_payload = _create_lm_studio_response(
+            _build_lm_studio_payload(cleanup_input, application_settings),
+            application_settings,
+        )
+        model = application_settings.lm_studio_cleanup_model
+        cleaned_text = _extract_groq_output_text(response_payload)
+        provider_label = "LM Studio"
 
     if not cleaned_text:
         raise AiCleanupError(f"{provider_label} cleanup returned no cleaned summary text.")

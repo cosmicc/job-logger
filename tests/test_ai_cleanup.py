@@ -115,13 +115,100 @@ def test_groq_cleanup_builds_chat_completions_payload(monkeypatch: pytest.Monkey
     assert captured_payload["user"] != "Admin User"
 
 
+def test_ollama_cleanup_builds_generate_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ollama cleanup should use a local non-streaming generate request."""
+
+    captured_payload: dict[str, Any] = {}
+
+    def fake_create_ollama_response(request_payload: dict[str, Any], _application_settings: object) -> dict[str, Any]:
+        captured_payload.update(request_payload)
+        return {"response": "Remote restarted the firewall and confirmed backups."}
+
+    monkeypatch.setenv("AI_CLEANUP_ENABLED", "true")
+    monkeypatch.setenv("AI_CLEANUP_PROVIDER", "ollama")
+    monkeypatch.setenv("OLLAMA_CLEANUP_MODEL", "test-ollama-model")
+    monkeypatch.setenv("AI_CLEANUP_INSTRUCTIONS", "Clean the summary.")
+    monkeypatch.setattr(ai_cleanup, "_create_ollama_response", fake_create_ollama_response)
+
+    cleanup_result = cleanup_summary_text(
+        summary_text="remote restarted firewall backups good",
+        cleanup_context=AiCleanupContext(job_id="job-1", source="mobile", job_status="active"),
+        actor="admin",
+        application_settings=load_settings(),
+    )
+
+    assert cleanup_result.cleaned_text == "Remote restarted the firewall and confirmed backups."
+    assert cleanup_result.provider == "ollama"
+    assert cleanup_result.model == "test-ollama-model"
+    assert captured_payload["model"] == "test-ollama-model"
+    assert captured_payload["system"] == "Clean the summary."
+    assert "remote restarted firewall backups good" in captured_payload["prompt"]
+    assert captured_payload["stream"] is False
+    assert captured_payload["options"]["temperature"] == 0.2
+
+
+def test_lm_studio_cleanup_builds_openai_compatible_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LM Studio cleanup should use local OpenAI-compatible chat completions."""
+
+    captured_payload: dict[str, Any] = {}
+
+    def fake_create_lm_studio_response(request_payload: dict[str, Any], _application_settings: object) -> dict[str, Any]:
+        captured_payload.update(request_payload)
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": "On-Site replaced the access point and verified coverage.",
+                    },
+                }
+            ],
+        }
+
+    monkeypatch.setenv("AI_CLEANUP_ENABLED", "true")
+    monkeypatch.setenv("AI_CLEANUP_PROVIDER", "lm-studio")
+    monkeypatch.setenv("LM_STUDIO_CLEANUP_MODEL", "test-lm-studio-model")
+    monkeypatch.setenv("AI_CLEANUP_INSTRUCTIONS", "Clean the summary.")
+    monkeypatch.setattr(ai_cleanup, "_create_lm_studio_response", fake_create_lm_studio_response)
+
+    cleanup_result = cleanup_summary_text(
+        summary_text="onsite replaced ap checked signal",
+        cleanup_context=AiCleanupContext(job_id="job-1", source="review", job_status="ready_for_review"),
+        actor="admin",
+        application_settings=load_settings(),
+    )
+
+    assert cleanup_result.cleaned_text == "On-Site replaced the access point and verified coverage."
+    assert cleanup_result.provider == "lm_studio"
+    assert cleanup_result.model == "test-lm-studio-model"
+    assert captured_payload["model"] == "test-lm-studio-model"
+    assert captured_payload["messages"][0] == {"role": "system", "content": "Clean the summary."}
+    assert "onsite replaced ap checked signal" in captured_payload["messages"][1]["content"]
+    assert captured_payload["stream"] is False
+
+
+def test_local_ai_cleanup_rejects_non_local_provider_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Local providers must not accept arbitrary remote cleanup endpoints."""
+
+    monkeypatch.setenv("AI_CLEANUP_ENABLED", "true")
+    monkeypatch.setenv("AI_CLEANUP_PROVIDER", "ollama")
+    monkeypatch.setenv("OLLAMA_CLEANUP_API_BASE_URL", "https://example.com/api")
+
+    with pytest.raises(AiCleanupError, match="local server URL"):
+        cleanup_summary_text(
+            summary_text="fixed printer",
+            cleanup_context=AiCleanupContext(job_id="job-1", source="test", job_status="active"),
+            actor="admin",
+            application_settings=load_settings(),
+        )
+
+
 def test_ai_cleanup_rejects_unknown_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Only the configured Gemini and Groq providers are accepted."""
+    """Only the configured cleanup providers are accepted."""
 
     monkeypatch.setenv("AI_CLEANUP_ENABLED", "true")
     monkeypatch.setenv("AI_CLEANUP_PROVIDER", "openai")
 
-    with pytest.raises(AiCleanupError, match="gemini or grok"):
+    with pytest.raises(AiCleanupError, match="gemini, grok, ollama, or lm_studio"):
         cleanup_summary_text(
             summary_text="fixed printer",
             cleanup_context=AiCleanupContext(job_id="job-1", source="test", job_status="active"),

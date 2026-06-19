@@ -318,14 +318,14 @@ recordings.
 ### AI Summary Cleanup
 
 AI summary cleanup is separate from speech-to-text. It sends the current
-editable summary text to the configured external AI provider through the Job
-Logger server, then replaces the summary textarea with the cleaned text returned
-by that provider.
+editable summary text to the configured AI provider through the Job Logger
+server, then replaces the summary textarea with the cleaned text returned by
+that provider.
 
 The feature is disabled by default. Configure it in Docker or `.env`:
 
 - `AI_CLEANUP_ENABLED=true`
-- `AI_CLEANUP_PROVIDER=gemini` or `AI_CLEANUP_PROVIDER=grok`
+- `AI_CLEANUP_PROVIDER=gemini`, `grok`, `ollama`, or `lm_studio`
 - `AI_CLEANUP_TIMEOUT_SECONDS`, default `20`
 - `AI_CLEANUP_MAX_INPUT_CHARS`, default `12000`
 - `AI_CLEANUP_INSTRUCTIONS`
@@ -346,6 +346,37 @@ The provider value `grok` uses GroqCloud. `GROK_API_KEY`,
 `GROK_CLEANUP_MODEL`, and `GROK_CLEANUP_API_BASE_URL` are accepted as
 compatibility fallbacks, but the `GROQ_*` names match Groq's official docs.
 
+For server-local Ollama cleanup, configure:
+
+- `OLLAMA_CLEANUP_MODEL`, default `llama3.1`
+- `OLLAMA_CLEANUP_API_BASE_URL`, default `http://127.0.0.1:11434/api` for
+  non-Docker runs
+
+For Docker Compose, `.env.example` and `docker-compose.yml` default the Ollama
+URL to `http://host.docker.internal:11434/api` so the app container can reach
+an Ollama process running on the same host. The selected model must already be
+available to that Ollama server. If Job Logger is running in Docker, the local
+Ollama server must listen on an interface reachable from Docker's host gateway;
+keep host firewall rules tight and do not expose the model server publicly.
+
+For server-local LM Studio cleanup, configure:
+
+- `LM_STUDIO_CLEANUP_MODEL`, default `local-model`
+- `LM_STUDIO_CLEANUP_API_BASE_URL`, default `http://127.0.0.1:1234/v1` for
+  non-Docker runs
+- `LM_STUDIO_API_KEY`, optional, only if the local LM Studio server requires it
+
+For Docker Compose, `.env.example` and `docker-compose.yml` default the LM
+Studio URL to `http://host.docker.internal:1234/v1`. Set
+`LM_STUDIO_CLEANUP_MODEL` to the model identifier shown by LM Studio for the
+loaded model. If Job Logger is running in Docker, the LM Studio server must be
+reachable from Docker's host gateway; keep host firewall rules tight and do not
+expose the model server publicly.
+
+Ollama and LM Studio cleanup URLs are intentionally restricted to local
+server-style hosts such as `localhost`, `127.0.0.1`, or
+`host.docker.internal`. Do not expose those local model servers publicly.
+
 When enabled, active mobile jobs and review detail show **AI Cleanup** with the
 summary box. On mobile, **Record Audio** appears above **AI Cleanup**, the
 cleaned text replaces the textarea, and that text is saved through the existing
@@ -360,8 +391,8 @@ AI cleanup requests require the local authenticated session and CSRF token. The
 server sends bounded summary text plus minimal job context to the selected
 provider, sets `store=false` for Gemini requests, and records only metadata such
 as provider, model, source, and text lengths in the audit log. Do not put
-Gemini or Groq keys, private cleanup instructions, or customer summary text in
-source control.
+Gemini or Groq keys, local-provider API keys, private cleanup instructions, or
+customer summary text in source control.
 
 Provider setup and data-handling docs:
 
@@ -370,6 +401,11 @@ Provider setup and data-handling docs:
   and https://ai.google.dev/gemini-api/terms
 - Groq quickstart and data controls: https://console.groq.com/docs/quickstart
   and https://console.groq.com/docs/your-data
+- Ollama API introduction and generate endpoint: https://docs.ollama.com/api/introduction
+  and https://docs.ollama.com/api/generate
+- LM Studio local server and OpenAI-compatible endpoints:
+  https://lmstudio.ai/docs/developer/core/server and
+  https://lmstudio.ai/docs/developer/openai-compat
 
 ### Autotask
 

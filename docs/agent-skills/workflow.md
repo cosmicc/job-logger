@@ -211,12 +211,13 @@ typing state between words on mobile keyboards.
 
 ## AI Summary Cleanup
 
-AI cleanup is an optional server-side Gemini or Groq integration controlled by
-`AI_CLEANUP_ENABLED` and `AI_CLEANUP_PROVIDER`. The browser sends the current
-editable summary text to a CSRF-protected cleanup endpoint; the server validates
-the job state, calls `job_logger/services/ai_cleanup.py`, records a
-metadata-only audit event, and returns cleaned text. The cleanup route must not
-submit to Autotask, change ticket/client identity, or bypass the normal
+AI cleanup is an optional server-side integration controlled by
+`AI_CLEANUP_ENABLED` and `AI_CLEANUP_PROVIDER`. Supported providers are
+Gemini, Groq, server-local Ollama, and server-local LM Studio. The browser
+sends the current editable summary text to a CSRF-protected cleanup endpoint;
+the server validates the job state, calls `job_logger/services/ai_cleanup.py`,
+records a metadata-only audit event, and returns cleaned text. The cleanup route
+must not submit to Autotask, change ticket/client identity, or bypass the normal
 save/review/Edit Entry workflow.
 
 Mobile active jobs use `POST /jobs/{job_id}/summary/cleanup`. After a successful

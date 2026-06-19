@@ -4,6 +4,10 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Added server-local Ollama and LM Studio options for AI Cleanup, including
+  local-provider URL validation, Docker host-gateway configuration, and
+  provider-specific model/base URL settings.
+
 - Added local start/end time ranges to mobile service-call start cards, moved
   **Record Audio** above mobile **AI Cleanup**, and shortened the scrollable
   ticket description boxes on Work in Progress and review detail.
