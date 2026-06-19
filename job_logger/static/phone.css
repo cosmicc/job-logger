@@ -26,12 +26,6 @@
   display: none;
 }
 
-.autotask-api-indicator {
-  min-height: 34px;
-  padding: 5px 8px;
-  font-size: 11px;
-}
-
 .mobile-shell,
 .review-shell,
 .debug-shell,

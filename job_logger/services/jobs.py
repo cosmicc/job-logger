@@ -28,6 +28,7 @@ MAX_CLIENT_NAME_LENGTH = 120
 MAX_TICKET_TITLE_LENGTH = 240
 MAX_TICKET_DESCRIPTION_LENGTH = 8000
 ALLOWED_WORK_IN_PROGRESS_START_MINUTE_DELTA = {-15, 15}
+SUCCESSFUL_SUBMISSION_LOCK_MESSAGE = "Submitted Autotask jobs are locked and cannot be changed, purged, rejected, or resent."
 
 
 
@@ -114,6 +115,34 @@ def normalize_start_time_delta_minutes(delta_minutes: int | str) -> int:
 
 class JobWorkflowError(RuntimeError):
     """Raised when a requested job workflow transition is invalid."""
+
+
+def is_job_locked_after_successful_submission(job: Job) -> bool:
+    """Return whether a successful Autotask submission makes the job immutable."""
+
+    # status_locked covers current records that completed the normal submission
+    # path. Once this state is reached, local review values must continue to
+    # match the Autotask time entry that was already created.
+    status_locked = job.status == JobStatus.SUBMITTED
+
+    # external_id_locked preserves immutability for older or partially migrated
+    # successful records where the remote Autotask time-entry ID is the strongest
+    # evidence that the job has already been accepted externally.
+    external_id_locked = bool(job.autotask_external_id)
+
+    # submitted_at_locked covers successful records even if a provider does not
+    # return an external identifier. The timestamp is only set after a successful
+    # submission in the normal workflow.
+    submitted_at_locked = job.autotask_submitted_at_utc is not None
+
+    return status_locked or external_id_locked or submitted_at_locked
+
+
+def ensure_job_is_not_locked_after_successful_submission(job: Job) -> None:
+    """Reject mutable review actions after successful Autotask submission."""
+
+    if is_job_locked_after_successful_submission(job):
+        raise JobWorkflowError(SUCCESSFUL_SUBMISSION_LOCK_MESSAGE)
 
 
 def list_active_jobs(database_session: Session) -> list[Job]:
@@ -592,6 +621,8 @@ def validate_review_fields(
 def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
     """Apply validated review fields to a job."""
 
+    ensure_job_is_not_locked_after_successful_submission(job)
+
     if job.status == JobStatus.ACTIVE and review_fields.rounded_end_utc is not None:
         raise JobWorkflowError("Active jobs cannot receive an end time while active.")
 
@@ -625,6 +656,8 @@ def apply_selected_ticket_from_lookup(
 ) -> Job:
     """Store a ticket selected from the server-side Autotask open-ticket lookup."""
 
+    ensure_job_is_not_locked_after_successful_submission(job)
+
     normalized_ticket_number = normalize_ticket_number(ticket_number, required=True)
     normalized_ticket_title = normalize_ticket_title(ticket_title)
     normalized_ticket_description = normalize_ticket_description(ticket_description)
@@ -639,6 +672,7 @@ def reject_job(job: Job) -> Job:
 
     if job.status == JobStatus.ACTIVE:
         raise JobWorkflowError("Active jobs must be ended before rejection.")
+    ensure_job_is_not_locked_after_successful_submission(job)
 
     job.status = JobStatus.REJECTED
     return job
@@ -649,6 +683,7 @@ def purge_job(database_session: Session, job: Job) -> Job:
 
     if job.status == JobStatus.ACTIVE:
         raise JobWorkflowError("Active jobs cannot be purged.")
+    ensure_job_is_not_locked_after_successful_submission(job)
 
     # Remove dependent submission attempts explicitly so deletion works even when the
     # database does not enforce cascading deletes (for example in sqlite tests).
@@ -692,10 +727,7 @@ def submit_job_to_autotask(database_session: Session, job: Job) -> Job:
 
     if job.status == JobStatus.ACTIVE:
         raise JobWorkflowError("Active jobs cannot be submitted.")
-
-    if job.autotask_external_id:
-        job.status = JobStatus.SUBMITTED
-        return job
+    ensure_job_is_not_locked_after_successful_submission(job)
 
     try:
         submission_result = get_autotask_provider().submit_job(job)

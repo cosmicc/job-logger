@@ -151,47 +151,20 @@ svg {
 }
 
 .autotask-api-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   margin-left: 2px;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-muted);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  min-height: 38px;
   white-space: nowrap;
 }
 
 .autotask-api-indicator.is-available {
-  border-color: rgba(52, 211, 153, 0.45);
-  color: var(--success);
+  border-color: rgba(45, 212, 191, 0.24);
+  background: rgba(45, 212, 191, 0.14);
+  color: var(--accent-strong);
 }
 
 .autotask-api-indicator.is-unavailable {
   border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(248, 113, 113, 0.14);
   color: var(--danger);
-}
-
-.autotask-api-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--muted);
-  box-shadow: 0 0 0 2px rgba(154, 168, 188, 0.16);
-}
-
-.autotask-api-indicator.is-available .autotask-api-dot {
-  background: var(--success);
-  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.16);
-}
-
-.autotask-api-indicator.is-unavailable .autotask-api-dot {
-  background: var(--danger);
-  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.16);
 }
 
 .top-nav a,
@@ -359,6 +332,14 @@ textarea {
 textarea {
   min-height: 110px;
   resize: vertical;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 1;
 }
 
 input:focus,
@@ -1118,6 +1099,40 @@ td a {
   line-height: 1.45;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.review-lock-notice {
+  display: grid;
+  gap: 4px;
+  padding: 12px 13px;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  border-radius: var(--radius);
+  background: var(--success-soft);
+  color: var(--text);
+}
+
+.review-lock-notice strong {
+  color: var(--success);
+}
+
+.review-lock-notice span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.review-form-locked input:disabled,
+.review-form-locked select:disabled,
+.review-form-locked textarea:disabled {
+  border-color: var(--border);
+  background: var(--surface-muted);
+  color: var(--text);
+  -webkit-text-fill-color: var(--text);
+}
+
+.review-form-locked .time-step-button:disabled {
+  border-color: var(--border);
+  background: var(--surface-muted);
+  color: var(--muted);
 }
 
 .readonly-field-title,

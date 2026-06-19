@@ -19,6 +19,77 @@ from job_logger.time_utils import format_local_time
 from tests.conftest import extract_csrf_token
 
 
+def create_submitted_mock_job(authenticated_client: TestClient, *, summary_notes: str = "Locked submitted job notes") -> tuple[str, str]:
+    """Create a fully submitted mock Autotask job and return its ID plus CSRF token."""
+
+    # csrf_token is the authenticated session token used by the state-changing
+    # mobile and review requests in this helper.
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        # active_job_id identifies the job that will move through the full
+        # start, ticket selection, review, and mock submission workflow.
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    save_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={"csrf_token": csrf_token, "client_name": "Locked Client", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
+
+    select_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0001"},
+    )
+    assert select_ticket_response.status_code == 200
+
+    description_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/description/text",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": summary_notes},
+    )
+    assert description_response.status_code == 200
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token, "client_name": "Locked Client", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_csrf_token = extract_csrf_token(review_page_response.text)
+
+    accept_response = authenticated_client.post(
+        f"/review/{active_job_id}/accept",
+        data={
+            "csrf_token": review_csrf_token,
+            "ticket_status": "complete",
+            "start_date": "2026-06-16",
+            "start_time": "08:00",
+            "end_date": "2026-06-16",
+            "end_time": "08:15",
+            "summary_notes": summary_notes,
+        },
+        follow_redirects=False,
+    )
+    assert accept_response.status_code == 303
+
+    return active_job_id, review_csrf_token
+
+
 def test_login_rejects_missing_csrf(client: TestClient) -> None:
     """State-changing login requests require CSRF protection."""
 
@@ -114,6 +185,105 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         assert attempts[0].succeeded is True
 
 
+def test_submitted_review_page_locks_values_and_actions(authenticated_client: TestClient) -> None:
+    """Successfully submitted jobs render as read-only review records."""
+
+    submitted_job_id, _review_csrf_token = create_submitted_mock_job(authenticated_client)
+
+    review_page_response = authenticated_client.get(f"/review/{submitted_job_id}")
+    review_html = review_page_response.text
+
+    assert review_page_response.status_code == 200
+    assert "Submitted job locked" in review_html
+    assert "Autotask accepted this time entry." in review_html
+    assert 'class="review-form review-form-locked"' in review_html
+    assert re.search(r'<select(?=[^>]*name="ticket_status")(?=[^>]*disabled)', review_html)
+    assert re.search(r'<input(?=[^>]*name="start_date")(?=[^>]*disabled)', review_html)
+    assert re.search(r'<input(?=[^>]*name="start_time")(?=[^>]*disabled)', review_html)
+    assert re.search(r'<textarea(?=[^>]*name="summary_notes")(?=[^>]*disabled)', review_html)
+    assert f'formaction="/review/{submitted_job_id}/save"' not in review_html
+    assert f'formaction="/review/{submitted_job_id}/accept"' not in review_html
+    assert f'formaction="/review/{submitted_job_id}/retry"' not in review_html
+    assert f'action="/review/{submitted_job_id}/reject"' not in review_html
+    assert f'action="/review/{submitted_job_id}/purge"' not in review_html
+
+
+def test_submitted_jobs_reject_mutating_review_requests(authenticated_client: TestClient) -> None:
+    """Direct review POSTs cannot edit, purge, reject, or resend a submitted job."""
+
+    original_summary_notes = "Submitted values must stay unchanged"
+    submitted_job_id, review_csrf_token = create_submitted_mock_job(
+        authenticated_client,
+        summary_notes=original_summary_notes,
+    )
+
+    # changed_review_data represents a crafted form post that tries to change
+    # review values after the Autotask time entry already exists.
+    changed_review_data = {
+        "csrf_token": review_csrf_token,
+        "ticket_status": "follow_up",
+        "start_date": "2026-06-17",
+        "start_time": "09:00",
+        "end_date": "2026-06-17",
+        "end_time": "09:30",
+        "summary_notes": "Tampered submitted notes",
+    }
+
+    save_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/save",
+        data=changed_review_data,
+        follow_redirects=False,
+    )
+    accept_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/accept",
+        data=changed_review_data,
+        follow_redirects=False,
+    )
+    retry_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/retry",
+        data=changed_review_data,
+        follow_redirects=False,
+    )
+    reject_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/reject",
+        data={"csrf_token": review_csrf_token, "rejection_reason": "Tampered rejection"},
+        follow_redirects=False,
+    )
+    purge_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/purge",
+        data={"csrf_token": review_csrf_token},
+        follow_redirects=False,
+    )
+    ticket_selection_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/ticket",
+        headers={"X-CSRF-Token": review_csrf_token},
+        json={"ticket_number": "T20260616.0002"},
+    )
+
+    assert save_response.status_code == 303
+    assert accept_response.status_code == 303
+    assert retry_response.status_code == 303
+    assert reject_response.status_code == 303
+    assert purge_response.status_code == 303
+    assert purge_response.headers["location"] == f"/review/{submitted_job_id}"
+    assert ticket_selection_response.status_code == 400
+    assert "Submitted Autotask jobs are locked" in ticket_selection_response.json()["detail"]
+
+    with database.SessionLocal() as database_session:
+        submitted_job = database_session.get(Job, submitted_job_id)
+        assert submitted_job is not None
+        assert submitted_job.status == JobStatus.SUBMITTED
+        assert submitted_job.summary_notes == original_summary_notes
+        assert submitted_job.ticket_status.value == "complete"
+        assert submitted_job.autotask_external_id == f"mock-time-entry-{submitted_job_id}"
+
+        # Only the original successful submission attempt should exist; later
+        # accept/retry posts must not create duplicate Autotask attempts.
+        submission_attempts = database_session.query(SubmissionAttempt).filter_by(job_id=submitted_job_id).all()
+        assert len(submission_attempts) == 1
+        assert submission_attempts[0].succeeded is True
+
+
 def test_start_work_blocks_when_autotask_is_unavailable(authenticated_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """The mandatory Autotask dependency must be healthy before new work starts."""
 
@@ -151,6 +321,7 @@ def test_authenticated_header_shows_api_status_and_desktop_secure_indicator(auth
     assert response.status_code == 200
     assert 'class="header-status-group"' in response.text
     assert response.text.count("autotask-api-indicator") == 1
+    assert 'class="secure-pill autotask-api-indicator is-available"' in response.text
     assert "Autotask API: Online" in response.text
     assert 'class="secure-pill secure-connection-indicator"' in response.text
     assert '<div class="mobile-status-row">\n      <a href="/review" class="text-link">Review jobs</a>' in response.text
@@ -1096,7 +1267,7 @@ def test_mobile_active_job_rounded_start_rejects_selector_payload(authenticated_
 
 
 def test_review_detail_force_purge_removes_job_and_attempts(authenticated_client: TestClient) -> None:
-    """A selected review job can be permanently purged from the detail view."""
+    """A selected unsubmitted review job can be permanently purged from the detail view."""
 
     mobile_page_response = authenticated_client.get("/mobile")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -1145,24 +1316,23 @@ def test_review_detail_force_purge_removes_job_and_attempts(authenticated_client
 
     review_page_response = authenticated_client.get(f"/review/{active_job_id}")
     review_csrf_token = extract_csrf_token(review_page_response.text)
-    accept_response = authenticated_client.post(
-        f"/review/{active_job_id}/accept",
-        data={
-            "csrf_token": review_csrf_token,
-            "ticket_status": "complete",
-            "start_date": "2026-06-16",
-            "start_time": "08:00",
-            "end_date": "2026-06-16",
-            "end_time": "08:15",
-            "summary_notes": "Purge workflow test notes",
-        },
-        follow_redirects=False,
-    )
-    assert accept_response.status_code == 303
 
     with database.SessionLocal() as database_session:
         job = database_session.get(Job, active_job_id)
         assert job is not None
+        assert job.status == JobStatus.READY_FOR_REVIEW
+        # failed_attempt is non-success submission history that should be removed
+        # together with the unsubmitted review job during a force purge.
+        failed_attempt = SubmissionAttempt(
+            job_id=active_job_id,
+            provider="mock",
+            idempotency_key=job.idempotency_key,
+            succeeded=False,
+            safe_error="Safe test failure before successful submission.",
+            request_snapshot={},
+        )
+        database_session.add(failed_attempt)
+        database_session.commit()
         assert len(database_session.query(SubmissionAttempt).where(SubmissionAttempt.job_id == active_job_id).all()) == 1
 
     purge_response = authenticated_client.post(

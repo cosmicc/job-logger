@@ -205,6 +205,12 @@ impersonated resource context too.
 Submission must remain idempotent. A retry must not create duplicate time
 entries for the same accepted job.
 
+After a provider reports successful submission, the local job is locked to
+preserve the exact values already sent to Autotask. Do not allow later review
+save, ticket selection, accept/resend, retry, reject, or force-purge actions for
+that job. Use the service-level successful-submission lock before validating
+mutable review fields or making another Autotask write.
+
 Live Autotask write failures should use `_raise_for_safe_response()` so bounded
 body-level messages from `Tickets` or `TimeEntries` errors are shown without
 falling back to generic HTTP client exception text.

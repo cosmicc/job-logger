@@ -4,6 +4,11 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Locked successfully submitted Autotask jobs in review. Submitted jobs now
+  render as read-only, remove save/accept/retry/reject/force-purge controls,
+  and reject crafted review POSTs that try to edit, purge, reject, or resend
+  the already-created Autotask time entry.
+
 - Moved the Secure session indicator into the authenticated top header next to
   the Autotask API status on desktop, removed the mobile-only duplicate secure
   pill, and kept the Autotask API status visible in the mobile top bar.

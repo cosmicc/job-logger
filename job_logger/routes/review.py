@@ -17,7 +17,9 @@ from job_logger.services.jobs import (
     JobWorkflowError,
     apply_review_fields,
     apply_selected_ticket_from_lookup,
+    ensure_job_is_not_locked_after_successful_submission,
     get_job_or_raise,
+    is_job_locked_after_successful_submission,
     list_review_jobs,
     purge_job,
     reject_job,
@@ -94,6 +96,7 @@ def review_ticket_options(
     require_authenticated_username(request)
     try:
         job = get_job_or_raise(database_session, job_id)
+        ensure_job_is_not_locked_after_successful_submission(job)
         if not job.client_name:
             raise JobWorkflowError("Client name is required before searching Autotask tickets.")
 
@@ -175,6 +178,9 @@ def _render_review(
             request,
             jobs=jobs,
             selected_job=selected_job,
+            selected_job_locked=(
+                is_job_locked_after_successful_submission(selected_job) if selected_job is not None else False
+            ),
             audit_events=audit_events,
             ticket_status_options=_ticket_status_options(),
         ),
@@ -193,6 +199,7 @@ async def save_review(
     try:
         form_values = await _form_values(request)
         job = get_job_or_raise(database_session, job_id)
+        ensure_job_is_not_locked_after_successful_submission(job)
         require_end_time_fields = job.status != JobStatus.ACTIVE
         review_fields = validate_review_fields(
             _read_only_review_form_values(form_values, job),
@@ -222,6 +229,7 @@ async def accept_review(
     try:
         form_values = await _form_values(request)
         job = get_job_or_raise(database_session, job_id)
+        ensure_job_is_not_locked_after_successful_submission(job)
         review_fields = validate_review_fields(_read_only_review_form_values(form_values, job), require_ticket_number=True)
         apply_review_fields(job, review_fields)
         submit_job_to_autotask(database_session, job)
@@ -258,6 +266,7 @@ async def reject_review(
     rejection_reason = form_values.get("rejection_reason", "").strip()
     try:
         job = get_job_or_raise(database_session, job_id)
+        ensure_job_is_not_locked_after_successful_submission(job)
         reject_job(job)
         record_audit_event(
             database_session,
@@ -288,6 +297,7 @@ async def retry_submission(
     form_values = await _form_values(request)
     try:
         job = get_job_or_raise(database_session, job_id)
+        ensure_job_is_not_locked_after_successful_submission(job)
         if form_values:
             review_fields = validate_review_fields(_read_only_review_form_values(form_values, job), require_ticket_number=True)
             apply_review_fields(job, review_fields)
@@ -326,6 +336,7 @@ async def select_review_ticket(
     submitted_ticket_number = str(payload.get("ticket_number", ""))
     try:
         job = get_job_or_raise(database_session, job_id)
+        ensure_job_is_not_locked_after_successful_submission(job)
         if not job.client_name:
             raise JobWorkflowError("Client name is required before selecting an Autotask ticket.")
 
@@ -383,6 +394,7 @@ async def purge_review_job(
     try:
         # Use the current job state as the immutable source for audit details.
         job = get_job_or_raise(database_session, job_id)
+        ensure_job_is_not_locked_after_successful_submission(job)
         purge_job(database_session, job)
         record_audit_event(
             database_session,

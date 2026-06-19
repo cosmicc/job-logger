@@ -373,6 +373,11 @@ and desktop browsers get appropriately sized layouts.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 
+After a job is successfully submitted to Autotask, the review detail becomes
+read-only. Save, accept/resend, retry, reject, ticket selection, and force purge
+are blocked by the server and removed from the selected-job review UI so the
+local record stays aligned with the external time entry.
+
 The mobile Work in Progress card stores a work-location mode of `Remote` or
 `On-Site`, defaulting to `Remote`. This mode does not appear in the editable
 summary text. When a reviewed job is submitted, the Autotask `summaryNotes`

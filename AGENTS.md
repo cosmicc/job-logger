@@ -66,7 +66,9 @@ Recorded jobs follow this lifecycle:
 4. The review page allows time, status, and notes to be edited before
    acceptance while keeping the selected Autotask client and ticket read-only.
 5. An accepted job creates an Autotask time entry.
-6. Rejected, failed, or edited jobs remain available for audit history.
+6. A successfully submitted Autotask job becomes read-only and cannot be
+   changed, purged, rejected, or sent again from review.
+7. Rejected, failed, or edited jobs remain available for audit history.
 
 Jobs must never disappear silently. Destructive deletion should be avoided.
 Prefer archived, rejected, superseded, or voided states with audit records.
@@ -326,7 +328,9 @@ The normal workflow is:
 11. User reviews the job from `/review`, edits time/status/notes if needed, and
     keeps the selected client/ticket identity read-only.
 12. Accept/retry submits a reviewed job to Autotask idempotently.
-13. Submission attempts and important state changes are recorded for audit and
+13. Successfully submitted jobs are locked as immutable review records so local
+    values stay aligned with the Autotask time entry.
+14. Submission attempts and important state changes are recorded for audit and
     diagnostics.
 
 ## Current Autotask Dependency

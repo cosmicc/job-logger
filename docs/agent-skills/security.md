@@ -127,6 +127,11 @@ context. Store only the bounded description returned by the server-side verified
 open-ticket lookup, render it escaped, and keep review save/accept handlers
 from trusting browser-submitted description values.
 
+Successfully submitted Autotask jobs are immutable local audit records for the
+external time entry. The server must reject later review edits, ticket
+selection, reject, purge, accept/resend, and retry requests even if a crafted
+request bypasses the disabled review UI.
+
 ## Database And Deletion Safety
 
 Jobs should not disappear silently.
@@ -135,7 +140,9 @@ Prefer retained workflow states over deletion. If destructive cleanup is
 necessary, it must be explicit, authenticated, CSRF-protected, and auditable.
 Review cleanup must stay blocked for active jobs. The mobile active-job delete
 route is the reviewed exception for discarding an in-progress entry before it
-becomes review history, and it must not be reused for completed jobs.
+becomes review history, and it must not be reused for completed jobs. Force
+purge must also stay blocked for successfully submitted Autotask jobs so local
+history remains tied to the external time entry.
 
 ## Docker And Runtime Safety
 

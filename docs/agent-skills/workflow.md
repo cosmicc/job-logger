@@ -147,7 +147,8 @@ Review supports:
 - Selecting jobs from the review list.
 - Viewing the selected ticket number and client name as read-only Autotask
   identity fields.
-- Editing ticket status, start date/time, end date/time, and summary notes.
+- Editing ticket status, start date/time, end date/time, and summary notes
+  before successful Autotask submission.
 - Saving edits without a ticket number.
 - Saving active jobs without an end date/time.
 - Accepting or retrying submission only when the ticket number and required
@@ -176,6 +177,12 @@ that job. Review ticket selection should update the read-only ticket number,
 selected-job heading, and read-only ticket description card in place after the
 server verifies and stores the ticket.
 
+After a job is successfully submitted to Autotask, the review record becomes
+immutable. The UI must render the selected job as read-only and remove save,
+accept/resend, retry, reject, ticket-selection, and force-purge controls. The
+service and route layers must enforce the same lock because disabled controls
+and hidden form fields are not security controls.
+
 ## Job Status Expectations
 
 Jobs must never disappear silently. Prefer explicit workflow states, archived
@@ -183,7 +190,9 @@ states, rejected states, failed submission states, or audited purge paths.
 
 Force purge exists for strict cleanup from review detail, but active jobs cannot
 be purged from that endpoint. Active jobs have the separate audited delete route
-described above. Be careful before expanding destructive behavior.
+described above. Successfully submitted Autotask jobs also cannot be purged
+because the local review values must continue to match the external time entry.
+Be careful before expanding destructive behavior.
 
 ## Time Rules
 

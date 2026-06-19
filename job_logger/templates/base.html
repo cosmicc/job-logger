@@ -32,15 +32,17 @@
             </svg>
             Secure session
           </span>
-          <div
-            class="autotask-api-indicator {% if autotask_api_status.available %}is-available{% else %}is-unavailable{% endif %}"
+          <span
+            class="secure-pill autotask-api-indicator {% if autotask_api_status.available %}is-available{% else %}is-unavailable{% endif %}"
             role="status"
             aria-live="polite"
             aria-label="Autotask API status {{ autotask_api_status.label }}"
           >
-            <span class="autotask-api-dot" aria-hidden="true"></span>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 12h4l2-5 4 10 2-5h4"></path>
+            </svg>
             <span>Autotask API: {{ autotask_api_status.label }}</span>
-          </div>
+          </span>
         </div>
         <nav class="top-nav" aria-label="Primary navigation">
           <a href="/mobile">Mobile</a>
