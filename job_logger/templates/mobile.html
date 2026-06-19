@@ -216,7 +216,6 @@
                 data-ticket-lookup-url="/review/{{ active_job.id }}/tickets"
                 data-ticket-select-url="/jobs/{{ active_job.id }}/ticket"
                 data-ticket-form-job-id="{{ active_job.id }}"
-                {% if active_job.client_name %}data-auto-load-ticket-options="true"{% endif %}
               >
                 <div class="mobile-ticket-picker-header">
                   <h3>Open tickets</h3>
@@ -239,6 +238,25 @@
                   placeholder="Type notes here, then refine with recorded speech if needed."
                 >{{ active_job.summary_notes or active_job.description_text or "" }}</textarea>
               </label>
+              {% if ai_cleanup_enabled %}
+                <div class="summary-tool-row">
+                  <button
+                    type="button"
+                    class="secondary-button ai-cleanup-button"
+                    data-ai-cleanup-button
+                    data-job-id="{{ active_job.id }}"
+                    data-cleanup-url="/jobs/{{ active_job.id }}/summary/cleanup"
+                  >
+                    AI Cleanup
+                  </button>
+                  <span
+                    class="muted-text ai-cleanup-status"
+                    data-ai-cleanup-status
+                    data-job-id="{{ active_job.id }}"
+                    aria-live="polite"
+                  ></span>
+                </div>
+              {% endif %}
               {% if active_job.transcription_error %}
                 <p class="error-text">{{ active_job.transcription_error }}</p>
               {% endif %}

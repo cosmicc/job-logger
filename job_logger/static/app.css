@@ -150,23 +150,6 @@ svg {
   min-width: 0;
 }
 
-.autotask-api-indicator {
-  margin-left: 2px;
-  white-space: nowrap;
-}
-
-.autotask-api-indicator.is-available {
-  border-color: rgba(45, 212, 191, 0.24);
-  background: rgba(45, 212, 191, 0.14);
-  color: var(--accent-strong);
-}
-
-.autotask-api-indicator.is-unavailable {
-  border-color: rgba(248, 113, 113, 0.45);
-  background: rgba(248, 113, 113, 0.14);
-  color: var(--danger);
-}
-
 .top-nav a,
 .text-link,
 .secondary-link-button {
@@ -804,6 +787,22 @@ a:focus-visible {
 .description-box {
   display: grid;
   gap: 9px;
+}
+
+.summary-tool-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 11px;
+  margin-top: 4px;
+}
+
+.ai-cleanup-button {
+  min-height: 42px;
+}
+
+.ai-cleanup-status {
+  min-height: 18px;
 }
 
 .start-work-form {

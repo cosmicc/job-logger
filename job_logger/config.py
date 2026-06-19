@@ -17,6 +17,15 @@ DEFAULT_FASTER_WHISPER_INITIAL_PROMPT = (
     "instead of spelling those words."
 )
 
+DEFAULT_AI_CLEANUP_INSTRUCTIONS = (
+    "Clean up MSP work-summary notes for an Autotask time entry. Preserve the "
+    "technical facts, customer impact, ticket context, and any leading Remote "
+    "or On-Site prefix. Improve grammar, punctuation, capitalization, and "
+    "readability. Do not invent work, parts, durations, ticket numbers, root "
+    "causes, customer approvals, or follow-up actions. Return only the cleaned "
+    "summary text with no markdown, title, explanation, or surrounding quotes."
+)
+
 
 def _get_boolean(environment_variable_name: str, default_value: bool) -> bool:
     """Return a strict boolean value from an environment variable.
@@ -41,6 +50,16 @@ def _get_integer(environment_variable_name: str, default_value: int) -> int:
         return default_value
 
     return int(raw_value)
+
+
+def _get_float(environment_variable_name: str, default_value: float) -> float:
+    """Return a float setting with a clear fallback for empty variables."""
+
+    raw_value = os.getenv(environment_variable_name)
+    if raw_value is None or raw_value == "":
+        return default_value
+
+    return float(raw_value)
 
 
 def _get_optional_integer(environment_variable_name: str) -> int | None:
@@ -121,6 +140,40 @@ class Settings:
 
     # FASTER_WHISPER_INITIAL_PROMPT guides local transcription formatting.
     faster_whisper_initial_prompt: str | None
+
+    # AI_CLEANUP_ENABLED gates external summary cleanup calls.
+    ai_cleanup_enabled: bool
+
+    # AI_CLEANUP_PROVIDER selects the external cleanup backend: gemini or grok.
+    ai_cleanup_provider: str
+
+    # GEMINI_API_KEY authorizes Google Gemini cleanup requests.
+    gemini_api_key: str | None
+
+    # GEMINI_CLEANUP_MODEL selects the Gemini model used for text cleanup.
+    gemini_cleanup_model: str
+
+    # GEMINI_CLEANUP_API_BASE_URL supports Gemini API endpoint overrides.
+    gemini_cleanup_api_base_url: str
+
+    # GROQ_API_KEY authorizes GroqCloud cleanup requests. The user-facing provider
+    # value remains "grok" for compatibility with the requested spelling.
+    groq_api_key: str | None
+
+    # GROQ_CLEANUP_MODEL selects the Groq-hosted model used for text cleanup.
+    groq_cleanup_model: str
+
+    # GROQ_CLEANUP_API_BASE_URL supports Groq endpoint overrides.
+    groq_cleanup_api_base_url: str
+
+    # AI_CLEANUP_INSTRUCTIONS stores the server-side cleanup prompt.
+    ai_cleanup_instructions: str
+
+    # AI_CLEANUP_TIMEOUT_SECONDS bounds cleanup latency from the UI.
+    ai_cleanup_timeout_seconds: float
+
+    # AI_CLEANUP_MAX_INPUT_CHARS limits user text sent to the external provider.
+    ai_cleanup_max_input_chars: int
 
     # AUTOTASK_PROVIDER selects the live Autotask REST client; mock is for tests/development only.
     autotask_provider: str
@@ -213,6 +266,32 @@ def load_settings() -> Settings:
         faster_whisper_initial_prompt=(
             os.getenv("FASTER_WHISPER_INITIAL_PROMPT", DEFAULT_FASTER_WHISPER_INITIAL_PROMPT).strip() or None
         ),
+        ai_cleanup_enabled=_get_boolean("AI_CLEANUP_ENABLED", False),
+        ai_cleanup_provider=os.getenv("AI_CLEANUP_PROVIDER", "gemini").strip().lower() or "gemini",
+        gemini_api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or None,
+        gemini_cleanup_model=os.getenv("GEMINI_CLEANUP_MODEL", "gemini-3.5-flash").strip() or "gemini-3.5-flash",
+        gemini_cleanup_api_base_url=os.getenv(
+            "GEMINI_CLEANUP_API_BASE_URL",
+            "https://generativelanguage.googleapis.com/v1beta",
+        ).rstrip("/"),
+        groq_api_key=os.getenv("GROQ_API_KEY") or os.getenv("GROK_API_KEY") or None,
+        groq_cleanup_model=(
+            os.getenv("GROQ_CLEANUP_MODEL")
+            or os.getenv("GROK_CLEANUP_MODEL")
+            or "llama-3.1-8b-instant"
+        ).strip()
+        or "llama-3.1-8b-instant",
+        groq_cleanup_api_base_url=(
+            os.getenv("GROQ_CLEANUP_API_BASE_URL")
+            or os.getenv("GROK_CLEANUP_API_BASE_URL")
+            or "https://api.groq.com/openai/v1"
+        ).rstrip("/"),
+        ai_cleanup_instructions=(
+            os.getenv("AI_CLEANUP_INSTRUCTIONS", DEFAULT_AI_CLEANUP_INSTRUCTIONS).strip()
+            or DEFAULT_AI_CLEANUP_INSTRUCTIONS
+        ),
+        ai_cleanup_timeout_seconds=_get_float("AI_CLEANUP_TIMEOUT_SECONDS", 20.0),
+        ai_cleanup_max_input_chars=_get_integer("AI_CLEANUP_MAX_INPUT_CHARS", 12000),
         autotask_provider=os.getenv("AUTOTASK_PROVIDER", "autotask").strip().lower(),
         autotask_base_url=os.getenv("AUTOTASK_BASE_URL") or None,
         autotask_username=os.getenv("AUTOTASK_USERNAME") or None,

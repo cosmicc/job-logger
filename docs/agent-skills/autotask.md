@@ -14,10 +14,12 @@ Production startup requires:
 - `AUTOTASK_PROVIDER=autotask`.
 - Valid application authentication settings.
 
-Starting a new job also requires the server-side Autotask connectivity gate to
-pass. This is enforced in `job_logger/routes/mobile.py` before `start_job()` is
-called. Start Work uses a short server-side health cache so repeated taps do not
-run the full live Autotask workflow probe every time.
+The initial `/mobile` page and blank Start Work route must not run an Autotask
+contactability probe. The mobile screen should render from local state first,
+then service-call cards can load through `/mobile/service-calls` after the page
+has loaded. Autotask is queried only when a workflow actually needs provider
+data, such as service-call loading, company search, open-ticket lookup,
+service-call start verification, or Autotask submission/update/delete actions.
 
 Mock mode remains available for tests and isolated development only.
 
@@ -68,11 +70,8 @@ The live check currently verifies:
 - Ticket status metadata endpoint is reachable.
 - Ticket query endpoint is reachable.
 
-If this check fails, new job starts are blocked with a clear message.
-
-Start Work uses `test_cached_autotask_connectivity_for_start()` instead of the
-debug function. A successful result is cached for five minutes, and a failed
-result is cached for thirty seconds. Keep the debug page on
+If this check fails, show a clear diagnostic result, but do not wire this check
+into `/mobile` page rendering or blank Start Work. Keep the debug page on
 `test_autotask_connectivity()` so operator-triggered diagnostics always run a
 fresh live check.
 
@@ -170,8 +169,6 @@ Current cache policy:
 - Ticket status picklist labels: 15 minutes.
 - Recently displayed open-ticket selection lists: two minutes.
 - Today's displayed service-call start list: two minutes.
-- Start Work Autotask connectivity success: five minutes.
-- Start Work Autotask connectivity failure: thirty seconds.
 - Other short-lived Autotask lookup data: 15 minutes unless documented
   otherwise.
 

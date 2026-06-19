@@ -27,6 +27,20 @@ services:
       FASTER_WHISPER_BEAM_SIZE: ${FASTER_WHISPER_BEAM_SIZE:-5}
       FASTER_WHISPER_CPU_THREADS: ${FASTER_WHISPER_CPU_THREADS:-8}
       FASTER_WHISPER_INITIAL_PROMPT: ${FASTER_WHISPER_INITIAL_PROMPT:-Use normal written punctuation. When spoken punctuation words such as comma, period, question mark, exclamation point, colon, semicolon, dash, or new paragraph are heard, render punctuation marks and paragraph breaks instead of spelling those words.}
+      AI_CLEANUP_ENABLED: ${AI_CLEANUP_ENABLED:-false}
+      AI_CLEANUP_PROVIDER: ${AI_CLEANUP_PROVIDER:-gemini}
+      AI_CLEANUP_TIMEOUT_SECONDS: ${AI_CLEANUP_TIMEOUT_SECONDS:-20}
+      AI_CLEANUP_MAX_INPUT_CHARS: ${AI_CLEANUP_MAX_INPUT_CHARS:-12000}
+      AI_CLEANUP_INSTRUCTIONS: ${AI_CLEANUP_INSTRUCTIONS:-Clean up MSP work-summary notes for an Autotask time entry. Preserve the technical facts, customer impact, ticket context, and any leading Remote or On-Site prefix. Improve grammar, punctuation, capitalization, and readability. Do not invent work, parts, durations, ticket numbers, root causes, customer approvals, or follow-up actions. Return only the cleaned summary text with no markdown, title, explanation, or surrounding quotes.}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_CLEANUP_MODEL: ${GEMINI_CLEANUP_MODEL:-gemini-3.5-flash}
+      GEMINI_CLEANUP_API_BASE_URL: ${GEMINI_CLEANUP_API_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROK_API_KEY: ${GROK_API_KEY:-}
+      GROQ_CLEANUP_MODEL: ${GROQ_CLEANUP_MODEL:-}
+      GROK_CLEANUP_MODEL: ${GROK_CLEANUP_MODEL:-}
+      GROQ_CLEANUP_API_BASE_URL: ${GROQ_CLEANUP_API_BASE_URL:-}
+      GROK_CLEANUP_API_BASE_URL: ${GROK_CLEANUP_API_BASE_URL:-}
       AUTOTASK_PROVIDER: ${AUTOTASK_PROVIDER:-autotask}
       AUTOTASK_BASE_URL: ${AUTOTASK_BASE_URL:-}
       AUTOTASK_USERNAME: ${AUTOTASK_USERNAME:-}

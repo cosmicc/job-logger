@@ -49,6 +49,7 @@ Never commit or print:
 
 - `.env` values.
 - Autotask API username/key, secret, or integration code.
+- Gemini or Groq API keys and private cleanup instructions.
 - Session secrets.
 - Database passwords.
 - Cloudflare tunnel tokens.
@@ -68,7 +69,6 @@ Important actions must record audit events through `job_logger/services/audit.py
 Audit-worthy actions include:
 
 - Authentication-sensitive events.
-- Job start blocked because Autotask is unavailable.
 - Job start.
 - Job active edit save.
 - Active job delete.
@@ -77,6 +77,7 @@ Audit-worthy actions include:
 - Description text save.
 - Audio transcription.
 - Manual review save.
+- AI summary cleanup requests.
 - Accept/retry/reject.
 - Autotask submission attempts and outcomes.
 - Debug Autotask API tests.
@@ -84,6 +85,31 @@ Audit-worthy actions include:
 
 Do not include secrets, raw headers, raw audio, or excessive user text in audit
 details.
+
+## AI Summary Cleanup
+
+AI cleanup is an external data-sharing feature. It must remain disabled unless
+`AI_CLEANUP_ENABLED=true` is configured with `AI_CLEANUP_PROVIDER=gemini` or
+`AI_CLEANUP_PROVIDER=grok` and the matching provider API key.
+
+Cleanup handling must:
+
+- Require authentication and CSRF.
+- Keep Gemini or Groq credentials and cleanup instructions server-side in
+  Docker or another approved secret store.
+- Send only bounded summary text and minimal job context to the selected
+  external provider.
+- Set `store=false` on Gemini generateContent requests.
+- Return cleaned text to the browser without submitting to Autotask.
+- Audit provider, model, source, status, and text lengths only.
+- Never write raw uncleaned summaries, cleaned summaries, API keys, or full
+  provider payloads into audit events, logs, diagnostics, or templates.
+
+Gemini's free API tier may use submitted content and generated responses to
+improve Google products. GroqCloud does not retain inference customer data by
+default except for platform reliability or abuse-monitoring cases, and its
+Zero Data Retention setting should be enabled for the organization when
+available.
 
 ## Raw Audio And Streaming
 
@@ -117,9 +143,12 @@ results, transcription responses, raw audio, CSRF tokens, or diagnostic output.
 Autotask failures should produce safe user-facing messages and troubleshooting
 tips. Do not expose protocol details, headers, credentials, or full raw payloads.
 
-Autotask API availability gates new job starts because production workflow
-depends on company and ticket data. Start Work may use the short server-side
-connectivity cache for speed, but the debug API test must remain a fresh live
+The initial mobile page and blank Start Work route must not run Autotask
+contactability checks. This keeps the mobile screen responsive and lets the
+operator begin local work even if provider data is slow. Server-side validation
+still applies when a workflow actually uses Autotask data, including service
+call starts, company lookup, ticket selection, submission, submitted-entry edit,
+and submitted-entry delete. The debug API test must remain a fresh live
 diagnostic check.
 
 Autotask ticket descriptions are remote provider data shown as read-only job

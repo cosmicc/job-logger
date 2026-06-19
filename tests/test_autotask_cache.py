@@ -17,7 +17,6 @@ from job_logger.services.autotask import (
     _COMPANY_SEARCH_CACHE,
     _OPEN_TICKET_SELECTION_CACHE,
     _SERVICE_CALL_SELECTION_CACHE,
-    _START_CONNECTIVITY_CACHE,
     _TICKET_STATUS_CACHE,
     AutotaskConnectivityResult,
     AutotaskSubmissionError,
@@ -25,9 +24,6 @@ from job_logger.services.autotask import (
 )
 from job_logger.services.autotask import (
     test_autotask_connectivity as run_autotask_connectivity,
-)
-from job_logger.services.autotask import (
-    test_cached_autotask_connectivity_for_start as run_cached_autotask_connectivity_for_start,
 )
 
 
@@ -463,7 +459,6 @@ def _clear_autotask_lookup_caches() -> None:
     _TICKET_STATUS_CACHE.clear()
     _OPEN_TICKET_SELECTION_CACHE.clear()
     _SERVICE_CALL_SELECTION_CACHE.clear()
-    _START_CONNECTIVITY_CACHE.clear()
 
 
 def test_company_lookup_uses_pagination_and_cache() -> None:
@@ -581,8 +576,8 @@ def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypat
     ]
 
 
-def test_start_connectivity_check_uses_short_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Start Work should not run a live Autotask probe for every quick tap."""
+def test_debug_connectivity_check_runs_fresh_provider_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The debug Autotask test should run the provider check when requested."""
 
     _clear_autotask_lookup_caches()
     fake_provider = FakeConnectivityProvider()
@@ -590,28 +585,11 @@ def test_start_connectivity_check_uses_short_cache(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr("job_logger.services.autotask.get_autotask_provider", lambda application_settings: fake_provider)
 
-    first_result = run_cached_autotask_connectivity_for_start(provider_settings)
-    second_result = run_cached_autotask_connectivity_for_start(provider_settings)
+    first_debug_result = run_autotask_connectivity(provider_settings)
+    second_debug_result = run_autotask_connectivity(provider_settings)
 
-    assert first_result.available is True
-    assert second_result == first_result
-    assert fake_provider.check_count == 1
-
-
-def test_debug_connectivity_check_bypasses_start_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The debug Autotask test should always run a fresh provider check."""
-
-    _clear_autotask_lookup_caches()
-    fake_provider = FakeConnectivityProvider()
-    provider_settings = _live_test_provider().application_settings
-
-    monkeypatch.setattr("job_logger.services.autotask.get_autotask_provider", lambda application_settings: fake_provider)
-
-    cached_result = run_cached_autotask_connectivity_for_start(provider_settings)
-    fresh_debug_result = run_autotask_connectivity(provider_settings)
-
-    assert cached_result.available is True
-    assert fresh_debug_result.available is True
+    assert first_debug_result.available is True
+    assert second_debug_result.available is True
     assert fake_provider.check_count == 2
 
 

@@ -48,6 +48,15 @@ success, Autotask submission failure, and authentication-sensitive events.
 Raw audio must not be stored by default. If audio retention is ever added, it
 must be explicit, configurable, documented, access-controlled, and auditable.
 
+AI summary cleanup sends job summary text to the configured external provider
+only when `AI_CLEANUP_ENABLED=true`, `AI_CLEANUP_PROVIDER` is `gemini` or
+`grok`, and the matching provider API key is configured. Treat summary text as
+customer/work data. The server must validate authentication and CSRF, bound
+input length, keep API keys and cleanup instructions server-side in Docker or
+environment variables, set `store=false` on Gemini requests, and audit only
+metadata such as provider, model, source, and text lengths. Do not store raw
+cleanup prompts or full cleaned/uncleaned summaries in audit details.
+
 ## Core Workflow
 
 The mobile web page must provide a quick active-job workflow with these actions:
@@ -147,6 +156,11 @@ The local faster-whisper provider may use `FASTER_WHISPER_INITIAL_PROMPT` to
 guide transcript formatting, including rendering dictated punctuation words as
 punctuation marks. Treat it as a best-effort model hint, not a validation or
 security control.
+
+AI summary cleanup is separate from speech-to-text. It sends the current
+editable summary text to the server-side Gemini or Groq cleanup provider and
+replaces the summary textarea with the returned cleaned text. It must not
+submit to Autotask or bypass review.
 
 The review page must allow the transcribed description to be edited before the
 job is accepted and submitted to Autotask.
@@ -320,6 +334,9 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/autotask.py` owns Autotask providers, connectivity tests,
   company/ticket lookup, cache behavior, pagination, status mapping, time entry
   submission, existing-entry updates, and existing-entry deletes.
+- `job_logger/services/ai_cleanup.py` owns server-side Gemini and Groq summary
+  cleanup, including request construction, safe response parsing, and provider
+  error normalization.
 - `job_logger/services/transcription.py` owns speech-to-text provider behavior.
 - `job_logger/services/audit.py` records immutable audit events.
 - `job_logger/templates/` contains Jinja pages for mobile, review, debug, and
@@ -339,10 +356,12 @@ The normal workflow is:
 1. User authenticates through Cloudflare Access when enabled, then through the
    app login.
 2. User opens `/mobile`.
-3. Before a new job can start, the server enforces mandatory Autotask API
-   availability with a short start-work health cache. If Autotask is down or
-   misconfigured, job creation is blocked.
-4. User starts Job 1 or Job 2. At most two active jobs may exist at once.
+3. The `/mobile` page renders from local application state without running an
+   Autotask API contactability check. After the page has loaded, browser
+   JavaScript queries `/mobile/service-calls` to populate today's service-call
+   start cards.
+4. User starts Job 1 or Job 2. Blank Start Work creates a local active job
+   without first probing Autotask. At most two active jobs may exist at once.
 5. After the job starts, the user enters/selects an Autotask company by client
    name. Manual client text is allowed, but selected company IDs are preferred
    for exact ticket lookup.
@@ -357,17 +376,21 @@ The normal workflow is:
    button while audio chunks stream to the server over WebSocket, and stopping
    capture shows sending/converting/completed progress until the final
    transcript returns.
-9. User can save active job edits before ending work.
-10. User ends work with a mandatory client name. The job moves to review.
-11. User reviews the job from `/review`, edits time/status/notes if needed, and
+9. When enabled, user can click **AI Cleanup** to send the current summary text
+   through the configured server-side Gemini or Groq cleanup provider. The
+   returned text replaces the summary textarea and remains subject to normal
+   save/review behavior.
+10. User can save active job edits before ending work.
+11. User ends work with a mandatory client name. The job moves to review.
+12. User reviews the job from `/review`, edits time/status/notes if needed, and
     keeps the selected client/ticket identity read-only.
-12. Accept/retry submits a reviewed job to Autotask idempotently.
-13. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes
+13. Accept/retry submits a reviewed job to Autotask idempotently.
+14. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes
     updates against the existing Autotask time entry, or **Delete From Autotask**
     to remove the external time entry and return the local job to review.
     Ticket/client identity, reject, purge, accept/resend, and retry stay blocked
     while the job remains submitted.
-14. Submission attempts and important state changes are recorded for audit and
+15. Submission attempts and important state changes are recorded for audit and
     diagnostics.
 
 ## Current Autotask Dependency
@@ -379,7 +402,9 @@ submitted.
 In production:
 
 - `APP_ENV=production` requires `AUTOTASK_PROVIDER=autotask`.
-- Starting a new job is blocked when the Autotask connectivity test fails.
+- `/mobile` and blank Start Work do not run Autotask contactability probes.
+- Service-call loading, company lookup, ticket lookup, and Autotask submission
+  still call Autotask only when those specific workflows need provider data.
 - The `/debug` page provides the supported manual **Test Autotask API** action.
 - Mock Autotask mode is only for tests and isolated development.
 

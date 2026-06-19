@@ -3,6 +3,7 @@ const REVIEW_AUTOSAVE_DELAY_MS = 650;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 const reviewAutosaveForm = document.querySelector("[data-review-autosave-form]");
 const reviewAutosaveStatus = document.querySelector("[data-review-autosave-status]");
+const aiCleanupButtons = document.querySelectorAll("[data-ai-cleanup-button]");
 
 let reviewAutosaveTimer = null;
 let lastReviewAutosaveSnapshot = "";
@@ -75,6 +76,27 @@ function setReviewAutosaveStatus(message, isError = false) {
   reviewAutosaveStatus.classList.toggle("error-text", isError);
 }
 
+function setAiCleanupStatus(button, message, isError = false) {
+  const formElement = button ? button.closest("form") : null;
+  const statusElement = formElement ? formElement.querySelector("[data-ai-cleanup-status]") : null;
+  if (!statusElement) {
+    return;
+  }
+
+  statusElement.textContent = message;
+  statusElement.classList.toggle("error-text", isError);
+}
+
+function setAiCleanupButtonLoading(button, isLoading) {
+  if (!button) {
+    return;
+  }
+
+  button.disabled = isLoading;
+  button.classList.toggle("is-loading", isLoading);
+  button.setAttribute("aria-busy", isLoading ? "true" : "false");
+}
+
 function buildReviewAutosaveSnapshot() {
   if (!reviewAutosaveForm) {
     return "";
@@ -111,6 +133,61 @@ async function saveReviewFormInBackground() {
   }
 
   return payload;
+}
+
+async function requestAiCleanup(cleanupUrl, summaryText) {
+  const response = await fetch(cleanupUrl, {
+    method: "POST",
+    headers: {
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
+    body: JSON.stringify({summary_notes: summaryText}),
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || "AI cleanup could not finish.");
+  }
+
+  return payload;
+}
+
+async function cleanupReviewSummary(button) {
+  const cleanupUrl = button.dataset.cleanupUrl || "";
+  const formElement = button.closest("form");
+  const summaryTextarea = formElement ? formElement.querySelector('textarea[name="summary_notes"]') : null;
+  if (!cleanupUrl || !summaryTextarea) {
+    return;
+  }
+
+  const currentSummaryText = summaryTextarea.value || "";
+  if (!currentSummaryText.trim()) {
+    setAiCleanupStatus(button, "Add summary notes before AI cleanup.", true);
+    return;
+  }
+
+  clearReviewAutosaveTimer();
+  setAiCleanupButtonLoading(button, true);
+  setAiCleanupStatus(button, "Cleaning up summary...");
+  try {
+    const payload = await requestAiCleanup(cleanupUrl, currentSummaryText);
+    const cleanedSummaryText = payload.summary_notes || payload.description_text || "";
+    if (!cleanedSummaryText.trim()) {
+      throw new Error("AI cleanup returned no summary text.");
+    }
+
+    summaryTextarea.value = cleanedSummaryText;
+    setAiCleanupStatus(button, "Summary cleaned up.");
+    if (formElement === reviewAutosaveForm) {
+      queueReviewAutosave(true);
+    }
+  } catch (error) {
+    setAiCleanupStatus(button, error.message || "AI cleanup could not finish.", true);
+  } finally {
+    setAiCleanupButtonLoading(button, false);
+  }
 }
 
 function persistReviewAutosaveSnapshot(queuedSnapshot) {
@@ -418,3 +495,9 @@ for (const reviewRow of reviewRows) {
 bindTimeStepButtons();
 bindTicketLookup();
 bindReviewAutosave();
+
+for (const aiCleanupButton of aiCleanupButtons) {
+  aiCleanupButton.addEventListener("click", () => {
+    cleanupReviewSummary(aiCleanupButton);
+  });
+}

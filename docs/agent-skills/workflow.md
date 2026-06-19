@@ -45,11 +45,10 @@ Security and data-integrity requirements for start:
 
 - The user must be authenticated.
 - CSRF must be valid.
-- The server must enforce the mandatory Autotask connectivity gate before
-  creating the job. This can use the short start-work connectivity cache so
-  repeated Start Work taps do not run a live Autotask probe every time.
-- If the live or cached Autotask result is unavailable, no job may be created
-  and an audit event must be recorded.
+- The `/mobile` page must render from local database state without running an
+  Autotask API contactability check.
+- Blank Start Work must not call Autotask before creating the local active job.
+  Ticket and company data are attached later through explicit lookup flows.
 - New blank mobile jobs intentionally start without client, company, or ticket
   values. The route ignores stale or crafted pre-start client/ticket fields so
   those values can only be attached through the active-job workflow.
@@ -93,10 +92,11 @@ client field. The panel itself is the ticket-loading control while no ticket
 options have been loaded; clicking or pressing Enter/Space on the panel saves
 the current active client fields before querying Autotask and shows the shared
 spinner loading state while the request is in flight. A job that already has a
-saved client auto-loads the picker. After selection, the browser should
-immediately hide the open-ticket panel and show the selected ticket number,
-ticket title, and ticket description in Work in Progress without waiting for a
-page reload.
+  saved client does not auto-load the picker on mobile page open; the user must
+  click or press Enter/Space on the panel to start the lookup. After selection,
+  the browser should immediately hide the open-ticket panel and show the
+  selected ticket number, ticket title, and ticket description in Work in
+  Progress without waiting for a page reload.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
@@ -108,8 +108,9 @@ into `work_location` and keep stored local notes unprefixed.
 
 The mobile start panels show today's Autotask service calls when an active job
 slot is available. The page should render immediately with a **Loading service
-calls...** state, then `job_logger/static/mobile.js` loads `/mobile/service-calls`
-to fetch safe card data. Service-call options are provided by
+calls...** state and no synchronous Autotask calls. After the window `load`
+event, `job_logger/static/mobile.js` loads `/mobile/service-calls` to fetch safe
+card data. Service-call options are provided by
 `list_todays_service_calls_for_resource()`, which derives Remote/On-Site from
 the service-call details text. Each rendered card should stay compact and show
 only the client name, Remote/On-Site label, and associated ticket title, with
@@ -204,6 +205,27 @@ Manual summary autosave must not replace the focused mobile textarea with the
 server-normalized response. The server trims persisted notes for storage and
 Autotask payloads, but trailing whitespace in the active textarea can be normal
 typing state between words on mobile keyboards.
+
+## AI Summary Cleanup
+
+AI cleanup is an optional server-side Gemini or Groq integration controlled by
+`AI_CLEANUP_ENABLED` and `AI_CLEANUP_PROVIDER`. The browser sends the current
+editable summary text to a CSRF-protected cleanup endpoint; the server validates
+the job state, calls `job_logger/services/ai_cleanup.py`, records a
+metadata-only audit event, and returns cleaned text. The cleanup route must not
+submit to Autotask, change ticket/client identity, or bypass the normal
+save/review/Edit Entry workflow.
+
+Mobile active jobs use `POST /jobs/{job_id}/summary/cleanup`. After a successful
+response, `job_logger/static/mobile.js` replaces the active summary textarea and
+persists the cleaned result through the existing active description text save
+endpoint.
+
+Review detail uses `POST /review/{job_id}/summary/cleanup`. The returned text
+replaces the review summary textarea. Non-submitted review jobs continue through
+the existing autosave path. Submitted jobs do not patch Autotask automatically;
+the user must still click **Edit Entry** to update the existing external
+Autotask time entry.
 
 ## Review Flow
 

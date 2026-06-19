@@ -20,6 +20,7 @@ const companyInputs = document.querySelectorAll("[data-company-input]");
 const activeTicketPickers = document.querySelectorAll("[data-active-ticket-picker]");
 const workLocationInputs = document.querySelectorAll("[data-work-location-input]");
 const serviceCallPanels = document.querySelectorAll("[data-service-call-panel]");
+const aiCleanupButtons = document.querySelectorAll("[data-ai-cleanup-button]");
 const mobilePageLoadingOverlay = document.querySelector("[data-mobile-page-loading]");
 const mobilePageLoadingMessage = document.querySelector("[data-mobile-page-loading-message]");
 
@@ -72,6 +73,14 @@ function findActiveSaveStatusElement(jobId) {
   }
 
   return document.querySelector(`[data-active-save-status][data-job-id="${toSafeMapString(jobId)}"]`);
+}
+
+function findAiCleanupStatusElement(jobId) {
+  if (!jobId) {
+    return null;
+  }
+
+  return document.querySelector(`[data-ai-cleanup-status][data-job-id="${toSafeMapString(jobId)}"]`);
 }
 
 function findActiveTicketForm(jobId) {
@@ -274,6 +283,26 @@ function setActiveSaveStatus(jobId, message, isError = false) {
 
   statusElement.textContent = message;
   statusElement.classList.toggle("error-text", isError);
+}
+
+function setAiCleanupStatus(jobId, message, isError = false) {
+  const statusElement = findAiCleanupStatusElement(jobId);
+  if (!statusElement) {
+    return;
+  }
+
+  statusElement.textContent = message;
+  statusElement.classList.toggle("error-text", isError);
+}
+
+function setAiCleanupButtonLoading(button, isLoading) {
+  if (!button) {
+    return;
+  }
+
+  button.disabled = isLoading;
+  button.classList.toggle("is-loading", isLoading);
+  button.setAttribute("aria-busy", isLoading ? "true" : "false");
 }
 
 function populateActiveFormSummaryField(activeTicketForm) {
@@ -628,6 +657,61 @@ async function saveDescriptionText(jobId, descriptionText) {
   // textarea during manual autosave, because trimming a just-typed trailing
   // space makes the phone keyboard appear unable to type normal sentences.
   return payload;
+}
+
+async function requestAiCleanup(cleanupUrl, summaryText) {
+  const response = await fetch(cleanupUrl, {
+    method: "POST",
+    headers: {
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
+    body: JSON.stringify({summary_notes: summaryText}),
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || "AI cleanup could not finish.");
+  }
+
+  return payload;
+}
+
+async function cleanupMobileSummary(button) {
+  const jobId = toSafeMapString(button.dataset.jobId);
+  const cleanupUrl = button.dataset.cleanupUrl || "";
+  const descriptionElement = findDescriptionTextarea(jobId);
+  if (!jobId || !cleanupUrl || !descriptionElement) {
+    return;
+  }
+
+  const currentSummaryText = descriptionElement.value || "";
+  if (!currentSummaryText.trim()) {
+    setAiCleanupStatus(jobId, "Add summary notes before AI cleanup.", true);
+    return;
+  }
+
+  clearDescriptionTimer(jobId);
+  pendingDescriptionSaves.delete(jobId);
+  setAiCleanupButtonLoading(button, true);
+  setAiCleanupStatus(jobId, "Cleaning up summary...");
+  try {
+    const payload = await requestAiCleanup(cleanupUrl, currentSummaryText);
+    const cleanedSummaryText = payload.summary_notes || payload.description_text || "";
+    if (!cleanedSummaryText.trim()) {
+      throw new Error("AI cleanup returned no summary text.");
+    }
+
+    descriptionElement.value = cleanedSummaryText;
+    await saveDescriptionText(jobId, cleanedSummaryText);
+    lastSavedDescriptions.set(jobId, cleanedSummaryText);
+    setAiCleanupStatus(jobId, "Summary cleaned up.");
+  } catch (error) {
+    setAiCleanupStatus(jobId, error.message || "AI cleanup could not finish.", true);
+  } finally {
+    setAiCleanupButtonLoading(button, false);
+  }
 }
 
 function queueDescriptionSave(jobId, immediate = false) {
@@ -1421,6 +1505,12 @@ for (const workLocationInput of workLocationInputs) {
   });
 }
 
+for (const aiCleanupButton of aiCleanupButtons) {
+  aiCleanupButton.addEventListener("click", () => {
+    cleanupMobileSummary(aiCleanupButton);
+  });
+}
+
 for (const endJobForm of endJobForms) {
   const jobId = toSafeMapString(endJobForm.dataset.jobId);
   const summaryField = endJobForm.querySelector(".end-summary-notes");
@@ -1472,18 +1562,21 @@ for (const ticketPicker of activeTicketPickers) {
     loadActiveTicketOptions(ticketPicker, {saveActiveFormFirst: true});
   });
 
-  if (ticketPicker.dataset.autoLoadTicketOptions === "true") {
-    window.setTimeout(() => {
-      loadActiveTicketOptions(ticketPicker);
-    }, 50);
-  }
 }
 
 document.addEventListener("click", handlePageLoadingSubmitButtonClick);
 document.addEventListener("submit", handlePageLoadingFormSubmit);
 
-for (const serviceCallPanel of serviceCallPanels) {
-  loadServiceCallPanel(serviceCallPanel);
+function loadServiceCallPanelsAfterPageLoad() {
+  for (const serviceCallPanel of serviceCallPanels) {
+    loadServiceCallPanel(serviceCallPanel);
+  }
+}
+
+if (document.readyState === "complete") {
+  window.setTimeout(loadServiceCallPanelsAfterPageLoad, 0);
+} else {
+  window.addEventListener("load", loadServiceCallPanelsAfterPageLoad, {once: true});
 }
 
 setAllRecordingControlsIdle();

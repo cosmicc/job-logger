@@ -270,8 +270,21 @@
 
             <label class="wide-field">
               <span>Summary notes</span>
-              <textarea name="summary_notes" rows="8">{{ selected_job_autotask_summary_notes }}</textarea>
+              <textarea name="summary_notes" rows="8" data-review-summary-textarea>{{ selected_job_autotask_summary_notes }}</textarea>
             </label>
+            {% if ai_cleanup_enabled %}
+              <div class="summary-tool-row">
+                <button
+                  type="button"
+                  class="secondary-button ai-cleanup-button"
+                  data-ai-cleanup-button
+                  data-cleanup-url="/review/{{ selected_job.id }}/summary/cleanup"
+                >
+                  AI Cleanup
+                </button>
+                <span class="muted-text ai-cleanup-status" data-ai-cleanup-status aria-live="polite"></span>
+              </div>
+            {% endif %}
 
             {% if selected_job_submitted %}
               <div class="action-row">

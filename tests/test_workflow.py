@@ -14,7 +14,7 @@ from starlette.websockets import WebSocketDisconnect
 from job_logger import database
 from job_logger.enums import JobStatus, TranscriptionStatus, WorkLocation
 from job_logger.models import AuditEvent, Job, SubmissionAttempt
-from job_logger.services.autotask import AutotaskConnectivityResult
+from job_logger.services.ai_cleanup import AiCleanupResult
 from job_logger.services.jobs import get_active_job
 from job_logger.time_utils import format_local_time
 from tests.conftest import extract_csrf_token
@@ -182,6 +182,89 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         attempts = database_session.query(SubmissionAttempt).filter_by(job_id=active_job_id).all()
         assert len(attempts) == 1
         assert attempts[0].succeeded is True
+
+
+def test_active_job_ai_cleanup_returns_replacement_text(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mobile AI cleanup returns cleaned text without exposing provider details."""
+
+    monkeypatch.setattr(
+        "job_logger.routes.mobile.cleanup_summary_text",
+        lambda **_kwargs: AiCleanupResult(
+            provider="gemini",
+            model="test-cleanup-model",
+            cleaned_text="Remote replaced the failed power supply and verified startup.",
+        ),
+    )
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    cleanup_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/summary/cleanup",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": "replaced bad power supply checked boot"},
+    )
+
+    assert cleanup_response.status_code == 200
+    assert cleanup_response.json() == {
+        "summary_notes": "Remote replaced the failed power supply and verified startup.",
+        "description_text": "Remote replaced the failed power supply and verified startup.",
+        "provider": "gemini",
+        "model": "test-cleanup-model",
+    }
+    with database.SessionLocal() as database_session:
+        audit_event = database_session.query(AuditEvent).filter_by(action="job.summary.ai_cleanup").one()
+        assert audit_event.job_id == active_job_id
+        assert audit_event.details["source"] == "mobile"
+        assert audit_event.details["input_text_length"] == len("replaced bad power supply checked boot")
+        assert "replaced bad power supply" not in str(audit_event.details)
+
+
+def test_review_ai_cleanup_allows_submitted_summary_replacement(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Review cleanup can prepare submitted-entry text without patching Autotask."""
+
+    monkeypatch.setattr(
+        "job_logger.routes.review.cleanup_summary_text",
+        lambda **_kwargs: AiCleanupResult(
+            provider="grok",
+            model="test-cleanup-model",
+            cleaned_text="Remote updated the backup software and verified the next scheduled run.",
+        ),
+    )
+    submitted_job_id, review_csrf_token = create_submitted_mock_job(authenticated_client)
+
+    cleanup_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/summary/cleanup",
+        headers={"X-CSRF-Token": review_csrf_token},
+        json={"summary_notes": "Remote updated backup software verified next run"},
+    )
+
+    assert cleanup_response.status_code == 200
+    assert cleanup_response.json()["summary_notes"] == "Remote updated the backup software and verified the next scheduled run."
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, submitted_job_id)
+        assert job is not None
+        assert job.status == JobStatus.SUBMITTED
+        assert job.summary_notes == "Locked submitted job notes"
+        audit_event = database_session.query(AuditEvent).filter_by(action="job.summary.ai_cleanup").one()
+        assert audit_event.details["source"] == "review"
+        assert audit_event.details["job_status"] == "submitted"
 
 
 def test_submitted_review_page_allows_controlled_entry_edits(authenticated_client: TestClient) -> None:
@@ -357,33 +440,31 @@ def test_submitted_job_delete_entry_removes_autotask_entry_only(authenticated_cl
     assert f'formaction="/review/{submitted_job_id}/accept"' in updated_review_html
 
 
-def test_start_work_blocks_when_autotask_is_unavailable(authenticated_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The mandatory Autotask dependency must be healthy before new work starts."""
+def test_mobile_page_and_blank_start_do_not_probe_autotask(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The initial mobile flow should not run provider contactability checks."""
 
-    def failed_connectivity_check() -> AutotaskConnectivityResult:
-        """Return a deterministic failed dependency result for start gating."""
+    def fail_if_provider_is_used() -> object:
+        """Fail the test if rendering or blank start tries to call Autotask."""
 
-        return AutotaskConnectivityResult(
-            provider="autotask",
-            available=False,
-            summary="Autotask API check failed with HTTP 401.",
-            tips=("Verify the API user credentials.",),
-            checked_operations=("configuration", "companies"),
-        )
+        raise AssertionError("Autotask provider should not be used by the initial mobile page or blank Start Work.")
 
-    monkeypatch.setattr("job_logger.routes.mobile.test_cached_autotask_connectivity_for_start", failed_connectivity_check)
+    monkeypatch.setattr("job_logger.routes.mobile.get_autotask_provider", fail_if_provider_is_used)
     mobile_page_response = authenticated_client.get("/mobile")
+    assert mobile_page_response.status_code == 200
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
     start_response = authenticated_client.post(
         "/jobs/start",
-        data={"csrf_token": csrf_token, "client_name": "Blocked Client"},
+        data={"csrf_token": csrf_token, "client_name": "No Probe Client"},
         follow_redirects=False,
     )
 
     assert start_response.status_code == 303
     with database.SessionLocal() as database_session:
-        assert get_active_job(database_session) is None
+        assert get_active_job(database_session) is not None
 
 
 def test_authenticated_mobile_header_renders_responsive_close_and_logout_controls(authenticated_client: TestClient) -> None:
@@ -393,9 +474,8 @@ def test_authenticated_mobile_header_renders_responsive_close_and_logout_control
 
     assert response.status_code == 200
     assert 'class="header-status-group"' in response.text
-    assert response.text.count("autotask-api-indicator") == 1
-    assert 'class="secure-pill autotask-api-indicator is-available"' in response.text
-    assert "Autotask API: Online" in response.text
+    assert "autotask-api-indicator" not in response.text
+    assert "Autotask API:" not in response.text
     assert 'class="secure-pill secure-connection-indicator"' in response.text
     assert 'data-close-app-button' in response.text
     assert 'class="icon-button close-app-button mobile-close-action"' in response.text
@@ -583,7 +663,7 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'class="segmented-toggle work-location-toggle"' not in page_html
     assert 'data-active-ticket-picker' in page_html
     assert f'data-ticket-select-url="/jobs/{active_job_id}/ticket"' in page_html
-    assert 'data-auto-load-ticket-options="true"' in page_html
+    assert 'data-auto-load-ticket-options="true"' not in page_html
     assert 'data-active-ticket-lookup-button' not in page_html
     assert "Find tickets" not in page_html
     assert "Click this box to load open tickets." in page_html

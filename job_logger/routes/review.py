@@ -11,6 +11,7 @@ from job_logger.database import get_database_session
 from job_logger.enums import JobStatus, TicketStatus
 from job_logger.models import AuditEvent
 from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_header, validate_csrf_token
+from job_logger.services.ai_cleanup import AiCleanupContext, AiCleanupError, cleanup_summary_text
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import (
     AutotaskSubmissionError,
@@ -256,6 +257,64 @@ async def save_review(
         add_flash_message(request, str(exc), "error")
 
     return RedirectResponse(url=f"/review/{job_id}", status_code=303)
+
+
+@router.post("/{job_id}/summary/cleanup")
+async def cleanup_review_summary(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Return AI-cleaned summary text for the selected review detail."""
+
+    actor = require_authenticated_username(request)
+    validate_csrf_header(request)
+    payload = await request.json()
+    submitted_summary_text = str(payload.get("summary_notes", "")) or str(payload.get("description_text", ""))
+
+    try:
+        job = get_job_or_raise(database_session, job_id)
+        cleanup_result = cleanup_summary_text(
+            summary_text=submitted_summary_text,
+            cleanup_context=AiCleanupContext(
+                job_id=job.id,
+                source="review",
+                job_status=job.status.value,
+                client_name=job.client_name,
+                ticket_number=job.ticket_number,
+                ticket_title=job.ticket_title,
+                work_location=job.work_location.value if job.work_location else None,
+            ),
+            actor=actor,
+        )
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.summary.ai_cleanup",
+            job_id=job.id,
+            request=request,
+            details={
+                "source": "review",
+                "provider": cleanup_result.provider,
+                "model": cleanup_result.model,
+                "input_text_length": len(submitted_summary_text),
+                "output_text_length": len(cleanup_result.cleaned_text),
+                "job_status": job.status.value,
+            },
+        )
+        database_session.commit()
+    except (AiCleanupError, JobWorkflowError) as exc:
+        database_session.rollback()
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+
+    return JSONResponse(
+        {
+            "summary_notes": cleanup_result.cleaned_text,
+            "description_text": cleanup_result.cleaned_text,
+            "provider": cleanup_result.provider,
+            "model": cleanup_result.model,
+        }
+    )
 
 
 @router.post("/{job_id}/edit-entry")

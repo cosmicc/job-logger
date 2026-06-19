@@ -54,16 +54,6 @@ OPEN_TICKET_SELECTION_CACHE_TTL_SECONDS = 2 * 60
 # enough for a tap-to-start action to reuse the server-resolved Autotask data.
 SERVICE_CALL_SELECTION_CACHE_TTL_SECONDS = 2 * 60
 
-# START_CONNECTIVITY_SUCCESS_CACHE_TTL_SECONDS lets multiple quick Start Work
-# taps reuse a recent successful dependency probe instead of making a live
-# Autotask call for every job slot.
-START_CONNECTIVITY_SUCCESS_CACHE_TTL_SECONDS = 5 * 60
-
-# START_CONNECTIVITY_FAILURE_CACHE_TTL_SECONDS avoids hammering Autotask during
-# an outage while keeping failures short-lived enough for operators to retest
-# soon after fixing credentials, permissions, or connectivity.
-START_CONNECTIVITY_FAILURE_CACHE_TTL_SECONDS = 30
-
 # AUTOTASK_MAX_RECORDS_PER_PAGE uses Autotask's maximum documented query page size.
 AUTOTASK_MAX_RECORDS_PER_PAGE = 500
 
@@ -106,11 +96,6 @@ _OPEN_TICKET_SELECTION_CACHE: dict[tuple[str, str, int | None], _AutotaskCacheEn
 # keyed by tenant URL, resource, and local-day UTC bounds. It contains only
 # non-secret ticket and company metadata already safe for the authenticated UI.
 _SERVICE_CALL_SELECTION_CACHE: dict[tuple[str, int, str, str], _AutotaskCacheEntry] = {}
-
-# _START_CONNECTIVITY_CACHE stores one recent start-work dependency result per
-# non-secret tenant/provider context. The debug page bypasses this cache.
-_START_CONNECTIVITY_CACHE: dict[tuple[str, str, int | None], _AutotaskCacheEntry] = {}
-
 
 def _get_cached_value(cache_store: dict[Any, _AutotaskCacheEntry], cache_key: Any) -> Any | None:
     """Return a defensive copy of a cached value when its 15-minute TTL is valid."""
@@ -1831,36 +1816,7 @@ def _run_autotask_connectivity_check(application_settings: Settings) -> Autotask
         )
 
 
-def _start_connectivity_cache_key(application_settings: Settings) -> tuple[str, str, int | None]:
-    """Return the non-secret cache key for start-work Autotask health."""
-
-    base_url_namespace = (application_settings.autotask_base_url or "").rstrip("/")
-    return (
-        application_settings.autotask_provider,
-        base_url_namespace,
-        application_settings.autotask_impersonation_resource_id,
-    )
-
-
 def test_autotask_connectivity(application_settings: Settings = settings) -> AutotaskConnectivityResult:
     """Return a fresh safe Autotask dependency result for diagnostics."""
 
     return _run_autotask_connectivity_check(application_settings)
-
-
-def test_cached_autotask_connectivity_for_start(application_settings: Settings = settings) -> AutotaskConnectivityResult:
-    """Return a short-cached Autotask dependency result for Start Work gating."""
-
-    cache_key = _start_connectivity_cache_key(application_settings)
-    cached_connectivity_result = _get_cached_value(_START_CONNECTIVITY_CACHE, cache_key)
-    if isinstance(cached_connectivity_result, AutotaskConnectivityResult):
-        return cached_connectivity_result
-
-    connectivity_result = _run_autotask_connectivity_check(application_settings)
-    cache_ttl_seconds = (
-        START_CONNECTIVITY_SUCCESS_CACHE_TTL_SECONDS
-        if connectivity_result.available
-        else START_CONNECTIVITY_FAILURE_CACHE_TTL_SECONDS
-    )
-    _set_cached_value(_START_CONNECTIVITY_CACHE, cache_key, connectivity_result, cache_ttl_seconds)
-    return connectivity_result

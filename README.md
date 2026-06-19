@@ -313,6 +313,59 @@ file, deletes that temporary file, and stores only the returned text and safe
 status. The existing `MAX_AUDIO_UPLOAD_BYTES` setting also limits streamed
 recordings.
 
+### AI Summary Cleanup
+
+AI summary cleanup is separate from speech-to-text. It sends the current
+editable summary text to the configured external AI provider through the Job
+Logger server, then replaces the summary textarea with the cleaned text returned
+by that provider.
+
+The feature is disabled by default. Configure it in Docker or `.env`:
+
+- `AI_CLEANUP_ENABLED=true`
+- `AI_CLEANUP_PROVIDER=gemini` or `AI_CLEANUP_PROVIDER=grok`
+- `AI_CLEANUP_TIMEOUT_SECONDS`, default `20`
+- `AI_CLEANUP_MAX_INPUT_CHARS`, default `12000`
+- `AI_CLEANUP_INSTRUCTIONS`
+
+For Gemini free-tier cleanup, configure:
+
+- `GEMINI_API_KEY`
+- `GEMINI_CLEANUP_MODEL`, default `gemini-3.5-flash`
+- `GEMINI_CLEANUP_API_BASE_URL`, default `https://generativelanguage.googleapis.com/v1beta`
+
+For GroqCloud free/start-plan cleanup, configure:
+
+- `GROQ_API_KEY`
+- `GROQ_CLEANUP_MODEL`, default `llama-3.1-8b-instant`
+- `GROQ_CLEANUP_API_BASE_URL`, default `https://api.groq.com/openai/v1`
+
+The provider value `grok` uses GroqCloud. `GROK_API_KEY`,
+`GROK_CLEANUP_MODEL`, and `GROK_CLEANUP_API_BASE_URL` are accepted as
+compatibility fallbacks, but the `GROQ_*` names match Groq's official docs.
+
+When enabled, active mobile jobs and review detail show **AI Cleanup** next to
+the summary box. On mobile, the cleaned text replaces the textarea and is saved
+through the existing active-summary save endpoint. On review detail, the cleaned
+text replaces the textarea; non-submitted jobs autosave as usual, while
+submitted jobs still require **Edit Entry** to patch the existing Autotask time
+entry.
+
+AI cleanup requests require the local authenticated session and CSRF token. The
+server sends bounded summary text plus minimal job context to the selected
+provider, sets `store=false` for Gemini requests, and records only metadata such
+as provider, model, source, and text lengths in the audit log. Do not put
+Gemini or Groq keys, private cleanup instructions, or customer summary text in
+source control.
+
+Provider setup and data-handling docs:
+
+- Gemini text generation: https://ai.google.dev/gemini-api/docs/text-generation
+- Gemini free-tier pricing and data terms: https://ai.google.dev/gemini-api/docs/pricing
+  and https://ai.google.dev/gemini-api/terms
+- Groq quickstart and data controls: https://console.groq.com/docs/quickstart
+  and https://console.groq.com/docs/your-data
+
 ### Autotask
 
 Autotask is mandatory for normal production use because the app now uses
@@ -354,9 +407,9 @@ from cache can still be queried from Autotask. Ticket status picklist labels and
 other Autotask lookup data remain on a 15-minute cache. Recently displayed
 open-ticket selection lists are cached server-side for two minutes so selecting
 a ticket that was just shown does not re-query Autotask on the critical tap
-path. Start Work uses a separate short Autotask health cache: successful checks
-are reused for five minutes, and failures are reused for thirty seconds. Live
-company and ticket queries request `MaxRecords=500` and follow Autotask
+path. The initial `/mobile` page and blank Start Work route do not run an
+Autotask contactability check. Live company and ticket queries request
+`MaxRecords=500` and follow Autotask
 pagination links so larger tenants are not limited to the first page of results.
 Pagination is bounded and fails safely instead of silently showing partial
 customer or ticket lists. For POST query pagination, Job Logger follows
@@ -367,9 +420,10 @@ The mobile and review pages can query open Autotask tickets from the selected
 job's stored company ID or stored client name. If no tickets have been loaded,
 the whole Open tickets panel is clickable and keyboard-activatable. On mobile,
 that panel saves the current active-job client fields before loading open
-tickets, and saved clients auto-load the list when the Work in Progress card
-renders. Both mobile and review ticket lookup show the spinner loading state
-while Autotask data is being fetched or a selected ticket is being saved.
+tickets. Saved clients do not auto-load tickets when the Work in Progress card
+renders; click the panel to load them. Both mobile and review ticket lookup show
+the spinner loading state while Autotask data is being fetched or a selected
+ticket is being saved.
 Selecting a returned ticket fills the mobile job's hidden ticket number, stores
 the selected ticket title for the review detail heading, stores the bounded
 ticket description for read-only context, and automatically saves the active-job
@@ -384,9 +438,10 @@ a ticket number, the open-ticket picker is hidden for that job.
 
 When an active job slot is available, the mobile start panel also lists today's
 Autotask service calls assigned to `AUTOTASK_RESOURCE_ID`. The mobile page
-renders first with a loading state, then fetches `/mobile/service-calls` so slow
-Autotask service-call lookups show progress instead of delaying the whole start
-screen. Each service-call choice shows the client name, the detected `Remote` or
+renders first with a loading state and no synchronous Autotask calls. After the
+window load event, the browser fetches `/mobile/service-calls` so slow Autotask
+service-call lookups show progress instead of delaying the whole start screen.
+Each service-call choice shows the client name, the detected `Remote` or
 `On-Site` value from the service-call details text, and the associated ticket
 title. Remote and On-Site cards use stronger distinct accent colors and badges
 so scheduled call type is easy to scan without wasting mobile screen space.
@@ -396,7 +451,7 @@ client name, company ID, and detected work-location mode. The browser submits
 only the service-call ticket association ID and CSRF token; the server re-checks
 today's resource-specific service-call list before creating the job. If service-call
 lookup fails because permissions are missing, the blank Start Work path remains
-available as long as the normal Autotask start gate is online.
+available.
 
 Service-call lookup requires the Autotask API user to read `ServiceCalls`,
 `ServiceCallTickets`, and `ServiceCallTicketResources`, in addition to the
@@ -449,10 +504,9 @@ access.
 
 The `/debug` page shows the source-controlled application version and includes a
 **Test Autotask API** button. That check verifies required workflow
-configuration and the live Companies/Tickets API calls used by the app. If the
-check fails, new jobs cannot be started until Autotask connectivity or
-configuration is fixed. The debug button always runs a fresh live check instead
-of using the Start Work health cache.
+configuration and the live Companies/Tickets API calls used by the app. The
+debug button is manual and always runs a fresh live check. It is not used by
+the initial mobile page or blank Start Work route.
 
 The `scripts/discover_autotask_ids.py` helper also prints a workflow endpoint
 preflight section. Role, billing-code, and ticket-status ID discovery can

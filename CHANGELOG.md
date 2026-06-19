@@ -4,6 +4,16 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Changed `/mobile` so the initial page render does not run Autotask API calls.
+  Service calls now load only after the browser window load event, saved-client
+  open-ticket panels no longer auto-query Autotask, and blank Start Work no
+  longer performs a separate Autotask contactability probe.
+
+- Added optional Gemini/Groq-backed **AI Cleanup** for active mobile and review
+  summary text. The feature is Docker/env gated, keeps provider credentials and
+  cleanup instructions server-side, replaces the summary textarea with returned
+  cleaned text, and records metadata-only audit events.
+
 - Fixed the mobile recording stop status so final audio chunk acknowledgements
   can no longer switch the stopped UI back to **Recording audio...**. The status
   now moves through **Sending data to server...**, **Converting audio to

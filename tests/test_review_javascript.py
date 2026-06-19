@@ -37,6 +37,7 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
               const queuedTimers = [];
               const canceledTimerIds = new Set();
               const submittedRequests = [];
+              const aiCleanupRequests = [];
               const noopClassList = {{
                 toggle() {{}},
               }};
@@ -90,11 +91,37 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                 endTimeInput,
                 summaryTextarea,
               ];
+              const aiCleanupStatus = {{
+                classList: noopClassList,
+                textContent: "",
+              }};
               const reviewAutosaveForm = {{
                 dataset: {{reviewSaveUrl: "/review/job-1/save"}},
+                querySelector(selector) {{
+                  if (selector === '[data-ai-cleanup-status]') {{
+                    return aiCleanupStatus;
+                  }}
+                  if (selector === 'textarea[name="summary_notes"]') {{
+                    return summaryTextarea;
+                  }}
+                  return null;
+                }},
                 querySelectorAll(selector) {{
                   return selector === "input, select, textarea" ? reviewControls : [];
                 }},
+              }};
+              const aiCleanupButton = {{
+                classList: noopClassList,
+                dataset: {{cleanupUrl: "/review/job-1/summary/cleanup"}},
+                disabled: false,
+                eventHandlers: {{}},
+                addEventListener(eventName, handler) {{
+                  this.eventHandlers[eventName] = handler;
+                }},
+                closest(selector) {{
+                  return selector === "form" ? reviewAutosaveForm : null;
+                }},
+                setAttribute() {{}},
               }};
               const reviewAutosaveStatus = {{
                 classList: noopClassList,
@@ -131,6 +158,9 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                   return null;
                 }},
                 querySelectorAll() {{
+                  if (arguments[0] === "[data-ai-cleanup-button]") {{
+                    return [aiCleanupButton];
+                  }}
                   return [];
                 }},
               }};
@@ -140,6 +170,15 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                 console,
                 document: fakeDocument,
                 fetch: async (url, requestOptions) => {{
+                  if (url.endsWith("/summary/cleanup")) {{
+                    const submittedPayload = JSON.parse(requestOptions.body);
+                    aiCleanupRequests.push(submittedPayload.summary_notes);
+                    return {{
+                      ok: true,
+                      json: async () => ({{summary_notes: "Cleaned review notes."}}),
+                    }};
+                  }}
+
                   submittedRequests.push({{
                     body: Object.fromEntries(requestOptions.body.entries()),
                     headers: requestOptions.headers,
@@ -174,6 +213,24 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
               assert.strictEqual(submittedRequests[0].body.csrf_token, "csrf-token");
               assert.strictEqual(submittedRequests[0].body.summary_notes, "Autosaved review notes.");
               assert.strictEqual(reviewAutosaveStatus.textContent, "Changes saved.");
+
+              assert.strictEqual(typeof aiCleanupButton.eventHandlers.click, "function");
+              summaryTextarea.value = "rough review wording";
+              aiCleanupButton.eventHandlers.click();
+
+              await Promise.resolve();
+              await Promise.resolve();
+              await new Promise((resolve) => setImmediate(resolve));
+              runQueuedTimers();
+              await Promise.resolve();
+              await Promise.resolve();
+              await new Promise((resolve) => setImmediate(resolve));
+
+              assert.deepStrictEqual(aiCleanupRequests, ["rough review wording"]);
+              assert.strictEqual(summaryTextarea.value, "Cleaned review notes.");
+              assert.strictEqual(submittedRequests.length, 2);
+              assert.strictEqual(submittedRequests[1].body.summary_notes, "Cleaned review notes.");
+              assert.strictEqual(aiCleanupStatus.textContent, "Summary cleaned up.");
             }})().catch((error) => {{
               console.error(error);
               process.exit(1);

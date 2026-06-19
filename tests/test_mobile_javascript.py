@@ -39,9 +39,11 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
             (async () => {
               const mobileScript = fs.readFileSync(MOBILE_SCRIPT_PATH, "utf8");
               const eventHandlers = {};
+              const windowEventHandlers = {};
               const queuedTimers = [];
               const canceledTimerIds = new Set();
               const submittedSummaries = [];
+              const aiCleanupRequests = [];
               const noopClassList = {
                 add() {},
                 remove() {},
@@ -66,6 +68,23 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
                   recordingStatusText = nextText;
                   recordingStatusHistory.push(nextText);
                 },
+              };
+              const aiCleanupStatusElement = {
+                classList: noopClassList,
+                textContent: "",
+              };
+              const aiCleanupButton = {
+                classList: noopClassList,
+                dataset: {
+                  cleanupUrl: "/jobs/job-1/summary/cleanup",
+                  jobId: "job-1",
+                },
+                disabled: false,
+                eventHandlers: {},
+                addEventListener(eventName, handler) {
+                  this.eventHandlers[eventName] = handler;
+                },
+                setAttribute() {},
               };
               const csrfMetaElement = {
                 getAttribute(attributeName) {
@@ -106,11 +125,17 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
                   if (selector === '.recording-status[data-job-id="job-1"]') {
                     return recordingStatusElement;
                   }
+                  if (selector === '[data-ai-cleanup-status][data-job-id="job-1"]') {
+                    return aiCleanupStatusElement;
+                  }
                   return null;
                 },
                 querySelectorAll(selector) {
                   if (selector === ".job-description") {
                     return [descriptionTextarea];
+                  }
+                  if (selector === "[data-ai-cleanup-button]") {
+                    return [aiCleanupButton];
                   }
                   return [];
                 },
@@ -123,8 +148,19 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
                 clearTimeout: fakeClearTimeout,
                 console,
                 document: fakeDocument,
-                fetch: async (_url, requestOptions) => {
+                fetch: async (url, requestOptions) => {
                   const submittedPayload = JSON.parse(requestOptions.body);
+                  if (url.endsWith("/summary/cleanup")) {
+                    aiCleanupRequests.push(submittedPayload.summary_notes);
+                    return {
+                      ok: true,
+                      json: async () => ({
+                        description_text: "Cleaned active summary.",
+                        summary_notes: "Cleaned active summary.",
+                      }),
+                    };
+                  }
+
                   submittedSummaries.push(submittedPayload.summary_notes);
                   return {
                     ok: true,
@@ -139,6 +175,9 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
                 setTimeout: fakeSetTimeout,
                 WebSocket: function WebSocket() {},
                 window: {
+                  addEventListener(eventName, handler) {
+                    windowEventHandlers[eventName] = handler;
+                  },
                   clearTimeout: fakeClearTimeout,
                   location: {
                     host: "example.test",
@@ -190,6 +229,30 @@ def test_mobile_summary_autosave_does_not_replace_typing_buffer(tmp_path: Path) 
 
         assert.deepStrictEqual(submittedSummaries, ["First word "]);
         assert.strictEqual(descriptionTextarea.value, "First word ");
+        """,
+    )
+
+
+def test_mobile_ai_cleanup_replaces_and_saves_summary(tmp_path: Path) -> None:
+    """AI cleanup should replace the active textarea and persist the result."""
+
+    run_mobile_javascript_harness(
+        tmp_path,
+        """
+        assert.strictEqual(typeof aiCleanupButton.eventHandlers.click, "function");
+
+        descriptionTextarea.value = "fixd the vpn and did tests";
+        aiCleanupButton.eventHandlers.click();
+
+        await Promise.resolve();
+        await Promise.resolve();
+        await new Promise((resolve) => setImmediate(resolve));
+
+        assert.deepStrictEqual(aiCleanupRequests, ["fixd the vpn and did tests"]);
+        assert.deepStrictEqual(submittedSummaries, ["Cleaned active summary."]);
+        assert.strictEqual(descriptionTextarea.value, "Cleaned active summary.");
+        assert.strictEqual(aiCleanupStatusElement.textContent, "Summary cleaned up.");
+        assert.strictEqual(aiCleanupButton.disabled, false);
         """,
     )
 
