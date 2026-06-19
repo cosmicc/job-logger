@@ -39,6 +39,7 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
               const submittedRequests = [];
               const aiCleanupRequests = [];
               const noopClassList = {{
+                remove() {{}},
                 toggle() {{}},
               }};
               let nextTimerId = 1;

@@ -166,14 +166,18 @@ from mobile end-work. Submission happens only after review acceptance or retry.
 
 ## Speech-To-Text Flow
 
-Mobile recording is browser-side in `job_logger/static/mobile.js`.
+Recording is browser-side in `job_logger/static/mobile.js` for active work and
+`job_logger/static/review.js` for review detail.
 
 Current behavior:
 
 - Record Audio starts audio capture and is placed above the optional AI Cleanup
-  action in the active Summary notes area.
+  action in the active Summary notes area. Review detail shows the same record
+  control for jobs that have not been successfully submitted to Autotask.
 - The Record Audio button uses an orange treatment, and the button label changes
-  to **Stop recording** while browser recording is active.
+  to **Stop recording** while browser recording is active. After capture stops,
+  the disabled button returns to the **Record Audio** label and shows the shared
+  loading spinner while the recording is still being sent or converted.
 - The browser opens `WebSocket /jobs/{job_id}/description/audio/stream`,
   sends CSRF-protected stream metadata first, then streams `MediaRecorder`
   audio chunks as binary WebSocket messages.
@@ -186,13 +190,17 @@ Current behavior:
   render dictated punctuation words as symbols and paragraph breaks instead of
   spelling those words, but this remains a model-formatting hint rather than a
   guaranteed post-processing rule.
-- Clicking **Stop recording** ends browser capture, lets `MediaRecorder` flush its
-  final chunk, sends WebSocket `finish`, and keeps the control disabled while
-  the status line shows the shared loading spinner with **Sending data to
-  server...**, then **Converting audio to text...**, then removes the spinner on
-  **Conversion complete.** after the final transcript is returned and pasted
-  into the summary field. Final chunk acknowledgements from the server must not
-  move the stopped UI back to **Recording audio...**. The legacy
+- Recording, streaming, transcription, and cleanup progress messages are plain
+  status text without inline spinners. The shared spinner belongs on the active
+  button itself, such as the disabled record button after capture stops or the
+  AI Cleanup button during cleanup.
+- Clicking **Stop recording** ends browser capture, lets `MediaRecorder` flush
+  its final chunk, sends WebSocket `finish`, and keeps the control disabled
+  with a button spinner while the status line shows **Sending data to
+  server...**, then **Converting audio to text...**, then **Conversion
+  complete.** after the final transcript is returned and pasted into the
+  summary field. Final chunk acknowledgements from the server must not move the
+  stopped UI back to **Recording audio...**. The legacy
   `POST /jobs/{job_id}/description/audio` endpoint remains as a compatibility
   upload path, but the mobile UI should use the WebSocket stream.
 - Raw audio is not permanently stored by default.
@@ -200,6 +208,9 @@ Current behavior:
   submission use. The final streamed transcript replaces the current summary
   field in one browser update even when manually typed notes are already
   present.
+- Review-detail recording is available only before successful Autotask
+  submission. The server rejects submitted jobs even if a crafted WebSocket
+  request bypasses the hidden button.
 
 Manual summary notes typed in the textarea must be preserved when active job
 changes are saved or work is ended.
@@ -224,15 +235,17 @@ Mobile active jobs use `POST /jobs/{job_id}/summary/cleanup`. After a successful
 response, `job_logger/static/mobile.js` replaces the active summary textarea and
 persists the cleaned result through the existing active description text save
 endpoint. Mobile AI cleanup uses the same `.recording-status` line as audio
-recording for progress, success, and failure details. It shows the shared
-loading spinner while cleanup or cleaned-summary saving is in progress, and it
-should not run while audio recording or transcription is in progress.
+recording for progress, success, and failure details. Status text stays
+text-only; the **AI Cleanup** button shows the shared spinner while cleanup or
+cleaned-summary saving is in progress. Cleanup should not run while audio
+recording or transcription is in progress.
 
 Review detail uses `POST /review/{job_id}/summary/cleanup`. The returned text
 replaces the review summary textarea. Non-submitted review jobs continue through
-the existing autosave path. Submitted jobs do not patch Autotask automatically;
-the user must still click **Edit Entry** to update the existing external
-Autotask time entry.
+the existing autosave path, and cleanup waits for review audio recording or
+transcription to finish. Submitted jobs do not patch Autotask automatically; the
+user must still click **Edit Entry** to update the existing external Autotask
+time entry.
 
 ## Review Flow
 
@@ -246,6 +259,8 @@ Review supports:
   identity fields.
 - Editing ticket status, start date/time, end date/time, and summary notes
   before successful Autotask submission.
+- Recording additional audio notes on review detail before successful Autotask
+  submission.
 - Automatically saving edits without a ticket number.
 - Saving active jobs without an end date/time.
 - Accepting or retrying submission only when the ticket number and required

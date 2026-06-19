@@ -25,8 +25,14 @@ All recorded changes to Job Logger are documented in this file.
 - Changed **AI Cleanup** buttons to a blue action style and added a consistent
   pressed-in visual state for buttons.
 
-- Added the shared spinning loading icon to audio sending/transcription status
-  lines and AI Cleanup status lines while those operations are in progress.
+- Changed audio recording and AI Cleanup status lines back to plain text. The
+  shared spinning loading icon now appears only in the active buttons, including
+  **Record Audio** while stopped audio is still being sent/converted and
+  **AI Cleanup** while cleanup is running.
+
+- Added **Record Audio** to unsubmitted review detail pages, using the same
+  WebSocket transcription flow, status text, and button loading behavior as
+  Work in Progress while keeping submitted Autotask entries blocked.
 
 - Changed `/mobile` so the initial page render does not run Autotask API calls.
   Service calls now load only after the browser window load event, saved-client
@@ -37,14 +43,14 @@ All recorded changes to Job Logger are documented in this file.
   summary text. The feature is Docker/env gated, keeps provider credentials and
   cleanup instructions server-side, replaces the summary textarea with returned
   cleaned text, records metadata-only audit events, and reports mobile cleanup
-  progress or provider failure details through the same status line and spinner
-  used by audio recording.
+  progress or provider failure details through the same plain-text status line
+  used by audio recording while the cleanup button shows the spinner.
 
 - Fixed the mobile recording stop status so final audio chunk acknowledgements
   can no longer switch the stopped UI back to **Recording audio...**. The status
   now moves through **Sending data to server...**, **Converting audio to
-  text...**, and **Conversion complete.**, with the shared spinner shown while
-  the WebSocket transcript finishes.
+  text...**, and **Conversion complete.**, while the disabled record button
+  shows the shared spinner until the WebSocket transcript finishes.
 
 - Added a configurable faster-whisper initial prompt that defaults to asking the
   local speech-to-text model to render spoken punctuation words as punctuation

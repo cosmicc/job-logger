@@ -520,8 +520,9 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "overscroll-behavior: contain;" in stylesheet
     assert ".mobile-ticket-picker.is-clickable" in stylesheet
     assert ".ticket-picker.is-clickable" in stylesheet
-    assert ".recording-status.is-loading" in stylesheet
-    assert ".ai-cleanup-status.is-loading" in stylesheet
+    assert ".recording-status.is-loading" not in stylesheet
+    assert ".ai-cleanup-status.is-loading" not in stylesheet
+    assert ".ticket-picker-status.is-loading" in stylesheet
     assert ".record-notes-button,\n.recording-control-stack .record-notes-button" in stylesheet
     assert "background: var(--warning);" in stylesheet
     assert ".end-work-button,\n.work-finish-stack .end-work-button" in stylesheet
@@ -531,7 +532,9 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".mobile-close-action {\n  display: inline-grid;" in phone_stylesheet
     assert ".mobile-logout-action {\n  display: none;" in phone_stylesheet
     mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
     assert mobile_template.index("data-record-audio-label") < mobile_template.index("data-ai-cleanup-button")
+    assert review_template.index("data-review-record-button") < review_template.index("data-ai-cleanup-button")
 
 
 def test_active_job_completion_requires_client_name(authenticated_client: TestClient) -> None:
@@ -1369,6 +1372,114 @@ def test_mobile_audio_stream_transcribes_chunks(authenticated_client: TestClient
         assert stream_started_event.job_id == active_job_id
         assert stream_transcribed_event.job_id == active_job_id
         assert stream_transcribed_event.details["chunk_count"] == 2
+
+
+def test_review_detail_record_button_only_for_unsubmitted_jobs(authenticated_client: TestClient) -> None:
+    """Review detail shows recording only until the job has a submitted Autotask entry."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token, "client_name": "Review Recording Client", "summary_notes": "Ready to review."},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    assert review_page_response.status_code == 200
+    assert "data-review-record-button" in review_page_response.text
+
+    submitted_job_id, _review_csrf_token = create_submitted_mock_job(authenticated_client)
+    submitted_review_page_response = authenticated_client.get(f"/review/{submitted_job_id}")
+    assert submitted_review_page_response.status_code == 200
+    assert "data-review-record-button" not in submitted_review_page_response.text
+
+
+def test_review_audio_stream_transcribes_unsubmitted_job(authenticated_client: TestClient) -> None:
+    """The shared audio stream can update a review job before Autotask submission."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token, "client_name": "Review Recording Client", "summary_notes": "Original review notes."},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_csrf_token = extract_csrf_token(review_page_response.text)
+
+    with authenticated_client.websocket_connect(f"/jobs/{active_job_id}/description/audio/stream") as websocket:
+        websocket.send_json(
+            {
+                "type": "start",
+                "csrf_token": review_csrf_token,
+                "content_type": "audio/webm",
+                "filename": "review-recording.webm",
+            }
+        )
+        ready_payload = websocket.receive_json()
+        assert ready_payload["type"] == "ready"
+
+        websocket.send_bytes(b"review audio chunk")
+        websocket.send_json({"type": "finish"})
+
+        final_payload = None
+        for _message_number in range(10):
+            received_payload = websocket.receive_json()
+            if received_payload["type"] == "final":
+                final_payload = received_payload
+                break
+
+        assert final_payload is not None
+        assert final_payload["summary_notes"] == "Mock transcript from streamed-recording.webm. Replace this text during review."
+        with pytest.raises(WebSocketDisconnect):
+            websocket.receive_json()
+
+    with database.SessionLocal() as database_session:
+        reviewed_job = database_session.get(Job, active_job_id)
+        assert reviewed_job is not None
+        assert reviewed_job.status == JobStatus.READY_FOR_REVIEW
+        assert reviewed_job.summary_notes == "Mock transcript from streamed-recording.webm. Replace this text during review."
+        assert reviewed_job.transcription_status == TranscriptionStatus.SUCCEEDED
+
+
+def test_submitted_job_audio_stream_is_blocked(authenticated_client: TestClient) -> None:
+    """Submitted Autotask jobs must not accept later audio transcript changes."""
+
+    submitted_job_id, review_csrf_token = create_submitted_mock_job(authenticated_client)
+
+    with authenticated_client.websocket_connect(f"/jobs/{submitted_job_id}/description/audio/stream") as websocket:
+        websocket.send_json(
+            {
+                "type": "start",
+                "csrf_token": review_csrf_token,
+                "content_type": "audio/webm",
+                "filename": "submitted-recording.webm",
+            }
+        )
+        error_payload = websocket.receive_json()
+        assert error_payload["type"] == "error"
+        assert "Submitted Autotask jobs" in error_payload["detail"]
+        with pytest.raises(WebSocketDisconnect):
+            websocket.receive_json()
 
 
 def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient) -> None:

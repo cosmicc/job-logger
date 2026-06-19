@@ -33,6 +33,14 @@ SUCCESSFUL_SUBMISSION_PROTECTED_MESSAGE = (
     "Use Edit Entry for date, time, summary, or ticket status changes, or Delete From Autotask "
     "to remove the external time entry."
 )
+RECORDABLE_JOB_STATUSES = {
+    JobStatus.ACTIVE,
+    JobStatus.READY_FOR_REVIEW,
+    JobStatus.SUBMISSION_FAILED,
+}
+DESCRIPTION_RECORDING_UNAVAILABLE_MESSAGE = (
+    "Audio descriptions can only be recorded before the job has been submitted to Autotask."
+)
 
 
 @dataclass(frozen=True)
@@ -157,6 +165,14 @@ def ensure_job_is_successfully_submitted(job: Job) -> None:
 
     if not is_job_locked_after_successful_submission(job):
         raise JobWorkflowError("Only submitted Autotask jobs can use Edit Entry.")
+
+
+def ensure_job_can_record_description(job: Job) -> None:
+    """Allow audio description recording only before successful Autotask submission."""
+
+    ensure_job_is_not_locked_after_successful_submission(job)
+    if job.status not in RECORDABLE_JOB_STATUSES:
+        raise JobWorkflowError(DESCRIPTION_RECORDING_UNAVAILABLE_MESSAGE)
 
 
 def list_active_jobs(database_session: Session) -> list[Job]:
@@ -496,17 +512,16 @@ def update_description_text(database_session: Session, job_id: str, description_
     return _apply_summary_text(job, safe_description_text)
 
 
-def apply_transcription_result_to_active_job(
+def apply_transcription_result_to_job(
     database_session: Session,
     *,
     job_id: str,
     transcription_result: TranscriptionResult,
 ) -> Job:
-    """Persist a completed speech-to-text result on an active job."""
+    """Persist a completed speech-to-text result on a recordable job."""
 
     job = get_job_or_raise(database_session, job_id)
-    if job.status != JobStatus.ACTIVE:
-        raise JobWorkflowError("Audio descriptions can only be recorded during an active job.")
+    ensure_job_can_record_description(job)
 
     job.summary_notes = transcription_result.text
     job.description_text = transcription_result.text
@@ -516,21 +531,80 @@ def apply_transcription_result_to_active_job(
     return job
 
 
+def apply_transcription_result_to_active_job(
+    database_session: Session,
+    *,
+    job_id: str,
+    transcription_result: TranscriptionResult,
+) -> Job:
+    """Persist a completed speech-to-text result on an active or review job."""
+
+    return apply_transcription_result_to_job(
+        database_session,
+        job_id=job_id,
+        transcription_result=transcription_result,
+    )
+
+
+def mark_job_transcription_failed(
+    database_session: Session,
+    *,
+    job_id: str,
+    error_message: str,
+) -> Job:
+    """Persist a safe transcription failure message on a recordable job."""
+
+    job = get_job_or_raise(database_session, job_id)
+    ensure_job_can_record_description(job)
+
+    job.transcription_status = TranscriptionStatus.FAILED
+    job.transcription_error = error_message
+    return job
+
+
 def mark_active_job_transcription_failed(
     database_session: Session,
     *,
     job_id: str,
     error_message: str,
 ) -> Job:
-    """Persist a safe transcription failure message on an active job."""
+    """Persist a safe transcription failure message on an active or review job."""
+
+    return mark_job_transcription_failed(
+        database_session,
+        job_id=job_id,
+        error_message=error_message,
+    )
+
+
+def transcribe_job_audio(
+    database_session: Session,
+    *,
+    job_id: str,
+    audio_bytes: bytes,
+    filename: str,
+    content_type: str,
+) -> Job:
+    """Transcribe uploaded audio for a recordable job without storing raw audio."""
 
     job = get_job_or_raise(database_session, job_id)
-    if job.status != JobStatus.ACTIVE:
-        raise JobWorkflowError("Audio descriptions can only be recorded during an active job.")
+    ensure_job_can_record_description(job)
 
-    job.transcription_status = TranscriptionStatus.FAILED
-    job.transcription_error = error_message
-    return job
+    try:
+        transcription_result = get_transcription_provider().transcribe(
+            audio_bytes=audio_bytes,
+            filename=filename,
+            content_type=content_type,
+        )
+    except TranscriptionError as exc:
+        mark_job_transcription_failed(database_session, job_id=job_id, error_message=str(exc))
+        raise
+
+    return apply_transcription_result_to_job(
+        database_session,
+        job_id=job_id,
+        transcription_result=transcription_result,
+    )
 
 
 def transcribe_active_job_audio(
@@ -541,26 +615,14 @@ def transcribe_active_job_audio(
     filename: str,
     content_type: str,
 ) -> Job:
-    """Transcribe uploaded audio for an active job without storing raw audio."""
+    """Transcribe uploaded audio for an active or review job without storing raw audio."""
 
-    job = get_job_or_raise(database_session, job_id)
-    if job.status != JobStatus.ACTIVE:
-        raise JobWorkflowError("Audio descriptions can only be recorded during an active job.")
-
-    try:
-        transcription_result = get_transcription_provider().transcribe(
-            audio_bytes=audio_bytes,
-            filename=filename,
-            content_type=content_type,
-        )
-    except TranscriptionError as exc:
-        mark_active_job_transcription_failed(database_session, job_id=job_id, error_message=str(exc))
-        raise
-
-    return apply_transcription_result_to_active_job(
+    return transcribe_job_audio(
         database_session,
         job_id=job_id,
-        transcription_result=transcription_result,
+        audio_bytes=audio_bytes,
+        filename=filename,
+        content_type=content_type,
     )
 
 

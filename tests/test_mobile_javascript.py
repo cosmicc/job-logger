@@ -45,43 +45,123 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
               const submittedSummaries = [];
               const aiCleanupRequests = [];
               let aiCleanupFailureMessage = "";
-              const noopClassList = {
-                add() {},
-                remove() {},
-                toggle() {},
-              };
 
-              const descriptionTextarea = {
-                dataset: {jobId: "job-1"},
-                value: "",
-                addEventListener(eventName, handler) {
-                  eventHandlers[eventName] = handler;
-                },
+              function createTrackedClassList() {
+                const classNames = new Set();
+                return {
+                  add(...names) {
+                    for (const name of names) {
+                      if (name) {
+                        classNames.add(name);
+                      }
+                    }
+                  },
+                  remove(...names) {
+                    for (const name of names) {
+                      classNames.delete(name);
+                    }
+                  },
+                  toggle(name, force) {
+                    const shouldAdd = force === undefined ? !classNames.has(name) : Boolean(force);
+                    if (shouldAdd) {
+                      classNames.add(name);
+                    } else {
+                      classNames.delete(name);
+                    }
+                    return shouldAdd;
+                  },
+                  contains(name) {
+                    return classNames.has(name);
+                  },
+                  toArray() {
+                    return Array.from(classNames).sort();
+                  },
+                };
+              }
+
+              function collectTextFromChildren(children) {
+                return children.map((child) => {
+                  if (child && typeof child === "object" && "textContent" in child) {
+                    return child.textContent;
+                  }
+                  return String(child);
+                }).join("");
+              }
+
+              function createFakeElement(tagName = "span") {
+                let elementText = "";
+                return {
+                  attributes: {},
+                  children: [],
+                  classList: createTrackedClassList(),
+                  className: "",
+                  dataset: {},
+                  disabled: false,
+                  eventHandlers: {},
+                  tagName: tagName.toUpperCase(),
+                  value: "",
+                  addEventListener(eventName, handler) {
+                    this.eventHandlers[eventName] = handler;
+                  },
+                  append(...nextChildren) {
+                    this.children.push(...nextChildren);
+                    elementText = collectTextFromChildren(this.children);
+                  },
+                  getAttribute(attributeName) {
+                    return this.attributes[attributeName] || "";
+                  },
+                  querySelector() {
+                    return null;
+                  },
+                  replaceChildren(...nextChildren) {
+                    this.children = [...nextChildren];
+                    elementText = collectTextFromChildren(this.children);
+                  },
+                  setAttribute(attributeName, value) {
+                    this.attributes[attributeName] = String(value);
+                  },
+                  get textContent() {
+                    return elementText;
+                  },
+                  set textContent(nextText) {
+                    elementText = String(nextText || "");
+                    this.children = [];
+                  },
+                };
+              }
+
+              const descriptionTextarea = createFakeElement("textarea");
+              descriptionTextarea.dataset = {jobId: "job-1"};
+              descriptionTextarea.addEventListener = (eventName, handler) => {
+                eventHandlers[eventName] = handler;
               };
               const recordingStatusHistory = [];
               let recordingStatusText = "";
-              const recordingStatusElement = {
-                classList: noopClassList,
-                get textContent() {
+              const recordingStatusElement = createFakeElement("p");
+              recordingStatusElement.replaceChildren = (...nextChildren) => {
+                recordingStatusElement.children = [...nextChildren];
+                recordingStatusText = collectTextFromChildren(recordingStatusElement.children);
+                recordingStatusHistory.push(recordingStatusText);
+              };
+              Object.defineProperty(recordingStatusElement, "textContent", {
+                get() {
                   return recordingStatusText;
                 },
-                set textContent(nextText) {
-                  recordingStatusText = nextText;
-                  recordingStatusHistory.push(nextText);
+                set(nextText) {
+                  recordingStatusText = String(nextText || "");
+                  recordingStatusElement.children = [];
+                  recordingStatusHistory.push(recordingStatusText);
                 },
-              };
-              const aiCleanupButton = {
-                classList: noopClassList,
-                dataset: {
-                  cleanupUrl: "/jobs/job-1/summary/cleanup",
-                  jobId: "job-1",
-                },
-                disabled: false,
-                eventHandlers: {},
-                addEventListener(eventName, handler) {
-                  this.eventHandlers[eventName] = handler;
-                },
-                setAttribute() {},
+              });
+              const recordButtonLabel = createFakeElement("span");
+              recordButtonLabel.dataset = {};
+              recordButtonLabel.textContent = "Record Audio";
+              const recordButton = createFakeElement("button");
+              recordButton.dataset = {jobId: "job-1"};
+              const aiCleanupButton = createFakeElement("button");
+              aiCleanupButton.dataset = {
+                cleanupUrl: "/jobs/job-1/summary/cleanup",
+                jobId: "job-1",
               };
               const csrfMetaElement = {
                 getAttribute(attributeName) {
@@ -122,9 +202,18 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
                   if (selector === '.recording-status[data-job-id="job-1"]') {
                     return recordingStatusElement;
                   }
+                  if (selector === '.record-notes-button[data-job-id="job-1"]') {
+                    return recordButton;
+                  }
+                  if (selector === '.record-notes-button[data-job-id="job-1"] [data-record-audio-label]') {
+                    return recordButtonLabel;
+                  }
                   return null;
                 },
                 querySelectorAll(selector) {
+                  if (selector === ".record-notes-button") {
+                    return [recordButton];
+                  }
                   if (selector === ".job-description") {
                     return [descriptionTextarea];
                   }
@@ -135,6 +224,9 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
                 },
                 getElementById() {
                   return null;
+                },
+                createElement(tagName) {
+                  return createFakeElement(tagName);
                 },
               };
 
@@ -309,6 +401,8 @@ def test_mobile_audio_stream_pastes_only_final_transcript(tmp_path: Path) -> Non
 
         assert.strictEqual(descriptionTextarea.value, "Manual text while recording");
         assert.strictEqual(recordingStatusElement.textContent, "Transcribing audio...");
+        assert.strictEqual(recordingStatusElement.classList.contains("is-loading"), false);
+        assert.strictEqual(recordingStatusElement.children.length, 0);
 
         descriptionTextarea.value = "Manual text before final ";
         eventHandlers.input();
@@ -329,6 +423,7 @@ def test_mobile_audio_stream_pastes_only_final_transcript(tmp_path: Path) -> Non
 
         assert.deepStrictEqual(submittedSummaries, []);
         assert.strictEqual(descriptionTextarea.value, "Final audio transcript.");
+        assert.strictEqual(recordingStatusElement.classList.contains("is-loading"), false);
         """,
     )
 
@@ -341,6 +436,7 @@ def test_mobile_audio_stop_shows_upload_and_conversion_statuses(tmp_path: Path) 
         """
         let lastSocket = null;
         const stoppedTracks = [];
+        let finishTranscription = null;
 
         class FakeWebSocket {
           static OPEN = 1;
@@ -375,16 +471,18 @@ def test_mobile_audio_stop_shows_upload_and_conversion_statuses(tmp_path: Path) 
             }
 
             if (payload.type === "finish") {
-              this.handlers.message({
-                data: JSON.stringify({type: "transcription_started", phase: "final"}),
-              });
-              this.handlers.message({
-                data: JSON.stringify({
-                  type: "final",
-                  summary_notes: "Finished transcript.",
-                  description_text: "Finished transcript.",
-                }),
-              });
+              finishTranscription = () => {
+                this.handlers.message({
+                  data: JSON.stringify({type: "transcription_started", phase: "final"}),
+                });
+                this.handlers.message({
+                  data: JSON.stringify({
+                    type: "final",
+                    summary_notes: "Finished transcript.",
+                    description_text: "Finished transcript.",
+                  }),
+                });
+              };
             }
           }
 
@@ -441,6 +539,19 @@ def test_mobile_audio_stop_shows_upload_and_conversion_statuses(tmp_path: Path) 
         await browserContext.stopRecording("job-1");
         await Promise.resolve();
         await Promise.resolve();
+
+        assert.strictEqual(recordButton.disabled, true);
+        assert.strictEqual(recordButton.classList.contains("is-loading"), true);
+        assert.strictEqual(recordButton.attributes["aria-busy"], "true");
+        assert.strictEqual(recordButtonLabel.textContent, "Record Audio");
+        assert.strictEqual(recordingStatusElement.textContent, "Converting audio to text...");
+        assert.strictEqual(recordingStatusElement.classList.contains("is-loading"), false);
+        assert.strictEqual(recordingStatusElement.children.length, 0);
+
+        assert.strictEqual(typeof finishTranscription, "function");
+        finishTranscription();
+        await Promise.resolve();
+        await Promise.resolve();
         await new Promise((resolve) => setImmediate(resolve));
 
         const sendingIndex = recordingStatusHistory.lastIndexOf("Sending data to server...");
@@ -455,6 +566,10 @@ def test_mobile_audio_stop_shows_upload_and_conversion_statuses(tmp_path: Path) 
         assert.ok(completeIndex > convertingIndex);
         assert.strictEqual(recordingAfterStopIndex, -1);
         assert.strictEqual(recordingStatusElement.textContent, "Conversion complete.");
+        assert.strictEqual(recordingStatusElement.classList.contains("is-loading"), false);
+        assert.strictEqual(recordButton.disabled, false);
+        assert.strictEqual(recordButton.classList.contains("is-loading"), false);
+        assert.strictEqual(recordButton.attributes["aria-busy"], "false");
         assert.strictEqual(descriptionTextarea.value, "Finished transcript.");
         assert.ok(stoppedTracks.length >= 1);
         """,

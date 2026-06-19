@@ -277,24 +277,14 @@ function setActiveSaveStatus(jobId, message, isError = false) {
   statusElement.classList.toggle("error-text", isError);
 }
 
-function setInlineLoadingStatus(statusElement, message, {isError = false, isLoading = false} = {}) {
+function setInlineLoadingStatus(statusElement, message, {isError = false} = {}) {
   if (!statusElement) {
     return;
   }
 
   statusElement.classList.toggle("error-text", isError);
-  statusElement.classList.toggle("is-loading", isLoading);
-  if (!isLoading || typeof statusElement.replaceChildren !== "function" || typeof document.createElement !== "function") {
-    statusElement.textContent = message;
-    return;
-  }
-
-  const spinnerElement = document.createElement("span");
-  spinnerElement.className = "loading-spinner";
-  spinnerElement.setAttribute("aria-hidden", "true");
-  const messageElement = document.createElement("span");
-  messageElement.textContent = message;
-  statusElement.replaceChildren(spinnerElement, messageElement);
+  statusElement.classList.remove("is-loading");
+  statusElement.textContent = message;
 }
 
 function setAiCleanupStatus(jobId, message, isError = false, isLoading = false) {
@@ -425,7 +415,7 @@ function setRecordingProgressStatus(activeJobId, activeMessage) {
     return;
   }
 
-  setRecordingStatus(safeActiveJobId, activeMessage);
+  setRecordingStatus(safeActiveJobId, activeMessage, false, true);
 }
 
 function setRecordingUi({
@@ -439,6 +429,8 @@ function setRecordingUi({
   }
 
   controls.recordButton.disabled = isUploading;
+  controls.recordButton.classList.toggle("is-loading", isUploading);
+  controls.recordButton.setAttribute("aria-busy", isUploading ? "true" : "false");
   controls.recordButton.setAttribute("aria-pressed", isRecording ? "true" : "false");
   if (controls.recordButtonLabel) {
     controls.recordButtonLabel.textContent = isRecording ? STOP_RECORDING_LABEL : RECORD_AUDIO_LABEL;
@@ -843,7 +835,7 @@ function handleAudioStreamMessage(activeJobId, rawMessage, readyHandlers) {
 
   if (payload.type === "ready") {
     activeAudioStreamReady = true;
-    setRecordingStatus(activeJobId, "Streaming audio to server...");
+    setRecordingStatus(activeJobId, "Streaming audio to server...", false, true);
     if (readyHandlers && readyHandlers.resolve) {
       readyHandlers.resolve(payload);
     }
@@ -1428,7 +1420,7 @@ async function startRecording(activeJobId) {
   });
 
   activeRecorder.start(RECORDING_CHUNK_INTERVAL_MS);
-  setRecordingStatus(activeJobId, "Streaming audio to server...");
+  setRecordingStatus(activeJobId, "Streaming audio to server...", false, true);
 }
 
 async function stopRecording(activeJobId) {

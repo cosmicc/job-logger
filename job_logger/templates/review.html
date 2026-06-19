@@ -272,6 +272,33 @@
               <span>Summary notes</span>
               <textarea name="summary_notes" rows="8" data-review-summary-textarea>{{ selected_job_autotask_summary_notes }}</textarea>
             </label>
+            {% if not selected_job_submitted %}
+              <div class="recording-control-stack">
+                <button
+                  class="secondary-button record-notes-button"
+                  type="button"
+                  data-review-record-button
+                  data-job-id="{{ selected_job.id }}"
+                  aria-pressed="false"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <path d="M12 19v3"></path>
+                  </svg>
+                  <span data-record-audio-label>Record Audio</span>
+                </button>
+              </div>
+              <p
+                class="recording-status"
+                data-review-recording-status
+                data-job-id="{{ selected_job.id }}"
+                aria-live="polite"
+              ></p>
+              {% if selected_job.transcription_error %}
+                <p class="error-text">{{ selected_job.transcription_error }}</p>
+              {% endif %}
+            {% endif %}
             {% if ai_cleanup_enabled %}
               <div class="summary-tool-row">
                 <button

@@ -126,6 +126,9 @@ Audio stream or compatibility upload handling must:
 - Require CSRF validation before accepting audio bytes. WebSocket streams send
   the CSRF token in the first JSON message instead of the URL so reverse-proxy
   access logs do not capture it.
+- Allow recording only for active jobs or review jobs that have not been
+  successfully submitted to Autotask; submitted entries must reject later audio
+  transcript changes server-side.
 - Check content type.
 - Enforce maximum audio size.
 - Pass bytes to the transcription provider without writing persistent raw audio.

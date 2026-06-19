@@ -66,7 +66,8 @@ The mobile web page must provide a quick active-job workflow with these actions:
 - End work.
 - Record description.
 
-Description recording is only available during an active job.
+Description recording is available during an active job and on review detail
+before the job has been successfully submitted to Autotask.
 
 Recorded jobs follow this lifecycle:
 
@@ -149,12 +150,14 @@ be changed without rewriting the job workflow.
 The translated speech-to-text description must populate the editable job
 description used on the review page.
 
-After the user stops mobile recording, the browser status must distinguish the
-upload and transcription phases: first **Sending data to server...**, then
-**Converting audio to text...**, then **Conversion complete.** when the final
-transcript has been returned and pasted into the summary field. The same
-spinner used for API loading must appear in the status line while upload or
-conversion is in progress, then disappear on completion or failure.
+After the user stops active-job or review-detail recording, the browser status
+must distinguish the upload and transcription phases: first **Sending data to
+server...**, then **Converting audio to text...**, then **Conversion
+complete.** when the final transcript has been returned and pasted into the
+summary field. Audio and AI Cleanup status lines are plain text only. The
+spinning loading icon belongs in the active button itself, such as the disabled
+**Record Audio** button while the recording is still being sent or converted
+and the **AI Cleanup** button while cleanup is running.
 
 The local faster-whisper provider may use `FASTER_WHISPER_INITIAL_PROMPT` to
 guide transcript formatting, including rendering dictated punctuation words as
@@ -166,8 +169,8 @@ editable summary text to the configured server-side cleanup provider and
 replaces the summary textarea with the returned cleaned text. It must not
 submit to Autotask or bypass review.
 
-The review page must allow the transcribed description to be edited before the
-job is accepted and submitted to Autotask.
+The review page must allow the transcribed description to be edited or
+re-recorded before the job is accepted and submitted to Autotask.
 
 Do not permanently store raw audio by default.
 
@@ -322,8 +325,9 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/routes/auth.py` handles login/logout and local authenticated
   sessions.
 - `job_logger/routes/mobile.py` handles `/mobile`, active job start/end/save,
-  active rounded-start adjustment, WebSocket recording streams, compatibility
-  recording uploads, description text saves, and Autotask company autocomplete.
+  active rounded-start adjustment, WebSocket recording streams for active and
+  unsubmitted review jobs, compatibility recording uploads, description text
+  saves, and Autotask company autocomplete.
 - `job_logger/routes/review.py` handles review listing, edit/save/accept/retry,
   updating or deleting existing submitted Autotask entries, ticket lookup for a
   selected job, and explicit local **Delete time entry** cleanup.
@@ -380,19 +384,21 @@ The normal workflow is:
    it can be corrected before Autotask submission.
 8. User records notes during an active job from the Summary notes area above
    the optional AI Cleanup action. The record button becomes a stop button
-   while audio chunks stream to the server over WebSocket, and stopping capture
-   shows sending/converting/completed progress with a status-line spinner until
-   the final transcript returns.
+   while audio chunks stream to the server over WebSocket. Recording, sending,
+   and converting progress use plain status text, and stopping capture keeps
+   the disabled record button in a loading state until the final transcript
+   returns.
 9. When enabled, user can click **AI Cleanup** to send the current summary text
    through the configured server-side cleanup provider. On
-   mobile, progress and failure details use the same status line as audio
-   recording, with a spinner while cleanup is in progress. The returned text
-   replaces the summary textarea and remains subject to normal save/review
-   behavior.
+   mobile, progress and failure details use the same plain-text status line as
+   audio recording, while the **AI Cleanup** button itself shows the spinner
+   during cleanup. The returned text replaces the summary textarea and remains
+   subject to normal save/review behavior.
 10. User can save active job edits before ending work.
 11. User ends work with a mandatory client name. The job moves to review.
-12. User reviews the job from `/review`, edits time/status/notes if needed, and
-    keeps the selected client/ticket identity read-only.
+12. User reviews the job from `/review`, edits time/status/notes if needed,
+    optionally records more audio notes before Autotask submission, and keeps
+    the selected client/ticket identity read-only.
 13. Accept/retry submits a reviewed job to Autotask idempotently.
 14. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes
     updates against the existing Autotask time entry, or **Delete From Autotask**

@@ -37,12 +37,13 @@ from job_logger.services.jobs import (
     adjust_active_job_rounded_start,
     apply_manual_summary_to_job,
     apply_selected_ticket_from_lookup,
-    apply_transcription_result_to_active_job,
+    apply_transcription_result_to_job,
     delete_active_job,
     end_job,
+    ensure_job_can_record_description,
     get_job_or_raise,
     list_active_jobs,
-    mark_active_job_transcription_failed,
+    mark_job_transcription_failed,
     start_job,
     transcribe_active_job_audio,
     update_active_job_ticket_number,
@@ -210,7 +211,7 @@ def _record_audio_stream_failure(
 ) -> None:
     """Persist safe failure status for a streamed transcription attempt."""
 
-    job = mark_active_job_transcription_failed(
+    job = mark_job_transcription_failed(
         database_session,
         job_id=job_id,
         error_message=safe_error,
@@ -434,7 +435,7 @@ async def _receive_audio_stream_chunks(
     )
     try:
         final_result = await _transcribe_audio_snapshot(bytes(audio_buffer), filename, content_type)
-        job = apply_transcription_result_to_active_job(
+        job = apply_transcription_result_to_job(
             database_session,
             job_id=job_id,
             transcription_result=final_result,
@@ -1031,8 +1032,7 @@ async def stream_audio_description(
         filename = _safe_audio_stream_filename(start_payload.get("filename"))
 
         job = get_job_or_raise(database_session, job_id)
-        if job.status != JobStatus.ACTIVE:
-            raise JobWorkflowError("Audio descriptions can only be recorded during an active job.")
+        ensure_job_can_record_description(job)
 
         record_audit_event(
             database_session,

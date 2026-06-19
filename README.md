@@ -295,19 +295,20 @@ the host operating system.
 `TRANSCRIPTION_PROVIDER=mock` proves the transcription path without loading a
 local model. `TRANSCRIPTION_PROVIDER=disabled` rejects transcription attempts.
 
-The mobile recorder streams `MediaRecorder` chunks to
+The active-job and review-detail recorder streams `MediaRecorder` chunks to
 `WebSocket /jobs/{job_id}/description/audio/stream`. The first WebSocket
 message carries metadata and the CSRF token, then binary audio chunks are sent
 as soon as the browser produces them. The server starts a best-effort interim
-transcription from the first buffered chunk. The mobile **Record Audio** button
-uses an orange treatment and becomes a **Stop recording** button while browser
-capture is active.
-Stopping capture lets the browser flush the final chunk, sends WebSocket
-`finish`, returns the button to its idle appearance, and keeps showing clear
-progress with the shared spinner: **Sending data to server...**, then
-**Converting audio to text...**, then **Conversion complete.** after the final
-saved transcript is returned. A bounded error response is shown instead if the
-stream or provider fails.
+transcription from the first buffered chunk. The **Record Audio** button uses
+an orange treatment and becomes a **Stop recording** button while browser
+capture is active. Stopping capture lets the browser flush the final chunk,
+sends WebSocket `finish`, returns the button to its idle label, keeps that
+disabled button in the shared loading state, and shows clear text progress:
+**Sending data to server...**, then **Converting audio to text...**, then
+**Conversion complete.** after the final saved transcript is returned. Status
+lines do not show spinners; the active button shows the spinner. A bounded error
+response is shown instead if the stream or provider fails. Review recording is
+available only before the job has been submitted to Autotask.
 
 Raw audio is not stored by default. The app keeps the streamed recording in
 memory only, sends buffered bytes to the local provider through a temporary
@@ -378,14 +379,15 @@ server-style hosts such as `localhost`, `127.0.0.1`, or
 `host.docker.internal`. Do not expose those local model servers publicly.
 
 When enabled, active mobile jobs and review detail show **AI Cleanup** with the
-summary box. On mobile, **Record Audio** appears above **AI Cleanup**, the
-cleaned text replaces the textarea, and that text is saved through the existing
-active-summary save endpoint. Mobile cleanup progress, success, and failure
-details use the same status line as audio recording with the shared spinner
-while cleanup is in progress, and cleanup waits until audio
-recording/transcription is finished. On review detail, the cleaned text replaces
-the textarea; non-submitted jobs autosave as usual, while submitted jobs still
-require **Edit Entry** to patch the existing Autotask time entry.
+summary box. On mobile and unsubmitted review detail, **Record Audio** appears
+above **AI Cleanup**. Cleaned text replaces the textarea and mobile saves it
+through the existing active-summary save endpoint. Cleanup progress, success,
+and failure details use the same plain-text status line as audio recording;
+the **AI Cleanup** button itself shows the shared spinner while cleanup is in
+progress, and cleanup waits until audio recording/transcription is finished. On
+review detail, the cleaned text replaces the textarea; non-submitted jobs
+autosave as usual, while submitted jobs still require **Edit Entry** to patch
+the existing Autotask time entry.
 
 AI cleanup requests require the local authenticated session and CSRF token. The
 server sends bounded summary text plus minimal job context to the selected

@@ -862,8 +862,6 @@ a:focus-visible {
   min-height: 18px;
 }
 
-.recording-status.is-loading,
-.ai-cleanup-status.is-loading,
 .ticket-picker-status.is-loading {
   display: inline-flex;
   align-items: center;
