@@ -89,16 +89,22 @@ is still fresh, falls back to a live Autotask lookup when needed, verifies the
 submitted ticket belongs to that safe list, stores the ticket number, title,
 and bounded ticket description, and records an audit event. When an active job
 has no ticket number, the mobile page shows the open-ticket panel under the
-client field. The **Find tickets** button saves the current active client fields
-before querying Autotask, and a job that already has a saved client auto-loads
-the picker. After selection, the browser should immediately hide the open-ticket
-panel and show the selected ticket number, ticket title, and ticket description
-in Work in Progress without waiting for a page reload.
+client field. The panel itself is the ticket-loading control while no ticket
+options have been loaded; clicking or pressing Enter/Space on the panel saves
+the current active client fields before querying Autotask and shows the shared
+spinner loading state while the request is in flight. A job that already has a
+saved client auto-loads the picker. After selection, the browser should
+immediately hide the open-ticket panel and show the selected ticket number,
+ticket title, and ticket description in Work in Progress without waiting for a
+page reload.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
-prefix `summaryNotes` with `Remote` or `On-Site` only when creating the time
-entry.
+prefix `summaryNotes` with `Remote` or `On-Site`. Review detail is the
+exception: it displays the complete Autotask summary with that prefix so the
+reviewer can correct Remote versus On-Site before accepting or editing an
+existing Autotask entry. Save/accept handlers must parse the visible prefix back
+into `work_location` and keep stored local notes unprefixed.
 
 The mobile start panels show today's Autotask service calls when an active job
 slot is available. The page should render immediately with a **Loading service
@@ -125,7 +131,9 @@ Autotask lookups do not look like ignored taps.
 Selected ticket descriptions on mobile are read-only Autotask context. Long
 descriptions should stay escaped, bounded to an internal scroll area, and
 available in full through scrolling inside the description box instead of
-expanding the entire Work in Progress card indefinitely.
+expanding the entire Work in Progress card indefinitely. Phone-sized layouts
+cap the visible description box at about 50 text lines, while wider layouts can
+use the larger desktop cap.
 
 The active mobile card should expose only one client entry point for each job.
 After an Autotask company is selected, the active job displays that client as a
@@ -170,10 +178,17 @@ Current behavior:
   arrives. The current faster-whisper provider is batch-oriented, so interim
   text is best-effort from the buffered media snapshot. Browser-side partial
   stream messages must update status only, not the editable summary textarea.
+- The faster-whisper provider passes `FASTER_WHISPER_INITIAL_PROMPT` into
+  `model.transcribe()` when configured. The default prompt asks the model to
+  render dictated punctuation words as symbols and paragraph breaks instead of
+  spelling those words, but this remains a model-formatting hint rather than a
+  guaranteed post-processing rule.
 - Clicking **Stop recording** ends browser capture, lets `MediaRecorder` flush its
   final chunk, sends WebSocket `finish`, and keeps the control disabled while
-  the status line shows transcode/transcription progress until the final
-  transcript or a bounded error response returns. The legacy
+  the status line shows **Sending data to server...**, then **Converting audio
+  to text...**, then **Conversion complete.** after the final transcript is
+  returned and pasted into the summary field. Final chunk acknowledgements from
+  the server must not move the stopped UI back to **Recording audio...**. The legacy
   `POST /jobs/{job_id}/description/audio` endpoint remains as a compatibility
   upload path, but the mobile UI should use the WebSocket stream.
 - Raw audio is not permanently stored by default.
@@ -212,6 +227,13 @@ Review supports:
 Ticket number is intentionally required only before Autotask submission, not for
 ordinary save operations.
 
+The review summary textarea displays the complete Autotask `summaryNotes`
+string, including the leading Remote or On-Site prefix. Review save, accept,
+retry, and submitted-entry edit handlers must parse that prefix back into the
+stored work-location mode and keep the persisted note body clean. This allows
+the operator to correct the final Autotask notes without making ticket/client
+identity editable.
+
 The review detail form does not expose a manual Save button. Editable review
 fields are saved through debounced background posts to `POST /review/{job_id}/save`.
 The route still supports normal form posts for compatibility, and the Accept,
@@ -235,11 +257,21 @@ that job. Review ticket selection should update the read-only ticket number,
 selected-job heading, and read-only ticket description card in place after the
 server verifies and stores the ticket.
 
-After a job is successfully submitted to Autotask, the review record becomes
-immutable. The UI must render the selected job as read-only and remove save,
-accept/resend, retry, reject, ticket-selection, and force-purge controls. The
-service and route layers must enforce the same lock because disabled controls
-and hidden form fields are not security controls.
+After a job is successfully submitted to Autotask, ticket/client identity and
+workflow actions remain protected. The UI must keep ticket selection,
+accept/resend, retry, reject, and force-purge controls hidden or blocked. Date,
+start time, end time, summary notes, and ticket status can stay editable only
+when the submitted detail shows **Edit Entry**. That button must call the
+submitted-entry update route so the existing Autotask `TimeEntries` row is
+patched before local values are kept. The submitted detail can also show
+**Delete From Autotask**, which deletes the external time entry and moves the
+local job back to review only after Autotask confirms the delete. This action
+must not delete the local job, audit events, or submission attempts.
+
+The review detail uses one local job date with start and end times. Jobs do not
+span multiple dates; validation must reject edits where the end time is not
+after the start time on that same date. Keep the audit timeline collapsed by
+default with an expandable detail section.
 
 ## Job Status Expectations
 
@@ -249,8 +281,9 @@ states, rejected states, failed submission states, or audited purge paths.
 Force purge exists for strict cleanup from review detail, but active jobs cannot
 be purged from that endpoint. Active jobs have the separate audited delete route
 described above. Successfully submitted Autotask jobs also cannot be purged
-because the local review values must continue to match the external time entry.
-Be careful before expanding destructive behavior.
+because local history must stay tied to the external time entry. Use the audited
+Edit Entry or Delete From Autotask paths for submitted-entry corrections instead
+of expanding local destructive behavior.
 
 ## Time Rules
 

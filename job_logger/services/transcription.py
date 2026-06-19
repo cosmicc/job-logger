@@ -127,6 +127,7 @@ class FasterWhisperTranscriptionProvider(BaseTranscriptionProvider):
                 str(temporary_audio_path),
                 language=self.application_settings.faster_whisper_language,
                 beam_size=self.application_settings.faster_whisper_beam_size,
+                initial_prompt=self.application_settings.faster_whisper_initial_prompt,
             )
             transcript_text = " ".join(segment.text.strip() for segment in segments if segment.text.strip()).strip()
         except ImportError as exc:

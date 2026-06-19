@@ -89,9 +89,8 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
         data={
             "csrf_token": review_csrf_token,
             "ticket_status": "complete",
-            "start_date": "2026-06-16",
+            "job_date": "2026-06-16",
             "start_time": "08:00",
-            "end_date": "2026-06-16",
             "end_time": "08:15",
             "summary_notes": "Checked connection diagnostics for one test submission.",
         },

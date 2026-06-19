@@ -75,8 +75,11 @@
         {% if selected_job %}
           <form
             method="post"
-            class="review-form {% if selected_job_locked %}review-form-locked{% endif %}"
-            {% if not selected_job_locked %}
+            class="review-form {% if selected_job_submitted %}review-form-submitted{% endif %}"
+            {% if selected_job_submitted %}
+              action="/review/{{ selected_job.id }}/edit-entry"
+            {% endif %}
+            {% if not selected_job_submitted %}
               data-review-autosave-form
               data-review-save-url="/review/{{ selected_job.id }}/save"
             {% endif %}
@@ -94,16 +97,16 @@
             {% if selected_job.autotask_external_id %}
               <p class="success-text">Autotask time entry: {{ selected_job.autotask_external_id }}</p>
             {% endif %}
-            {% if selected_job_locked %}
-              <section class="review-lock-notice" role="note" aria-label="Submitted job locked">
-                <strong>Submitted job locked</strong>
-                <span>Autotask accepted this time entry. Review values are read-only and cannot be saved, rejected, purged, or sent again.</span>
+            {% if selected_job_submitted %}
+              <section class="review-submitted-notice" role="note" aria-label="Submitted job editable">
+                <strong>Submitted Autotask entry</strong>
+                <span>Date, start time, end time, summary notes, and ticket status can be updated with Edit Entry. Ticket and client identity stay read-only.</span>
               </section>
             {% endif %}
             {% if selected_job.autotask_error %}
               <p class="error-text">{{ selected_job.autotask_error }}</p>
             {% endif %}
-            {% if not selected_job_locked %}
+            {% if not selected_job_submitted %}
               <p class="muted-text" data-review-autosave-status aria-live="polite"></p>
             {% endif %}
 
@@ -132,7 +135,7 @@
               >
               <label>
                 <span>Ticket status</span>
-                <select name="ticket_status" required {% if selected_job_locked %}disabled{% endif %}>
+                <select name="ticket_status" required>
                   {% for option_value, option_label in ticket_status_options %}
                     <option value="{{ option_value }}" {% if selected_job.ticket_status and selected_job.ticket_status.value == option_value %}selected{% endif %}>
                       {{ option_label }}
@@ -155,9 +158,14 @@
                 name="autotask_company_id"
                 value="{{ selected_job.autotask_company_id or '' }}"
               >
+              <input
+                type="hidden"
+                name="work_location"
+                value="{{ selected_job.work_location.value if selected_job.work_location else 'remote' }}"
+              >
               <label>
-                <span>Start date</span>
-                <input name="start_date" type="date" value="{{ selected_job.rounded_start_utc|local_date }}" required {% if selected_job_locked %}disabled{% endif %}>
+                <span>Job date</span>
+                <input name="job_date" type="date" value="{{ selected_job.local_work_date or selected_job.rounded_start_utc|local_date }}" required>
               </label>
               <label>
                 <span>Start time</span>
@@ -166,10 +174,8 @@
                     type="button"
                     class="secondary-button time-step-button"
                     data-time-input="start_time"
-                    data-date-input="start_date"
                     data-delta-minutes="-15"
                     aria-label="Decrease start time by 15 minutes"
-                    {% if selected_job_locked %}disabled{% endif %}
                   >
                     -15
                   </button>
@@ -183,30 +189,17 @@
                     autocorrect="off"
                     spellcheck="false"
                     required
-                    {% if selected_job_locked %}disabled{% endif %}
                   >
                   <button
                     type="button"
                     class="secondary-button time-step-button"
                     data-time-input="start_time"
-                    data-date-input="start_date"
                     data-delta-minutes="15"
                     aria-label="Increase start time by 15 minutes"
-                    {% if selected_job_locked %}disabled{% endif %}
                   >
                     +15
                   </button>
                 </div>
-              </label>
-              <label>
-                <span>End date</span>
-                <input
-                  name="end_date"
-                  type="date"
-                  value="{{ selected_job.rounded_end_utc|local_date }}"
-                  {% if selected_job.status.value != "active" %}required{% endif %}
-                  {% if selected_job_locked %}disabled{% endif %}
-                >
               </label>
               <label>
                 <span>End time</span>
@@ -215,10 +208,8 @@
                     type="button"
                     class="secondary-button time-step-button"
                     data-time-input="end_time"
-                    data-date-input="end_date"
                     data-delta-minutes="-15"
                     aria-label="Decrease end time by 15 minutes"
-                    {% if selected_job_locked %}disabled{% endif %}
                   >
                     -15
                   </button>
@@ -232,16 +223,13 @@
                     autocorrect="off"
                     spellcheck="false"
                     {% if selected_job.status.value != "active" %}required{% endif %}
-                    {% if selected_job_locked %}disabled{% endif %}
                   >
                   <button
                     type="button"
                     class="secondary-button time-step-button"
                     data-time-input="end_time"
-                    data-date-input="end_date"
                     data-delta-minutes="15"
                     aria-label="Increase end time by 15 minutes"
-                    {% if selected_job_locked %}disabled{% endif %}
                   >
                     +15
                   </button>
@@ -249,12 +237,13 @@
               </label>
             </div>
 
-            {% if not selected_job_locked and not selected_job.ticket_number %}
+            {% if not selected_job_submitted and not selected_job.ticket_number %}
               <section
                 class="ticket-picker"
                 data-ticket-picker
                 data-ticket-lookup-url="/review/{{ selected_job.id }}/tickets"
                 data-ticket-select-url="/review/{{ selected_job.id }}/ticket"
+                data-ticket-client-name="{{ selected_job.client_name or '' }}"
                 aria-label="Open Autotask tickets"
               >
                 <div class="ticket-picker-header">
@@ -262,16 +251,10 @@
                     <h3>Open tickets</h3>
                     <p class="muted-text">{{ selected_job.client_name or "No client name set" }}</p>
                   </div>
-                  <button
-                    class="secondary-button"
-                    type="button"
-                    data-ticket-lookup-button
-                    {% if not selected_job.client_name %}disabled{% endif %}
-                  >
-                    Find tickets
-                  </button>
                 </div>
-                <p class="ticket-picker-status muted-text" data-ticket-lookup-status aria-live="polite"></p>
+                <p class="ticket-picker-status muted-text" data-ticket-lookup-status aria-live="polite">
+                  {% if selected_job.client_name %}Click this box to load open tickets.{% else %}Client name is required before open tickets can load.{% endif %}
+                </p>
                 <div class="ticket-picker-results" data-ticket-lookup-results></div>
               </section>
             {% endif %}
@@ -287,10 +270,20 @@
 
             <label class="wide-field">
               <span>Summary notes</span>
-              <textarea name="summary_notes" rows="8" {% if selected_job_locked %}disabled{% endif %}>{{ selected_job.summary_notes or selected_job.description_text or '' }}</textarea>
+              <textarea name="summary_notes" rows="8">{{ selected_job_autotask_summary_notes }}</textarea>
             </label>
 
-            {% if not selected_job_locked %}
+            {% if selected_job_submitted %}
+              <div class="action-row">
+                <button class="primary-button" type="submit" formaction="/review/{{ selected_job.id }}/edit-entry">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4z"></path>
+                    <path d="M13.5 6.5l4 4"></path>
+                  </svg>
+                  Edit Entry
+                </button>
+              </div>
+            {% else %}
               <div class="action-row">
                 <button class="primary-button" type="submit" formaction="/review/{{ selected_job.id }}/accept">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -311,7 +304,26 @@
             {% endif %}
           </form>
 
-          {% if not selected_job_locked %}
+          {% if selected_job_submitted %}
+            <form
+              method="post"
+              action="/review/{{ selected_job.id }}/delete-entry"
+              class="submitted-entry-delete-form"
+              onsubmit="return confirm('This will delete the existing Autotask time entry and return this job to review. Continue?')"
+            >
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="danger-outline-button" type="submit">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 6h18"></path>
+                  <path d="M8 6V4h8v2"></path>
+                  <path d="M10 11v6"></path>
+                  <path d="M14 11v6"></path>
+                  <path d="M9 10h6"></path>
+                </svg>
+                Delete From Autotask
+              </button>
+            </form>
+          {% else %}
             <form method="post" action="/review/{{ selected_job.id }}/reject" class="reject-form">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <label>
@@ -347,21 +359,26 @@
             </form>
           {% endif %}
 
-          <section class="audit-panel" aria-label="Audit timeline">
-            <h3>Audit timeline</h3>
-            {% if audit_events %}
-              <ol class="audit-list">
-                {% for audit_event in audit_events %}
-                  <li>
-                    <strong>{{ audit_event.action }}</strong>
-                    <span>{{ audit_event.created_at_utc|local_display }} by {{ audit_event.actor }}</span>
-                  </li>
-                {% endfor %}
-              </ol>
-            {% else %}
-              <p class="muted-text">No audit events recorded for this job.</p>
-            {% endif %}
-          </section>
+          <details class="audit-panel audit-timeline" aria-label="Audit timeline">
+            <summary>
+              <span>Audit timeline</span>
+              <span class="audit-count">{{ audit_events|length }} event{% if audit_events|length != 1 %}s{% endif %}</span>
+            </summary>
+            <div class="audit-timeline-body">
+              {% if audit_events %}
+                <ol class="audit-list">
+                  {% for audit_event in audit_events %}
+                    <li>
+                      <strong>{{ audit_event.action }}</strong>
+                      <span>{{ audit_event.created_at_utc|local_display }} by {{ audit_event.actor }}</span>
+                    </li>
+                  {% endfor %}
+                </ol>
+              {% else %}
+                <p class="muted-text">No audit events recorded for this job.</p>
+              {% endif %}
+            </div>
+          </details>
         {% else %}
           <div class="empty-state">
             <h2>No job selected</h2>

@@ -78,9 +78,8 @@ def create_submitted_mock_job(authenticated_client: TestClient, *, summary_notes
         data={
             "csrf_token": review_csrf_token,
             "ticket_status": "complete",
-            "start_date": "2026-06-16",
+            "job_date": "2026-06-16",
             "start_time": "08:00",
-            "end_date": "2026-06-16",
             "end_time": "08:15",
             "summary_notes": summary_notes,
         },
@@ -163,9 +162,8 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         data={
             "csrf_token": review_csrf_token,
             "ticket_status": "complete",
-            "start_date": "2026-06-16",
+            "job_date": "2026-06-16",
             "start_time": "08:00",
-            "end_date": "2026-06-16",
             "end_time": "08:15",
             "summary_notes": "Replaced a failed workstation power supply.",
         },
@@ -186,8 +184,8 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         assert attempts[0].succeeded is True
 
 
-def test_submitted_review_page_locks_values_and_actions(authenticated_client: TestClient) -> None:
-    """Successfully submitted jobs render as read-only review records."""
+def test_submitted_review_page_allows_controlled_entry_edits(authenticated_client: TestClient) -> None:
+    """Submitted jobs keep identity protected while allowing explicit entry edits."""
 
     submitted_job_id, _review_csrf_token = create_submitted_mock_job(authenticated_client)
 
@@ -195,22 +193,29 @@ def test_submitted_review_page_locks_values_and_actions(authenticated_client: Te
     review_html = review_page_response.text
 
     assert review_page_response.status_code == 200
-    assert "Submitted job locked" in review_html
-    assert "Autotask accepted this time entry." in review_html
-    assert 'class="review-form review-form-locked"' in review_html
-    assert re.search(r'<select(?=[^>]*name="ticket_status")(?=[^>]*disabled)', review_html)
-    assert re.search(r'<input(?=[^>]*name="start_date")(?=[^>]*disabled)', review_html)
-    assert re.search(r'<input(?=[^>]*name="start_time")(?=[^>]*disabled)', review_html)
-    assert re.search(r'<textarea(?=[^>]*name="summary_notes")(?=[^>]*disabled)', review_html)
+    assert "Submitted Autotask entry" in review_html
+    assert "can be updated with Edit Entry" in review_html
+    assert 'class="review-form review-form-submitted"' in review_html
+    assert re.search(r'<select(?=[^>]*name="ticket_status")(?![^>]*disabled)', review_html)
+    assert re.search(r'<input(?=[^>]*name="job_date")(?![^>]*disabled)', review_html)
+    assert re.search(r'<input(?=[^>]*name="start_time")(?![^>]*disabled)', review_html)
+    assert re.search(r'<textarea(?=[^>]*name="summary_notes")(?![^>]*disabled)', review_html)
+    assert "Remote Locked submitted job notes" in review_html
+    assert f'action="/review/{submitted_job_id}/edit-entry"' in review_html
+    assert f'formaction="/review/{submitted_job_id}/edit-entry"' in review_html
+    assert f'action="/review/{submitted_job_id}/delete-entry"' in review_html
+    assert "Delete From Autotask" in review_html
     assert f'formaction="/review/{submitted_job_id}/save"' not in review_html
     assert f'formaction="/review/{submitted_job_id}/accept"' not in review_html
     assert f'formaction="/review/{submitted_job_id}/retry"' not in review_html
     assert f'action="/review/{submitted_job_id}/reject"' not in review_html
     assert f'action="/review/{submitted_job_id}/purge"' not in review_html
+    assert "<details class=\"audit-panel audit-timeline\"" in review_html
+    assert "<summary>" in review_html
 
 
-def test_submitted_jobs_reject_mutating_review_requests(authenticated_client: TestClient) -> None:
-    """Direct review POSTs cannot edit, purge, reject, or resend a submitted job."""
+def test_submitted_jobs_allow_edit_entry_but_reject_other_mutations(authenticated_client: TestClient) -> None:
+    """Submitted jobs update the external entry only through the edit-entry route."""
 
     original_summary_notes = "Submitted values must stay unchanged"
     submitted_job_id, review_csrf_token = create_submitted_mock_job(
@@ -223,9 +228,8 @@ def test_submitted_jobs_reject_mutating_review_requests(authenticated_client: Te
     changed_review_data = {
         "csrf_token": review_csrf_token,
         "ticket_status": "follow_up",
-        "start_date": "2026-06-17",
+        "job_date": "2026-06-17",
         "start_time": "09:00",
-        "end_date": "2026-06-17",
         "end_time": "09:30",
         "summary_notes": "Tampered submitted notes",
     }
@@ -260,6 +264,11 @@ def test_submitted_jobs_reject_mutating_review_requests(authenticated_client: Te
         headers={"X-CSRF-Token": review_csrf_token},
         json={"ticket_number": "T20260616.0002"},
     )
+    edit_entry_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/edit-entry",
+        data=changed_review_data,
+        follow_redirects=False,
+    )
 
     assert save_response.status_code == 303
     assert accept_response.status_code == 303
@@ -268,21 +277,84 @@ def test_submitted_jobs_reject_mutating_review_requests(authenticated_client: Te
     assert purge_response.status_code == 303
     assert purge_response.headers["location"] == f"/review/{submitted_job_id}"
     assert ticket_selection_response.status_code == 400
-    assert "Submitted Autotask jobs are locked" in ticket_selection_response.json()["detail"]
+    assert "cannot be rejected, purged, resent, or have ticket identity changed" in ticket_selection_response.json()["detail"]
+    assert edit_entry_response.status_code == 303
 
     with database.SessionLocal() as database_session:
         submitted_job = database_session.get(Job, submitted_job_id)
         assert submitted_job is not None
         assert submitted_job.status == JobStatus.SUBMITTED
-        assert submitted_job.summary_notes == original_summary_notes
-        assert submitted_job.ticket_status.value == "complete"
+        assert submitted_job.summary_notes == "Tampered submitted notes"
+        assert submitted_job.ticket_status.value == "follow_up"
         assert submitted_job.autotask_external_id == f"mock-time-entry-{submitted_job_id}"
 
-        # Only the original successful submission attempt should exist; later
-        # accept/retry posts must not create duplicate Autotask attempts.
-        submission_attempts = database_session.query(SubmissionAttempt).filter_by(job_id=submitted_job_id).all()
-        assert len(submission_attempts) == 1
+        update_event = database_session.query(AuditEvent).filter_by(action="job.autotask.entry_update").one()
+        assert update_event.job_id == submitted_job_id
+        assert update_event.details["succeeded"] is True
+
+        # The original create attempt and the explicit edit-entry update attempt
+        # are recorded; blocked save/accept/retry posts must not create more.
+        submission_attempts = (
+            database_session.query(SubmissionAttempt)
+            .filter_by(job_id=submitted_job_id)
+            .order_by(SubmissionAttempt.created_at_utc)
+            .all()
+        )
+        assert len(submission_attempts) == 2
         assert submission_attempts[0].succeeded is True
+        assert submission_attempts[1].succeeded is True
+        assert submission_attempts[1].request_snapshot["operation"] == "update_time_entry"
+
+
+def test_submitted_job_delete_entry_removes_autotask_entry_only(authenticated_client: TestClient) -> None:
+    """Delete From Autotask moves a submitted job back to review without deleting it locally."""
+
+    submitted_job_id, review_csrf_token = create_submitted_mock_job(
+        authenticated_client,
+        summary_notes="Submitted notes that should remain local.",
+    )
+
+    delete_entry_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/delete-entry",
+        data={"csrf_token": review_csrf_token},
+        follow_redirects=False,
+    )
+
+    assert delete_entry_response.status_code == 303
+    assert delete_entry_response.headers["location"] == f"/review/{submitted_job_id}"
+
+    with database.SessionLocal() as database_session:
+        reviewed_job = database_session.get(Job, submitted_job_id)
+        assert reviewed_job is not None
+        assert reviewed_job.status == JobStatus.READY_FOR_REVIEW
+        assert reviewed_job.summary_notes == "Submitted notes that should remain local."
+        assert reviewed_job.ticket_number == "T20260616.0001"
+        assert reviewed_job.autotask_external_id is None
+        assert reviewed_job.autotask_submitted_at_utc is None
+        assert reviewed_job.autotask_error is None
+
+        delete_event = database_session.query(AuditEvent).filter_by(action="job.autotask.entry_deleted").one()
+        assert delete_event.job_id == submitted_job_id
+        assert delete_event.details["succeeded"] is True
+        assert delete_event.details["external_id"] == f"mock-time-entry-{submitted_job_id}"
+        assert delete_event.details["status"] == "ready_for_review"
+
+        submission_attempts = (
+            database_session.query(SubmissionAttempt)
+            .filter_by(job_id=submitted_job_id)
+            .order_by(SubmissionAttempt.created_at_utc)
+            .all()
+        )
+        assert len(submission_attempts) == 2
+        assert submission_attempts[0].succeeded is True
+        assert submission_attempts[1].succeeded is True
+        assert submission_attempts[1].external_id == f"mock-time-entry-{submitted_job_id}"
+        assert submission_attempts[1].request_snapshot["operation"] == "delete_time_entry"
+
+    updated_review_page_response = authenticated_client.get(f"/review/{submitted_job_id}")
+    updated_review_html = updated_review_page_response.text
+    assert "Delete From Autotask" not in updated_review_html
+    assert f'formaction="/review/{submitted_job_id}/accept"' in updated_review_html
 
 
 def test_start_work_blocks_when_autotask_is_unavailable(authenticated_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -360,7 +432,10 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".service-call-loading-state" in stylesheet
     assert ".mobile-page-loading" in stylesheet
     assert "max-height: 100lh;" in stylesheet
+    assert "max-height: 50lh;" in phone_stylesheet
     assert "overscroll-behavior: contain;" in stylesheet
+    assert ".mobile-ticket-picker.is-clickable" in stylesheet
+    assert ".ticket-picker.is-clickable" in stylesheet
     assert ".mobile-close-action {\n  display: inline-grid;" in phone_stylesheet
     assert ".mobile-logout-action {\n  display: none;" in phone_stylesheet
 
@@ -451,9 +526,10 @@ def test_mobile_job_start_ignores_prestart_client_and_ticket_fields(authenticate
     active_mobile_page_response = authenticated_client.get("/mobile")
     active_mobile_html = active_mobile_page_response.text
     assert "Open tickets" in active_mobile_html
-    assert "Find tickets" in active_mobile_html
-    assert "Choose a client, then find open tickets." in active_mobile_html
+    assert "Find tickets" not in active_mobile_html
+    assert "Choose a client, then click this box to load open tickets." in active_mobile_html
     assert 'data-active-ticket-picker' in active_mobile_html
+    assert 'data-active-ticket-lookup-button' not in active_mobile_html
     assert 'data-auto-load-ticket-options="true"' not in active_mobile_html
     assert active_mobile_html.index('<span class="metric-label">Client name</span>') < active_mobile_html.index("<h3>Open tickets</h3>")
 
@@ -508,8 +584,9 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'data-active-ticket-picker' in page_html
     assert f'data-ticket-select-url="/jobs/{active_job_id}/ticket"' in page_html
     assert 'data-auto-load-ticket-options="true"' in page_html
-    assert 'data-active-ticket-lookup-button' in page_html
-    assert "Find tickets" in page_html
+    assert 'data-active-ticket-lookup-button' not in page_html
+    assert "Find tickets" not in page_html
+    assert "Click this box to load open tickets." in page_html
     assert page_html.index("<dt>Client name</dt>") < page_html.index("<h3>Open tickets</h3>")
     assert page_html.index(f'id="active-ticket-form-{active_job_id}"') < page_html.index("<h3>Open tickets</h3>")
     assert 'class="secondary-button active-save-button"' not in page_html
@@ -635,9 +712,8 @@ def test_review_save_does_not_require_ticket_number(authenticated_client: TestCl
             "csrf_token": review_csrf_token,
             "ticket_number": "",
             "ticket_status": "complete",
-            "start_date": "2026-06-16",
+            "job_date": "2026-06-16",
             "start_time": "08:00",
-            "end_date": "2026-06-16",
             "end_time": "08:15",
             "summary_notes": "Editable without ticket during save.",
         },
@@ -652,9 +728,8 @@ def test_review_save_does_not_require_ticket_number(authenticated_client: TestCl
             "csrf_token": review_csrf_token,
             "ticket_number": "",
             "ticket_status": "follow_up",
-            "start_date": "2026-06-16",
+            "job_date": "2026-06-16",
             "start_time": "08:00",
-            "end_date": "2026-06-16",
             "end_time": "08:15",
             "summary_notes": "Autosaved without ticket during review.",
         },
@@ -663,10 +738,9 @@ def test_review_save_does_not_require_ticket_number(authenticated_client: TestCl
     autosave_payload = autosave_response.json()
     assert autosave_payload["job_id"] == active_job_id
     assert autosave_payload["ticket_status"] == "follow_up"
-    assert autosave_payload["summary_notes"] == "Autosaved without ticket during review."
-    assert autosave_payload["start_date"] == "2026-06-16"
+    assert autosave_payload["summary_notes"] == "Remote Autosaved without ticket during review."
+    assert autosave_payload["job_date"] == "2026-06-16"
     assert autosave_payload["start_time"] == "8:00 am"
-    assert autosave_payload["end_date"] == "2026-06-16"
     assert autosave_payload["end_time"] == "8:15 am"
 
     with database.SessionLocal() as database_session:
@@ -675,6 +749,67 @@ def test_review_save_does_not_require_ticket_number(authenticated_client: TestCl
         assert reviewed_job.status == JobStatus.READY_FOR_REVIEW
         assert reviewed_job.ticket_number is None
         assert reviewed_job.summary_notes == "Autosaved without ticket during review."
+
+
+def test_review_summary_prefix_is_editable_and_updates_work_location(authenticated_client: TestClient) -> None:
+    """Review saves the visible Autotask summary prefix back into work_location."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    text_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/description/text",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": "Original remote work notes."},
+    )
+    assert text_response.status_code == 200
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token, "client_name": "Prefix Edit Client"},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_html = review_page_response.text
+    review_csrf_token = extract_csrf_token(review_html)
+    assert "Remote Original remote work notes." in review_html
+    assert 'name="work_location"' in review_html
+
+    save_response = authenticated_client.post(
+        f"/review/{active_job_id}/save",
+        headers={"Accept": "application/json"},
+        data={
+            "csrf_token": review_csrf_token,
+            "ticket_status": "follow_up",
+            "job_date": "2026-06-16",
+            "start_time": "08:00",
+            "end_time": "08:15",
+            "summary_notes": "On-Site replaced the access point onsite.",
+        },
+    )
+
+    assert save_response.status_code == 200
+    assert save_response.json()["summary_notes"] == "On-Site replaced the access point onsite."
+
+    with database.SessionLocal() as database_session:
+        reviewed_job = database_session.get(Job, active_job_id)
+        assert reviewed_job is not None
+        assert reviewed_job.summary_notes == "replaced the access point onsite."
+        assert reviewed_job.description_text == "replaced the access point onsite."
+        assert reviewed_job.work_location == WorkLocation.ON_SITE
 
 
 def test_review_save_active_job_without_stop_time(authenticated_client: TestClient) -> None:
@@ -709,7 +844,7 @@ def test_review_save_active_job_without_stop_time(authenticated_client: TestClie
         data={
             "csrf_token": review_csrf_token,
             "ticket_status": "complete",
-            "start_date": active_job_local_start.date().isoformat(),
+            "job_date": active_job_local_start.date().isoformat(),
             "start_time": active_job_display_start,
             "summary_notes": "Active job saved without stop values.",
         },
@@ -725,6 +860,54 @@ def test_review_save_active_job_without_stop_time(authenticated_client: TestClie
         assert reviewed_job.client_name is None
         assert reviewed_job.summary_notes == "Active job saved without stop values."
         assert reviewed_job.ticket_number is None
+
+
+def test_review_rejects_cross_day_time_edits(authenticated_client: TestClient) -> None:
+    """Review edits use one job date and reject times that would span days."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token, "client_name": "Same Day Client"},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_csrf_token = extract_csrf_token(review_page_response.text)
+    invalid_save_response = authenticated_client.post(
+        f"/review/{active_job_id}/save",
+        headers={"Accept": "application/json"},
+        data={
+            "csrf_token": review_csrf_token,
+            "ticket_status": "complete",
+            "job_date": "2026-06-16",
+            "start_time": "11:00 pm",
+            "end_time": "10:45 pm",
+            "summary_notes": "This edit should be rejected.",
+        },
+    )
+
+    assert invalid_save_response.status_code == 400
+    assert invalid_save_response.json()["detail"] == "End time must be after start time on the same job date."
+
+    with database.SessionLocal() as database_session:
+        reviewed_job = database_session.get(Job, active_job_id)
+        assert reviewed_job is not None
+        assert reviewed_job.summary_notes != "This edit should be rejected."
 
 
 def test_review_ticket_lookup_returns_open_tickets_for_job_client(authenticated_client: TestClient) -> None:
@@ -856,9 +1039,8 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
             "ticket_status": "complete",
             "client_name": "Wrong Client",
             "autotask_company_id": "2002",
-            "start_date": "2026-06-16",
+            "job_date": "2026-06-16",
             "start_time": "08:00",
-            "end_date": "2026-06-16",
             "end_time": "08:15",
             "summary_notes": "Review save must not rewrite read-only identity fields.",
         },
@@ -910,9 +1092,8 @@ def test_review_accept_still_requires_ticket_number(authenticated_client: TestCl
             "csrf_token": review_csrf_token,
             "ticket_number": "",
             "ticket_status": "complete",
-            "start_date": "2026-06-16",
+            "job_date": "2026-06-16",
             "start_time": "08:00",
-            "end_date": "2026-06-16",
             "end_time": "08:15",
             "summary_notes": "Needs ticket to submit.",
         },

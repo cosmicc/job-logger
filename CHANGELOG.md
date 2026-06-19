@@ -4,6 +4,25 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Fixed the mobile recording stop status so final audio chunk acknowledgements
+  can no longer switch the stopped UI back to **Recording audio...**. The status
+  now moves through **Sending data to server...**, **Converting audio to
+  text...**, and **Conversion complete.** while the WebSocket transcript
+  finishes.
+
+- Added a configurable faster-whisper initial prompt that defaults to asking the
+  local speech-to-text model to render spoken punctuation words as punctuation
+  marks instead of spelling them out.
+
+- Changed mobile and review open-ticket lookup so the whole Open tickets panel
+  is clickable before tickets are loaded, with the shared spinner shown while
+  Autotask ticket data or selected-ticket saves are in flight. The separate
+  **Find tickets** button was removed. Review detail now displays the complete
+  Autotask-bound summary notes, including the leading Remote or On-Site prefix,
+  and parses edits to that prefix back into the stored work-location mode.
+  Phone-sized ticket description boxes now cap at about 50 lines while
+  remaining scrollable.
+
 - Replaced the phone-sized `/mobile` top-bar logout action with an X close
   button for the installed/mobile web app experience while keeping logout
   available on full-width `/mobile` and other authenticated pages. Static asset
@@ -42,10 +61,18 @@ All recorded changes to Job Logger are documented in this file.
   transcript messages no longer rewrite the Summary notes field; the final
   transcript is pasted into the field all at once.
 
-- Locked successfully submitted Autotask jobs in review. Submitted jobs now
-  render as read-only, remove save/accept/retry/reject/force-purge controls,
-  and reject crafted review POSTs that try to edit, purge, reject, or resend
-  the already-created Autotask time entry.
+- Added controlled submitted-entry editing in review. Submitted jobs now keep
+  ticket/client identity, accept/resend, retry, reject, and force-purge actions
+  protected, while **Edit Entry** updates the existing Autotask `TimeEntries`
+  row for job date, start time, end time, summary notes, and ticket status.
+  Submitted jobs also expose **Delete From Autotask**, which deletes the
+  existing Autotask time entry and returns the local job to review without
+  deleting the app record.
+  Review now uses one job date instead of separate start/end dates and rejects
+  edits that would span multiple dates.
+
+- Made the selected-job audit timeline expandable and collapsed by default in
+  review.
 
 - Moved the Secure session indicator into the authenticated top header next to
   the Autotask API status on desktop, removed the mobile-only duplicate secure
@@ -107,12 +134,11 @@ All recorded changes to Job Logger are documented in this file.
 - Added a persisted Remote/On-Site switch to the mobile Work in Progress card,
   defaulting to Remote. The selected mode stays out of the visible summary text
   and is prefixed onto Autotask `summaryNotes` only when a time entry is
-  created. Kept the active open-ticket picker visible before ticket selection,
-  added a manual **Find tickets** button inside it, and made client selection
-  save in the background before automatically loading open tickets. Selecting a
-  ticket now hides the open-ticket list immediately, updates the saved ticket
-  number/title in place on mobile and review, and shows the selected ticket name
-  as a Work in Progress card.
+  created. Kept the active open-ticket picker visible before ticket selection
+  and made client selection save in the background before automatically loading
+  open tickets. Selecting a ticket now hides the open-ticket list immediately,
+  updates the saved ticket number/title in place on mobile and review, and shows
+  the selected ticket name as a Work in Progress card.
 - Made the mobile Work Type switch a compact side-by-side segmented control so
   Remote and On-Site no longer render as tall stacked radio controls.
 - Moved the editable active-job client name field above the Work in Progress

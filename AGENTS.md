@@ -66,8 +66,13 @@ Recorded jobs follow this lifecycle:
 4. The review page allows time, status, and notes to be edited before
    acceptance while keeping the selected Autotask client and ticket read-only.
 5. An accepted job creates an Autotask time entry.
-6. A successfully submitted Autotask job becomes read-only and cannot be
-   changed, purged, rejected, or sent again from review.
+6. A successfully submitted Autotask job keeps ticket and client identity
+   read-only. Its job date, start time, end time, summary notes, and ticket
+   status can be changed only through the audited **Edit Entry** action, which
+   updates the existing Autotask time entry instead of creating another entry.
+   The audited **Delete From Autotask** action may delete the external time
+   entry and move the local job back to review, but must not delete the local
+   job record.
 7. Rejected, failed, or edited jobs remain available for audit history.
 
 Jobs must never disappear silently. Destructive deletion should be avoided.
@@ -86,6 +91,10 @@ Autotask payload construction.
 Job start times must round to the closest 15-minute interval.
 
 Job end times and job duration must also round to 15-minute intervals.
+
+Jobs do not span multiple work dates. Review forms must use one local job date
+with start and end times, and must reject edits where the end time is not after
+the start time on that same date.
 
 Rounding behavior must be centralized in one tested time utility instead of
 being duplicated across routes, templates, or Autotask integration code.
@@ -129,6 +138,16 @@ be changed without rewriting the job workflow.
 The translated speech-to-text description must populate the editable job
 description used on the review page.
 
+After the user stops mobile recording, the browser status must distinguish the
+upload and transcription phases: first **Sending data to server...**, then
+**Converting audio to text...**, then **Conversion complete.** when the final
+transcript has been returned and pasted into the summary field.
+
+The local faster-whisper provider may use `FASTER_WHISPER_INITIAL_PROMPT` to
+guide transcript formatting, including rendering dictated punctuation words as
+punctuation marks. Treat it as a best-effort model hint, not a validation or
+security control.
+
 The review page must allow the transcribed description to be edited before the
 job is accepted and submitted to Autotask.
 
@@ -148,8 +167,12 @@ The standard review interface must work well on a full computer screen.
 
 The review interface must allow editing of reviewed job summary notes, ticket
 status, date, start time, end time, and the translated speech-to-text
-description before acceptance. The selected Autotask client name, company ID,
-ticket number, and ticket title are read-only identity fields populated from
+description before acceptance. The summary textarea must show the complete
+Autotask summary that will be sent, including the leading Remote or On-Site
+prefix. Saving review edits parses that prefix back into the stored
+`work_location` field so the final payload can be corrected without exposing
+ticket or client identity to edits. The selected Autotask client name, company
+ID, ticket number, and ticket title are read-only identity fields populated from
 Autotask lookup and must not be editable on the review page.
 
 All state-changing actions must be explicit and auditable.
@@ -284,7 +307,8 @@ The application is a FastAPI project under `job_logger/`.
   active rounded-start adjustment, WebSocket recording streams, compatibility
   recording uploads, description text saves, and Autotask company autocomplete.
 - `job_logger/routes/review.py` handles review listing, edit/save/accept/retry,
-  ticket lookup for a selected job, rejection, and force purge behavior.
+  updating or deleting existing submitted Autotask entries, ticket lookup for a
+  selected job, rejection, and force purge behavior.
 - `job_logger/routes/debug.py` handles the authenticated diagnostic page and the
   Autotask API connectivity test.
 - `job_logger/routes/health.py` exposes container health endpoints.
@@ -294,8 +318,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/jobs.py` owns core job state transitions and must remain
   the primary place for workflow validation.
 - `job_logger/services/autotask.py` owns Autotask providers, connectivity tests,
-  company/ticket lookup, cache behavior, pagination, status mapping, and time
-  entry submission.
+  company/ticket lookup, cache behavior, pagination, status mapping, time entry
+  submission, existing-entry updates, and existing-entry deletes.
 - `job_logger/services/transcription.py` owns speech-to-text provider behavior.
 - `job_logger/services/audit.py` records immutable audit events.
 - `job_logger/templates/` contains Jinja pages for mobile, review, debug, and
@@ -322,20 +346,27 @@ The normal workflow is:
 5. After the job starts, the user enters/selects an Autotask company by client
    name. Manual client text is allowed, but selected company IDs are preferred
    for exact ticket lookup.
-6. User chooses an open Autotask ticket from the active-job ticket list. Mobile
-   ticket numbers are populated from that selection instead of manual entry.
+6. User chooses an open Autotask ticket from the active-job ticket panel. If no
+   tickets are loaded yet, the whole panel is the load control and shows a
+   spinner while Autotask data is being queried. Mobile ticket numbers are
+   populated from that selection instead of manual entry.
 7. User chooses whether the work is Remote or On-Site. The mode is stored on
-   the job and is only prefixed onto Autotask `summaryNotes` during submission.
+   the job and appears as the leading prefix in the review summary textarea so
+   it can be corrected before Autotask submission.
 8. User records notes during an active job. The record button becomes a stop
    button while audio chunks stream to the server over WebSocket, and stopping
-   capture finalizes transcription.
+   capture shows sending/converting/completed progress until the final
+   transcript returns.
 9. User can save active job edits before ending work.
 10. User ends work with a mandatory client name. The job moves to review.
 11. User reviews the job from `/review`, edits time/status/notes if needed, and
     keeps the selected client/ticket identity read-only.
 12. Accept/retry submits a reviewed job to Autotask idempotently.
-13. Successfully submitted jobs are locked as immutable review records so local
-    values stay aligned with the Autotask time entry.
+13. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes
+    updates against the existing Autotask time entry, or **Delete From Autotask**
+    to remove the external time entry and return the local job to review.
+    Ticket/client identity, reject, purge, accept/resend, and retry stay blocked
+    while the job remains submitted.
 14. Submission attempts and important state changes are recorded for audit and
     diagnostics.
 

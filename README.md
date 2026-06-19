@@ -271,6 +271,7 @@ Set these variables for local transcription:
 - `FASTER_WHISPER_BEAM_SIZE`
 - `FASTER_WHISPER_CPU_THREADS`
 - `FASTER_WHISPER_MEMORY_LIMIT`
+- `FASTER_WHISPER_INITIAL_PROMPT`
 
 The Docker Compose stack stores faster-whisper model files in the
 `faster_whisper_models` volume mounted at `/models/faster-whisper`. This keeps
@@ -281,6 +282,11 @@ container should not attempt any model download.
 faster-whisper's local model loader. `FASTER_WHISPER_MEMORY_LIMIT` defaults to
 `8g` and controls the Docker Compose memory limit for the app container, where
 local transcription runs.
+`FASTER_WHISPER_INITIAL_PROMPT` is passed to faster-whisper as an initial
+formatting prompt. The default prompt asks the model to render spoken
+punctuation words such as `comma`, `period`, and `question mark` as punctuation
+marks instead of spelling those words. Set it blank in `.env` to disable that
+formatting hint.
 For reliable local transcription, run the Docker stack on a server with at least
 8 CPU cores and 10 GB of RAM so the app container can use its default 8-thread,
 8 GB faster-whisper allocation while leaving memory for PostgreSQL, Nginx, and
@@ -296,9 +302,10 @@ as soon as the browser produces them. The server starts a best-effort interim
 transcription from the first buffered chunk. The mobile **Record Audio** button
 becomes a red **Stop recording** button while browser capture is active.
 Stopping capture lets the browser flush the final chunk, sends WebSocket
-`finish`, returns the button to its idle appearance, and keeps showing
-transcode/transcription status until the final saved transcript or a bounded
-error response returns.
+`finish`, returns the button to its idle appearance, and keeps showing clear
+progress: **Sending data to server...**, then **Converting audio to text...**,
+then **Conversion complete.** after the final saved transcript is returned. A
+bounded error response is shown instead if the stream or provider fails.
 
 Raw audio is not stored by default. The app keeps the streamed recording in
 memory only, sends buffered bytes to the local provider through a temporary
@@ -357,20 +364,23 @@ customer or ticket lists. For POST query pagination, Job Logger follows
 follow-up calls for those resources.
 
 The mobile and review pages can query open Autotask tickets from the selected
-job's stored company ID or stored client name. On mobile, the **Find tickets**
-button saves the current active-job client fields before loading open tickets,
-and saved clients auto-load the list when the Work in Progress card renders.
+job's stored company ID or stored client name. If no tickets have been loaded,
+the whole Open tickets panel is clickable and keyboard-activatable. On mobile,
+that panel saves the current active-job client fields before loading open
+tickets, and saved clients auto-load the list when the Work in Progress card
+renders. Both mobile and review ticket lookup show the spinner loading state
+while Autotask data is being fetched or a selected ticket is being saved.
 Selecting a returned ticket fills the mobile job's hidden ticket number, stores
 the selected ticket title for the review detail heading, stores the bounded
 ticket description for read-only context, and automatically saves the active-job
 changes or review ticket selection. The mobile Work in Progress card shows the
 selected ticket number, ticket name, and ticket description after selection.
 Long ticket descriptions stay inside a scrollable read-only box instead of
-expanding the mobile page indefinitely. On the review page, the stored ticket
-number, ticket description, and client name are read-only identity/context
-fields; review save and submit use the stored values instead of trusting form
-posts. Once a job has a ticket number, the open-ticket picker is hidden for that
-job.
+expanding the mobile page indefinitely; phone-sized layouts cap that visible
+box at about 50 lines. On the review page, the stored ticket number, ticket
+description, and client name are read-only identity/context fields; review save
+and submit use the stored values instead of trusting form posts. Once a job has
+a ticket number, the open-ticket picker is hidden for that job.
 
 When an active job slot is available, the mobile start panel also lists today's
 Autotask service calls assigned to `AUTOTASK_RESOURCE_ID`. The mobile page
@@ -403,16 +413,26 @@ do not look like ignored buttons.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 
-After a job is successfully submitted to Autotask, the review detail becomes
-read-only. Save, accept/resend, retry, reject, ticket selection, and force purge
-are blocked by the server and removed from the selected-job review UI so the
-local record stays aligned with the external time entry.
+After a job is successfully submitted to Autotask, ticket and client identity
+stay read-only. The selected review detail allows job date, start time, end
+time, summary notes, and ticket status edits through **Edit Entry**, which
+patches the existing `TimeEntries` row instead of creating a duplicate entry.
+The same submitted detail also has **Delete From Autotask**, which deletes the
+existing Autotask time entry and returns the local job to review without
+removing the local job record. If Autotask refuses the delete, the job remains
+submitted and the safe failure message is shown in review.
+Save, accept/resend, retry, reject, ticket selection, and force purge remain
+blocked for submitted jobs.
+
+The selected job's audit timeline is collapsed by default and can be expanded
+from the review detail when troubleshooting or checking history.
 
 The mobile Work in Progress card stores a work-location mode of `Remote` or
-`On-Site`, defaulting to `Remote`. This mode does not appear in the editable
-summary text. When a reviewed job is submitted, the Autotask `summaryNotes`
-payload is prefixed with the stored mode, such as `Remote replaced firewall`
-or `On-Site replaced firewall`.
+`On-Site`, defaulting to `Remote`. This mode does not appear in the mobile
+summary text. Review detail shows the complete Autotask-bound summary, such as
+`Remote replaced firewall` or `On-Site replaced firewall`, so the prefix can be
+corrected before submission or **Edit Entry**. The server parses that prefix
+back into the stored work-location mode and keeps local note storage unprefixed.
 
 Ticket `TimeEntries` payloads intentionally omit `billingCodeID` / Allocation
 Code values. Autotask will use the ticket/resource defaults, which avoids
@@ -456,9 +476,14 @@ legacy 24-hour submissions so stale browser pages do not fail during deployment.
 
 All database timestamps are stored in UTC.
 
+Review uses one local job date with a start time and end time. Jobs are not
+allowed to span multiple dates; edits where the end time is not after the start
+time on the selected date are rejected.
+
 Start time, end time, and resulting duration are rounded to 15-minute intervals.
-If rounding would produce a zero-minute job, the end time is advanced to the next
-15-minute interval.
+The active mobile end-work path still protects against a zero-minute rounded
+duration, while review edits must explicitly choose a valid later end time on
+the same job date.
 
 ## Ticket Numbers
 

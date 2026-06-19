@@ -44,6 +44,9 @@ Current provider responsibilities:
 - Query a ticket ID from a ticket number.
 - Update selected ticket status when configured.
 - Create `TimeEntries`.
+- Patch existing submitted `TimeEntries`.
+- Delete existing submitted `TimeEntries` when the local job must return to
+  review.
 - Return sanitized submission results.
 
 ## Mandatory Connectivity Test
@@ -112,13 +115,15 @@ On mobile, ticket numbers are populated from the open-ticket picker instead of
 manual entry. The ticket choice posts to `POST /jobs/{job_id}/ticket`; that
 route uses the same server-side selection cache or a fresh Autotask lookup,
 verifies the selected ticket is valid for that job, and persists the ticket
-number, title, and bounded description returned by the provider. The mobile **Find tickets** button first
-saves the active job's current client fields through
-`POST /jobs/{job_id}/ticket-number` with a JSON response, then loads open
-tickets from the server-verified lookup endpoint. After mobile or review
-selection succeeds, the UI hides the open-ticket list and updates visible ticket
-number/title/description fields from the verified JSON response rather than
-trusting the clicked browser option.
+number, title, and bounded description returned by the provider. While no
+ticket options are loaded, the mobile open-ticket panel itself is clickable and
+keyboard-activatable; that action first saves the active job's current client
+fields through `POST /jobs/{job_id}/ticket-number` with a JSON response, shows
+the spinner loading state, then loads open tickets from the server-verified
+lookup endpoint. The review open-ticket panel uses the same click-to-load
+pattern. After mobile or review selection succeeds, the UI hides the open-ticket
+list and updates visible ticket number/title/description fields from the
+verified JSON response rather than trusting the clicked browser option.
 
 ## Service Call Lookup
 
@@ -212,8 +217,9 @@ Required local fields before submission:
 
 - Ticket number.
 - Ticket status.
-- Start date/time.
-- End date/time.
+- One local job date.
+- Start time.
+- End time.
 - Summary notes.
 - Work location mode, which defaults to Remote.
 
@@ -232,8 +238,11 @@ defaults instead.
 
 Ticket `TimeEntries.summaryNotes` must be built from the stored work-location
 mode plus the reviewed summary text. The local `summary_notes` field stays
-unprefixed for mobile and review editing; the final payload starts with
-`Remote` or `On-Site`.
+unprefixed for mobile and persistence. Review detail displays the full
+Autotask-bound summary, including `Remote` or `On-Site`, so the operator can
+correct the prefix before submission or submitted-entry update. Save, accept,
+retry, and edit-entry handlers must parse that visible prefix back into
+`work_location` before building the final payload.
 
 `AUTOTASK_IMPERSONATION_RESOURCE_ID` should be blank by default. When blank, the
 provider omits `ImpersonationResourceId` and Autotask evaluates the API user's
@@ -243,11 +252,16 @@ impersonated resource context too.
 Submission must remain idempotent. A retry must not create duplicate time
 entries for the same accepted job.
 
-After a provider reports successful submission, the local job is locked to
-preserve the exact values already sent to Autotask. Do not allow later review
-save, ticket selection, accept/resend, retry, reject, or force-purge actions for
-that job. Use the service-level successful-submission lock before validating
-mutable review fields or making another Autotask write.
+After a provider reports successful submission, ticket identity and destructive
+workflow actions remain protected. Do not allow later review save, ticket
+selection, accept/resend, retry, reject, or force-purge actions for that job.
+Supported submitted-job mutations are limited to audited external-entry actions:
+**Edit Entry** validates one job date, start/end times, summary notes, and
+ticket status, then patches the existing Autotask `TimeEntries` row by its
+stored external ID. **Delete From Autotask** deletes `TimeEntries/{id}` and
+returns the local job to review only after Autotask confirms the delete. If
+either action fails, keep local state aligned with the last known successful
+Autotask state and store only safe error details.
 
 Live Autotask write failures should use `_raise_for_safe_response()` so bounded
 body-level messages from `Tickets` or `TimeEntries` errors are shown without

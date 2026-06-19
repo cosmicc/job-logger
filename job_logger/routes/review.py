@@ -12,11 +12,17 @@ from job_logger.enums import JobStatus, TicketStatus
 from job_logger.models import AuditEvent
 from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_header, validate_csrf_token
 from job_logger.services.audit import record_audit_event
-from job_logger.services.autotask import AutotaskSubmissionError, AutotaskTicketOption, get_autotask_provider
+from job_logger.services.autotask import (
+    AutotaskSubmissionError,
+    AutotaskTicketOption,
+    build_autotask_summary_notes,
+    get_autotask_provider,
+)
 from job_logger.services.jobs import (
     JobWorkflowError,
     apply_review_fields,
     apply_selected_ticket_from_lookup,
+    delete_submitted_job_autotask_entry,
     ensure_job_is_not_locked_after_successful_submission,
     get_job_or_raise,
     is_job_locked_after_successful_submission,
@@ -24,6 +30,7 @@ from job_logger.services.jobs import (
     purge_job,
     reject_job,
     submit_job_to_autotask,
+    update_submitted_job_autotask_entry,
     validate_review_fields,
 )
 from job_logger.time_utils import format_local_date, format_local_time
@@ -144,6 +151,8 @@ def _read_only_review_form_values(form_values: dict[str, str], job: object) -> d
     locked_form_values["client_name"] = getattr(job, "client_name", None) or ""
     autotask_company_id = getattr(job, "autotask_company_id", None)
     locked_form_values["autotask_company_id"] = str(autotask_company_id) if autotask_company_id is not None else ""
+    work_location = getattr(job, "work_location", None)
+    locked_form_values["work_location"] = work_location.value if work_location is not None else "remote"
     return locked_form_values
 
 
@@ -164,14 +173,19 @@ def _review_save_payload(job: object) -> dict[str, object]:
     rounded_end_utc = getattr(job, "rounded_end_utc", None)
     ticket_status = getattr(job, "ticket_status", None)
     job_status = getattr(job, "status", None)
+    local_work_date = getattr(job, "local_work_date", None)
+    job_date = (
+        str(local_work_date)
+        if local_work_date is not None
+        else format_local_date(getattr(job, "rounded_start_utc", None))
+    )
     return {
         "job_id": getattr(job, "id", ""),
         "status": job_status.value if job_status is not None else "",
         "ticket_status": ticket_status.value if ticket_status is not None else "",
-        "summary_notes": getattr(job, "summary_notes", "") or "",
-        "start_date": format_local_date(getattr(job, "rounded_start_utc", None)),
+        "summary_notes": build_autotask_summary_notes(job),
+        "job_date": job_date,
         "start_time": format_local_time(getattr(job, "rounded_start_utc", None)),
-        "end_date": format_local_date(rounded_end_utc),
         "end_time": format_local_time(rounded_end_utc),
     }
 
@@ -197,8 +211,11 @@ def _render_review(
             request,
             jobs=jobs,
             selected_job=selected_job,
-            selected_job_locked=(
+            selected_job_submitted=(
                 is_job_locked_after_successful_submission(selected_job) if selected_job is not None else False
+            ),
+            selected_job_autotask_summary_notes=(
+                build_autotask_summary_notes(selected_job) if selected_job is not None else ""
             ),
             audit_events=audit_events,
             ticket_status_options=_ticket_status_options(),
@@ -236,6 +253,86 @@ async def save_review(
         database_session.rollback()
         if wants_json_response:
             return JSONResponse({"detail": str(exc)}, status_code=400)
+        add_flash_message(request, str(exc), "error")
+
+    return RedirectResponse(url=f"/review/{job_id}", status_code=303)
+
+
+@router.post("/{job_id}/edit-entry")
+async def edit_submitted_entry(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Edit the existing Autotask time entry for an already submitted job."""
+
+    actor = require_authenticated_username(request)
+    try:
+        form_values = await _form_values(request)
+        job = get_job_or_raise(database_session, job_id)
+        review_fields = validate_review_fields(
+            _read_only_review_form_values(form_values, job),
+            require_ticket_number=True,
+        )
+        update_submitted_job_autotask_entry(database_session, job, review_fields)
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.autotask.entry_update",
+            job_id=job.id,
+            request=request,
+            details={
+                "succeeded": job.autotask_error is None,
+                "autotask_provider": job.autotask_provider,
+                "external_id": job.autotask_external_id,
+            },
+        )
+        database_session.commit()
+        if job.autotask_error:
+            add_flash_message(request, f"Autotask entry update failed: {job.autotask_error}", "error")
+        else:
+            add_flash_message(request, "Autotask entry updated.", "success")
+    except JobWorkflowError as exc:
+        database_session.rollback()
+        add_flash_message(request, str(exc), "error")
+
+    return RedirectResponse(url=f"/review/{job_id}", status_code=303)
+
+
+@router.post("/{job_id}/delete-entry")
+async def delete_submitted_entry(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Delete an existing Autotask time entry while keeping the local job."""
+
+    actor = require_authenticated_username(request)
+    try:
+        await _form_values(request)
+        job = get_job_or_raise(database_session, job_id)
+        original_external_id = job.autotask_external_id
+        delete_submitted_job_autotask_entry(database_session, job)
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.autotask.entry_deleted",
+            job_id=job.id,
+            request=request,
+            details={
+                "succeeded": job.autotask_error is None,
+                "autotask_provider": job.autotask_provider,
+                "external_id": original_external_id,
+                "status": job.status.value,
+            },
+        )
+        database_session.commit()
+        if job.autotask_error:
+            add_flash_message(request, f"Autotask entry delete failed: {job.autotask_error}", "error")
+        else:
+            add_flash_message(request, "Autotask entry deleted; job returned to review.", "success")
+    except JobWorkflowError as exc:
+        database_session.rollback()
         add_flash_message(request, str(exc), "error")
 
     return RedirectResponse(url=f"/review/{job_id}", status_code=303)

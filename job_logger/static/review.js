@@ -7,40 +7,6 @@ const reviewAutosaveStatus = document.querySelector("[data-review-autosave-statu
 let reviewAutosaveTimer = null;
 let lastReviewAutosaveSnapshot = "";
 
-function normalizeDateValue(dateValue) {
-  const parsedDate = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!parsedDate) {
-    return null;
-  }
-
-  const [, yearText, monthText, dayText] = parsedDate;
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
-  if (!year || !month || !day) {
-    return null;
-  }
-
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function formatUtcDateValue(date) {
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${date.getUTCFullYear()}-${month}-${day}`;
-}
-
-function addDaysToDateString(dateValue, dayDelta) {
-  const date = normalizeDateValue(dateValue);
-  if (!date) {
-    return dateValue;
-  }
-
-  date.setUTCDate(date.getUTCDate() + dayDelta);
-  return formatUtcDateValue(date);
-}
-
 function padTwo(value) {
   return String(value).padStart(2, "0");
 }
@@ -85,10 +51,9 @@ function formatMinutesAsTwelveHourTime(totalMinutes) {
   return `${hour12}:${padTwo(minute)} ${period}`;
 }
 
-function adjustTimeField(timeFieldName, dateFieldName, deltaMinutes) {
+function adjustTimeField(timeFieldName, deltaMinutes) {
   const timeInput = document.querySelector(`input[name="${timeFieldName}"]`);
-  const dateInput = document.querySelector(`input[name="${dateFieldName}"]`);
-  if (!timeInput || !dateInput) {
+  if (!timeInput) {
     return;
   }
 
@@ -98,15 +63,7 @@ function adjustTimeField(timeFieldName, dateFieldName, deltaMinutes) {
   }
 
   const totalMinutes = currentTotalMinutes + deltaMinutes;
-  // The date fields represent America/Detroit calendar dates. Rollover must
-  // happen at local midnight, so the calculation stays in displayed wall-clock
-  // minutes and then applies a pure calendar-day delta.
-  const dayDelta = Math.floor(totalMinutes / (60 * 24));
-
   timeInput.value = formatMinutesAsTwelveHourTime(totalMinutes);
-  if (dayDelta !== 0) {
-    dateInput.value = addDaysToDateString(dateInput.value, dayDelta);
-  }
 }
 
 function setReviewAutosaveStatus(message, isError = false) {
@@ -195,15 +152,14 @@ function bindTimeStepButtons() {
   const timeStepButtons = document.querySelectorAll(".time-step-button");
   for (const button of timeStepButtons) {
     const timeFieldName = button.dataset.timeInput;
-    const dateFieldName = button.dataset.dateInput;
     const deltaMinutes = Number(button.dataset.deltaMinutes || 0);
-    if (!timeFieldName || !dateFieldName || !Number.isFinite(deltaMinutes)) {
+    if (!timeFieldName || !Number.isFinite(deltaMinutes)) {
       continue;
     }
 
     button.addEventListener("click", (event) => {
       event.preventDefault();
-      adjustTimeField(timeFieldName, dateFieldName, deltaMinutes);
+      adjustTimeField(timeFieldName, deltaMinutes);
       queueReviewAutosave(true);
     });
   }
@@ -245,6 +201,27 @@ function buildTicketOptionText(ticketOption) {
   return `${ticketNumber} | ${ticketTitle} | ${ticketStatus} | ${companyName}`;
 }
 
+function setTicketLookupStatus(statusElement, message, {isError = false, isLoading = false} = {}) {
+  if (!statusElement) {
+    return;
+  }
+
+  statusElement.replaceChildren();
+  statusElement.classList.toggle("error-text", isError);
+  statusElement.classList.toggle("is-loading", isLoading);
+  if (!isLoading) {
+    statusElement.textContent = message;
+    return;
+  }
+
+  const spinnerElement = document.createElement("span");
+  spinnerElement.className = "loading-spinner";
+  spinnerElement.setAttribute("aria-hidden", "true");
+  const messageElement = document.createElement("span");
+  messageElement.textContent = message;
+  statusElement.append(spinnerElement, messageElement);
+}
+
 function bindTicketLookup() {
   const ticketPicker = document.querySelector("[data-ticket-picker]");
   if (!ticketPicker) {
@@ -253,7 +230,7 @@ function bindTicketLookup() {
 
   const lookupUrl = ticketPicker.dataset.ticketLookupUrl;
   const ticketSelectUrl = ticketPicker.dataset.ticketSelectUrl;
-  const lookupButton = ticketPicker.querySelector("[data-ticket-lookup-button]");
+  const ticketClientName = (ticketPicker.dataset.ticketClientName || "").trim();
   const statusElement = ticketPicker.querySelector("[data-ticket-lookup-status]");
   const resultsElement = ticketPicker.querySelector("[data-ticket-lookup-results]");
   const ticketNumberInput = document.querySelector("[data-review-ticket-number-input]");
@@ -264,8 +241,25 @@ function bindTicketLookup() {
   const ticketDescriptionDisplay = document.querySelector("[data-review-ticket-description-display]");
   const ticketHeading = document.querySelector("[data-selected-ticket-heading]");
   const selectedRowTicketDisplay = document.querySelector("[data-review-selected-row-ticket]");
-  if (!lookupUrl || !ticketSelectUrl || !lookupButton || !statusElement || !resultsElement || !ticketNumberInput) {
+  if (!lookupUrl || !ticketSelectUrl || !statusElement || !resultsElement || !ticketNumberInput) {
     return;
+  }
+
+  let hasLoadedTicketOptions = false;
+  let isLookupInProgress = false;
+
+  function setTicketPickerClickable(isClickable) {
+    ticketPicker.classList.toggle("is-clickable", isClickable);
+    if (isClickable) {
+      ticketPicker.setAttribute("role", "button");
+      ticketPicker.setAttribute("tabindex", "0");
+      ticketPicker.setAttribute("aria-disabled", "false");
+      return;
+    }
+
+    ticketPicker.removeAttribute("role");
+    ticketPicker.removeAttribute("tabindex");
+    ticketPicker.removeAttribute("aria-disabled");
   }
 
   async function persistSelectedTicket(ticketOption) {
@@ -314,9 +308,21 @@ function bindTicketLookup() {
     }
   }
 
-  lookupButton.addEventListener("click", async () => {
-    lookupButton.disabled = true;
-    statusElement.textContent = "Searching Autotask...";
+  async function loadReviewTicketOptions() {
+    if (isLookupInProgress || hasLoadedTicketOptions) {
+      return;
+    }
+
+    if (!ticketClientName) {
+      setTicketLookupStatus(statusElement, "Client name is required before open tickets can load.", {isError: true});
+      return;
+    }
+
+    isLookupInProgress = true;
+    ticketPicker.classList.add("is-loading");
+    ticketPicker.setAttribute("aria-busy", "true");
+    setTicketPickerClickable(false);
+    setTicketLookupStatus(statusElement, "Loading open tickets...", {isLoading: true});
     resultsElement.replaceChildren();
 
     try {
@@ -328,11 +334,13 @@ function bindTicketLookup() {
 
       const ticketOptions = Array.isArray(payload.tickets) ? payload.tickets : [];
       if (ticketOptions.length === 0) {
-        statusElement.textContent = "No open tickets found.";
+        setTicketLookupStatus(statusElement, "No open tickets found. Click this box to try again.");
+        setTicketPickerClickable(true);
         return;
       }
 
-      statusElement.textContent = `${ticketOptions.length} open ticket(s) found.`;
+      hasLoadedTicketOptions = true;
+      setTicketLookupStatus(statusElement, `${ticketOptions.length} open ticket(s) found.`);
       for (const ticketOption of ticketOptions) {
         const optionButton = document.createElement("button");
         optionButton.type = "button";
@@ -340,25 +348,51 @@ function bindTicketLookup() {
         optionButton.textContent = buildTicketOptionText(ticketOption);
         optionButton.addEventListener("click", async () => {
           optionButton.disabled = true;
-          statusElement.textContent = "Saving selected ticket...";
-          ticketPicker.hidden = true;
+          ticketPicker.classList.add("is-loading");
+          ticketPicker.setAttribute("aria-busy", "true");
+          setTicketLookupStatus(statusElement, "Saving selected ticket...", {isLoading: true});
           resultsElement.replaceChildren();
           try {
             const selectedTicket = await persistSelectedTicket(ticketOption);
             updateSelectedTicketDisplay(selectedTicket);
+            ticketPicker.hidden = true;
           } catch (error) {
+            ticketPicker.classList.remove("is-loading");
+            ticketPicker.removeAttribute("aria-busy");
             ticketPicker.hidden = false;
             optionButton.disabled = false;
-            statusElement.textContent = error.message || "Selected ticket could not be saved.";
+            hasLoadedTicketOptions = false;
+            setTicketLookupStatus(statusElement, error.message || "Selected ticket could not be saved.", {isError: true});
+            setTicketPickerClickable(true);
           }
         });
         resultsElement.append(optionButton);
       }
     } catch (error) {
-      statusElement.textContent = error.message || "Autotask ticket lookup failed.";
+      setTicketLookupStatus(statusElement, error.message || "Autotask ticket lookup failed.", {isError: true});
+      setTicketPickerClickable(true);
     } finally {
-      lookupButton.disabled = false;
+      isLookupInProgress = false;
+      ticketPicker.classList.remove("is-loading");
+      ticketPicker.removeAttribute("aria-busy");
     }
+  }
+
+  setTicketPickerClickable(!hasLoadedTicketOptions);
+  ticketPicker.addEventListener("click", (event) => {
+    if (event.target.closest("button, a, input, select, textarea")) {
+      return;
+    }
+
+    loadReviewTicketOptions();
+  });
+  ticketPicker.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    loadReviewTicketOptions();
   });
 }
 

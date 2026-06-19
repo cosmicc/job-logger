@@ -10,6 +10,13 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+DEFAULT_FASTER_WHISPER_INITIAL_PROMPT = (
+    "Use normal written punctuation. When spoken punctuation words such as "
+    "comma, period, question mark, exclamation point, colon, semicolon, dash, "
+    "or new paragraph are heard, render punctuation marks and paragraph breaks "
+    "instead of spelling those words."
+)
+
 
 def _get_boolean(environment_variable_name: str, default_value: bool) -> bool:
     """Return a strict boolean value from an environment variable.
@@ -112,6 +119,9 @@ class Settings:
     # FASTER_WHISPER_CPU_THREADS controls faster-whisper CPU worker threads.
     faster_whisper_cpu_threads: int
 
+    # FASTER_WHISPER_INITIAL_PROMPT guides local transcription formatting.
+    faster_whisper_initial_prompt: str | None
+
     # AUTOTASK_PROVIDER selects the live Autotask REST client; mock is for tests/development only.
     autotask_provider: str
 
@@ -200,6 +210,9 @@ def load_settings() -> Settings:
         faster_whisper_language=os.getenv("FASTER_WHISPER_LANGUAGE") or "en",
         faster_whisper_beam_size=_get_integer("FASTER_WHISPER_BEAM_SIZE", 5),
         faster_whisper_cpu_threads=_get_integer("FASTER_WHISPER_CPU_THREADS", 8),
+        faster_whisper_initial_prompt=(
+            os.getenv("FASTER_WHISPER_INITIAL_PROMPT", DEFAULT_FASTER_WHISPER_INITIAL_PROMPT).strip() or None
+        ),
         autotask_provider=os.getenv("AUTOTASK_PROVIDER", "autotask").strip().lower(),
         autotask_base_url=os.getenv("AUTOTASK_BASE_URL") or None,
         autotask_username=os.getenv("AUTOTASK_USERNAME") or None,

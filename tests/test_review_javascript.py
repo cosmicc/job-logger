@@ -78,17 +78,15 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
 
               const csrfInput = makeControl({{type: "hidden", name: "csrf_token", value: "csrf-token"}});
               const ticketStatusSelect = makeControl({{tagName: "SELECT", name: "ticket_status", value: "complete"}});
-              const startDateInput = makeControl({{type: "date", name: "start_date", value: "2026-06-16"}});
+              const jobDateInput = makeControl({{type: "date", name: "job_date", value: "2026-06-16"}});
               const startTimeInput = makeControl({{name: "start_time", value: "8:00 am"}});
-              const endDateInput = makeControl({{type: "date", name: "end_date", value: "2026-06-16"}});
               const endTimeInput = makeControl({{name: "end_time", value: "8:15 am"}});
               const summaryTextarea = makeControl({{tagName: "TEXTAREA", name: "summary_notes", value: "Initial review notes."}});
               const reviewControls = [
                 csrfInput,
                 ticketStatusSelect,
-                startDateInput,
+                jobDateInput,
                 startTimeInput,
-                endDateInput,
                 endTimeInput,
                 summaryTextarea,
               ];

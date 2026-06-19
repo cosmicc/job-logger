@@ -455,6 +455,12 @@ a:focus-visible {
   font-size: 13px;
 }
 
+.ticket-picker-status.is-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .mobile-ticket-picker {
   display: grid;
   gap: 10px;
@@ -463,6 +469,28 @@ a:focus-visible {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-strong);
+}
+
+.mobile-ticket-picker.is-clickable,
+.ticket-picker.is-clickable {
+  cursor: pointer;
+}
+
+.mobile-ticket-picker.is-clickable:hover,
+.ticket-picker.is-clickable:hover {
+  border-color: rgba(45, 212, 191, 0.58);
+  background: var(--surface);
+}
+
+.mobile-ticket-picker.is-clickable:focus-visible,
+.ticket-picker.is-clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.mobile-ticket-picker.is-loading,
+.ticket-picker.is-loading {
+  border-color: rgba(45, 212, 191, 0.48);
 }
 
 .mobile-ticket-picker-header {
@@ -611,11 +639,6 @@ a:focus-visible {
   border-color: rgba(245, 158, 11, 0.42);
   background: rgba(245, 158, 11, 0.2);
   color: var(--warning);
-}
-
-.ticket-load-button {
-  min-height: 36px;
-  padding: 7px 12px;
 }
 
 .debug-connectivity-result {
@@ -1320,7 +1343,7 @@ td a {
   white-space: pre-wrap;
 }
 
-.review-lock-notice {
+.review-submitted-notice {
   display: grid;
   gap: 4px;
   padding: 12px 13px;
@@ -1330,28 +1353,13 @@ td a {
   color: var(--text);
 }
 
-.review-lock-notice strong {
+.review-submitted-notice strong {
   color: var(--success);
 }
 
-.review-lock-notice span {
+.review-submitted-notice span {
   color: var(--muted);
   font-size: 14px;
-}
-
-.review-form-locked input:disabled,
-.review-form-locked select:disabled,
-.review-form-locked textarea:disabled {
-  border-color: var(--border);
-  background: var(--surface-muted);
-  color: var(--text);
-  -webkit-text-fill-color: var(--text);
-}
-
-.review-form-locked .time-step-button:disabled {
-  border-color: var(--border);
-  background: var(--surface-muted);
-  color: var(--muted);
 }
 
 .readonly-field-title,
@@ -1434,10 +1442,42 @@ td a {
   display: grid;
 }
 
+.submitted-entry-delete-form {
+  display: grid;
+  justify-items: start;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
 .audit-panel {
   margin-top: 18px;
   padding: 16px;
   box-shadow: none;
+}
+
+.audit-timeline summary {
+  display: flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.audit-timeline summary::marker {
+  color: var(--muted);
+}
+
+.audit-count {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.audit-timeline-body {
+  margin-top: 14px;
 }
 
 .debug-panel-body {

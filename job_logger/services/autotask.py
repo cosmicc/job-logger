@@ -33,6 +33,10 @@ WORK_LOCATION_SUMMARY_PREFIXES = {
 MIN_COMPANY_SEARCH_CHARACTERS = 3
 REMOTE_SERVICE_CALL_PATTERN = re.compile(r"\bremote\b", re.IGNORECASE)
 ON_SITE_SERVICE_CALL_PATTERN = re.compile(r"\bon[\s-]?site\b", re.IGNORECASE)
+SUMMARY_WORK_LOCATION_PREFIX_PATTERN = re.compile(
+    r"^\s*(?P<prefix>on[\s-]?site|remote)\b(?:\s*[:\-]\s*|\s+|$)(?P<summary>.*)\Z",
+    re.IGNORECASE | re.DOTALL,
+)
 
 # AUTOTASK_CACHE_TTL_SECONDS is the default short TTL for status metadata and non-company lookups.
 AUTOTASK_CACHE_TTL_SECONDS = 15 * 60
@@ -270,6 +274,16 @@ class BaseAutotaskProvider:
 
         raise NotImplementedError
 
+    def update_time_entry(self, job: Job, external_id: str) -> AutotaskSubmissionResult:
+        """Update an existing external time entry for a submitted job."""
+
+        raise NotImplementedError
+
+    def delete_time_entry(self, job: Job, external_id: str) -> AutotaskSubmissionResult:
+        """Delete an existing external time entry for a submitted job."""
+
+        raise NotImplementedError
+
     def test_connectivity(self) -> AutotaskConnectivityResult:
         """Return whether this provider is ready for the job workflow."""
 
@@ -304,17 +318,47 @@ def _job_duration_hours(job: Job) -> Decimal:
     return (Decimal(minutes) / Decimal(60)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
-def _work_location_for_job(job: Job) -> WorkLocation:
-    """Return the stored work-location mode, defaulting old in-memory jobs to Remote."""
+def _coerce_work_location(work_location: WorkLocation | str | None) -> WorkLocation:
+    """Return a supported work-location value, defaulting legacy blanks to Remote."""
 
-    raw_work_location = getattr(job, "work_location", None) or WorkLocation.REMOTE
+    raw_work_location = work_location or WorkLocation.REMOTE
     if isinstance(raw_work_location, WorkLocation):
         return raw_work_location
 
     try:
-        return WorkLocation(str(raw_work_location))
+        return WorkLocation(str(raw_work_location).strip().lower().replace("-", "_").replace(" ", "_"))
     except ValueError:
         return WorkLocation.REMOTE
+
+
+def _work_location_for_job(job: Job) -> WorkLocation:
+    """Return the stored work-location mode, defaulting old in-memory jobs to Remote."""
+
+    return _coerce_work_location(getattr(job, "work_location", None))
+
+
+def split_autotask_summary_notes(
+    summary_notes: str | None,
+    fallback_work_location: WorkLocation | str | None,
+) -> tuple[WorkLocation, str]:
+    """Split a visible Autotask notes value into work location and note body.
+
+    Review shows the final Autotask `summaryNotes` string so the operator can
+    correct the leading Remote/On-Site value before submission. Local storage
+    still keeps that work mode structured in `work_location`, so this parser
+    accepts common visible prefixes and returns clean reviewer notes.
+    """
+
+    raw_summary_notes = (summary_notes or "").strip()
+    work_location = _coerce_work_location(fallback_work_location)
+    prefix_match = SUMMARY_WORK_LOCATION_PREFIX_PATTERN.match(raw_summary_notes)
+    if prefix_match is None:
+        return work_location, raw_summary_notes
+
+    normalized_prefix = prefix_match.group("prefix").strip().casefold()
+    work_location = WorkLocation.REMOTE if normalized_prefix == "remote" else WorkLocation.ON_SITE
+
+    return work_location, prefix_match.group("summary").strip()
 
 
 def detect_work_location_from_service_call_details(service_call_details: str | None) -> WorkLocation | None:
@@ -400,13 +444,11 @@ def build_autotask_summary_notes(job: Job) -> str:
     """Return the Autotask notes with the hidden work-location prefix applied."""
 
     work_location = _work_location_for_job(job)
+    _submitted_work_location, raw_summary_notes = split_autotask_summary_notes(
+        job.summary_notes or job.description_text,
+        work_location,
+    )
     prefix = WORK_LOCATION_SUMMARY_PREFIXES[work_location]
-    raw_summary_notes = (job.summary_notes or job.description_text or "").strip()
-    for existing_prefix in WORK_LOCATION_SUMMARY_PREFIXES.values():
-        normalized_existing_prefix = f"{existing_prefix} "
-        if raw_summary_notes.casefold().startswith(normalized_existing_prefix.casefold()):
-            raw_summary_notes = raw_summary_notes[len(normalized_existing_prefix) :].lstrip()
-            break
 
     return f"{prefix} {raw_summary_notes}".strip()
 
@@ -440,6 +482,37 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             provider=self.provider_name,
             succeeded=True,
             external_id=f"mock-time-entry-{job.id}",
+            safe_error=None,
+            request_snapshot=snapshot,
+        )
+
+    def update_time_entry(self, job: Job, external_id: str) -> AutotaskSubmissionResult:
+        """Return a deterministic success for submitted-entry update tests."""
+
+        snapshot = build_safe_submission_snapshot(job)
+        snapshot["operation"] = "update_time_entry"
+        snapshot["external_id"] = external_id
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=True,
+            external_id=external_id,
+            safe_error=None,
+            request_snapshot=snapshot,
+        )
+
+    def delete_time_entry(self, job: Job, external_id: str) -> AutotaskSubmissionResult:
+        """Return a deterministic success for submitted-entry delete tests."""
+
+        snapshot = {
+            "operation": "delete_time_entry",
+            "job_id": job.id,
+            "ticket_number": job.ticket_number,
+            "external_id": external_id,
+        }
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=True,
+            external_id=external_id,
             safe_error=None,
             request_snapshot=snapshot,
         )
@@ -1559,26 +1632,38 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         response = client.patch("/Tickets", json={"id": ticket_id, "status": status_id})
         self._raise_for_safe_response(response, "Autotask ticket status update")
 
-    def _create_time_entry(self, client: httpx.Client, job: Job, ticket_id: int) -> str:
-        """Create the Autotask TimeEntries row for the accepted job."""
+    def _time_entry_payload(self, job: Job, *, ticket_id: int | None = None) -> dict[str, Any]:
+        """Build the editable TimeEntries fields shared by create and update."""
 
         if job.rounded_end_utc is None:
             raise AutotaskSubmissionError("Job has no rounded end time.")
-        if self.application_settings.autotask_resource_id is None:
-            raise AutotaskSubmissionError("AUTOTASK_RESOURCE_ID is required before Autotask submission.")
-        if self.application_settings.autotask_role_id is None:
-            raise AutotaskSubmissionError("AUTOTASK_ROLE_ID is required before Autotask submission.")
 
         payload: dict[str, Any] = {
-            "ticketID": ticket_id,
-            "resourceID": self.application_settings.autotask_resource_id,
-            "roleID": self.application_settings.autotask_role_id,
-            "timeEntryType": self.application_settings.autotask_time_entry_type,
             "startDateTime": format_autotask_datetime(job.rounded_start_utc),
             "endDateTime": format_autotask_datetime(job.rounded_end_utc),
             "hoursWorked": float(_job_duration_hours(job)),
             "summaryNotes": build_autotask_summary_notes(job),
         }
+        if ticket_id is not None:
+            if self.application_settings.autotask_resource_id is None:
+                raise AutotaskSubmissionError("AUTOTASK_RESOURCE_ID is required before Autotask submission.")
+            if self.application_settings.autotask_role_id is None:
+                raise AutotaskSubmissionError("AUTOTASK_ROLE_ID is required before Autotask submission.")
+            payload.update(
+                {
+                    "ticketID": ticket_id,
+                    "resourceID": self.application_settings.autotask_resource_id,
+                    "roleID": self.application_settings.autotask_role_id,
+                    "timeEntryType": self.application_settings.autotask_time_entry_type,
+                }
+            )
+
+        return payload
+
+    def _create_time_entry(self, client: httpx.Client, job: Job, ticket_id: int) -> str:
+        """Create the Autotask TimeEntries row for the accepted job."""
+
+        payload = self._time_entry_payload(job, ticket_id=ticket_id)
         response = client.post("/TimeEntries", json=payload)
         self._raise_for_safe_response(response, "Autotask time entry creation")
         response_payload = response.json()
@@ -1587,6 +1672,28 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             return "created-without-id"
 
         return str(item_id)
+
+    def _update_time_entry(self, client: httpx.Client, job: Job, external_id: str) -> None:
+        """Patch editable fields on an existing Autotask TimeEntries row."""
+
+        time_entry_id = _coerce_positive_autotask_id(external_id)
+        if time_entry_id is None:
+            raise AutotaskSubmissionError("Existing Autotask time entry ID is required before updating.")
+
+        payload = self._time_entry_payload(job)
+        payload["id"] = time_entry_id
+        response = client.patch("/TimeEntries", json=payload)
+        self._raise_for_safe_response(response, "Autotask time entry update")
+
+    def _delete_time_entry(self, client: httpx.Client, external_id: str) -> None:
+        """Delete an existing Autotask TimeEntries row by remote ID."""
+
+        time_entry_id = _coerce_positive_autotask_id(external_id)
+        if time_entry_id is None:
+            raise AutotaskSubmissionError("Existing Autotask time entry ID is required before deleting.")
+
+        response = client.delete(f"/TimeEntries/{time_entry_id}")
+        self._raise_for_safe_response(response, "Autotask time entry deletion")
 
     def submit_job(self, job: Job) -> AutotaskSubmissionResult:
         """Submit a reviewed job to the Autotask REST API."""
@@ -1613,6 +1720,72 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 provider=self.provider_name,
                 succeeded=False,
                 external_id=None,
+                safe_error=str(exc),
+                request_snapshot=snapshot,
+            )
+
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=True,
+            external_id=external_id,
+            safe_error=None,
+            request_snapshot=snapshot,
+        )
+
+    def update_time_entry(self, job: Job, external_id: str) -> AutotaskSubmissionResult:
+        """Update an existing Autotask time entry from reviewed submitted fields."""
+
+        if not job.ticket_number:
+            raise AutotaskSubmissionError("Ticket number is required before Autotask time entry updates.")
+
+        snapshot = build_safe_submission_snapshot(job)
+        snapshot.update(
+            {
+                "operation": "update_time_entry",
+                "external_id": external_id,
+                "impersonationResourceIDConfigured": self.application_settings.autotask_impersonation_resource_id is not None,
+            }
+        )
+        try:
+            with self._client() as client:
+                ticket_id = self._query_ticket_id(client, job.ticket_number)
+                self._update_ticket_status(client, ticket_id, job.ticket_status)
+                self._update_time_entry(client, job, external_id)
+        except (httpx.HTTPError, AutotaskSubmissionError) as exc:
+            return AutotaskSubmissionResult(
+                provider=self.provider_name,
+                succeeded=False,
+                external_id=external_id,
+                safe_error=str(exc),
+                request_snapshot=snapshot,
+            )
+
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=True,
+            external_id=external_id,
+            safe_error=None,
+            request_snapshot=snapshot,
+        )
+
+    def delete_time_entry(self, job: Job, external_id: str) -> AutotaskSubmissionResult:
+        """Delete an existing Autotask time entry from a submitted job."""
+
+        snapshot = {
+            "operation": "delete_time_entry",
+            "job_id": job.id,
+            "ticket_number": job.ticket_number,
+            "external_id": external_id,
+            "impersonationResourceIDConfigured": self.application_settings.autotask_impersonation_resource_id is not None,
+        }
+        try:
+            with self._client() as client:
+                self._delete_time_entry(client, external_id)
+        except (httpx.HTTPError, AutotaskSubmissionError) as exc:
+            return AutotaskSubmissionResult(
+                provider=self.provider_name,
+                succeeded=False,
+                external_id=external_id,
                 safe_error=str(exc),
                 request_snapshot=snapshot,
             )

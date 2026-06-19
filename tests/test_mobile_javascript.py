@@ -55,9 +55,17 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
                   eventHandlers[eventName] = handler;
                 },
               };
+              const recordingStatusHistory = [];
+              let recordingStatusText = "";
               const recordingStatusElement = {
                 classList: noopClassList,
-                textContent: "",
+                get textContent() {
+                  return recordingStatusText;
+                },
+                set textContent(nextText) {
+                  recordingStatusText = nextText;
+                  recordingStatusHistory.push(nextText);
+                },
               };
               const csrfMetaElement = {
                 getAttribute(attributeName) {
@@ -228,5 +236,133 @@ def test_mobile_audio_stream_pastes_only_final_transcript(tmp_path: Path) -> Non
 
         assert.deepStrictEqual(submittedSummaries, []);
         assert.strictEqual(descriptionTextarea.value, "Final audio transcript.");
+        """,
+    )
+
+
+def test_mobile_audio_stop_shows_upload_and_conversion_statuses(tmp_path: Path) -> None:
+    """Stopping audio should not let final chunk acknowledgements say recording."""
+
+    run_mobile_javascript_harness(
+        tmp_path,
+        """
+        let lastSocket = null;
+        const stoppedTracks = [];
+
+        class FakeWebSocket {
+          static OPEN = 1;
+          static CLOSED = 3;
+
+          constructor() {
+            this.readyState = FakeWebSocket.OPEN;
+            this.bufferedAmount = 0;
+            this.handlers = {};
+            lastSocket = this;
+          }
+
+          addEventListener(eventName, handler) {
+            this.handlers[eventName] = handler;
+            if (eventName === "open") {
+              Promise.resolve().then(() => handler({}));
+            }
+          }
+
+          send(message) {
+            if (typeof message !== "string") {
+              this.handlers.message({
+                data: JSON.stringify({type: "chunk_received"}),
+              });
+              return;
+            }
+
+            const payload = JSON.parse(message);
+            if (payload.type === "start") {
+              this.handlers.message({data: JSON.stringify({type: "ready"})});
+              return;
+            }
+
+            if (payload.type === "finish") {
+              this.handlers.message({
+                data: JSON.stringify({type: "transcription_started", phase: "final"}),
+              });
+              this.handlers.message({
+                data: JSON.stringify({
+                  type: "final",
+                  summary_notes: "Finished transcript.",
+                  description_text: "Finished transcript.",
+                }),
+              });
+            }
+          }
+
+          close() {
+            this.readyState = FakeWebSocket.CLOSED;
+          }
+        }
+
+        class FakeMediaRecorder {
+          static isTypeSupported() {
+            return true;
+          }
+
+          constructor() {
+            this.mimeType = "audio/webm";
+            this.state = "inactive";
+            this.handlers = {};
+          }
+
+          addEventListener(eventName, handler) {
+            this.handlers[eventName] = handler;
+          }
+
+          start() {
+            this.state = "recording";
+            this.handlers.start({});
+          }
+
+          stop() {
+            this.state = "inactive";
+            this.handlers.dataavailable({data: {size: 128}});
+            this.handlers.stop({});
+          }
+        }
+
+        browserContext.WebSocket = FakeWebSocket;
+        browserContext.MediaRecorder = FakeMediaRecorder;
+        browserContext.window.MediaRecorder = FakeMediaRecorder;
+        browserContext.navigator.mediaDevices = {
+          getUserMedia: async () => ({
+            getTracks: () => [
+              {
+                stop() {
+                  stoppedTracks.push("stopped");
+                },
+              },
+            ],
+          }),
+        };
+
+        await browserContext.startRecording("job-1");
+        assert.strictEqual(lastSocket.readyState, FakeWebSocket.OPEN);
+
+        await browserContext.stopRecording("job-1");
+        await Promise.resolve();
+        await Promise.resolve();
+        await new Promise((resolve) => setImmediate(resolve));
+
+        const sendingIndex = recordingStatusHistory.lastIndexOf("Sending data to server...");
+        const convertingIndex = recordingStatusHistory.lastIndexOf("Converting audio to text...");
+        const completeIndex = recordingStatusHistory.lastIndexOf("Conversion complete.");
+        const recordingAfterStopIndex = recordingStatusHistory.findIndex(
+          (message, index) => index > sendingIndex && message === "Recording audio...",
+        );
+
+        assert.notStrictEqual(sendingIndex, -1);
+        assert.ok(convertingIndex > sendingIndex);
+        assert.ok(completeIndex > convertingIndex);
+        assert.strictEqual(recordingAfterStopIndex, -1);
+        assert.strictEqual(recordingStatusElement.textContent, "Conversion complete.");
+        assert.strictEqual(descriptionTextarea.value, "Finished transcript.");
+        assert.ok(stoppedTracks.length >= 1);
         """,
     )

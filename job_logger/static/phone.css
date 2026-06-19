@@ -96,6 +96,12 @@
   flex-direction: column;
 }
 
+.ticket-description-card dd,
+.ticket-description-card p {
+  max-height: 72.5em;
+  max-height: 50lh;
+}
+
 h1 {
   font-size: 32px;
 }

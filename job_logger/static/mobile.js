@@ -7,6 +7,10 @@ const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 const RECORD_AUDIO_LABEL = "Record Audio";
 const STOP_RECORDING_LABEL = "Stop recording";
+const RECORDING_STATUS_RECORDING = "Recording audio...";
+const RECORDING_STATUS_SENDING = "Sending data to server...";
+const RECORDING_STATUS_CONVERTING = "Converting audio to text...";
+const RECORDING_STATUS_COMPLETE = "Conversion complete.";
 
 const activeRecordButtons = document.querySelectorAll(".record-notes-button");
 const descriptionTextareas = document.querySelectorAll(".job-description");
@@ -26,6 +30,7 @@ const companySearchTimers = new Map();
 const lastSavedDescriptions = new Map();
 const pendingDescriptionSaves = new Set();
 const activeTicketLookupRequests = new WeakSet();
+const activeTicketLookupLoaded = new WeakSet();
 
 let activeRecorder = null;
 let activeAudioStream = null;
@@ -39,6 +44,7 @@ let hasRecordedAudio = false;
 let activeAudioStreamReady = false;
 let activeAudioStreamFailed = false;
 let isStartingRecording = false;
+let activeAudioStopRequested = false;
 
 function toSafeMapString(value) {
   return String(value || "");
@@ -379,6 +385,19 @@ function setRecordingStatus(jobId, message, isError = false) {
   statusElement.classList.toggle("error-text", isError);
 }
 
+function setRecordingProgressStatus(activeJobId, activeMessage) {
+  const safeActiveJobId = toSafeMapString(activeJobId);
+  if (activeAudioStopRequested && activeRecordingJobId === safeActiveJobId) {
+    const stoppedMessage = activeAudioCompletionInProgress
+      ? RECORDING_STATUS_CONVERTING
+      : RECORDING_STATUS_SENDING;
+    setRecordingStatus(safeActiveJobId, stoppedMessage);
+    return;
+  }
+
+  setRecordingStatus(safeActiveJobId, activeMessage);
+}
+
 function setRecordingUi({
   jobId,
   isRecording = false,
@@ -435,6 +454,7 @@ function clearRecordingState() {
   activeAudioStreamReady = false;
   activeAudioStreamFailed = false;
   hasRecordedAudio = false;
+  activeAudioStopRequested = false;
   const jobId = activeRecordingJobId;
   activeRecordingJobId = "";
   activeAudioCompletionInProgress = false;
@@ -462,7 +482,7 @@ async function finalizeRecordingForActiveJob(activeJobId) {
 
     setRecordingUi({jobId: safeJobId, isUploading: true});
     await finishAudioTranscriptionStream(safeJobId);
-    setRecordingStatus(safeJobId, "Notes updated.");
+    setRecordingStatus(safeJobId, RECORDING_STATUS_COMPLETE);
   } catch (error) {
     setRecordingStatus(safeJobId, error.message || "Recording stream could not finish.", true);
   } finally {
@@ -734,28 +754,28 @@ function handleAudioStreamMessage(activeJobId, rawMessage, readyHandlers) {
   }
 
   if (payload.type === "chunk_received") {
-    setRecordingStatus(activeJobId, "Recording audio...");
+    setRecordingProgressStatus(activeJobId, RECORDING_STATUS_RECORDING);
     return;
   }
 
   if (payload.type === "transcription_started") {
     if (payload.phase === "final") {
-      setRecordingStatus(activeJobId, "Transcoding audio...");
+      setRecordingStatus(activeJobId, RECORDING_STATUS_CONVERTING);
       return;
     }
-    setRecordingStatus(activeJobId, "Transcoding streamed audio...");
+    setRecordingProgressStatus(activeJobId, "Converting streamed audio...");
     return;
   }
 
   if (payload.type === "partial_pending") {
-    setRecordingStatus(activeJobId, payload.detail || "Collecting enough audio to transcribe...");
+    setRecordingProgressStatus(activeJobId, payload.detail || "Collecting enough audio to transcribe...");
     return;
   }
 
   if (payload.type === "partial") {
     // Keep streaming transcription progress visible without changing the
     // summary textarea until the server returns the final transcript.
-    setRecordingStatus(activeJobId, "Transcribing audio...");
+    setRecordingProgressStatus(activeJobId, "Transcribing audio...");
     return;
   }
 
@@ -864,7 +884,7 @@ async function finishAudioTranscriptionStream(activeJobId) {
     activeAudioStreamFinalResolve = resolve;
     activeAudioStreamFinalReject = reject;
     activeAudioSocket.send(JSON.stringify({type: "finish"}));
-    setRecordingStatus(activeJobId, "Transcoding audio...");
+    setRecordingStatus(activeJobId, RECORDING_STATUS_CONVERTING);
   });
 }
 
@@ -879,7 +899,7 @@ function streamAudioChunk(activeJobId, audioChunk) {
 
   activeAudioSocket.send(audioChunk);
   hasRecordedAudio = true;
-  setRecordingStatus(activeJobId, "Recording audio...");
+  setRecordingProgressStatus(activeJobId, RECORDING_STATUS_RECORDING);
 }
 
 function buildTicketOptionText(ticketOption) {
@@ -887,6 +907,45 @@ function buildTicketOptionText(ticketOption) {
   const ticketTitle = ticketOption.title || "Untitled ticket";
   const ticketStatus = ticketOption.status_label || "Unknown status";
   return `${ticketNumber} | ${ticketTitle} | ${ticketStatus}`;
+}
+
+function setTicketLookupStatus(statusElement, message, {isError = false, isLoading = false} = {}) {
+  if (!statusElement) {
+    return;
+  }
+
+  statusElement.replaceChildren();
+  statusElement.classList.toggle("error-text", isError);
+  statusElement.classList.toggle("is-loading", isLoading);
+  if (!isLoading) {
+    statusElement.textContent = message;
+    return;
+  }
+
+  const spinnerElement = document.createElement("span");
+  spinnerElement.className = "loading-spinner";
+  spinnerElement.setAttribute("aria-hidden", "true");
+  const messageElement = document.createElement("span");
+  messageElement.textContent = message;
+  statusElement.append(spinnerElement, messageElement);
+}
+
+function setActiveTicketPickerClickable(ticketPicker, isClickable) {
+  if (!ticketPicker) {
+    return;
+  }
+
+  ticketPicker.classList.toggle("is-clickable", isClickable);
+  if (isClickable) {
+    ticketPicker.setAttribute("role", "button");
+    ticketPicker.setAttribute("tabindex", "0");
+    ticketPicker.setAttribute("aria-disabled", "false");
+    return;
+  }
+
+  ticketPicker.removeAttribute("role");
+  ticketPicker.removeAttribute("tabindex");
+  ticketPicker.removeAttribute("aria-disabled");
 }
 
 function clearServiceCallPanel(panel) {
@@ -1037,7 +1096,7 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
 }
 
 async function loadActiveTicketOptions(ticketPicker, options = {}) {
-  if (activeTicketLookupRequests.has(ticketPicker)) {
+  if (activeTicketLookupRequests.has(ticketPicker) || activeTicketLookupLoaded.has(ticketPicker)) {
     return;
   }
 
@@ -1046,7 +1105,6 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
   const ticketSelectUrl = ticketPicker.dataset.ticketSelectUrl || "";
   const jobId = toSafeMapString(ticketPicker.dataset.ticketFormJobId);
   const activeTicketForm = findActiveTicketForm(jobId);
-  const lookupButton = ticketPicker.querySelector("[data-active-ticket-lookup-button]");
   const statusElement = ticketPicker.querySelector("[data-active-ticket-lookup-status]");
   const resultsElement = ticketPicker.querySelector("[data-active-ticket-lookup-results]");
   if (!lookupUrl || !statusElement || !resultsElement) {
@@ -1056,17 +1114,21 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
   const clientFields = readActiveJobClientFields(jobId);
   if (!clientFields.clientName.trim()) {
     statusElement.classList.remove("error-text");
-    statusElement.textContent = "Choose a client before finding open tickets.";
+    setTicketLookupStatus(statusElement, "Choose a client, then click this box to load open tickets.");
     resultsElement.replaceChildren();
+    setActiveTicketPickerClickable(ticketPicker, true);
     return;
   }
 
   activeTicketLookupRequests.add(ticketPicker);
-  if (lookupButton) {
-    lookupButton.disabled = true;
-  }
-  statusElement.classList.remove("error-text");
-  statusElement.textContent = saveActiveFormFirst ? "Saving client before ticket lookup..." : "Searching Autotask tickets...";
+  ticketPicker.classList.add("is-loading");
+  ticketPicker.setAttribute("aria-busy", "true");
+  setActiveTicketPickerClickable(ticketPicker, false);
+  setTicketLookupStatus(
+    statusElement,
+    saveActiveFormFirst ? "Saving client before ticket lookup..." : "Loading open tickets...",
+    {isLoading: true},
+  );
   resultsElement.replaceChildren();
 
   try {
@@ -1078,7 +1140,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
       }
     }
 
-    statusElement.textContent = "Searching Autotask tickets...";
+    setTicketLookupStatus(statusElement, "Loading open tickets...", {isLoading: true});
     const response = await fetch(lookupUrl, {headers: {Accept: "application/json"}});
     const payload = await response.json();
     if (!response.ok) {
@@ -1087,11 +1149,13 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
 
     const ticketOptions = Array.isArray(payload.tickets) ? payload.tickets : [];
     if (ticketOptions.length === 0) {
-      statusElement.textContent = "No open tickets found.";
+      setTicketLookupStatus(statusElement, "No open tickets found. Click this box to try again.");
+      setActiveTicketPickerClickable(ticketPicker, true);
       return;
     }
 
-    statusElement.textContent = `${ticketOptions.length} open ticket(s) found.`;
+    activeTicketLookupLoaded.add(ticketPicker);
+    setTicketLookupStatus(statusElement, `${ticketOptions.length} open ticket(s) found.`);
     for (const ticketOption of ticketOptions) {
       const optionButton = document.createElement("button");
       optionButton.type = "button";
@@ -1107,9 +1171,10 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
         }
 
         optionButton.disabled = true;
-        statusElement.textContent = "Saving selected ticket...";
-        ticketPicker.hidden = true;
-        ticketPicker.classList.add("is-hidden");
+        ticketPicker.classList.add("is-loading");
+        ticketPicker.setAttribute("aria-busy", "true");
+        setTicketLookupStatus(statusElement, "Saving selected ticket...", {isLoading: true});
+        resultsElement.replaceChildren();
         try {
           if (ticketSelectUrl) {
             const selectedTicket = await persistActiveSelectedTicket(ticketSelectUrl, ticketOption);
@@ -1121,6 +1186,8 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
               ticketDescriptionInput.value = toSafeMapString(selectedTicket.ticket_description).trim();
             }
             updateActiveTicketDisplay(jobId, selectedTicket);
+            ticketPicker.hidden = true;
+            ticketPicker.classList.add("is-hidden");
             return;
           }
 
@@ -1134,23 +1201,25 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
           updateActiveTicketDisplay(jobId, ticketOption);
           submitFormWithCurrentFields(activeTicketForm);
         } catch (error) {
+          activeTicketLookupLoaded.delete(ticketPicker);
+          ticketPicker.classList.remove("is-loading");
+          ticketPicker.removeAttribute("aria-busy");
           ticketPicker.hidden = false;
           ticketPicker.classList.remove("is-hidden");
           optionButton.disabled = false;
-          statusElement.textContent = error.message || "Selected ticket could not be saved.";
-          statusElement.classList.add("error-text");
+          setTicketLookupStatus(statusElement, error.message || "Selected ticket could not be saved.", {isError: true});
+          setActiveTicketPickerClickable(ticketPicker, true);
         }
       });
       resultsElement.append(optionButton);
     }
   } catch (error) {
-    statusElement.textContent = error.message || "Autotask ticket lookup failed.";
-    statusElement.classList.add("error-text");
+    setTicketLookupStatus(statusElement, error.message || "Autotask ticket lookup failed.", {isError: true});
+    setActiveTicketPickerClickable(ticketPicker, true);
   } finally {
     activeTicketLookupRequests.delete(ticketPicker);
-    if (lookupButton) {
-      lookupButton.disabled = false;
-    }
+    ticketPicker.classList.remove("is-loading");
+    ticketPicker.removeAttribute("aria-busy");
   }
 }
 
@@ -1197,6 +1266,7 @@ async function startRecording(activeJobId) {
   hasRecordedAudio = false;
   isUploadingRecording = false;
   activeAudioCompletionInProgress = false;
+  activeAudioStopRequested = false;
   activeAudioStream = await navigator.mediaDevices.getUserMedia({audio: true});
   const selectedMimeType = preferredRecorderMimeType();
   activeRecorder = selectedMimeType
@@ -1269,8 +1339,9 @@ async function stopRecording(activeJobId) {
   }
 
   if (activeRecorder.state === "inactive") {
+    activeAudioStopRequested = true;
     setRecordingUi({jobId: activeJobId, isUploading: true});
-    setRecordingStatus(activeJobId, "Audio stopped. Transcoding audio...");
+    setRecordingStatus(activeJobId, RECORDING_STATUS_SENDING);
     if (!hasRecordedAudio) {
       setRecordingStatus(activeJobId, "No audio was recorded. Press Record Audio and try again.");
       clearRecordingState();
@@ -1284,8 +1355,9 @@ async function stopRecording(activeJobId) {
   // Stopping capture finalizes the WebSocket stream. The button returns to its
   // idle appearance while the status line tracks server-side transcription.
   isUploadingRecording = true;
+  activeAudioStopRequested = true;
   setRecordingUi({jobId: activeJobId, isUploading: true});
-  setRecordingStatus(activeJobId, "Audio stopped. Transcoding audio...");
+  setRecordingStatus(activeJobId, RECORDING_STATUS_SENDING);
   activeRecorder.stop();
 }
 
@@ -1381,12 +1453,24 @@ for (const companyInput of companyInputs) {
 }
 
 for (const ticketPicker of activeTicketPickers) {
-  const lookupButton = ticketPicker.querySelector("[data-active-ticket-lookup-button]");
-  if (lookupButton) {
-    lookupButton.addEventListener("click", () => {
-      loadActiveTicketOptions(ticketPicker, {saveActiveFormFirst: true});
-    });
-  }
+  setActiveTicketPickerClickable(ticketPicker, true);
+
+  ticketPicker.addEventListener("click", (event) => {
+    if (event.target.closest("button, a, input, select, textarea")) {
+      return;
+    }
+
+    loadActiveTicketOptions(ticketPicker, {saveActiveFormFirst: true});
+  });
+
+  ticketPicker.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    loadActiveTicketOptions(ticketPicker, {saveActiveFormFirst: true});
+  });
 
   if (ticketPicker.dataset.autoLoadTicketOptions === "true") {
     window.setTimeout(() => {

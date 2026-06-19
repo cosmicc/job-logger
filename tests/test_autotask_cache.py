@@ -377,6 +377,39 @@ class FakeTimeEntryCreateClient:
         return FakeAutotaskResponse({"itemId": 987654})
 
 
+class FakeTimeEntryUpdateClient:
+    """Fake Autotask client that captures the TimeEntries update payload."""
+
+    def __init__(self) -> None:
+        """Initialize payload capture used by the TimeEntries update test."""
+
+        # patched_payload stores the exact JSON body sent to the fake endpoint.
+        self.patched_payload: dict[str, Any] | None = None
+
+    def patch(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Capture one TimeEntries PATCH and return a successful response."""
+
+        assert endpoint_path == "/TimeEntries"
+        self.patched_payload = dict(json)
+        return FakeAutotaskResponse({})
+
+
+class FakeTimeEntryDeleteClient:
+    """Fake Autotask client that captures the TimeEntries delete endpoint."""
+
+    def __init__(self) -> None:
+        """Initialize endpoint capture used by the TimeEntries delete test."""
+
+        # deleted_endpoint stores the exact REST path used for the delete call.
+        self.deleted_endpoint: str | None = None
+
+    def delete(self, endpoint_path: str) -> FakeAutotaskResponse:
+        """Capture one TimeEntries DELETE request and return success."""
+
+        self.deleted_endpoint = endpoint_path
+        return FakeAutotaskResponse({})
+
+
 class FakeConnectivityProvider:
     """Fake provider that counts connectivity checks for cache tests."""
 
@@ -668,6 +701,50 @@ def test_time_entry_creation_omits_billing_code_id() -> None:
     assert fake_client.posted_payload["timeEntryType"] == 2
     assert fake_client.posted_payload["summaryNotes"] == "Remote Payload must not include allocation code."
     assert "billingCodeID" not in fake_client.posted_payload
+
+
+def test_time_entry_update_patches_existing_entry_fields_only() -> None:
+    """Submitted entry edits must patch the existing TimeEntries row."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTimeEntryUpdateClient()
+    rounded_start_utc = datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="time-entry-update-test",
+        status=JobStatus.SUBMITTED,
+        ticket_number="T20260616.0001",
+        ticket_status=TicketStatus.FOLLOW_UP,
+        summary_notes="Updated the submitted entry notes.",
+        description_text="Updated the submitted entry notes.",
+        raw_start_utc=rounded_start_utc,
+        raw_end_utc=rounded_start_utc + timedelta(minutes=45),
+        rounded_start_utc=rounded_start_utc,
+        rounded_end_utc=rounded_start_utc + timedelta(minutes=45),
+    )
+
+    provider._update_time_entry(fake_client, job, external_id="987654")
+
+    assert fake_client.patched_payload is not None
+    assert fake_client.patched_payload["id"] == 987654
+    assert fake_client.patched_payload["startDateTime"] == "2026-06-16T13:00:00Z"
+    assert fake_client.patched_payload["endDateTime"] == "2026-06-16T13:45:00Z"
+    assert fake_client.patched_payload["hoursWorked"] == 0.75
+    assert fake_client.patched_payload["summaryNotes"] == "Remote Updated the submitted entry notes."
+    assert "ticketID" not in fake_client.patched_payload
+    assert "resourceID" not in fake_client.patched_payload
+    assert "roleID" not in fake_client.patched_payload
+    assert "billingCodeID" not in fake_client.patched_payload
+
+
+def test_time_entry_delete_uses_existing_entry_endpoint() -> None:
+    """Submitted entry deletes must target the existing TimeEntries row."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTimeEntryDeleteClient()
+
+    provider._delete_time_entry(fake_client, external_id="987654")
+
+    assert fake_client.deleted_endpoint == "/TimeEntries/987654"
 
 
 def test_time_entry_summary_notes_use_hidden_work_location_prefix() -> None:

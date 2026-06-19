@@ -133,10 +133,16 @@ server must confirm the association is in today's service-call list for the
 configured `AUTOTASK_RESOURCE_ID` before it creates a job or stores any
 ticket/client details.
 
-Successfully submitted Autotask jobs are immutable local audit records for the
-external time entry. The server must reject later review edits, ticket
-selection, reject, purge, accept/resend, and retry requests even if a crafted
-request bypasses the disabled review UI.
+Successfully submitted Autotask jobs keep protected ticket/client identity and
+local audit history for the external time entry. The server must reject later
+local review save, ticket selection, reject, purge, accept/resend, and retry
+requests even if a crafted request bypasses the review UI. The allowed
+exception is the CSRF-protected **Edit Entry** route, which may update only job
+date, start time, end time, summary notes, and ticket status after it patches
+the existing Autotask `TimeEntries` row. A second CSRF-protected submitted
+action, **Delete From Autotask**, may delete the external `TimeEntries` row and
+return the local job to review, but it must not delete the local job, audit
+events, or submission attempts.
 
 ## Database And Deletion Safety
 
@@ -148,7 +154,9 @@ Review cleanup must stay blocked for active jobs. The mobile active-job delete
 route is the reviewed exception for discarding an in-progress entry before it
 becomes review history, and it must not be reused for completed jobs. Force
 purge must also stay blocked for successfully submitted Autotask jobs so local
-history remains tied to the external time entry.
+history remains tied to the external time entry. Submitted-entry corrections
+belong in the audited Edit Entry or Delete From Autotask routes, not local purge
+or resend flows.
 
 ## Docker And Runtime Safety
 

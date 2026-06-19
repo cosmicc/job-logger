@@ -26,6 +26,7 @@ services:
       FASTER_WHISPER_LANGUAGE: ${FASTER_WHISPER_LANGUAGE:-en}
       FASTER_WHISPER_BEAM_SIZE: ${FASTER_WHISPER_BEAM_SIZE:-5}
       FASTER_WHISPER_CPU_THREADS: ${FASTER_WHISPER_CPU_THREADS:-8}
+      FASTER_WHISPER_INITIAL_PROMPT: ${FASTER_WHISPER_INITIAL_PROMPT:-Use normal written punctuation. When spoken punctuation words such as comma, period, question mark, exclamation point, colon, semicolon, dash, or new paragraph are heard, render punctuation marks and paragraph breaks instead of spelling those words.}
       AUTOTASK_PROVIDER: ${AUTOTASK_PROVIDER:-autotask}
       AUTOTASK_BASE_URL: ${AUTOTASK_BASE_URL:-}
       AUTOTASK_USERNAME: ${AUTOTASK_USERNAME:-}

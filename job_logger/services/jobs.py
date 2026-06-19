@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
 from job_logger.models import Job, SubmissionAttempt
-from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider
+from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider, split_autotask_summary_notes
 from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
 from job_logger.time_utils import (
     enforce_minimum_rounded_end,
@@ -28,8 +28,10 @@ MAX_CLIENT_NAME_LENGTH = 120
 MAX_TICKET_TITLE_LENGTH = 240
 MAX_TICKET_DESCRIPTION_LENGTH = 8000
 ALLOWED_WORK_IN_PROGRESS_START_MINUTE_DELTA = {-15, 15}
-SUCCESSFUL_SUBMISSION_LOCK_MESSAGE = "Submitted Autotask jobs are locked and cannot be changed, purged, rejected, or resent."
-
+SUCCESSFUL_SUBMISSION_PROTECTED_MESSAGE = (
+    "Submitted Autotask jobs cannot be rejected, purged, resent, or have ticket identity changed. "
+    "Use Edit Entry for date, time, summary, or ticket status changes."
+)
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,9 @@ class ReviewFields:
 
     # summary_notes are submitted to Autotask as the time-entry notes.
     summary_notes: str
+
+    # work_location is parsed from the visible Autotask summary prefix.
+    work_location: WorkLocation
 
     # rounded_start_utc is the reviewer-approved local start time converted to UTC.
     rounded_start_utc: datetime
@@ -118,11 +123,12 @@ class JobWorkflowError(RuntimeError):
 
 
 def is_job_locked_after_successful_submission(job: Job) -> bool:
-    """Return whether a successful Autotask submission makes the job immutable."""
+    """Return whether a job has an existing successful Autotask submission."""
 
     # status_locked covers current records that completed the normal submission
-    # path. Once this state is reached, local review values must continue to
-    # match the Autotask time entry that was already created.
+    # path. Once this state is reached, ticket identity and destructive actions
+    # stay protected; date/time/status/summary changes must go through the
+    # explicit existing-entry update path.
     status_locked = job.status == JobStatus.SUBMITTED
 
     # external_id_locked preserves immutability for older or partially migrated
@@ -139,10 +145,17 @@ def is_job_locked_after_successful_submission(job: Job) -> bool:
 
 
 def ensure_job_is_not_locked_after_successful_submission(job: Job) -> None:
-    """Reject mutable review actions after successful Autotask submission."""
+    """Reject review actions that are not valid after successful submission."""
 
     if is_job_locked_after_successful_submission(job):
-        raise JobWorkflowError(SUCCESSFUL_SUBMISSION_LOCK_MESSAGE)
+        raise JobWorkflowError(SUCCESSFUL_SUBMISSION_PROTECTED_MESSAGE)
+
+
+def ensure_job_is_successfully_submitted(job: Job) -> None:
+    """Require a job with an existing successful Autotask submission."""
+
+    if not is_job_locked_after_successful_submission(job):
+        raise JobWorkflowError("Only submitted Autotask jobs can use Edit Entry.")
 
 
 def list_active_jobs(database_session: Session) -> list[Job]:
@@ -268,7 +281,7 @@ def normalize_work_location(work_location: WorkLocation | str | None) -> WorkLoc
     if isinstance(work_location, WorkLocation):
         return work_location
 
-    normalized_location = (work_location or WorkLocation.REMOTE.value).strip().lower().replace("-", "_")
+    normalized_location = (work_location or WorkLocation.REMOTE.value).strip().lower().replace("-", "_").replace(" ", "_")
     try:
         return WorkLocation(normalized_location)
     except ValueError as exc:
@@ -569,50 +582,65 @@ def validate_review_fields(
     except ValueError as exc:
         raise JobWorkflowError("Ticket status is invalid.") from exc
 
-    summary_notes = form_values.get("summary_notes", "").strip()
-    if not summary_notes:
-        summary_notes = form_values.get("description_text", "").strip()
+    submitted_summary_notes = form_values.get("summary_notes", "").strip()
+    if not submitted_summary_notes:
+        submitted_summary_notes = form_values.get("description_text", "").strip()
+    fallback_work_location = normalize_work_location(form_values.get("work_location"))
+    work_location, summary_notes = split_autotask_summary_notes(
+        submitted_summary_notes,
+        fallback_work_location,
+    )
     if not summary_notes:
         raise JobWorkflowError("Summary notes are required.")
 
     if len(summary_notes) > 32000:
         raise JobWorkflowError("Summary notes must be 32,000 characters or fewer.")
 
-    start_date = form_values.get("start_date", "")
+    job_date = form_values.get("job_date", "") or form_values.get("start_date", "")
     start_time = form_values.get("start_time", "")
-    end_date = form_values.get("end_date", "")
     end_time = form_values.get("end_time", "")
     client_name = normalize_client_name(form_values.get("client_name"))
     autotask_company_id = normalize_autotask_company_id(form_values.get("autotask_company_id"))
-    if not start_date or not start_time:
-        raise JobWorkflowError("Start date and start time fields are required.")
+    legacy_end_date = form_values.get("end_date", "")
+    if legacy_end_date and job_date and legacy_end_date != job_date:
+        raise JobWorkflowError("Jobs cannot span multiple dates. Use one job date with start and end times.")
+    if not job_date or not start_time:
+        raise JobWorkflowError("Job date and start time fields are required.")
 
     try:
-        rounded_start_utc = round_to_nearest_quarter_hour(parse_local_form_datetime(start_date, start_time))
+        rounded_start_utc = round_to_nearest_quarter_hour(parse_local_form_datetime(job_date, start_time))
     except ValueError as exc:
-        raise JobWorkflowError("Start or end date/time is invalid.") from exc
+        raise JobWorkflowError("Job date or time is invalid.") from exc
+
+    local_work_date = local_date_for(rounded_start_utc)
+    if str(local_work_date) != job_date:
+        raise JobWorkflowError("Rounded start time must stay on the selected job date.")
 
     rounded_end_utc = None
-    should_parse_end_time = require_end_time_fields or bool(end_date or end_time)
+    should_parse_end_time = require_end_time_fields or bool(end_time)
     if should_parse_end_time:
-        if not end_date or not end_time:
-            raise JobWorkflowError("End date and end time fields are required.")
+        if not end_time:
+            raise JobWorkflowError("End time is required.")
 
         try:
-            rounded_end_utc = round_to_nearest_quarter_hour(parse_local_form_datetime(end_date, end_time))
+            rounded_end_utc = round_to_nearest_quarter_hour(parse_local_form_datetime(job_date, end_time))
         except ValueError as exc:
-            raise JobWorkflowError("Start or end date/time is invalid.") from exc
+            raise JobWorkflowError("Job date or time is invalid.") from exc
 
-        rounded_end_utc = enforce_minimum_rounded_end(rounded_start_utc, rounded_end_utc)
+        if str(local_date_for(rounded_end_utc)) != job_date:
+            raise JobWorkflowError("Rounded end time must stay on the selected job date.")
+        if rounded_end_utc <= rounded_start_utc:
+            raise JobWorkflowError("End time must be after start time on the same job date.")
     return ReviewFields(
         ticket_number=ticket_number,
         ticket_title=ticket_title,
         ticket_description=ticket_description,
         ticket_status=ticket_status,
         summary_notes=summary_notes,
+        work_location=work_location,
         rounded_start_utc=rounded_start_utc,
         rounded_end_utc=rounded_end_utc,
-        local_work_date=local_date_for(rounded_start_utc),
+        local_work_date=local_work_date,
         client_name=client_name,
         autotask_company_id=autotask_company_id,
     )
@@ -639,12 +667,147 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
     job.ticket_status = review_fields.ticket_status
     job.summary_notes = review_fields.summary_notes
     job.description_text = review_fields.summary_notes
+    job.work_location = review_fields.work_location
     job.rounded_start_utc = review_fields.rounded_start_utc
     if review_fields.rounded_end_utc is not None:
         job.rounded_end_utc = review_fields.rounded_end_utc
     job.local_work_date = review_fields.local_work_date
     job.client_name = review_fields.client_name
     job.autotask_company_id = review_fields.autotask_company_id
+    return job
+
+
+def _apply_submitted_entry_fields(job: Job, review_fields: ReviewFields) -> Job:
+    """Apply only fields that can be synced to an existing Autotask time entry."""
+
+    ensure_job_is_successfully_submitted(job)
+    if review_fields.rounded_end_utc is None:
+        raise JobWorkflowError("End time is required before editing a submitted Autotask entry.")
+
+    job.ticket_status = review_fields.ticket_status
+    job.summary_notes = review_fields.summary_notes
+    job.description_text = review_fields.summary_notes
+    job.work_location = review_fields.work_location
+    job.rounded_start_utc = review_fields.rounded_start_utc
+    job.rounded_end_utc = review_fields.rounded_end_utc
+    job.local_work_date = review_fields.local_work_date
+    return job
+
+
+def update_submitted_job_autotask_entry(
+    database_session: Session,
+    job: Job,
+    review_fields: ReviewFields,
+) -> Job:
+    """Update the existing external Autotask time entry for a submitted job."""
+
+    ensure_job_is_successfully_submitted(job)
+    external_id = (job.autotask_external_id or "").strip()
+    if not external_id:
+        raise JobWorkflowError("This submitted job does not have an Autotask time entry ID to update.")
+
+    previous_values = {
+        "ticket_status": job.ticket_status,
+        "summary_notes": job.summary_notes,
+        "description_text": job.description_text,
+        "work_location": job.work_location,
+        "rounded_start_utc": job.rounded_start_utc,
+        "rounded_end_utc": job.rounded_end_utc,
+        "local_work_date": job.local_work_date,
+    }
+    _apply_submitted_entry_fields(job, review_fields)
+
+    try:
+        submission_result = get_autotask_provider().update_time_entry(job, external_id)
+    except AutotaskSubmissionError as exc:
+        submission_result = None
+        for field_name, previous_value in previous_values.items():
+            setattr(job, field_name, previous_value)
+        job.autotask_error = str(exc)
+        job.autotask_provider = "configuration"
+        database_session.add(
+            SubmissionAttempt(
+                job_id=job.id,
+                provider="configuration",
+                idempotency_key=job.idempotency_key,
+                succeeded=False,
+                external_id=external_id,
+                safe_error=str(exc),
+                request_snapshot={},
+            )
+        )
+        return job
+
+    database_session.add(
+        SubmissionAttempt(
+            job_id=job.id,
+            provider=submission_result.provider,
+            idempotency_key=job.idempotency_key,
+            succeeded=submission_result.succeeded,
+            external_id=submission_result.external_id,
+            safe_error=submission_result.safe_error,
+            request_snapshot=submission_result.request_snapshot,
+        )
+    )
+    job.autotask_provider = submission_result.provider
+    if submission_result.succeeded:
+        job.status = JobStatus.SUBMITTED
+        job.autotask_external_id = submission_result.external_id or external_id
+        job.autotask_error = None
+    else:
+        for field_name, previous_value in previous_values.items():
+            setattr(job, field_name, previous_value)
+        job.autotask_error = submission_result.safe_error
+
+    return job
+
+
+def delete_submitted_job_autotask_entry(database_session: Session, job: Job) -> Job:
+    """Delete a submitted job's external time entry and return it to review."""
+
+    ensure_job_is_successfully_submitted(job)
+    external_id = (job.autotask_external_id or "").strip()
+    if not external_id:
+        raise JobWorkflowError("This submitted job does not have an Autotask time entry ID to delete.")
+
+    try:
+        submission_result = get_autotask_provider().delete_time_entry(job, external_id)
+    except AutotaskSubmissionError as exc:
+        job.autotask_error = str(exc)
+        job.autotask_provider = "configuration"
+        database_session.add(
+            SubmissionAttempt(
+                job_id=job.id,
+                provider="configuration",
+                idempotency_key=job.idempotency_key,
+                succeeded=False,
+                external_id=external_id,
+                safe_error=str(exc),
+                request_snapshot={},
+            )
+        )
+        return job
+
+    database_session.add(
+        SubmissionAttempt(
+            job_id=job.id,
+            provider=submission_result.provider,
+            idempotency_key=job.idempotency_key,
+            succeeded=submission_result.succeeded,
+            external_id=external_id,
+            safe_error=submission_result.safe_error,
+            request_snapshot=submission_result.request_snapshot,
+        )
+    )
+    job.autotask_provider = submission_result.provider
+    if submission_result.succeeded:
+        job.status = JobStatus.READY_FOR_REVIEW
+        job.autotask_external_id = None
+        job.autotask_submitted_at_utc = None
+        job.autotask_error = None
+    else:
+        job.autotask_error = submission_result.safe_error
+
     return job
 
 
