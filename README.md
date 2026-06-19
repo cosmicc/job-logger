@@ -300,12 +300,14 @@ The mobile recorder streams `MediaRecorder` chunks to
 message carries metadata and the CSRF token, then binary audio chunks are sent
 as soon as the browser produces them. The server starts a best-effort interim
 transcription from the first buffered chunk. The mobile **Record Audio** button
-becomes a red **Stop recording** button while browser capture is active.
+uses an orange treatment and becomes a **Stop recording** button while browser
+capture is active.
 Stopping capture lets the browser flush the final chunk, sends WebSocket
 `finish`, returns the button to its idle appearance, and keeps showing clear
-progress: **Sending data to server...**, then **Converting audio to text...**,
-then **Conversion complete.** after the final saved transcript is returned. A
-bounded error response is shown instead if the stream or provider fails.
+progress with the shared spinner: **Sending data to server...**, then
+**Converting audio to text...**, then **Conversion complete.** after the final
+saved transcript is returned. A bounded error response is shown instead if the
+stream or provider fails.
 
 Raw audio is not stored by default. The app keeps the streamed recording in
 memory only, sends buffered bytes to the local provider through a temporary
@@ -346,10 +348,12 @@ compatibility fallbacks, but the `GROQ_*` names match Groq's official docs.
 
 When enabled, active mobile jobs and review detail show **AI Cleanup** next to
 the summary box. On mobile, the cleaned text replaces the textarea and is saved
-through the existing active-summary save endpoint. On review detail, the cleaned
-text replaces the textarea; non-submitted jobs autosave as usual, while
-submitted jobs still require **Edit Entry** to patch the existing Autotask time
-entry.
+through the existing active-summary save endpoint. Mobile cleanup progress,
+success, and failure details use the same status line as audio recording with
+the shared spinner while cleanup is in progress, and cleanup waits until audio
+recording/transcription is finished. On review detail, the cleaned text replaces
+the textarea; non-submitted jobs autosave as usual, while submitted jobs still
+require **Edit Entry** to patch the existing Autotask time entry.
 
 AI cleanup requests require the local authenticated session and CSRF token. The
 server sends bounded summary text plus minimal job context to the selected
@@ -476,8 +480,8 @@ The same submitted detail also has **Delete From Autotask**, which deletes the
 existing Autotask time entry and returns the local job to review without
 removing the local job record. If Autotask refuses the delete, the job remains
 submitted and the safe failure message is shown in review.
-Save, accept/resend, retry, reject, ticket selection, and force purge remain
-blocked for submitted jobs.
+Save, accept/resend, retry, ticket selection, and local **Delete time entry**
+cleanup remain blocked for submitted jobs.
 
 The selected job's audit timeline is collapsed by default and can be expanded
 from the review detail when troubleshooting or checking history.

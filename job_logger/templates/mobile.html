@@ -249,12 +249,6 @@
                   >
                     AI Cleanup
                   </button>
-                  <span
-                    class="muted-text ai-cleanup-status"
-                    data-ai-cleanup-status
-                    data-job-id="{{ active_job.id }}"
-                    aria-live="polite"
-                  ></span>
                 </div>
               {% endif %}
               {% if active_job.transcription_error %}
@@ -302,7 +296,7 @@
                     value="{{ active_job.autotask_company_id or '' }}"
                   >
                   <input type="hidden" class="end-summary-notes" name="summary_notes" value="">
-                  <button class="danger-button" type="submit">
+                  <button class="primary-button end-work-button" type="submit">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <rect x="6" y="6" width="12" height="12"></rect>
                     </svg>
@@ -314,8 +308,8 @@
                   action="/jobs/{{ active_job.id }}/delete"
                   class="delete-active-job-form"
                   data-page-loading-form
-                  data-loading-message="Deleting active job..."
-                  data-confirm-message="Delete this open job? This removes the in-progress entry without sending it to review."
+                  data-loading-message="Deleting time entry..."
+                  data-confirm-message="Delete this time entry? This removes the in-progress entry without sending it to review."
                 >
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <button class="danger-outline-button" type="submit">
@@ -325,7 +319,7 @@
                       <path d="M10 11v6"></path>
                       <path d="M14 11v6"></path>
                     </svg>
-                    Delete
+                    Delete time entry
                   </button>
                 </form>
               </div>

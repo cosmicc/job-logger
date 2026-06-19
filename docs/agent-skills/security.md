@@ -78,10 +78,10 @@ Audit-worthy actions include:
 - Audio transcription.
 - Manual review save.
 - AI summary cleanup requests.
-- Accept/retry/reject.
+- Accept/retry.
 - Autotask submission attempts and outcomes.
 - Debug Autotask API tests.
-- Force purge or other destructive cleanup.
+- Delete time entry or other destructive cleanup.
 
 Do not include secrets, raw headers, raw audio, or excessive user text in audit
 details.
@@ -164,14 +164,14 @@ ticket/client details.
 
 Successfully submitted Autotask jobs keep protected ticket/client identity and
 local audit history for the external time entry. The server must reject later
-local review save, ticket selection, reject, purge, accept/resend, and retry
-requests even if a crafted request bypasses the review UI. The allowed
-exception is the CSRF-protected **Edit Entry** route, which may update only job
-date, start time, end time, summary notes, and ticket status after it patches
-the existing Autotask `TimeEntries` row. A second CSRF-protected submitted
-action, **Delete From Autotask**, may delete the external `TimeEntries` row and
-return the local job to review, but it must not delete the local job, audit
-events, or submission attempts.
+local review save, ticket selection, local delete, accept/resend, and retry
+requests even if a crafted request bypasses the review UI. The allowed exception
+is the CSRF-protected **Edit Entry** route, which may update only job date,
+start time, end time, summary notes, and ticket status after it patches the
+existing Autotask `TimeEntries` row. A second CSRF-protected submitted action,
+**Delete From Autotask**, may delete the external `TimeEntries` row and return
+the local job to review, but it must not delete the local job, audit events, or
+submission attempts.
 
 ## Database And Deletion Safety
 
@@ -181,11 +181,11 @@ Prefer retained workflow states over deletion. If destructive cleanup is
 necessary, it must be explicit, authenticated, CSRF-protected, and auditable.
 Review cleanup must stay blocked for active jobs. The mobile active-job delete
 route is the reviewed exception for discarding an in-progress entry before it
-becomes review history, and it must not be reused for completed jobs. Force
-purge must also stay blocked for successfully submitted Autotask jobs so local
-history remains tied to the external time entry. Submitted-entry corrections
-belong in the audited Edit Entry or Delete From Autotask routes, not local purge
-or resend flows.
+becomes review history, and it must not be reused for completed jobs. Local
+**Delete time entry** cleanup must also stay blocked for successfully submitted
+Autotask jobs so local history remains tied to the external time entry.
+Submitted-entry corrections belong in the audited Edit Entry or Delete From
+Autotask routes, not local cleanup or resend flows.
 
 ## Docker And Runtime Safety
 

@@ -68,17 +68,17 @@
 .recording-control-stack .record-notes-button.is-recording,
 .record-notes-button[aria-pressed="true"],
 .recording-control-stack .record-notes-button[aria-pressed="true"] {
-  border-color: rgba(248, 113, 113, 0.78) !important;
-  background: var(--danger) !important;
-  background-color: var(--danger) !important;
-  color: var(--on-danger) !important;
-  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.25) !important;
+  border-color: rgba(245, 158, 11, 0.78) !important;
+  background: var(--warning) !important;
+  background-color: var(--warning) !important;
+  color: #1f1300 !important;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25) !important;
 }
 
 .record-notes-button.is-recording:hover,
 .recording-control-stack .record-notes-button.is-recording:hover,
 .record-notes-button[aria-pressed="true"]:hover,
 .recording-control-stack .record-notes-button[aria-pressed="true"]:hover {
-  background: #fb8181 !important;
-  color: var(--on-danger) !important;
+  background: #fbbf24 !important;
+  color: #1f1300 !important;
 }

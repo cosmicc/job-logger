@@ -53,8 +53,7 @@
 .review-layout,
 .form-grid,
 .metric-grid,
-.button-grid,
-.reject-form {
+.button-grid {
   grid-template-columns: 1fr;
 }
 
@@ -85,7 +84,7 @@
 }
 
 .action-row button,
-.reject-form button,
+.submitted-entry-delete-form button,
 .purge-form button {
   width: 100%;
 }

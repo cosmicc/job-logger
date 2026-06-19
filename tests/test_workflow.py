@@ -288,6 +288,7 @@ def test_submitted_review_page_allows_controlled_entry_edits(authenticated_clien
     assert f'formaction="/review/{submitted_job_id}/edit-entry"' in review_html
     assert f'action="/review/{submitted_job_id}/delete-entry"' in review_html
     assert "Delete From Autotask" in review_html
+    assert 'data-confirm-message="This will delete the existing Autotask time entry and return this job to review. Continue?"' in review_html
     assert f'formaction="/review/{submitted_job_id}/save"' not in review_html
     assert f'formaction="/review/{submitted_job_id}/accept"' not in review_html
     assert f'formaction="/review/{submitted_job_id}/retry"' not in review_html
@@ -297,7 +298,7 @@ def test_submitted_review_page_allows_controlled_entry_edits(authenticated_clien
     assert "<summary>" in review_html
 
 
-def test_submitted_jobs_allow_edit_entry_but_reject_other_mutations(authenticated_client: TestClient) -> None:
+def test_submitted_jobs_allow_edit_entry_but_block_local_mutations(authenticated_client: TestClient) -> None:
     """Submitted jobs update the external entry only through the edit-entry route."""
 
     original_summary_notes = "Submitted values must stay unchanged"
@@ -332,9 +333,9 @@ def test_submitted_jobs_allow_edit_entry_but_reject_other_mutations(authenticate
         data=changed_review_data,
         follow_redirects=False,
     )
-    reject_response = authenticated_client.post(
+    removed_reject_route_response = authenticated_client.post(
         f"/review/{submitted_job_id}/reject",
-        data={"csrf_token": review_csrf_token, "rejection_reason": "Tampered rejection"},
+        data={"csrf_token": review_csrf_token},
         follow_redirects=False,
     )
     purge_response = authenticated_client.post(
@@ -356,11 +357,11 @@ def test_submitted_jobs_allow_edit_entry_but_reject_other_mutations(authenticate
     assert save_response.status_code == 303
     assert accept_response.status_code == 303
     assert retry_response.status_code == 303
-    assert reject_response.status_code == 303
+    assert removed_reject_route_response.status_code == 404
     assert purge_response.status_code == 303
     assert purge_response.headers["location"] == f"/review/{submitted_job_id}"
     assert ticket_selection_response.status_code == 400
-    assert "cannot be rejected, purged, resent, or have ticket identity changed" in ticket_selection_response.json()["detail"]
+    assert "cannot be deleted locally, resent, or have ticket identity changed" in ticket_selection_response.json()["detail"]
     assert edit_entry_response.status_code == 303
 
     with database.SessionLocal() as database_session:
@@ -511,11 +512,21 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "linear-gradient(90deg, rgba(245, 158, 11" in stylesheet
     assert ".service-call-loading-state" in stylesheet
     assert ".mobile-page-loading" in stylesheet
+    assert "button:not(:disabled):active" in stylesheet
+    assert "transform: translateY(1px) scale(0.985);" in stylesheet
     assert "max-height: 100lh;" in stylesheet
     assert "max-height: 50lh;" in phone_stylesheet
     assert "overscroll-behavior: contain;" in stylesheet
     assert ".mobile-ticket-picker.is-clickable" in stylesheet
     assert ".ticket-picker.is-clickable" in stylesheet
+    assert ".recording-status.is-loading" in stylesheet
+    assert ".ai-cleanup-status.is-loading" in stylesheet
+    assert ".record-notes-button,\n.recording-control-stack .record-notes-button" in stylesheet
+    assert "background: var(--warning);" in stylesheet
+    assert ".end-work-button,\n.work-finish-stack .end-work-button" in stylesheet
+    assert "background: var(--success);" in stylesheet
+    assert ".ai-cleanup-button,\n.summary-tool-row .ai-cleanup-button" in stylesheet
+    assert "background: #3b82f6;" in stylesheet
     assert ".mobile-close-action {\n  display: inline-grid;" in phone_stylesheet
     assert ".mobile-logout-action {\n  display: none;" in phone_stylesheet
 
@@ -1544,6 +1555,12 @@ def test_mobile_active_job_delete_discards_open_job_with_audit(authenticated_cli
         assert active_job is not None
         active_job_id = active_job.id
 
+    active_page_response = authenticated_client.get("/mobile")
+    assert "Delete time entry" in active_page_response.text
+    assert "Delete this time entry? This removes the in-progress entry without sending it to review." in active_page_response.text
+    assert 'class="primary-button end-work-button"' in active_page_response.text
+    assert 'class="danger-outline-button"' in active_page_response.text
+
     delete_response = authenticated_client.post(
         f"/jobs/{active_job_id}/delete",
         data={"csrf_token": csrf_token},
@@ -1668,8 +1685,8 @@ def test_mobile_active_job_rounded_start_rejects_selector_payload(authenticated_
         assert adjustment_audit_events == []
 
 
-def test_review_detail_force_purge_removes_job_and_attempts(authenticated_client: TestClient) -> None:
-    """A selected unsubmitted review job can be permanently purged from the detail view."""
+def test_review_detail_delete_time_entry_removes_job_and_attempts(authenticated_client: TestClient) -> None:
+    """A selected unsubmitted review job can be deleted from the detail view."""
 
     mobile_page_response = authenticated_client.get("/mobile")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -1688,7 +1705,7 @@ def test_review_detail_force_purge_removes_job_and_attempts(authenticated_client
     text_response = authenticated_client.post(
         f"/jobs/{active_job_id}/description/text",
         headers={"X-CSRF-Token": csrf_token},
-        json={"summary_notes": "Purge workflow test notes"},
+        json={"summary_notes": "Delete workflow test notes"},
     )
     assert text_response.status_code == 200
     save_client_response = authenticated_client.post(
@@ -1718,13 +1735,19 @@ def test_review_detail_force_purge_removes_job_and_attempts(authenticated_client
 
     review_page_response = authenticated_client.get(f"/review/{active_job_id}")
     review_csrf_token = extract_csrf_token(review_page_response.text)
+    assert "Delete time entry" in review_page_response.text
+    assert 'data-confirm-message="This will permanently remove this local time entry and related debug history. Continue?"' in review_page_response.text
+    assert "onsubmit=\"return confirm" not in review_page_response.text
+    assert "Force purge job" not in review_page_response.text
+    assert "Rejection reason" not in review_page_response.text
+    assert f'action="/review/{active_job_id}/reject"' not in review_page_response.text
 
     with database.SessionLocal() as database_session:
         job = database_session.get(Job, active_job_id)
         assert job is not None
         assert job.status == JobStatus.READY_FOR_REVIEW
         # failed_attempt is non-success submission history that should be removed
-        # together with the unsubmitted review job during a force purge.
+        # together with the unsubmitted review job during local time-entry deletion.
         failed_attempt = SubmissionAttempt(
             job_id=active_job_id,
             provider="mock",
@@ -1751,8 +1774,8 @@ def test_review_detail_force_purge_removes_job_and_attempts(authenticated_client
         assert remaining_attempts == 0
 
 
-def test_review_detail_force_purge_rejects_active_job(authenticated_client: TestClient) -> None:
-    """Active jobs cannot be force-purged from the review endpoint."""
+def test_review_detail_delete_time_entry_blocks_active_job(authenticated_client: TestClient) -> None:
+    """Active jobs cannot be deleted from the review endpoint."""
 
     mobile_page_response = authenticated_client.get("/mobile")
     csrf_token = extract_csrf_token(mobile_page_response.text)

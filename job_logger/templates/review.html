@@ -322,7 +322,7 @@
               method="post"
               action="/review/{{ selected_job.id }}/delete-entry"
               class="submitted-entry-delete-form"
-              onsubmit="return confirm('This will delete the existing Autotask time entry and return this job to review. Continue?')"
+              data-confirm-message="This will delete the existing Autotask time entry and return this job to review. Continue?"
             >
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button class="danger-outline-button" type="submit">
@@ -337,29 +337,14 @@
               </button>
             </form>
           {% else %}
-            <form method="post" action="/review/{{ selected_job.id }}/reject" class="reject-form">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <label>
-                <span>Rejection reason</span>
-                <input name="rejection_reason" placeholder="Optional">
-              </label>
-              <button class="danger-outline-button" type="submit">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M18 6L6 18"></path>
-                  <path d="M6 6l12 12"></path>
-                </svg>
-                Reject
-              </button>
-            </form>
-
             <form
               method="post"
               action="/review/{{ selected_job.id }}/purge"
               class="purge-form"
-              onsubmit="return confirm('This will permanently remove this job and related debug history. Continue?')"
+              data-confirm-message="This will permanently remove this local time entry and related debug history. Continue?"
             >
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button class="danger-button" type="submit">
+              <button class="danger-outline-button" type="submit">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M3 6h18"></path>
                   <path d="M8 6V4h8v2"></path>
@@ -367,7 +352,7 @@
                   <path d="M14 11v6"></path>
                   <path d="M9 10h6"></path>
                 </svg>
-                Force purge job
+                Delete time entry
               </button>
             </form>
           {% endif %}

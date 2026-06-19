@@ -4,6 +4,22 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Removed the review job rejection workflow and the rejection reason field.
+  Unsubmitted review details now show **Delete time entry** for explicit local
+  cleanup, review detail buttons and Work in Progress action buttons use
+  consistent sizing, and active job status chips use a blue treatment that is
+  visually distinct from submitted jobs.
+
+- Updated active-job action styling so Record Audio is orange, End Work is
+  green, and both mobile/review **Delete time entry** actions use the reverse
+  red outline treatment with confirmation before deleting.
+
+- Changed **AI Cleanup** buttons to a blue action style and added a consistent
+  pressed-in visual state for buttons.
+
+- Added the shared spinning loading icon to audio sending/transcription status
+  lines and AI Cleanup status lines while those operations are in progress.
+
 - Changed `/mobile` so the initial page render does not run Autotask API calls.
   Service calls now load only after the browser window load event, saved-client
   open-ticket panels no longer auto-query Autotask, and blank Start Work no
@@ -12,13 +28,15 @@ All recorded changes to Job Logger are documented in this file.
 - Added optional Gemini/Groq-backed **AI Cleanup** for active mobile and review
   summary text. The feature is Docker/env gated, keeps provider credentials and
   cleanup instructions server-side, replaces the summary textarea with returned
-  cleaned text, and records metadata-only audit events.
+  cleaned text, records metadata-only audit events, and reports mobile cleanup
+  progress or provider failure details through the same status line and spinner
+  used by audio recording.
 
 - Fixed the mobile recording stop status so final audio chunk acknowledgements
   can no longer switch the stopped UI back to **Recording audio...**. The status
   now moves through **Sending data to server...**, **Converting audio to
-  text...**, and **Conversion complete.** while the WebSocket transcript
-  finishes.
+  text...**, and **Conversion complete.**, with the shared spinner shown while
+  the WebSocket transcript finishes.
 
 - Added a configurable faster-whisper initial prompt that defaults to asking the
   local speech-to-text model to render spoken punctuation words as punctuation
@@ -62,8 +80,8 @@ All recorded changes to Job Logger are documented in this file.
 
 - Removed the mobile **Save Active Changes** button and the review **Save**
   button. Active-job client/work-location edits and review field edits now save
-  automatically through CSRF-protected background requests while keeping
-  Accept/Retry/Reject/Force purge as explicit workflow actions.
+  automatically through CSRF-protected background requests while keeping Accept,
+  Retry, and **Delete time entry** as explicit workflow actions.
 
 - Fixed mobile Summary notes autosave so typing a space between words is not
   removed by the server-normalized save response while the textarea is still
@@ -72,7 +90,7 @@ All recorded changes to Job Logger are documented in this file.
   transcript is pasted into the field all at once.
 
 - Added controlled submitted-entry editing in review. Submitted jobs now keep
-  ticket/client identity, accept/resend, retry, reject, and force-purge actions
+  ticket/client identity, accept/resend, retry, and local delete actions
   protected, while **Edit Entry** updates the existing Autotask `TimeEntries`
   row for job date, start time, end time, summary notes, and ticket status.
   Submitted jobs also expose **Delete From Autotask**, which deletes the
@@ -107,14 +125,13 @@ All recorded changes to Job Logger are documented in this file.
   renders as `+15` / time / `-15` in one row and active-job metric cards
   remain single-column on all screen widths; the client input now appears above
   ticket name/description for unlocked jobs. Recording UI now sets the audio button
-  state immediately on click so the button turns red with the `Stop recording`
-  label while capture is requested, and only returns to neutral once stop/transcode
-  completes.
+  state immediately on click so the button shows the `Stop recording` label while
+  capture is requested, and only returns to neutral once stop/transcode completes.
 
 - Matched desktop `/mobile` styling to the compact mobile Work Type control by
   enforcing the same compact `Remote` / `On-Site` segmented appearance at wider
-  breakpoints and restoring strong red-recording visual states for the web Record
-  Audio button in desktop layouts.
+  breakpoints and restoring strong active-recording visual states for the web
+  Record Audio button in desktop layouts.
 
 - Fixed container startup failures when `DATABASE_URL` host is temporarily
   unresolved at boot (for example in Docker stack/Swarm rollouts) by adding a
@@ -127,7 +144,7 @@ All recorded changes to Job Logger are documented in this file.
   non-destructive password repair command for existing PostgreSQL volumes whose
   stored role password no longer matches `.env`.
 
-- Updated the mobile recording control so **Record Audio** becomes a red
+- Updated the mobile recording control so **Record Audio** becomes a
   **Stop recording** button only while browser capture is active. Clicking it
   again stops capture, leaves the stream/transcription status visible until the
   final transcript returns, and also recovers if stop is triggered before the

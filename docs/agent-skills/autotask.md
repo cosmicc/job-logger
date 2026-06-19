@@ -251,10 +251,10 @@ entries for the same accepted job.
 
 After a provider reports successful submission, ticket identity and destructive
 workflow actions remain protected. Do not allow later review save, ticket
-selection, accept/resend, retry, reject, or force-purge actions for that job.
-Supported submitted-job mutations are limited to audited external-entry actions:
-**Edit Entry** validates one job date, start/end times, summary notes, and
-ticket status, then patches the existing Autotask `TimeEntries` row by its
+selection, accept/resend, retry, or local **Delete time entry** actions for that
+job. Supported submitted-job mutations are limited to audited external-entry
+actions: **Edit Entry** validates one job date, start/end times, summary notes,
+and ticket status, then patches the existing Autotask `TimeEntries` row by its
 stored external ID. **Delete From Autotask** deletes `TimeEntries/{id}` and
 returns the local job to review only after Autotask confirms the delete. If
 either action fails, keep local state aligned with the last known successful

@@ -44,6 +44,7 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
               const canceledTimerIds = new Set();
               const submittedSummaries = [];
               const aiCleanupRequests = [];
+              let aiCleanupFailureMessage = "";
               const noopClassList = {
                 add() {},
                 remove() {},
@@ -68,10 +69,6 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
                   recordingStatusText = nextText;
                   recordingStatusHistory.push(nextText);
                 },
-              };
-              const aiCleanupStatusElement = {
-                classList: noopClassList,
-                textContent: "",
               };
               const aiCleanupButton = {
                 classList: noopClassList,
@@ -125,9 +122,6 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
                   if (selector === '.recording-status[data-job-id="job-1"]') {
                     return recordingStatusElement;
                   }
-                  if (selector === '[data-ai-cleanup-status][data-job-id="job-1"]') {
-                    return aiCleanupStatusElement;
-                  }
                   return null;
                 },
                 querySelectorAll(selector) {
@@ -152,6 +146,14 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
                   const submittedPayload = JSON.parse(requestOptions.body);
                   if (url.endsWith("/summary/cleanup")) {
                     aiCleanupRequests.push(submittedPayload.summary_notes);
+                    if (aiCleanupFailureMessage) {
+                      return {
+                        ok: false,
+                        status: 400,
+                        json: async () => ({detail: aiCleanupFailureMessage}),
+                      };
+                    }
+
                     return {
                       ok: true,
                       json: async () => ({
@@ -251,7 +253,35 @@ def test_mobile_ai_cleanup_replaces_and_saves_summary(tmp_path: Path) -> None:
         assert.deepStrictEqual(aiCleanupRequests, ["fixd the vpn and did tests"]);
         assert.deepStrictEqual(submittedSummaries, ["Cleaned active summary."]);
         assert.strictEqual(descriptionTextarea.value, "Cleaned active summary.");
-        assert.strictEqual(aiCleanupStatusElement.textContent, "Summary cleaned up.");
+        assert.deepStrictEqual(recordingStatusHistory.slice(-3), [
+          "Cleaning up summary...",
+          "Saving cleaned summary...",
+          "Summary cleaned up.",
+        ]);
+        assert.strictEqual(recordingStatusElement.textContent, "Summary cleaned up.");
+        assert.strictEqual(aiCleanupButton.disabled, false);
+        """,
+    )
+
+
+def test_mobile_ai_cleanup_failure_uses_recording_status_line(tmp_path: Path) -> None:
+    """AI cleanup failures should show the provider reason in the shared status line."""
+
+    run_mobile_javascript_harness(
+        tmp_path,
+        """
+        aiCleanupFailureMessage = "Gemini cleanup timed out. Try again.";
+        descriptionTextarea.value = "cleanup should fail";
+        aiCleanupButton.eventHandlers.click();
+
+        await Promise.resolve();
+        await Promise.resolve();
+        await new Promise((resolve) => setImmediate(resolve));
+
+        assert.deepStrictEqual(aiCleanupRequests, ["cleanup should fail"]);
+        assert.deepStrictEqual(submittedSummaries, []);
+        assert.strictEqual(descriptionTextarea.value, "cleanup should fail");
+        assert.strictEqual(recordingStatusElement.textContent, "AI cleanup failed: Gemini cleanup timed out. Try again.");
         assert.strictEqual(aiCleanupButton.disabled, false);
         """,
     )

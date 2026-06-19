@@ -22,7 +22,7 @@ Important workflow service responsibilities include:
 - Validating review fields.
 - Applying review edits.
 - Accepting/retrying Autotask submission.
-- Preventing active jobs from being force-purged.
+- Preventing active jobs from being deleted through review cleanup.
 
 ## Active Job Flow
 
@@ -92,11 +92,11 @@ client field. The panel itself is the ticket-loading control while no ticket
 options have been loaded; clicking or pressing Enter/Space on the panel saves
 the current active client fields before querying Autotask and shows the shared
 spinner loading state while the request is in flight. A job that already has a
-  saved client does not auto-load the picker on mobile page open; the user must
-  click or press Enter/Space on the panel to start the lookup. After selection,
-  the browser should immediately hide the open-ticket panel and show the
-  selected ticket number, ticket title, and ticket description in Work in
-  Progress without waiting for a page reload.
+saved client does not auto-load the picker on mobile page open; the user must
+click or press Enter/Space on the panel to start the lookup. After selection,
+the browser should immediately hide the open-ticket panel and show the selected
+ticket number, ticket title, and ticket description in Work in Progress without
+waiting for a page reload.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
@@ -170,8 +170,8 @@ Mobile recording is browser-side in `job_logger/static/mobile.js`.
 Current behavior:
 
 - Record Audio starts audio capture.
-- The button changes to **Stop recording** and turns red while browser recording
-  is active.
+- The Record Audio button uses an orange treatment, and the button label changes
+  to **Stop recording** while browser recording is active.
 - The browser opens `WebSocket /jobs/{job_id}/description/audio/stream`,
   sends CSRF-protected stream metadata first, then streams `MediaRecorder`
   audio chunks as binary WebSocket messages.
@@ -186,10 +186,11 @@ Current behavior:
   guaranteed post-processing rule.
 - Clicking **Stop recording** ends browser capture, lets `MediaRecorder` flush its
   final chunk, sends WebSocket `finish`, and keeps the control disabled while
-  the status line shows **Sending data to server...**, then **Converting audio
-  to text...**, then **Conversion complete.** after the final transcript is
-  returned and pasted into the summary field. Final chunk acknowledgements from
-  the server must not move the stopped UI back to **Recording audio...**. The legacy
+  the status line shows the shared loading spinner with **Sending data to
+  server...**, then **Converting audio to text...**, then removes the spinner on
+  **Conversion complete.** after the final transcript is returned and pasted
+  into the summary field. Final chunk acknowledgements from the server must not
+  move the stopped UI back to **Recording audio...**. The legacy
   `POST /jobs/{job_id}/description/audio` endpoint remains as a compatibility
   upload path, but the mobile UI should use the WebSocket stream.
 - Raw audio is not permanently stored by default.
@@ -219,7 +220,10 @@ save/review/Edit Entry workflow.
 Mobile active jobs use `POST /jobs/{job_id}/summary/cleanup`. After a successful
 response, `job_logger/static/mobile.js` replaces the active summary textarea and
 persists the cleaned result through the existing active description text save
-endpoint.
+endpoint. Mobile AI cleanup uses the same `.recording-status` line as audio
+recording for progress, success, and failure details. It shows the shared
+loading spinner while cleanup or cleaned-summary saving is in progress, and it
+should not run while audio recording or transcription is in progress.
 
 Review detail uses `POST /review/{job_id}/summary/cleanup`. The returned text
 replaces the review summary textarea. Non-submitted review jobs continue through
@@ -259,7 +263,7 @@ identity editable.
 The review detail form does not expose a manual Save button. Editable review
 fields are saved through debounced background posts to `POST /review/{job_id}/save`.
 The route still supports normal form posts for compatibility, and the Accept,
-Retry, Reject, and Force purge actions remain explicit workflow actions.
+Retry, and **Delete time entry** actions remain explicit workflow actions.
 
 Review ticket selection persists through `POST /review/{job_id}/ticket`. The
 route uses the recently loaded server-side open-ticket selection cache when it
@@ -281,11 +285,11 @@ server verifies and stores the ticket.
 
 After a job is successfully submitted to Autotask, ticket/client identity and
 workflow actions remain protected. The UI must keep ticket selection,
-accept/resend, retry, reject, and force-purge controls hidden or blocked. Date,
-start time, end time, summary notes, and ticket status can stay editable only
-when the submitted detail shows **Edit Entry**. That button must call the
-submitted-entry update route so the existing Autotask `TimeEntries` row is
-patched before local values are kept. The submitted detail can also show
+accept/resend, retry, and local **Delete time entry** controls hidden or
+blocked. Date, start time, end time, summary notes, and ticket status can stay
+editable only when the submitted detail shows **Edit Entry**. That button must
+call the submitted-entry update route so the existing Autotask `TimeEntries`
+row is patched before local values are kept. The submitted detail can also show
 **Delete From Autotask**, which deletes the external time entry and moves the
 local job back to review only after Autotask confirms the delete. This action
 must not delete the local job, audit events, or submission attempts.
@@ -298,14 +302,14 @@ default with an expandable detail section.
 ## Job Status Expectations
 
 Jobs must never disappear silently. Prefer explicit workflow states, archived
-states, rejected states, failed submission states, or audited purge paths.
+states, failed submission states, or audited cleanup paths.
 
-Force purge exists for strict cleanup from review detail, but active jobs cannot
-be purged from that endpoint. Active jobs have the separate audited delete route
-described above. Successfully submitted Autotask jobs also cannot be purged
-because local history must stay tied to the external time entry. Use the audited
-Edit Entry or Delete From Autotask paths for submitted-entry corrections instead
-of expanding local destructive behavior.
+**Delete time entry** exists for strict local cleanup from review detail, but
+active jobs cannot be deleted from that endpoint. Active jobs have the separate
+audited delete route described above. Successfully submitted Autotask jobs also
+cannot use local review cleanup because local history must stay tied to the
+external time entry. Use the audited Edit Entry or Delete From Autotask paths
+for submitted-entry corrections instead of expanding local destructive behavior.
 
 ## Time Rules
 

@@ -82,10 +82,11 @@ Recorded jobs follow this lifecycle:
    The audited **Delete From Autotask** action may delete the external time
    entry and move the local job back to review, but must not delete the local
    job record.
-7. Rejected, failed, or edited jobs remain available for audit history.
+7. Failed or edited jobs remain available for audit history. Local review
+   cleanup is available only through the explicit **Delete time entry** action.
 
 Jobs must never disappear silently. Destructive deletion should be avoided.
-Prefer archived, rejected, superseded, or voided states with audit records.
+Prefer archived, superseded, or voided states with audit records.
 
 ## Time Rules
 
@@ -150,7 +151,9 @@ description used on the review page.
 After the user stops mobile recording, the browser status must distinguish the
 upload and transcription phases: first **Sending data to server...**, then
 **Converting audio to text...**, then **Conversion complete.** when the final
-transcript has been returned and pasted into the summary field.
+transcript has been returned and pasted into the summary field. The same
+spinner used for API loading must appear in the status line while upload or
+conversion is in progress, then disappear on completion or failure.
 
 The local faster-whisper provider may use `FASTER_WHISPER_INITIAL_PROMPT` to
 guide transcript formatting, including rendering dictated punctuation words as
@@ -322,7 +325,7 @@ The application is a FastAPI project under `job_logger/`.
   recording uploads, description text saves, and Autotask company autocomplete.
 - `job_logger/routes/review.py` handles review listing, edit/save/accept/retry,
   updating or deleting existing submitted Autotask entries, ticket lookup for a
-  selected job, rejection, and force purge behavior.
+  selected job, and explicit local **Delete time entry** cleanup.
 - `job_logger/routes/debug.py` handles the authenticated diagnostic page and the
   Autotask API connectivity test.
 - `job_logger/routes/health.py` exposes container health endpoints.
@@ -374,12 +377,14 @@ The normal workflow is:
    it can be corrected before Autotask submission.
 8. User records notes during an active job. The record button becomes a stop
    button while audio chunks stream to the server over WebSocket, and stopping
-   capture shows sending/converting/completed progress until the final
-   transcript returns.
+   capture shows sending/converting/completed progress with a status-line
+   spinner until the final transcript returns.
 9. When enabled, user can click **AI Cleanup** to send the current summary text
-   through the configured server-side Gemini or Groq cleanup provider. The
-   returned text replaces the summary textarea and remains subject to normal
-   save/review behavior.
+   through the configured server-side Gemini or Groq cleanup provider. On
+   mobile, progress and failure details use the same status line as audio
+   recording, with a spinner while cleanup is in progress. The returned text
+   replaces the summary textarea and remains subject to normal save/review
+   behavior.
 10. User can save active job edits before ending work.
 11. User ends work with a mandatory client name. The job moves to review.
 12. User reviews the job from `/review`, edits time/status/notes if needed, and
@@ -388,7 +393,7 @@ The normal workflow is:
 14. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes
     updates against the existing Autotask time entry, or **Delete From Autotask**
     to remove the external time entry and return the local job to review.
-    Ticket/client identity, reject, purge, accept/resend, and retry stay blocked
+    Ticket/client identity, local delete, accept/resend, and retry stay blocked
     while the job remains submitted.
 15. Submission attempts and important state changes are recorded for audit and
     diagnostics.

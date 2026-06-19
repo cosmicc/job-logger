@@ -29,7 +29,6 @@ from job_logger.services.jobs import (
     is_job_locked_after_successful_submission,
     list_review_jobs,
     purge_job,
-    reject_job,
     submit_job_to_autotask,
     update_submitted_job_autotask_entry,
     validate_review_fields,
@@ -433,38 +432,6 @@ async def accept_review(
     return RedirectResponse(url=f"/review/{job_id}", status_code=303)
 
 
-@router.post("/{job_id}/reject")
-async def reject_review(
-    job_id: str,
-    request: Request,
-    database_session: Session = Depends(get_database_session),
-) -> RedirectResponse:
-    """Reject a reviewed job while preserving its audit history."""
-
-    actor = require_authenticated_username(request)
-    form_values = await _form_values(request)
-    rejection_reason = form_values.get("rejection_reason", "").strip()
-    try:
-        job = get_job_or_raise(database_session, job_id)
-        ensure_job_is_not_locked_after_successful_submission(job)
-        reject_job(job)
-        record_audit_event(
-            database_session,
-            actor=actor,
-            action="job.review.rejected",
-            job_id=job.id,
-            request=request,
-            details={"reason": rejection_reason},
-        )
-        database_session.commit()
-        add_flash_message(request, "Job rejected and kept for audit.", "success")
-    except JobWorkflowError as exc:
-        database_session.rollback()
-        add_flash_message(request, str(exc), "error")
-
-    return RedirectResponse(url=f"/review/{job_id}", status_code=303)
-
-
 @router.post("/{job_id}/retry")
 async def retry_submission(
     job_id: str,
@@ -567,7 +534,7 @@ async def purge_review_job(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> RedirectResponse:
-    """Permanently remove a selected job from local history."""
+    """Permanently remove a selected local time entry from review history."""
 
     actor = require_authenticated_username(request)
     await _form_values(request)
@@ -579,12 +546,12 @@ async def purge_review_job(
         record_audit_event(
             database_session,
             actor=actor,
-            action="job.review.purged",
+            action="job.review.deleted",
             request=request,
             details={"job_status": job.status.value, "ticket_number": job.ticket_number or "No ticket"},
         )
         database_session.commit()
-        add_flash_message(request, "Job removed from review history.", "success")
+        add_flash_message(request, "Time entry removed from review history.", "success")
     except JobWorkflowError as exc:
         database_session.rollback()
         add_flash_message(request, str(exc), "error")

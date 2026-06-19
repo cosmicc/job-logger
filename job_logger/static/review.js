@@ -4,6 +4,7 @@ const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribut
 const reviewAutosaveForm = document.querySelector("[data-review-autosave-form]");
 const reviewAutosaveStatus = document.querySelector("[data-review-autosave-status]");
 const aiCleanupButtons = document.querySelectorAll("[data-ai-cleanup-button]");
+const confirmationForms = document.querySelectorAll("[data-confirm-message]");
 
 let reviewAutosaveTimer = null;
 let lastReviewAutosaveSnapshot = "";
@@ -76,15 +77,30 @@ function setReviewAutosaveStatus(message, isError = false) {
   reviewAutosaveStatus.classList.toggle("error-text", isError);
 }
 
-function setAiCleanupStatus(button, message, isError = false) {
-  const formElement = button ? button.closest("form") : null;
-  const statusElement = formElement ? formElement.querySelector("[data-ai-cleanup-status]") : null;
+function setInlineLoadingStatus(statusElement, message, {isError = false, isLoading = false} = {}) {
   if (!statusElement) {
     return;
   }
 
-  statusElement.textContent = message;
   statusElement.classList.toggle("error-text", isError);
+  statusElement.classList.toggle("is-loading", isLoading);
+  if (!isLoading || typeof statusElement.replaceChildren !== "function" || typeof document.createElement !== "function") {
+    statusElement.textContent = message;
+    return;
+  }
+
+  const spinnerElement = document.createElement("span");
+  spinnerElement.className = "loading-spinner";
+  spinnerElement.setAttribute("aria-hidden", "true");
+  const messageElement = document.createElement("span");
+  messageElement.textContent = message;
+  statusElement.replaceChildren(spinnerElement, messageElement);
+}
+
+function setAiCleanupStatus(button, message, isError = false, isLoading = false) {
+  const formElement = button ? button.closest("form") : null;
+  const statusElement = formElement ? formElement.querySelector("[data-ai-cleanup-status]") : null;
+  setInlineLoadingStatus(statusElement, message, {isError, isLoading});
 }
 
 function setAiCleanupButtonLoading(button, isLoading) {
@@ -95,6 +111,18 @@ function setAiCleanupButtonLoading(button, isLoading) {
   button.disabled = isLoading;
   button.classList.toggle("is-loading", isLoading);
   button.setAttribute("aria-busy", isLoading ? "true" : "false");
+}
+
+function handleConfirmedFormSubmit(event) {
+  const formElement = event.target.closest("[data-confirm-message]");
+  if (!formElement || event.defaultPrevented) {
+    return;
+  }
+
+  const confirmationMessage = formElement.dataset.confirmMessage || "";
+  if (confirmationMessage && !window.confirm(confirmationMessage)) {
+    event.preventDefault();
+  }
 }
 
 function buildReviewAutosaveSnapshot() {
@@ -146,9 +174,15 @@ async function requestAiCleanup(cleanupUrl, summaryText) {
     body: JSON.stringify({summary_notes: summaryText}),
   });
 
-  const payload = await response.json();
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch (error) {
+    payload = {};
+  }
+
   if (!response.ok) {
-    throw new Error(payload.detail || "AI cleanup could not finish.");
+    throw new Error(payload.detail || `request failed with HTTP ${response.status || "error"}.`);
   }
 
   return payload;
@@ -170,7 +204,7 @@ async function cleanupReviewSummary(button) {
 
   clearReviewAutosaveTimer();
   setAiCleanupButtonLoading(button, true);
-  setAiCleanupStatus(button, "Cleaning up summary...");
+  setAiCleanupStatus(button, "Cleaning up summary...", false, true);
   try {
     const payload = await requestAiCleanup(cleanupUrl, currentSummaryText);
     const cleanedSummaryText = payload.summary_notes || payload.description_text || "";
@@ -184,7 +218,7 @@ async function cleanupReviewSummary(button) {
       queueReviewAutosave(true);
     }
   } catch (error) {
-    setAiCleanupStatus(button, error.message || "AI cleanup could not finish.", true);
+    setAiCleanupStatus(button, `AI cleanup failed: ${error.message || "AI cleanup could not finish."}`, true);
   } finally {
     setAiCleanupButtonLoading(button, false);
   }
@@ -500,4 +534,8 @@ for (const aiCleanupButton of aiCleanupButtons) {
   aiCleanupButton.addEventListener("click", () => {
     cleanupReviewSummary(aiCleanupButton);
   });
+}
+
+if (confirmationForms.length > 0) {
+  document.addEventListener("submit", handleConfirmedFormSubmit);
 }

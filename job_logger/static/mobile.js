@@ -75,14 +75,6 @@ function findActiveSaveStatusElement(jobId) {
   return document.querySelector(`[data-active-save-status][data-job-id="${toSafeMapString(jobId)}"]`);
 }
 
-function findAiCleanupStatusElement(jobId) {
-  if (!jobId) {
-    return null;
-  }
-
-  return document.querySelector(`[data-ai-cleanup-status][data-job-id="${toSafeMapString(jobId)}"]`);
-}
-
 function findActiveTicketForm(jobId) {
   if (!jobId) {
     return null;
@@ -285,14 +277,28 @@ function setActiveSaveStatus(jobId, message, isError = false) {
   statusElement.classList.toggle("error-text", isError);
 }
 
-function setAiCleanupStatus(jobId, message, isError = false) {
-  const statusElement = findAiCleanupStatusElement(jobId);
+function setInlineLoadingStatus(statusElement, message, {isError = false, isLoading = false} = {}) {
   if (!statusElement) {
     return;
   }
 
-  statusElement.textContent = message;
   statusElement.classList.toggle("error-text", isError);
+  statusElement.classList.toggle("is-loading", isLoading);
+  if (!isLoading || typeof statusElement.replaceChildren !== "function" || typeof document.createElement !== "function") {
+    statusElement.textContent = message;
+    return;
+  }
+
+  const spinnerElement = document.createElement("span");
+  spinnerElement.className = "loading-spinner";
+  spinnerElement.setAttribute("aria-hidden", "true");
+  const messageElement = document.createElement("span");
+  messageElement.textContent = message;
+  statusElement.replaceChildren(spinnerElement, messageElement);
+}
+
+function setAiCleanupStatus(jobId, message, isError = false, isLoading = false) {
+  setRecordingStatus(jobId, message, isError, isLoading);
 }
 
 function setAiCleanupButtonLoading(button, isLoading) {
@@ -404,14 +410,9 @@ function queueActiveJobFormSave(activeTicketForm, immediate = false) {
   );
 }
 
-function setRecordingStatus(jobId, message, isError = false) {
+function setRecordingStatus(jobId, message, isError = false, isLoading = false) {
   const statusElement = findRecordingStatusElement(jobId);
-  if (!statusElement) {
-    return;
-  }
-
-  statusElement.textContent = message;
-  statusElement.classList.toggle("error-text", isError);
+  setInlineLoadingStatus(statusElement, message, {isError, isLoading});
 }
 
 function setRecordingProgressStatus(activeJobId, activeMessage) {
@@ -420,7 +421,7 @@ function setRecordingProgressStatus(activeJobId, activeMessage) {
     const stoppedMessage = activeAudioCompletionInProgress
       ? RECORDING_STATUS_CONVERTING
       : RECORDING_STATUS_SENDING;
-    setRecordingStatus(safeActiveJobId, stoppedMessage);
+    setRecordingStatus(safeActiveJobId, stoppedMessage, false, true);
     return;
   }
 
@@ -670,9 +671,15 @@ async function requestAiCleanup(cleanupUrl, summaryText) {
     body: JSON.stringify({summary_notes: summaryText}),
   });
 
-  const payload = await response.json();
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch (error) {
+    payload = {};
+  }
+
   if (!response.ok) {
-    throw new Error(payload.detail || "AI cleanup could not finish.");
+    throw new Error(payload.detail || `request failed with HTTP ${response.status || "error"}.`);
   }
 
   return payload;
@@ -692,10 +699,15 @@ async function cleanupMobileSummary(button) {
     return;
   }
 
+  if (activeRecorder || isUploadingRecording || activeAudioCompletionInProgress || isStartingRecording) {
+    setAiCleanupStatus(jobId, "Finish audio recording before AI cleanup.", true);
+    return;
+  }
+
   clearDescriptionTimer(jobId);
   pendingDescriptionSaves.delete(jobId);
   setAiCleanupButtonLoading(button, true);
-  setAiCleanupStatus(jobId, "Cleaning up summary...");
+  setAiCleanupStatus(jobId, "Cleaning up summary...", false, true);
   try {
     const payload = await requestAiCleanup(cleanupUrl, currentSummaryText);
     const cleanedSummaryText = payload.summary_notes || payload.description_text || "";
@@ -704,11 +716,12 @@ async function cleanupMobileSummary(button) {
     }
 
     descriptionElement.value = cleanedSummaryText;
+    setAiCleanupStatus(jobId, "Saving cleaned summary...", false, true);
     await saveDescriptionText(jobId, cleanedSummaryText);
     lastSavedDescriptions.set(jobId, cleanedSummaryText);
     setAiCleanupStatus(jobId, "Summary cleaned up.");
   } catch (error) {
-    setAiCleanupStatus(jobId, error.message || "AI cleanup could not finish.", true);
+    setAiCleanupStatus(jobId, `AI cleanup failed: ${error.message || "AI cleanup could not finish."}`, true);
   } finally {
     setAiCleanupButtonLoading(button, false);
   }
@@ -844,15 +857,15 @@ function handleAudioStreamMessage(activeJobId, rawMessage, readyHandlers) {
 
   if (payload.type === "transcription_started") {
     if (payload.phase === "final") {
-      setRecordingStatus(activeJobId, RECORDING_STATUS_CONVERTING);
+      setRecordingStatus(activeJobId, RECORDING_STATUS_CONVERTING, false, true);
       return;
     }
-    setRecordingProgressStatus(activeJobId, "Converting streamed audio...");
+    setRecordingStatus(activeJobId, "Converting streamed audio...", false, true);
     return;
   }
 
   if (payload.type === "partial_pending") {
-    setRecordingProgressStatus(activeJobId, payload.detail || "Collecting enough audio to transcribe...");
+    setRecordingStatus(activeJobId, payload.detail || "Collecting enough audio to transcribe...", false, true);
     return;
   }
 
@@ -968,7 +981,7 @@ async function finishAudioTranscriptionStream(activeJobId) {
     activeAudioStreamFinalResolve = resolve;
     activeAudioStreamFinalReject = reject;
     activeAudioSocket.send(JSON.stringify({type: "finish"}));
-    setRecordingStatus(activeJobId, RECORDING_STATUS_CONVERTING);
+    setRecordingStatus(activeJobId, RECORDING_STATUS_CONVERTING, false, true);
   });
 }
 
@@ -1346,7 +1359,7 @@ async function startRecording(activeJobId) {
     return;
   }
 
-  setRecordingStatus(activeJobId, "Preparing recorder...");
+  setRecordingStatus(activeJobId, "Preparing recorder...", false, true);
   hasRecordedAudio = false;
   isUploadingRecording = false;
   activeAudioCompletionInProgress = false;
@@ -1425,7 +1438,7 @@ async function stopRecording(activeJobId) {
   if (activeRecorder.state === "inactive") {
     activeAudioStopRequested = true;
     setRecordingUi({jobId: activeJobId, isUploading: true});
-    setRecordingStatus(activeJobId, RECORDING_STATUS_SENDING);
+    setRecordingStatus(activeJobId, RECORDING_STATUS_SENDING, false, true);
     if (!hasRecordedAudio) {
       setRecordingStatus(activeJobId, "No audio was recorded. Press Record Audio and try again.");
       clearRecordingState();
@@ -1441,7 +1454,7 @@ async function stopRecording(activeJobId) {
   isUploadingRecording = true;
   activeAudioStopRequested = true;
   setRecordingUi({jobId: activeJobId, isUploading: true});
-  setRecordingStatus(activeJobId, RECORDING_STATUS_SENDING);
+  setRecordingStatus(activeJobId, RECORDING_STATUS_SENDING, false, true);
   activeRecorder.stop();
 }
 
@@ -1476,7 +1489,7 @@ for (const recordButton of activeRecordButtons) {
     }
 
     setRecordingUi({jobId, isRecording: true});
-    setRecordingStatus(jobId, "Preparing recorder...");
+    setRecordingStatus(jobId, "Preparing recorder...", false, true);
     isStartingRecording = true;
     try {
       await startRecording(jobId);

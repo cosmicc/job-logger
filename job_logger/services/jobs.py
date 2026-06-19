@@ -29,8 +29,9 @@ MAX_TICKET_TITLE_LENGTH = 240
 MAX_TICKET_DESCRIPTION_LENGTH = 8000
 ALLOWED_WORK_IN_PROGRESS_START_MINUTE_DELTA = {-15, 15}
 SUCCESSFUL_SUBMISSION_PROTECTED_MESSAGE = (
-    "Submitted Autotask jobs cannot be rejected, purged, resent, or have ticket identity changed. "
-    "Use Edit Entry for date, time, summary, or ticket status changes."
+    "Submitted Autotask jobs cannot be deleted locally, resent, or have ticket identity changed. "
+    "Use Edit Entry for date, time, summary, or ticket status changes, or Delete From Autotask "
+    "to remove the external time entry."
 )
 
 
@@ -145,7 +146,7 @@ def is_job_locked_after_successful_submission(job: Job) -> bool:
 
 
 def ensure_job_is_not_locked_after_successful_submission(job: Job) -> None:
-    """Reject review actions that are not valid after successful submission."""
+    """Block review actions that are not valid after successful submission."""
 
     if is_job_locked_after_successful_submission(job):
         raise JobWorkflowError(SUCCESSFUL_SUBMISSION_PROTECTED_MESSAGE)
@@ -830,22 +831,11 @@ def apply_selected_ticket_from_lookup(
     return job
 
 
-def reject_job(job: Job) -> Job:
-    """Mark a non-active job rejected while preserving audit history."""
-
-    if job.status == JobStatus.ACTIVE:
-        raise JobWorkflowError("Active jobs must be ended before rejection.")
-    ensure_job_is_not_locked_after_successful_submission(job)
-
-    job.status = JobStatus.REJECTED
-    return job
-
-
 def purge_job(database_session: Session, job: Job) -> Job:
     """Delete a review job and all related submission attempts from local storage."""
 
     if job.status == JobStatus.ACTIVE:
-        raise JobWorkflowError("Active jobs cannot be purged.")
+        raise JobWorkflowError("Active jobs cannot be deleted from review.")
     ensure_job_is_not_locked_after_successful_submission(job)
 
     # Remove dependent submission attempts explicitly so deletion works even when the

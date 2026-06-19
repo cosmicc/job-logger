@@ -64,6 +64,18 @@ textarea {
 
 button {
   cursor: pointer;
+  transform-origin: center;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease,
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+button:not(:disabled):active {
+  transform: translateY(1px) scale(0.985);
+  box-shadow: inset 0 2px 7px rgba(3, 7, 18, 0.42);
 }
 
 svg {
@@ -295,8 +307,7 @@ small {
 }
 
 .stack-form,
-.review-form,
-.reject-form {
+.review-form {
   display: grid;
   gap: 14px;
 }
@@ -654,6 +665,45 @@ a:focus-visible {
   color: var(--danger);
 }
 
+.record-notes-button,
+.recording-control-stack .record-notes-button {
+  border-color: rgba(245, 158, 11, 0.48);
+  background: var(--warning);
+  color: #1f1300;
+}
+
+.record-notes-button:hover,
+.recording-control-stack .record-notes-button:hover {
+  background: #fbbf24;
+  color: #1f1300;
+}
+
+.end-work-button,
+.work-finish-stack .end-work-button {
+  border-color: rgba(52, 211, 153, 0.48);
+  background: var(--success);
+  color: #04120f;
+}
+
+.end-work-button:hover,
+.work-finish-stack .end-work-button:hover {
+  background: #6ee7b7;
+  color: #04120f;
+}
+
+.ai-cleanup-button,
+.summary-tool-row .ai-cleanup-button {
+  border-color: rgba(59, 130, 246, 0.52);
+  background: #3b82f6;
+  color: #f8fbff;
+}
+
+.ai-cleanup-button:hover,
+.summary-tool-row .ai-cleanup-button:hover {
+  background: #60a5fa;
+  color: #f8fbff;
+}
+
 .full-width {
   width: 100%;
 }
@@ -798,11 +848,19 @@ a:focus-visible {
 }
 
 .ai-cleanup-button {
-  min-height: 42px;
+  min-height: 48px;
 }
 
 .ai-cleanup-status {
   min-height: 18px;
+}
+
+.recording-status.is-loading,
+.ai-cleanup-status.is-loading,
+.ticket-picker-status.is-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .start-work-form {
@@ -1103,10 +1161,10 @@ a:focus-visible {
 }
 
 .recording-control-stack .secondary-button,
-.work-finish-stack .danger-button,
+.work-finish-stack .end-work-button,
 .work-finish-stack .danger-outline-button {
   width: 100%;
-  min-height: 44px;
+  min-height: 48px;
 }
 
 .delete-active-job-form {
@@ -1114,6 +1172,10 @@ a:focus-visible {
 }
 
 .delete-active-job-form .danger-outline-button {
+  width: 100%;
+}
+
+.active-jobs-stack .summary-tool-row .secondary-button {
   width: 100%;
 }
 
@@ -1162,19 +1224,19 @@ a:focus-visible {
 .recording-control-stack .record-notes-button.is-recording,
 .record-notes-button[aria-pressed="true"],
 .recording-control-stack .record-notes-button[aria-pressed="true"] {
-  border-color: rgba(248, 113, 113, 0.78);
-  background: var(--danger) !important;
-  background-color: var(--danger) !important;
-  color: var(--on-danger) !important;
-  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.25) !important;
+  border-color: rgba(245, 158, 11, 0.78);
+  background: var(--warning) !important;
+  background-color: var(--warning) !important;
+  color: #1f1300 !important;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25) !important;
 }
 
 .record-notes-button.is-recording:hover,
 .recording-control-stack .record-notes-button.is-recording:hover,
 .record-notes-button[aria-pressed="true"]:hover,
 .recording-control-stack .record-notes-button[aria-pressed="true"]:hover {
-  background: #fb8181 !important;
-  color: var(--on-danger) !important;
+  background: #fbbf24 !important;
+  color: #1f1300 !important;
 }
 
 .recent-list {
@@ -1217,8 +1279,8 @@ a:focus-visible {
 }
 
 .status-active {
-  background: rgba(45, 212, 191, 0.18);
-  color: var(--accent-strong);
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
 }
 
 .status-ready_for_review {
@@ -1428,17 +1490,19 @@ td a {
   margin-top: 16px;
 }
 
-.reject-form {
-  grid-template-columns: 1fr auto;
-  align-items: end;
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
+.edit-panel .summary-tool-row .secondary-button,
+.action-row button,
+.submitted-entry-delete-form button,
+.purge-form button {
+  width: min(100%, 210px);
+  min-height: 48px;
 }
 
 .purge-form {
-  margin-top: 12px;
+  margin-top: 18px;
   display: grid;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
 }
 
 .submitted-entry-delete-form {
@@ -1621,8 +1685,7 @@ td a {
   .button-grid,
   .metric-grid,
   .ticket-number-form,
-  .form-grid,
-  .reject-form {
+  .form-grid {
     grid-template-columns: 1fr;
   }
 
