@@ -20,6 +20,7 @@ from job_logger.services.users import (
     delete_or_disable_web_user,
     get_web_user_by_id_or_raise,
     list_web_users,
+    refresh_web_user_autotask_metadata,
     update_web_user,
 )
 from job_logger.ui import template_context, templates
@@ -108,6 +109,13 @@ def autotask_resource_options(request: Request, query: str = "") -> JSONResponse
     )
 
 
+def _resource_full_name(first_name: str | None, last_name: str | None, fallback_name: str) -> str:
+    """Return a local display name from safe Autotask Resource name parts."""
+
+    name_parts = [name_part.strip() for name_part in (first_name or "", last_name or "") if name_part.strip()]
+    return " ".join(name_parts) if name_parts else fallback_name
+
+
 @router.post("")
 async def add_user(
     request: Request,
@@ -151,6 +159,60 @@ async def add_user(
         else:
             add_flash_message(request, "User created.", "success")
     except (HTTPException, WebUserError) as exc:
+        database_session.rollback()
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
+
+    return RedirectResponse(url="/users", status_code=303)
+
+
+@router.post("/{user_id}/refresh-resource")
+async def refresh_user_resource(
+    user_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Refresh one user's stored Autotask Resource metadata."""
+
+    try:
+        actor = require_super_admin(request)
+        await _form_values(request)
+        user = get_web_user_by_id_or_raise(database_session, user_id)
+        resource_options = get_autotask_provider().search_resources(user.full_name)
+        matching_resource = next(
+            (
+                resource_option
+                for resource_option in resource_options
+                if resource_option.resource_id == user.autotask_resource_id
+            ),
+            None,
+        )
+        if matching_resource is None:
+            raise WebUserError("No matching Autotask resource was found for this user's current resource ID.")
+
+        old_full_name = user.full_name
+        old_email = user.email
+        refresh_web_user_autotask_metadata(
+            user,
+            full_name=_resource_full_name(matching_resource.first_name, matching_resource.last_name, user.full_name),
+            email=matching_resource.email,
+        )
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="user.web.resource_refreshed",
+            request=request,
+            details={
+                "web_user_id": user.id,
+                "username": user.username,
+                "autotask_resource_id": user.autotask_resource_id,
+                "full_name_changed": old_full_name != user.full_name,
+                "email_changed": old_email != user.email,
+                "email_saved": user.email is not None,
+            },
+        )
+        database_session.commit()
+        add_flash_message(request, "Autotask resource info refreshed.", "success")
+    except (HTTPException, AutotaskSubmissionError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 

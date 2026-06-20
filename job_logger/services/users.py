@@ -361,6 +361,19 @@ def update_web_user(
     return user
 
 
+def refresh_web_user_autotask_metadata(
+    user: WebUser,
+    *,
+    full_name: str | None,
+    email: str | None,
+) -> WebUser:
+    """Refresh locally stored non-secret metadata from a linked Autotask resource."""
+
+    user.full_name = normalize_full_name(full_name)
+    user.email = normalize_optional_email(email)
+    return user
+
+
 def change_web_user_password(
     database_session: Session,
     user: WebUser,

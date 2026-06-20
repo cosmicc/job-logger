@@ -58,10 +58,11 @@
 .config-layout,
 .form-grid,
 .metric-grid,
-  .button-grid,
-  .user-edit-grid,
-  .theme-card-grid,
-  .password-field-grid {
+.button-grid,
+.user-edit-grid,
+.add-user-fields-grid,
+.theme-card-grid,
+.password-field-grid {
   grid-template-columns: 1fr;
 }
 
@@ -84,8 +85,6 @@
 
 .users-page-actions .secondary-link-button,
 .user-edit-actions button,
-.user-actions-cell button,
-.user-actions-cell form,
 .config-save-button,
 .config-password-button {
   width: 100%;
@@ -161,17 +160,22 @@
 
 .users-table .user-actions-cell {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(96px, 0.42fr) minmax(0, 1fr);
   min-width: 0;
-  white-space: normal;
+  white-space: nowrap;
 }
 
 .users-table .user-actions-cell::before {
   align-self: start;
 }
 
-.user-actions-cell form {
-  margin: 8px 0 0;
+.user-row-actions {
+  justify-content: flex-start;
+}
+
+.user-row-actions button,
+.user-row-actions form {
+  width: auto;
 }
 
 .user-edit-row {
@@ -194,6 +198,24 @@
 
 .resource-picker-header .secondary-button {
   width: 100%;
+}
+
+.resource-picker-header .resource-search-icon-button {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+}
+
+.compact-resource-picker .resource-picker-header {
+  align-items: center;
+  flex-direction: row;
+}
+
+.add-user-footer {
+  align-items: stretch;
+  flex-direction: column;
 }
 
 .review-table {

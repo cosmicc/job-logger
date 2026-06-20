@@ -224,16 +224,22 @@
     }
   }
 
+  function elementForUser(selector, userId) {
+    return Array.from(document.querySelectorAll(selector)).find((element) => {
+      return element.dataset.userId === userId;
+    }) || null;
+  }
+
   function editPanelForUser(userId) {
-    return document.querySelector(`[data-user-edit-panel][data-user-id="${CSS.escape(userId)}"]`);
+    return elementForUser("[data-user-edit-panel]", userId);
   }
 
   function editToggleForUser(userId) {
-    return document.querySelector(`[data-user-edit-toggle][data-user-id="${CSS.escape(userId)}"]`);
+    return elementForUser("[data-user-edit-toggle]", userId);
   }
 
   function displayRowForUser(userId) {
-    return document.querySelector(`[data-user-display-row][data-user-id="${CSS.escape(userId)}"]`);
+    return elementForUser("[data-user-display-row]", userId);
   }
 
   function setUserEditMode(userId, isEditing) {

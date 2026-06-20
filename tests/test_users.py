@@ -9,8 +9,9 @@ from sqlalchemy import delete, select
 
 from job_logger import database
 from job_logger.enums import JobStatus, TranscriptionStatus, WorkLocation
-from job_logger.models import Job, WebUser
+from job_logger.models import AuditEvent, Job, WebUser
 from job_logger.services.users import WebUserError, hash_password, suggested_username_from_full_name
+from job_logger.ui import static_asset_version
 from tests.conftest import extract_csrf_token, login_as, login_as_super_admin, login_as_web_user
 
 
@@ -96,8 +97,14 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert "tech@example.test" in users_page.text
     assert 'data-user-edit-toggle' in users_page.text
     assert 'data-user-edit-panel' in users_page.text
+    assert 'title="Edit user"' in users_page.text
+    assert 'title="Refresh Autotask resource"' in users_page.text
+    assert 'class="danger-outline-button user-action-icon-button"' in users_page.text
+    assert ">Edit<" not in users_page.text
+    assert ">Delete<" not in users_page.text
     assert 'name="autotask_resource_email"' in users_page.text
     assert 'data-resource-results hidden' in users_page.text
+    assert f"/static/users.js?v={static_asset_version()}" in users_page.text
     assert "The config super admin is intentionally not listed here." in users_page.text
 
 
@@ -180,6 +187,28 @@ def test_users_page_disables_user_with_job_history(
         assert user.disabled is True
         job = database_session.scalar(select(Job).where(Job.web_user_id == user_id))
         assert job is not None
+
+    users_page = authenticated_client.get("/users")
+    assert 'title="Enable user"' in users_page.text
+    admin_csrf_token = extract_csrf_token(users_page.text)
+    enable_response = authenticated_client.post(
+        f"/users/{user_id}/update",
+        data={
+            "csrf_token": admin_csrf_token,
+            "full_name": "Test Technician",
+            "username": "tech",
+            "password": "",
+            "autotask_resource_id": "1",
+            "autotask_resource_email": "",
+        },
+        follow_redirects=False,
+    )
+
+    assert enable_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        user = database_session.get(WebUser, user_id)
+        assert user is not None
+        assert user.disabled is False
 
 
 def test_username_suggestion_uses_first_initial_and_last_name() -> None:
@@ -270,3 +299,37 @@ def test_users_page_persists_autotask_resource_email_on_edit(super_admin_client:
 
     users_page = super_admin_client.get("/users")
     assert "joe.blow@example.test" in users_page.text
+
+
+def test_users_page_refreshes_autotask_resource_metadata(super_admin_client: TestClient) -> None:
+    """The row refresh action should update safe stored metadata from Autotask."""
+
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user.email = None
+        database_session.commit()
+        user_id = user.id
+
+    users_page = super_admin_client.get("/users")
+    csrf_token = extract_csrf_token(users_page.text)
+    refresh_response = super_admin_client.post(
+        f"/users/{user_id}/refresh-resource",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+
+    assert refresh_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        user = database_session.get(WebUser, user_id)
+        assert user is not None
+        assert user.full_name == "Test Technician"
+        assert user.email == "test.technician@example.test"
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "user.web.resource_refreshed")
+        )
+        assert audit_event is not None
+        assert audit_event.details["autotask_resource_id"] == 1
+
+    users_page = super_admin_client.get("/users")
+    assert "test.technician@example.test" in users_page.text

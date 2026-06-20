@@ -33,10 +33,13 @@ managed web users must receive 403 for direct debug requests.
 Managed web users must have a full name, unique username, password hash, and
 Autotask resource ID. They may also store the email address returned by the
 selected Autotask Resource lookup. The `/users` page presents managed accounts
-in a table with per-row edit controls and visible stored email metadata. The
-add form may suggest usernames from full names, such as `jblow` for `Joe Blow`,
-and add/edit forms may query Autotask Resources for a super-admin-only resource
-picker. Store only salted password verifiers, never raw managed user passwords.
+in a table with visible stored email metadata and icon-only row actions for
+refresh, edit, enable/disable, and delete/delete-as-disable. The refresh action
+re-queries Autotask Resources, requires the returned resource ID to match the
+stored ID, and updates only safe local name/email metadata. The add form may
+suggest usernames from full names, such as `jblow` for `Joe Blow`, and add/edit
+forms may query Autotask Resources for a super-admin-only resource picker.
+Store only salted password verifiers, never raw managed user passwords.
 Managed-user passwords must be at least 8 characters and include lowercase,
 uppercase, number, and symbol characters.
 Disabled web users must be blocked from new logins and from using old signed
@@ -186,7 +189,9 @@ Work Type on create. API credentials, ticket status IDs, time-entry type, and
 optional `AUTOTASK_IMPERSONATION_RESOURCE_ID` remain environment configuration.
 The super-admin `/users` page may query `/Resources/query` through the server
 to find matching Autotask Resources by `Last, First` name and fill the
-user-specific resource ID and optional email address.
+user-specific resource ID and optional email address. Per-row refresh on
+`/users` uses the same server-side provider and updates stored local metadata
+only after the returned resource ID matches the user's saved resource ID.
 
 Autotask API errors must be recorded clearly for review and troubleshooting
 without exposing credentials or sensitive protocol details.
@@ -381,6 +386,9 @@ The application is a FastAPI project under `job_logger/`.
   enums used by routes, services, templates, and migrations.
 - `job_logger/time_utils.py` centralizes UTC/local conversion and 15-minute
   rounding. Do not duplicate rounding logic elsewhere.
+- `job_logger/ui.py` owns shared template context, including the content-derived
+  static asset version used to bust browser/PWA caches after CSS or JavaScript
+  changes without changing the source-controlled app version.
 - `job_logger/routes/auth.py` handles config super-admin login, managed web-user
   login, logout, and local authenticated sessions, including sanitized
   failed-login file logging.
@@ -392,7 +400,8 @@ The application is a FastAPI project under `job_logger/`.
   updating or deleting existing submitted Autotask entries, ticket lookup for a
   selected job, and explicit local **Delete time entry** cleanup.
 - `job_logger/routes/users.py` handles the super-admin managed web-user page,
-  including add/edit/disable/delete-or-disable behavior.
+  including add/edit/enable/disable/delete-or-disable behavior, Autotask
+  Resource lookup, and per-row Resource metadata refresh.
 - `job_logger/routes/configuration.py` handles authenticated managed-web-user
   configuration such as immediate light/dark theme selection and explicit
   managed-user password changes.
@@ -441,11 +450,14 @@ The normal workflow is:
 1. User authenticates through Cloudflare Access when enabled, then through the
    app login.
 2. The config super admin opens `/users` to create and edit managed web users.
-   The page lists users in a desktop table and mobile card layout. The add form
-   suggests a username from the full name, and add/edit forms can query
-   Autotask Resources to select the matching resource ID and capture the
-   returned email address. The first managed web user claims any existing
-   unowned jobs from earlier single-user installs.
+   The page lists users in a desktop table and mobile card layout with icon-only
+   row actions for refresh, edit, enable/disable, and delete/delete-as-disable.
+   The add form suggests a username from the full name, and add/edit forms can
+   query Autotask Resources to select the matching resource ID and capture the
+   returned email address. Per-row refresh re-queries Autotask Resources and
+   updates stored local name/email metadata only for the saved resource ID. The
+   first managed web user claims any existing unowned jobs from earlier
+   single-user installs.
 3. A managed web user may open `/config` to choose dark or light theme for
    their own login. Config changes save and apply immediately without a visible
    save action. The same page allows an explicit two-entry login password
@@ -516,7 +528,8 @@ In production:
 - Super-admin resource lookup on `/users` calls Autotask Resources only through
   the server-side provider; browser code never contacts Autotask directly.
   Returned resource email metadata is optional and is stored only when a user
-  selects a resource that includes one.
+  selects a resource that includes one. Per-row refresh uses the same provider
+  and updates only safe local metadata after matching the saved resource ID.
 - The `/debug` page provides the supported manual **Test Autotask API** action.
 - Mock Autotask mode is only for tests and isolated development.
 

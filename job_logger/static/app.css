@@ -553,6 +553,7 @@ a:focus-visible {
 .secondary-button,
 .danger-button,
 .danger-outline-button,
+.success-outline-button,
 .primary-action-button {
   display: inline-flex;
   align-items: center;
@@ -848,6 +849,12 @@ a:focus-visible {
   border-color: rgba(248, 113, 113, 0.35);
   background: var(--danger-soft);
   color: var(--danger);
+}
+
+.success-outline-button {
+  border-color: rgba(52, 211, 153, 0.38);
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .record-notes-button,
@@ -1648,6 +1655,19 @@ td a {
   white-space: nowrap;
 }
 
+.resource-search-icon-button {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+}
+
+.resource-search-icon-button svg {
+  width: 18px;
+  height: 18px;
+}
+
 .resource-picker-results {
   display: grid;
   gap: 6px;
@@ -1742,22 +1762,22 @@ td a {
 
 .users-table th:nth-child(1),
 .users-table td:nth-child(1) {
-  width: 20%;
+  width: 15%;
 }
 
 .users-table th:nth-child(2),
 .users-table td:nth-child(2) {
-  width: 11%;
+  width: 10%;
 }
 
 .users-table th:nth-child(3),
 .users-table td:nth-child(3) {
-  width: 20%;
+  width: 22%;
 }
 
 .users-table th:nth-child(4),
 .users-table td:nth-child(4) {
-  width: 11%;
+  width: 10%;
 }
 
 .users-table th:nth-child(5),
@@ -1767,12 +1787,12 @@ td a {
 
 .users-table th:nth-child(6),
 .users-table td:nth-child(6) {
-  width: 7%;
+  width: 6%;
 }
 
 .users-table th:nth-child(7),
 .users-table td:nth-child(7) {
-  width: 21%;
+  width: 27%;
 }
 
 .user-display-row:hover,
@@ -1785,19 +1805,26 @@ td a {
 }
 
 .user-name-cell {
-  display: inline-flex;
+  display: inline-block;
   max-width: 100%;
   color: var(--text);
   font-weight: 850;
-  overflow-wrap: break-word;
-  word-break: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 .user-email-cell {
+  display: inline-block;
+  max-width: 100%;
   color: var(--text);
   font-size: 13px;
   font-weight: 750;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 .mono-value {
@@ -1836,17 +1863,34 @@ td a {
 
 .user-actions-cell {
   min-width: 0;
-  white-space: normal;
+  white-space: nowrap;
 }
 
-.user-actions-cell form {
+.user-row-actions {
   display: inline-flex;
-  margin: 0 0 0 8px;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
-.user-actions-cell button {
+.user-row-actions form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.user-action-icon-button {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
   min-height: 38px;
-  padding: 8px 11px;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+.user-action-icon-button svg {
+  width: 18px;
+  height: 18px;
 }
 
 .user-edit-toggle.is-active {
@@ -1890,13 +1934,26 @@ td a {
   top: 82px;
 }
 
-.add-user-panel .resource-picker-header {
-  align-items: stretch;
-  flex-direction: column;
+.add-user-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.add-user-panel .resource-picker-header .secondary-button {
-  width: 100%;
+.compact-resource-picker {
+  padding: 12px;
+}
+
+.compact-resource-picker .resource-picker-header {
+  align-items: center;
+  flex-direction: row;
+}
+
+.add-user-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .password-field-grid {
@@ -2344,6 +2401,7 @@ td a {
   .form-grid,
   .backup-restore-form,
   .user-edit-grid,
+  .add-user-fields-grid,
   .theme-card-grid,
   .password-field-grid {
     grid-template-columns: 1fr;
@@ -2356,8 +2414,6 @@ td a {
 
   .users-page-actions .secondary-link-button,
   .user-edit-actions button,
-  .user-actions-cell button,
-  .user-actions-cell form,
   .config-save-button,
   .config-password-button {
     width: 100%;
@@ -2429,17 +2485,27 @@ td a {
 
   .users-table .user-actions-cell {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(96px, 0.42fr) minmax(0, 1fr);
     min-width: 0;
-    white-space: normal;
+    white-space: nowrap;
   }
 
   .users-table .user-actions-cell::before {
     align-self: start;
   }
 
-  .user-actions-cell form {
-    margin: 8px 0 0;
+  .user-row-actions {
+    justify-content: flex-start;
+  }
+
+  .user-row-actions button,
+  .user-row-actions form {
+    width: auto;
+  }
+
+  .add-user-footer {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .user-edit-row {

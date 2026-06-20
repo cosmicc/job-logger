@@ -79,15 +79,18 @@ Autotask REST API references used by this app:
 7. Sign in with the config super-admin account, open `/users`, and create at
    least one web user with full name, username, password, and Autotask resource
    ID. The users page shows managed accounts in a table with per-row edit,
-   disable, and delete controls, including any email address captured from
-   Autotask Resource lookup. The add-user form suggests a username from the
-   name, such as `jblow` for `Joe Blow`, and add/edit forms can search Autotask
-   Resources so you can select the matching `Last, First` resource and fill its
-   ID. When Autotask returns an email for the selected resource, Job Logger
-   saves it with that web-user account. Managed-user passwords must be at least
-   8 characters and include lowercase, uppercase, number, and symbol characters.
-   The first web user you create takes ownership of any existing unowned jobs
-   from earlier single-user installs.
+   refresh, enable/disable, and delete controls as compact icons, including any
+   email address captured from Autotask Resource lookup. The refresh icon
+   re-queries Autotask Resources and updates the stored local name/email metadata
+   when the returned resource still matches that user's saved resource ID. The
+   add-user form suggests a username from the name, such as `jblow` for
+   `Joe Blow`, and add/edit forms can search Autotask Resources so you can
+   select the matching `Last, First` resource and fill its ID. When Autotask
+   returns an email for the selected resource, Job Logger saves it with that
+   web-user account. Managed-user passwords must be at least 8 characters and
+   include lowercase, uppercase, number, and symbol characters. The first web
+   user you create takes ownership of any existing unowned jobs from earlier
+   single-user installs.
 
 8. Managed web users can open `/config` to choose their visual theme. Dark is
    the default, and changes save and apply immediately without a Save button.
@@ -289,6 +292,9 @@ padding for phone status bars, and disabled page overscroll/bounce behavior.
 The service worker is intentionally network-only. It supports standalone app
 launch behavior but does not cache authenticated pages, job data, Autotask
 responses, transcription data, raw audio, or diagnostics.
+Static CSS and JavaScript links include a content-derived version value so
+browser and installed-app shells fetch changed assets after deploy without
+requiring an application version bump.
 
 ## Provider Modes
 
@@ -477,8 +483,11 @@ while adding or editing a web user. Resource names are displayed in Autotask's
 `Last, First` format in a dropdown-style picker, and choosing one fills the
 required resource ID field. If Autotask returns an email address for the chosen
 resource, the email is saved with the managed web-user account and displayed in
-the Users table for future user-scoped features. The browser never receives
-Autotask credentials and cannot query Autotask directly.
+the Users table for future user-scoped features. Each table row also has a
+refresh icon that re-runs the server-side resource lookup and updates stored
+name/email metadata only after the returned resource ID matches the user's saved
+resource ID. The browser never receives Autotask credentials and cannot query
+Autotask directly.
 
 Autotask ticket status picklist IDs vary by tenant. Configure these before
 production use so the full workflow can update the selected ticket status:

@@ -36,7 +36,10 @@ The config super admin may use `/users` to query Autotask Resources by name
 while creating a managed web user, but that lookup must still go through the
 server-side provider and return only safe resource metadata. When the selected
 resource includes an email address, the user manager stores it with the managed
-web-user row for future user-scoped features.
+web-user row for future user-scoped features. The same page has a per-user
+refresh action that re-runs Resource lookup, matches the returned resource ID
+against the user's saved resource ID, and updates only safe local name/email
+metadata.
 
 ## Provider Location
 
@@ -53,6 +56,8 @@ Current provider responsibilities:
 - Test connectivity.
 - Search companies for client autocomplete.
 - Search Resources for super-admin managed-user setup.
+- Refresh safe stored Resource metadata for one managed user through the
+  super-admin user manager.
 - Query one selected company by ID.
 - Query open tickets for a company.
 - Query today's service calls for the logged-in managed web user's resource.
@@ -185,6 +190,12 @@ filters, deduplicate IDs, and cache only positive non-secret results briefly.
 When the browser submits the selected resource email back with the add/edit
 form, the server must treat it as optional metadata, validate it as a bounded
 email address, and never trust it as an authorization source.
+
+Per-row refresh on `/users` is also super-admin-only and CSRF-protected. It
+must search through the server-side provider, require the selected resource's ID
+to equal the user's stored resource ID, and update only locally stored
+non-secret metadata such as full name and email. Do not use returned email or
+display names for authorization.
 
 Remote/On-Site detection is intentionally simple and auditable: scan the
 service-call details for `remote`, `onsite`, `on-site`, or `on site`. If neither

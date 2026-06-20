@@ -44,6 +44,9 @@ return only safe Autotask Resource metadata. Browser code can use it from
 add/edit user forms to fill the resource ID field, but the server must still
 validate the submitted resource ID and must never expose Autotask credentials or
 raw remote error details.
+The per-row `/users/{user_id}/refresh-resource` action is also
+super-admin-only, CSRF-protected, and must update only safe local metadata after
+matching the returned Autotask resource ID to the user's stored ID.
 
 Per-user configuration lives behind authenticated managed-web-user-only
 `/config` routes. The config super admin has no user settings, must not see the
@@ -118,7 +121,8 @@ Important actions must record audit events through `job_logger/services/audit.py
 Audit-worthy actions include:
 
 - Authentication-sensitive events.
-- Managed web-user add, edit, disable, and delete/delete-as-disable actions.
+- Managed web-user add, edit, enable, disable, delete/delete-as-disable, and
+  Autotask Resource metadata refresh actions.
 - Per-user configuration updates.
 - Managed web-user password changes.
 - Job start.

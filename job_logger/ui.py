@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+from functools import lru_cache
+from pathlib import Path
+
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -15,11 +19,25 @@ from job_logger.version import APP_VERSION
 
 # templates is the single Jinja environment used by all server-rendered pages.
 templates = Jinja2Templates(directory="job_logger/templates")
+STATIC_ASSET_DIR = Path(__file__).resolve().parent / "static"
 
 # Filters keep timezone formatting out of templates and routes.
 templates.env.filters["local_display"] = time_utils.format_local_display
 templates.env.filters["local_date"] = time_utils.format_local_date
 templates.env.filters["local_time"] = time_utils.format_local_time
+
+
+@lru_cache(maxsize=1)
+def static_asset_version() -> str:
+    """Return a content-derived static asset version for cache busting."""
+
+    digest = hashlib.sha256(APP_VERSION.encode("utf-8"))
+    for asset_path in sorted(STATIC_ASSET_DIR.rglob("*")):
+        if not asset_path.is_file():
+            continue
+        digest.update(asset_path.relative_to(STATIC_ASSET_DIR).as_posix().encode("utf-8"))
+        digest.update(asset_path.read_bytes())
+    return f"{APP_VERSION}-{digest.hexdigest()[:12]}"
 
 
 def template_context(
@@ -44,7 +62,7 @@ def template_context(
         "theme_color": THEME_META_COLORS[current_theme],
         "flash_messages": pop_flash_messages(request),
         "ai_cleanup_enabled": settings.ai_cleanup_enabled,
-        "static_asset_version": APP_VERSION,
+        "static_asset_version": static_asset_version(),
     }
     context.update(extra_context)
     return context

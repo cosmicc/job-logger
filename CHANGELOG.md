@@ -4,6 +4,13 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Changed the `/users` table actions to compact icon-only refresh, edit,
+  enable, and delete/disable buttons so row controls stay on one line on full
+  web and mobile layouts. Added per-row Autotask Resource refresh that updates
+  stored safe user metadata, restored an explicit enable path for disabled
+  accounts, and switched static asset URLs to a content-derived cache key so
+  deployed browsers fetch updated Users page CSS/JS.
+
 - Added a managed-web-user password change card on `/config`. Users must enter
   the new password twice and click **Change password**; password changes remain
   CSRF-protected, audited, and separate from instant autosave settings.
