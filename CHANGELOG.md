@@ -4,6 +4,14 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Changed Docker logging to match the Mileage Logger pattern: `LOG_DIR=/data/logs` in the
+  container, host logs under `/var/log/job-logger`, and startup preparation before dropping to the
+  unprivileged app user.
+- Added host-mounted `app.log` file logging under `LOG_DIR` with basic secret redaction.
+- Expanded the `/debug` failed-login window to show client IP/proxy details, username length,
+  password length, request metadata, reason, and lockout placeholders, plus an authenticated JSONL
+  download endpoint.
+
 - Added host-mounted sanitized failed-login JSONL logging and a `/debug` login
   failures window, while keeping raw submitted passwords out of logs and
   diagnostics.

@@ -89,12 +89,45 @@ PY
   return 1
 }
 
+prepare_log_paths() {
+  # LOG_DIR is the app-side path; Docker Compose bind-mounts the host log
+  # directory there so operators can read app.log and failed-login JSONL files.
+  log_dir="${LOG_DIR:-/data/logs}"
+  login_failure_log_path="${LOGIN_FAILURE_LOG_PATH:-${log_dir%/}/job-logger-login-failures.log}"
+
+  mkdir -p "$log_dir" "$(dirname "$login_failure_log_path")"
+  if [ -d "$login_failure_log_path" ]; then
+    echo "LOGIN_FAILURE_LOG_PATH points to a directory, expected a writable log file: ${login_failure_log_path}" >&2
+    exit 1
+  fi
+  touch "$login_failure_log_path"
+  chown -R appuser:appuser "$log_dir"
+  chown appuser:appuser "$login_failure_log_path"
+  chmod 0750 "$log_dir"
+  chmod 0640 "$login_failure_log_path"
+}
+
+run_as_appuser() {
+  if [ "$(id -u)" = "0" ]; then
+    exec gosu appuser "$@"
+  fi
+  exec "$@"
+}
+
+if [ "$(id -u)" = "0" ]; then
+  prepare_log_paths
+fi
+
 # Run migrations after the database is reachable so startup does not fail at image
 # boot when DNS or startup ordering is temporarily out of sync.
 wait_for_database
 
 # Run migrations before serving traffic so the app and database schema stay in sync.
-alembic upgrade head
+if [ "$(id -u)" = "0" ]; then
+  gosu appuser alembic upgrade head
+else
+  alembic upgrade head
+fi
 
 # Start the FastAPI application. Uvicorn is used directly to keep the container simple.
-exec uvicorn job_logger.main:app --host "${APP_HOST:-0.0.0.0}" --port "${APP_PORT:-8000}" --proxy-headers
+run_as_appuser uvicorn job_logger.main:app --host "${APP_HOST:-0.0.0.0}" --port "${APP_PORT:-8000}" --proxy-headers

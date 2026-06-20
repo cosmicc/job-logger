@@ -102,6 +102,9 @@ class Settings:
     # DATABASE_URL points SQLAlchemy at PostgreSQL in Docker or SQLite in tests.
     database_url: str
 
+    # LOG_DIR stores host-mounted runtime logs inside the app container.
+    log_dir: str
+
     # APP_USERNAME is the single local app account name.
     app_username: str
 
@@ -280,11 +283,12 @@ def load_settings() -> Settings:
             "DATABASE_URL",
             "postgresql+psycopg://job_logger:job_logger_password@db:5432/job_logger",
         ),
+        log_dir=os.getenv("LOG_DIR", "logs"),
         app_username=os.getenv("APP_USERNAME", "admin"),
         app_password=os.getenv("APP_PASSWORD") or None,
         login_failure_log_path=os.getenv(
             "LOGIN_FAILURE_LOG_PATH",
-            "/var/log/job-logger/job-logger-login-failures.log",
+            f"{os.getenv('LOG_DIR', 'logs').rstrip('/')}/job-logger-login-failures.log",
         ),
         login_failure_debug_rows=_get_integer("LOGIN_FAILURE_DEBUG_ROWS", 200),
         session_cookie_secure=_get_boolean("APP_SESSION_COOKIE_SECURE", False),

@@ -46,14 +46,12 @@ Autotask REST API references used by this app:
 4. Create the host-mounted log directory:
 
    ```bash
-   mkdir -p logs
-   sudo chown 1000:1000 logs
-   chmod 750 logs
+   sudo install -d -m 0750 /var/log/job-logger
    ```
 
-   Docker Compose mounts `${JOB_LOGGER_HOST_LOG_DIR:-./logs}` to
-   `/var/log/job-logger` inside the app container. The image runs as UID/GID
-   `1000`, so the host directory must be writable by that ID.
+   Docker Compose sets `LOG_DIR=/data/logs` inside the app container and
+   mounts `${HOST_LOG_DIR:-/var/log/job-logger}` there. The entrypoint prepares
+   ownership before it drops to the unprivileged `appuser`.
 
 5. Start the stack:
 
@@ -567,13 +565,15 @@ the initial mobile page or blank Start Work route.
 
 The same `/debug` page also shows a recent failed-login window. Failed local
 app login attempts are appended as JSON Lines to
-`/var/log/job-logger/job-logger-login-failures.log` inside the app container.
-Docker Compose bind-mounts that directory from
-`${JOB_LOGGER_HOST_LOG_DIR:-./logs}`, so the default host-readable file is
-`./logs/job-logger-login-failures.log`. The log and debug page include the
-attempt timestamp, client IP, submitted username, user agent, and whether a
-password was supplied with its length. The raw submitted password is never
-stored or displayed.
+`/data/logs/job-logger-login-failures.log` inside the app container. Docker
+Compose bind-mounts that directory from `${HOST_LOG_DIR:-/var/log/job-logger}`,
+so the default host-readable file is
+`/var/log/job-logger/job-logger-login-failures.log`. The log and debug page
+include the attempt timestamp, client IP and proxy header details, submitted
+username and length, user agent, request path, host/proxy metadata, reason, and
+whether a password was supplied with its length. The raw submitted password is
+never stored or displayed. The `/debug/logs/login-failures` endpoint downloads
+the raw JSONL file for authenticated diagnostics.
 
 The `scripts/discover_autotask_ids.py` helper also prints a workflow endpoint
 preflight section. Role, billing-code, and ticket-status ID discovery can

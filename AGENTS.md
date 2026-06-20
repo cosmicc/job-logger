@@ -37,7 +37,8 @@ JWTs, Autotask API credentials, transcription provider credentials, raw audio,
 or other sensitive values. Failed app-login attempts may be written to the
 host-mounted JSONL login-failure log and shown on `/debug`, but only with
 sanitized metadata such as timestamp, client IP, submitted username, user agent,
-and password-present/length. Never write or display the raw submitted password.
+request/proxy details, and password-present/length. Never write or display the
+raw submitted password.
 
 Prefer secure defaults. Cookies must be HTTP-only, secure when served over HTTPS,
 and SameSite-protected. Forms and state-changing requests must use CSRF
@@ -351,7 +352,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/transcription.py` owns speech-to-text provider behavior.
 - `job_logger/services/audit.py` records immutable audit events.
 - `job_logger/services/login_failures.py` writes and reads the host-mounted
-  sanitized failed-login JSONL log.
+  sanitized failed-login JSONL log in `LOG_DIR`, defaulting to
+  `job-logger-login-failures.log` inside Docker's `/data/logs` mount.
 - `job_logger/templates/` contains Jinja pages for mobile, review, debug, and
   authentication views.
 - `job_logger/static/` contains browser-side JavaScript, CSS, PWA metadata, and

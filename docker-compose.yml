@@ -13,7 +13,8 @@ services:
       APP_SECRET_KEY: ${APP_SECRET_KEY:-development-only-change-me}
       APP_USERNAME: ${APP_USERNAME:-admin}
       APP_PASSWORD: ${APP_PASSWORD:-admin}
-      LOGIN_FAILURE_LOG_PATH: ${LOGIN_FAILURE_LOG_PATH:-/var/log/job-logger/job-logger-login-failures.log}
+      LOG_DIR: /data/logs
+      LOGIN_FAILURE_LOG_PATH: /data/logs/job-logger-login-failures.log
       LOGIN_FAILURE_DEBUG_ROWS: ${LOGIN_FAILURE_DEBUG_ROWS:-200}
       APP_SESSION_COOKIE_SECURE: ${APP_SESSION_COOKIE_SECURE:-false}
       APP_ALLOWED_HOSTS: ${APP_ALLOWED_HOSTS:-localhost,127.0.0.1,app}
@@ -76,7 +77,7 @@ services:
       - "8000"
     volumes:
       - faster_whisper_models:/models/faster-whisper
-      - ${JOB_LOGGER_HOST_LOG_DIR:-./logs}:/var/log/job-logger
+      - ${HOST_LOG_DIR:-/var/log/job-logger}:/data/logs
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3).read()\""]
       interval: 30s

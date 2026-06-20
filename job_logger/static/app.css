@@ -1597,8 +1597,21 @@ td a {
 }
 
 .login-failure-window {
-  max-height: 280px;
+  max-height: 460px;
   overflow: auto;
+}
+
+.login-failure-details {
+  margin-top: 0;
+}
+
+.compact-debug-list {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.compact-debug-list dd {
+  overflow-wrap: anywhere;
 }
 
 .debug-requests summary {

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from job_logger.config import settings
 from job_logger.database import get_database_session
+from job_logger.logging_config import redact_sensitive_text
 from job_logger.models import Job, SubmissionAttempt
 from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_token
 from job_logger.services.audit import record_audit_event
@@ -148,6 +150,29 @@ def debug_page(request: Request, database_session: Session = Depends(get_databas
             login_failures=read_recent_login_failures(),
             submission_attempts=debug_submission_attempts,
         ),
+    )
+
+
+@router.get("/logs/login-failures")
+def download_login_failure_log(request: Request) -> Response:
+    """Download the raw failed-login JSONL log for authenticated diagnostics."""
+
+    try:
+        require_authenticated_username(request)
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=303)
+
+    log_path = Path(settings.login_failure_log_path)
+    if not log_path.exists():
+        raise HTTPException(status_code=404, detail="Login failure log not found")
+
+    return Response(
+        content=redact_sensitive_text(log_path.read_text(encoding="utf-8", errors="replace")),
+        media_type="application/jsonl; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="job-logger-login-failures.log"',
+            "Cache-Control": "no-store",
+        },
     )
 
 

@@ -114,6 +114,7 @@
             Newest records first, max {{ login_failure_debug_rows }}.
             Source: {{ login_failure_log_path }}
           </p>
+          <a class="secondary-link-button" href="/debug/logs/login-failures">Download log</a>
         </div>
 
         {% if login_failures %}
@@ -121,11 +122,14 @@
             <table>
               <thead>
                 <tr>
-                  <th>Time</th>
+                  <th>Date/time</th>
                   <th>Client IP</th>
                   <th>Username</th>
-                  <th>Password supplied</th>
-                  <th>User agent</th>
+                  <th>Password length</th>
+                  <th>Web client</th>
+                  <th>Reason</th>
+                  <th>Attempts</th>
+                  <th>Details</th>
                 </tr>
               </thead>
               <tbody>
@@ -133,15 +137,71 @@
                   <tr>
                     <td>{{ failure.created_at_display }}</td>
                     <td>{{ failure.client_ip }}</td>
-                    <td>{{ failure.username or "blank" }}</td>
                     <td>
-                      {% if failure.password_supplied %}
-                        supplied, {{ failure.password_length }} chars
-                      {% else %}
-                        not supplied
+                      {{ failure.username or "blank" }}{% if failure.username_truncated %}...{% endif %}
+                    </td>
+                    <td>{{ failure.password_length }}</td>
+                    <td class="truncate-cell" title="{{ failure.user_agent }}">{{ failure.user_agent or "unknown" }}</td>
+                    <td>
+                      <span class="status-chip status-submission_failed">{{ failure.reason.replace("_", " ").title() }}</span>
+                      {% if failure.lockout_applied %}
+                        <span class="status-chip status-waiting_customer">Lockout</span>
                       {% endif %}
                     </td>
-                    <td class="truncate-cell" title="{{ failure.user_agent }}">{{ failure.user_agent or "unknown" }}</td>
+                    <td>
+                      {% if failure.max_attempts %}
+                        {{ failure.failed_count }} / {{ failure.max_attempts }}
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+                    <td>
+                      <details class="debug-requests login-failure-details">
+                        <summary>View</summary>
+                        <dl class="debug-list compact-debug-list">
+                          <div>
+                            <dt>UTC</dt>
+                            <dd>{{ failure.created_at_utc or "unknown" }}</dd>
+                          </div>
+                          <div>
+                            <dt>Request</dt>
+                            <dd>{{ failure.method }} {{ failure.path }}{% if failure.next_url %} next={{ failure.next_url }}{% endif %}</dd>
+                          </div>
+                          <div>
+                            <dt>Direct client</dt>
+                            <dd>{{ failure.direct_client_ip or "unknown" }}</dd>
+                          </div>
+                          <div>
+                            <dt>X-Real-IP</dt>
+                            <dd>{{ failure.x_real_ip or "not provided" }}</dd>
+                          </div>
+                          <div>
+                            <dt>X-Forwarded-For</dt>
+                            <dd>{{ failure.x_forwarded_for or "not provided" }}</dd>
+                          </div>
+                          <div>
+                            <dt>Forwarded proto</dt>
+                            <dd>{{ failure.forwarded_proto or "not provided" }}</dd>
+                          </div>
+                          <div>
+                            <dt>Host</dt>
+                            <dd>{{ failure.host or "unknown" }}</dd>
+                          </div>
+                          <div>
+                            <dt>Username length</dt>
+                            <dd>{{ failure.username_length }}</dd>
+                          </div>
+                          <div>
+                            <dt>Password supplied</dt>
+                            <dd>{% if failure.password_supplied %}Yes{% else %}No{% endif %}</dd>
+                          </div>
+                          <div>
+                            <dt>Lockout remaining</dt>
+                            <dd>{{ failure.lockout_remaining_seconds }} seconds</dd>
+                          </div>
+                        </dl>
+                      </details>
+                    </td>
                   </tr>
                 {% endfor %}
               </tbody>

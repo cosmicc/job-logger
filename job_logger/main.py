@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from job_logger.config import Settings, settings
+from job_logger.logging_config import configure_logging
 from job_logger.routes import auth, debug, health, mobile, pwa, review
 
 
@@ -32,6 +33,7 @@ def validate_runtime_settings(application_settings: Settings) -> None:
 def create_app(application_settings: Settings = settings) -> FastAPI:
     """Create and configure the FastAPI application."""
 
+    configure_logging(application_settings)
     validate_runtime_settings(application_settings)
     fastapi_app = FastAPI(title="Job Logger", docs_url=None, redoc_url=None)
 

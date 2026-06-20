@@ -32,13 +32,14 @@ Application setup in `job_logger/main.py` configures:
 Production must not use default secrets or missing passwords.
 
 Failed local app login attempts are recorded in the configured JSONL file,
-defaulting to `/var/log/job-logger/job-logger-login-failures.log` inside the
-container. Docker Compose mounts `/var/log/job-logger` from the host-configured
-`JOB_LOGGER_HOST_LOG_DIR` so operators can read log files from the Docker host.
-The failed-login log and `/debug` failed-login window may show timestamp,
-client IP, submitted username, user agent, and password-present/length
-metadata. They must never include the raw submitted password, session tokens,
-authentication headers, or Cloudflare Access JWTs.
+defaulting to `${LOG_DIR}/job-logger-login-failures.log`. Docker Compose sets
+`LOG_DIR=/data/logs` and bind-mounts `HOST_LOG_DIR=/var/log/job-logger` there
+so operators can read log files from the Docker host. The failed-login log and
+`/debug` failed-login window may show timestamp, client IP details, submitted
+username, username length/truncation, user agent, request path, host/proxy
+metadata, reason, and password-present/length metadata. They must never include
+the raw submitted password, session tokens, authentication headers, or
+Cloudflare Access JWTs.
 
 ## CSRF Rules
 
@@ -206,7 +207,9 @@ Autotask routes, not local cleanup or resend flows.
 
 ## Docker And Runtime Safety
 
-The application container should not run as root unless explicitly documented.
+The application container starts as root only long enough to prepare
+host-mounted log paths, then runs migrations and Uvicorn as the fixed
+unprivileged `appuser` account.
 
 PostgreSQL data must live in a persistent volume or documented persistent
 storage.
