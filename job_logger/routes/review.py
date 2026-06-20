@@ -194,9 +194,9 @@ def _find_matching_ticket_option(ticket_options: list[AutotaskTicketOption], tic
 def _review_save_payload(job: object) -> dict[str, object]:
     """Return non-secret review state after a background save completes."""
 
-    rounded_end_utc = getattr(job, "rounded_end_utc", None)
     ticket_status = getattr(job, "ticket_status", None)
     job_status = getattr(job, "status", None)
+    rounded_end_utc = None if job_status == JobStatus.ACTIVE else getattr(job, "rounded_end_utc", None)
     local_work_date = getattr(job, "local_work_date", None)
     job_date = (
         str(local_work_date)

@@ -501,6 +501,7 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert '/static/mobile.js?v=' in response.text
     assert "Review jobs" not in response.text
     assert ">Ready<" not in response.text
+    assert "click start work, or choose a service call below to start work on a ticket" in response.text
 
 
 def test_super_admin_mobile_header_renders_users_review_debug_and_close(super_admin_client: TestClient) -> None:
@@ -535,6 +536,8 @@ def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(aut
     response = authenticated_client.get("/review")
 
     assert response.status_code == 200
+    assert 'class="secondary-link-button" href="/mobile"' not in response.text
+    assert ">Mobile<" not in response.text
     assert "Secure session" not in response.text
     assert '<a href="/mobile">Home</a>' in response.text
     assert '<a href="/mobile">Mobile</a>' not in response.text
@@ -783,6 +786,15 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'class="rounded-start-time-form active-time-step-controls"' in page_html
     assert 'name="rounded_start_time"' not in page_html
     assert 'class="time-field-input rounded-start-time-display"' in page_html
+    assert 'class="rounded-stop-time-form active-time-step-controls"' in page_html
+    assert f'action="/jobs/{active_job_id}/stop-time/adjust"' in page_html
+    assert 'name="rounded_stop_time"' not in page_html
+    assert 'class="time-field-input rounded-stop-time-display"' in page_html
+    assert 'data-rounded-stop-display' in page_html
+    assert 'data-rounded-start-utc=' in page_html
+    assert 'data-initial-rounded-stop-utc=' in page_html
+    assert re.search(r'data-rounded-start-utc="[^"]+\+00:00"', page_html)
+    assert re.search(r'data-initial-rounded-stop-utc="[^"]+\+00:00"', page_html)
     assert 'name="delta_minutes"' in page_html
     assert 'value="-15"' in page_html
     assert 'value="15"' in page_html
@@ -811,8 +823,10 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'class="active-ticket-number"' in page_html
     assert 'pattern="[Tt][0-9]{8}\\.[0-9]{4}"' not in page_html
     assert 'pattern="[Tt][0-9]{8}\\\\.[0-9]{4}"' not in page_html
-    assert re.search(r">\s*\+15\s*</button>", page_html)
-    assert re.search(r">\s*-15\s*</button>", page_html)
+    assert page_html.index('value="-15"') < page_html.index('class="time-field-input rounded-start-time-display"')
+    assert page_html.index('class="time-field-input rounded-start-time-display"') < page_html.index('value="15"')
+    assert page_html.index("<dt>Rounded start</dt>") < page_html.index("<dt>Rounded stop</dt>")
+    assert page_html.index("<dt>Rounded stop</dt>") < page_html.index('class="metric-card work-location-card"')
 
 
 def test_mobile_active_job_locked_autotask_company_rejects_form_tampering(authenticated_client: TestClient) -> None:
@@ -1040,15 +1054,20 @@ def test_review_save_active_job_without_stop_time(authenticated_client: TestClie
         active_job = get_active_job(database_session)
         assert active_job is not None
         active_job_id = active_job.id
-        active_job_local_start = active_job.rounded_start_utc.astimezone(ZoneInfo("America/Detroit"))
+        active_job_rounded_start = active_job.rounded_start_utc
+        active_job_local_start = active_job_rounded_start.astimezone(ZoneInfo("America/Detroit"))
         assert active_job.rounded_end_utc is None
+        active_job.rounded_end_utc = active_job_rounded_start + timedelta(minutes=15)
+        database_session.commit()
 
     review_page_response = authenticated_client.get(f"/review/{active_job_id}")
     review_csrf_token = extract_csrf_token(review_page_response.text)
-    active_job_display_start = format_local_time(active_job.rounded_start_utc)
+    active_job_display_start = format_local_time(active_job_rounded_start)
+    active_job_tentative_stop = format_local_time(active_job_rounded_start + timedelta(minutes=15))
 
     assert 'type="time"' not in review_page_response.text
     assert f'value="{active_job_display_start}"' in review_page_response.text
+    assert f'value="{active_job_tentative_stop}"' not in review_page_response.text
     assert " am" in active_job_display_start or " pm" in active_job_display_start
 
     save_response = authenticated_client.post(
@@ -1068,7 +1087,7 @@ def test_review_save_active_job_without_stop_time(authenticated_client: TestClie
         reviewed_job = database_session.get(Job, active_job_id)
         assert reviewed_job is not None
         assert reviewed_job.status == JobStatus.ACTIVE
-        assert reviewed_job.rounded_end_utc is None
+        assert reviewed_job.rounded_end_utc == (active_job_rounded_start + timedelta(minutes=15)).replace(tzinfo=None)
         assert reviewed_job.client_name is None
         assert reviewed_job.summary_notes == "Active job saved without stop values."
         assert reviewed_job.ticket_number is None
@@ -1946,6 +1965,131 @@ def test_mobile_active_job_rounded_start_rejects_selector_payload(authenticated_
         assert active_job.rounded_start_utc == original_start
         adjustment_audit_events = database_session.query(AuditEvent).filter_by(action="job.rounded_start.adjusted").all()
         assert adjustment_audit_events == []
+
+
+def test_mobile_active_job_rounded_stop_can_be_adjusted_and_used_on_end(authenticated_client: TestClient) -> None:
+    """A manually adjusted active rounded stop is used when the job ends."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    rounded_start = datetime(2026, 6, 16, 12, 0, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+        active_job.rounded_start_utc = rounded_start
+        active_job.rounded_end_utc = rounded_start + timedelta(minutes=15)
+        active_job.local_work_date = rounded_start.date()
+        database_session.commit()
+
+    adjust_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/stop-time/adjust",
+        data={"csrf_token": csrf_token, "delta_minutes": 15},
+        follow_redirects=False,
+    )
+    assert adjust_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
+        assert active_job.status == JobStatus.ACTIVE
+        assert active_job.rounded_end_utc == (rounded_start + timedelta(minutes=30)).replace(tzinfo=None)
+        adjustment_audit_event = database_session.query(AuditEvent).filter_by(action="job.rounded_stop.adjusted").one()
+        assert adjustment_audit_event.job_id == active_job_id
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token, "client_name": "Stop Override Client"},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        ended_job = database_session.get(Job, active_job_id)
+        assert ended_job is not None
+        assert ended_job.status == JobStatus.READY_FOR_REVIEW
+        assert ended_job.rounded_end_utc == (rounded_start + timedelta(minutes=30)).replace(tzinfo=None)
+
+
+def test_mobile_active_job_rounded_stop_rejects_selector_payload(authenticated_client: TestClient) -> None:
+    """The active rounded-stop route accepts bounded deltas, not arbitrary selector values."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+        assert active_job.rounded_end_utc is None
+
+    adjust_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/stop-time/adjust",
+        data={"csrf_token": csrf_token, "rounded_stop_time": "12:00"},
+        follow_redirects=False,
+    )
+    assert adjust_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
+        assert active_job.rounded_end_utc is None
+        adjustment_audit_events = database_session.query(AuditEvent).filter_by(action="job.rounded_stop.adjusted").all()
+        assert adjustment_audit_events == []
+
+
+def test_mobile_end_job_rounds_live_stop_up_for_technician(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ending work without an override rounds the stop upward at submit time."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    rounded_start = datetime(2026, 6, 16, 12, 0, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+        active_job.rounded_start_utc = rounded_start
+        active_job.rounded_end_utc = None
+        active_job.local_work_date = rounded_start.date()
+        database_session.commit()
+
+    monkeypatch.setattr("job_logger.services.jobs.now_utc", lambda: datetime(2026, 6, 16, 12, 8, tzinfo=UTC))
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token, "client_name": "Live Rounded Stop Client"},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        ended_job = database_session.get(Job, active_job_id)
+        assert ended_job is not None
+        assert ended_job.status == JobStatus.READY_FOR_REVIEW
+        assert ended_job.rounded_end_utc == datetime(2026, 6, 16, 12, 15)
 
 
 def test_review_detail_delete_time_entry_removes_job_and_attempts(authenticated_client: TestClient) -> None:

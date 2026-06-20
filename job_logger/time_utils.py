@@ -69,6 +69,38 @@ def round_to_nearest_quarter_hour(timestamp: datetime) -> datetime:
     return rounded_local_timestamp.astimezone(UTC)
 
 
+def _round_to_quarter_hour_boundary(timestamp: datetime, *, round_up: bool) -> datetime:
+    """Round a timestamp to a quarter-hour boundary in local wall-clock time."""
+
+    local_timestamp = to_local(timestamp)
+    local_midnight = local_timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+    elapsed = local_timestamp - local_midnight
+    elapsed_microseconds = (
+        (elapsed.days * 24 * 60 * 60 + elapsed.seconds) * 1_000_000
+    ) + elapsed.microseconds
+    interval_microseconds = ROUNDING_INTERVAL_MINUTES * 60 * 1_000_000
+    rounded_intervals = elapsed_microseconds // interval_microseconds
+    if round_up and elapsed_microseconds % interval_microseconds:
+        rounded_intervals += 1
+
+    rounded_local_timestamp = local_midnight + timedelta(
+        microseconds=rounded_intervals * interval_microseconds
+    )
+    return rounded_local_timestamp.astimezone(UTC)
+
+
+def round_start_for_technician(timestamp: datetime) -> datetime:
+    """Round a start timestamp down to the prior quarter hour."""
+
+    return _round_to_quarter_hour_boundary(timestamp, round_up=False)
+
+
+def round_end_for_technician(timestamp: datetime) -> datetime:
+    """Round an end timestamp up to the next quarter hour."""
+
+    return _round_to_quarter_hour_boundary(timestamp, round_up=True)
+
+
 def enforce_minimum_rounded_end(rounded_start_utc: datetime, rounded_end_utc: datetime) -> datetime:
     """Ensure a rounded end produces at least one 15-minute duration block."""
 
@@ -181,3 +213,12 @@ def format_autotask_datetime(timestamp: datetime) -> str:
     """Format UTC timestamps for Autotask REST payloads."""
 
     return ensure_utc(timestamp).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def format_utc_iso(timestamp: datetime | None) -> str:
+    """Format a timestamp as explicit UTC ISO text for browser data attributes."""
+
+    if timestamp is None:
+        return ""
+
+    return ensure_utc(timestamp).isoformat()

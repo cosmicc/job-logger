@@ -83,6 +83,10 @@
   margin-top: 8px;
 }
 
+.review-shell {
+  margin-top: 8px;
+}
+
 .mobile-shell > .active-jobs-stack > .work-panel:first-child {
   margin-top: 0;
 }
@@ -289,7 +293,8 @@
 }
 
 .time-step-controls,
-.rounded-start-time-form {
+.rounded-start-time-form,
+.rounded-stop-time-form {
   grid-template-columns: 36px minmax(92px, 1fr) 36px;
 }
 

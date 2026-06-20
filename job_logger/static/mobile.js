@@ -4,6 +4,8 @@ const COMPANY_SEARCH_DELAY_MS = 400;
 const MIN_COMPANY_SEARCH_CHARACTERS = 3;
 const RECORDING_CHUNK_INTERVAL_MS = 2500;
 const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
+const ROUNDING_INTERVAL_MINUTES = 15;
+const LIVE_ROUNDED_STOP_UPDATE_MS = 30000;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 const RECORD_AUDIO_LABEL = "Record Audio";
 const STOP_RECORDING_LABEL = "Stop recording";
@@ -21,6 +23,7 @@ const activeTicketPickers = document.querySelectorAll("[data-active-ticket-picke
 const workLocationInputs = document.querySelectorAll("[data-work-location-input]");
 const serviceCallPanels = document.querySelectorAll("[data-service-call-panel]");
 const aiCleanupButtons = document.querySelectorAll("[data-ai-cleanup-button]");
+const roundedStopDisplays = document.querySelectorAll("[data-rounded-stop-display]");
 const mobilePageLoadingOverlay = document.querySelector("[data-mobile-page-loading]");
 const mobilePageLoadingMessage = document.querySelector("[data-mobile-page-loading-message]");
 
@@ -144,6 +147,105 @@ function syncEndJobClientFields(endJobForm) {
   if (endAutotaskCompanyIdField) {
     endAutotaskCompanyIdField.value = clientFields.autotaskCompanyId;
   }
+}
+
+function parseLocalTimeDisplay(rawLocalTime) {
+  const normalizedLocalTime = toSafeMapString(rawLocalTime).trim().toLowerCase();
+  const timeMatch = normalizedLocalTime.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/);
+  if (!timeMatch) {
+    return null;
+  }
+
+  const displayHour = Number.parseInt(timeMatch[1], 10);
+  const displayMinute = Number.parseInt(timeMatch[2], 10);
+  const displayPeriod = timeMatch[3];
+  if (displayHour < 1 || displayHour > 12 || displayMinute < 0 || displayMinute > 59) {
+    return null;
+  }
+
+  const hour24 = displayPeriod === "am"
+    ? (displayHour === 12 ? 0 : displayHour)
+    : (displayHour === 12 ? 12 : displayHour + 12);
+  return hour24 * 60 + displayMinute;
+}
+
+function formatLocalMinutes(totalLocalMinutes) {
+  const minutesPerDay = 24 * 60;
+  const normalizedMinutes = ((totalLocalMinutes % minutesPerDay) + minutesPerDay) % minutesPerDay;
+  const hour24 = Math.floor(normalizedMinutes / 60);
+  const displayMinute = normalizedMinutes % 60;
+  const displayHour = hour24 % 12 || 12;
+  const displayPeriod = hour24 < 12 ? "am" : "pm";
+  return `${displayHour}:${String(displayMinute).padStart(2, "0")} ${displayPeriod}`;
+}
+
+function formatRoundedStopDisplay(timestamp, displayElement) {
+  const initialRoundedStopDate = parseRoundedStopDate(displayElement.dataset.initialRoundedStopUtc);
+  const initialLocalMinutes = parseLocalTimeDisplay(displayElement.dataset.initialRoundedStopLocalTime);
+  if (initialRoundedStopDate && initialLocalMinutes !== null) {
+    const elapsedMinutes = Math.round((timestamp.getTime() - initialRoundedStopDate.getTime()) / (60 * 1000));
+    return formatLocalMinutes(initialLocalMinutes + elapsedMinutes);
+  }
+
+  return displayElement.textContent.trim();
+}
+
+function parseRoundedStopDate(rawTimestamp) {
+  const parsedDate = new Date(toSafeMapString(rawTimestamp));
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  return parsedDate;
+}
+
+function ceilDateToQuarterHour(timestamp) {
+  const intervalMilliseconds = ROUNDING_INTERVAL_MINUTES * 60 * 1000;
+  const timestampMilliseconds = timestamp.getTime();
+  return new Date(Math.ceil(timestampMilliseconds / intervalMilliseconds) * intervalMilliseconds);
+}
+
+function minimumRoundedStopForDisplay(displayElement) {
+  const roundedStartDate = parseRoundedStopDate(displayElement.dataset.roundedStartUtc);
+  if (!roundedStartDate) {
+    return null;
+  }
+
+  return new Date(roundedStartDate.getTime() + ROUNDING_INTERVAL_MINUTES * 60 * 1000);
+}
+
+function resolveLiveRoundedStop(displayElement) {
+  const roundedStopDate = ceilDateToQuarterHour(new Date());
+  const minimumRoundedStop = minimumRoundedStopForDisplay(displayElement);
+  if (minimumRoundedStop && roundedStopDate < minimumRoundedStop) {
+    return minimumRoundedStop;
+  }
+
+  return roundedStopDate;
+}
+
+function updateLiveRoundedStopDisplay(displayElement) {
+  if (displayElement.dataset.roundedStopOverridden === "true") {
+    return;
+  }
+
+  displayElement.textContent = formatRoundedStopDisplay(resolveLiveRoundedStop(displayElement), displayElement);
+}
+
+function initializeLiveRoundedStopDisplays() {
+  if (!roundedStopDisplays.length) {
+    return;
+  }
+
+  for (const roundedStopDisplay of roundedStopDisplays) {
+    updateLiveRoundedStopDisplay(roundedStopDisplay);
+  }
+
+  window.setInterval(() => {
+    for (const roundedStopDisplay of roundedStopDisplays) {
+      updateLiveRoundedStopDisplay(roundedStopDisplay);
+    }
+  }, LIVE_ROUNDED_STOP_UPDATE_MS);
 }
 
 function findControlElements(jobId) {
@@ -551,7 +653,7 @@ function renderCompanyResults(companyInput, companies) {
       companyInput.value = companyOption.company_name || "";
       companyIdInput.value = companyOption.company_id || "";
       resultsElement.replaceChildren();
-      setCompanyStatus(companyInput, "Client selected.");
+      setCompanyStatus(companyInput, "");
       if (parentForm && parentForm.classList.contains("active-ticket-form")) {
         const jobId = toSafeMapString(parentForm.dataset.jobId);
         const endJobForm = document.querySelector(
@@ -565,7 +667,7 @@ function renderCompanyResults(companyInput, companies) {
           loadActiveTicketOptions(ticketPicker, {saveActiveFormFirst: true})
             .then(() => {
               companyInput.readOnly = true;
-              setCompanyStatus(companyInput, "Client selected.");
+              setCompanyStatus(companyInput, "");
             })
             .catch((error) => {
               setCompanyStatus(companyInput, error.message || "Open tickets could not be loaded.", true);
@@ -1696,6 +1798,8 @@ function loadServiceCallPanelsAfterPageLoad() {
 for (const serviceCallPanel of serviceCallPanels) {
   initializeServiceCallDateControls(serviceCallPanel);
 }
+
+initializeLiveRoundedStopDisplays();
 
 if (document.readyState === "complete") {
   window.setTimeout(loadServiceCallPanelsAfterPageLoad, 0);

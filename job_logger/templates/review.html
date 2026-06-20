@@ -9,12 +9,6 @@
         <h1>Job review</h1>
         <p class="muted-text">Edit recorded work, accept reviewed jobs, and submit approved time to Autotask.</p>
       </div>
-      <a class="secondary-link-button" href="/mobile">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M15 18l-6-6 6-6"></path>
-        </svg>
-        Mobile
-      </a>
     </div>
 
     <div class="review-layout">
@@ -63,7 +57,7 @@
                   </td>
                   <td>{{ job.rounded_start_utc|local_date }}</td>
                   <td>{{ job.rounded_start_utc|local_time }}</td>
-                  <td>{{ job.rounded_end_utc|local_time }}</td>
+                  <td>{% if job.status.value != "active" %}{{ job.rounded_end_utc|local_time }}{% endif %}</td>
                 </tr>
               {% else %}
                 <tr>
@@ -241,7 +235,7 @@
                     name="end_time"
                     type="text"
                     class="time-field-input"
-                    value="{{ selected_job.rounded_end_utc|local_time }}"
+                    value="{% if selected_job.status.value != 'active' %}{{ selected_job.rounded_end_utc|local_time }}{% endif %}"
                     inputmode="text"
                     autocomplete="off"
                     autocorrect="off"

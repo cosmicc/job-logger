@@ -19,7 +19,8 @@ from job_logger.time_utils import (
     local_date_for,
     now_utc,
     parse_local_form_datetime,
-    round_to_nearest_quarter_hour,
+    round_end_for_technician,
+    round_start_for_technician,
 )
 
 AUTOTASK_TICKET_NUMBER_PATTERN = re.compile(r"^T\d{8}\.\d{4}$")
@@ -27,7 +28,7 @@ MAX_ACTIVE_JOBS = 2
 MAX_CLIENT_NAME_LENGTH = 120
 MAX_TICKET_TITLE_LENGTH = 240
 MAX_TICKET_DESCRIPTION_LENGTH = 8000
-ALLOWED_WORK_IN_PROGRESS_START_MINUTE_DELTA = {-15, 15}
+ALLOWED_WORK_IN_PROGRESS_TIME_MINUTE_DELTA = {-15, 15}
 SUCCESSFUL_SUBMISSION_PROTECTED_MESSAGE = (
     "Submitted Autotask jobs cannot be deleted locally, resent, or have ticket identity changed. "
     "Use Edit Entry for date, time, summary, or ticket status changes, or Delete From Autotask "
@@ -113,18 +114,30 @@ def _apply_summary_text(job: Job, summary_text: str | None) -> Job:
     return job
 
 
-def normalize_start_time_delta_minutes(delta_minutes: int | str) -> int:
-    """Normalize allowed minute deltas for active-job rounded start adjustments."""
+def _normalize_active_time_delta_minutes(delta_minutes: int | str, *, field_name: str) -> int:
+    """Normalize allowed minute deltas for active-job time adjustments."""
 
     try:
         normalized_delta = int(delta_minutes)
     except (TypeError, ValueError) as exc:
         raise JobWorkflowError("A valid minute delta is required.") from exc
 
-    if normalized_delta not in ALLOWED_WORK_IN_PROGRESS_START_MINUTE_DELTA:
-        raise JobWorkflowError("Start-time adjustment must be in 15-minute increments.")
+    if normalized_delta not in ALLOWED_WORK_IN_PROGRESS_TIME_MINUTE_DELTA:
+        raise JobWorkflowError(f"{field_name} adjustment must be in 15-minute increments.")
 
     return normalized_delta
+
+
+def normalize_start_time_delta_minutes(delta_minutes: int | str) -> int:
+    """Normalize allowed minute deltas for active-job rounded start adjustments."""
+
+    return _normalize_active_time_delta_minutes(delta_minutes, field_name="Start-time")
+
+
+def normalize_stop_time_delta_minutes(delta_minutes: int | str) -> int:
+    """Normalize allowed minute deltas for active-job rounded stop adjustments."""
+
+    return _normalize_active_time_delta_minutes(delta_minutes, field_name="Stop-time")
 
 
 class JobWorkflowError(RuntimeError):
@@ -384,7 +397,7 @@ def start_job(
     normalized_autotask_company_id = normalize_autotask_company_id(autotask_company_id)
     normalized_work_location = normalize_work_location(work_location)
     start_timestamp = now_utc()
-    rounded_start_timestamp = round_to_nearest_quarter_hour(start_timestamp)
+    rounded_start_timestamp = round_start_for_technician(start_timestamp)
     job = Job(
         status=JobStatus.ACTIVE,
         web_user_id=web_user_id,
@@ -483,10 +496,39 @@ def adjust_active_job_rounded_start(database_session: Session, job_id: str, delt
         raise JobWorkflowError("Only active jobs can have rounded start times adjusted.")
 
     normalized_delta = normalize_start_time_delta_minutes(delta_minutes)
-    job.rounded_start_utc = round_to_nearest_quarter_hour(
+    job.rounded_start_utc = round_start_for_technician(
         job.rounded_start_utc + timedelta(minutes=normalized_delta)
     )
+    if job.rounded_end_utc is not None:
+        job.rounded_end_utc = enforce_minimum_rounded_end(job.rounded_start_utc, job.rounded_end_utc)
     job.local_work_date = local_date_for(job.rounded_start_utc)
+    return job
+
+
+def rounded_stop_for_active_job(job: Job, timestamp: datetime | None = None) -> datetime:
+    """Return the current technician-favoring rounded stop for an active job."""
+
+    if job.status != JobStatus.ACTIVE:
+        raise JobWorkflowError("Only active jobs can have a live rounded stop time.")
+
+    stop_timestamp = timestamp or now_utc()
+    rounded_stop_timestamp = round_end_for_technician(stop_timestamp)
+    return enforce_minimum_rounded_end(job.rounded_start_utc, rounded_stop_timestamp)
+
+
+def adjust_active_job_rounded_stop(database_session: Session, job_id: str, delta_minutes: int | str) -> Job:
+    """Shift the active rounded stop time by a constrained minute delta."""
+
+    job = get_job_or_raise(database_session, job_id)
+    if job.status != JobStatus.ACTIVE:
+        raise JobWorkflowError("Only active jobs can have rounded stop times adjusted.")
+
+    normalized_delta = normalize_stop_time_delta_minutes(delta_minutes)
+    current_rounded_stop = job.rounded_end_utc or rounded_stop_for_active_job(job)
+    requested_rounded_stop = round_end_for_technician(
+        current_rounded_stop + timedelta(minutes=normalized_delta)
+    )
+    job.rounded_end_utc = enforce_minimum_rounded_end(job.rounded_start_utc, requested_rounded_stop)
     return job
 
 
@@ -512,7 +554,7 @@ def end_job(
         job.client_name = normalize_client_name_required(job.client_name)
 
     end_timestamp = now_utc()
-    rounded_end_timestamp = round_to_nearest_quarter_hour(end_timestamp)
+    rounded_end_timestamp = job.rounded_end_utc or round_end_for_technician(end_timestamp)
     job.raw_end_utc = end_timestamp
     job.rounded_end_utc = enforce_minimum_rounded_end(job.rounded_start_utc, rounded_end_timestamp)
     job.local_work_date = local_date_for(job.rounded_start_utc)
@@ -693,7 +735,7 @@ def validate_review_fields(
         raise JobWorkflowError("Job date and start time fields are required.")
 
     try:
-        rounded_start_utc = round_to_nearest_quarter_hour(parse_local_form_datetime(job_date, start_time))
+        rounded_start_utc = round_start_for_technician(parse_local_form_datetime(job_date, start_time))
     except ValueError as exc:
         raise JobWorkflowError("Job date or time is invalid.") from exc
 
@@ -708,7 +750,7 @@ def validate_review_fields(
             raise JobWorkflowError("End time is required.")
 
         try:
-            rounded_end_utc = round_to_nearest_quarter_hour(parse_local_form_datetime(job_date, end_time))
+            rounded_end_utc = round_end_for_technician(parse_local_form_datetime(job_date, end_time))
         except ValueError as exc:
             raise JobWorkflowError("Job date or time is invalid.") from exc
 
@@ -756,6 +798,8 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
     job.rounded_start_utc = review_fields.rounded_start_utc
     if review_fields.rounded_end_utc is not None:
         job.rounded_end_utc = review_fields.rounded_end_utc
+    elif job.status == JobStatus.ACTIVE and job.rounded_end_utc is not None:
+        job.rounded_end_utc = enforce_minimum_rounded_end(job.rounded_start_utc, job.rounded_end_utc)
     job.local_work_date = review_fields.local_work_date
     job.client_name = review_fields.client_name
     job.autotask_company_id = review_fields.autotask_company_id

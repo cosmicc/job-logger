@@ -28,23 +28,22 @@
 
     <section class="changelog-timeline" aria-label="Release history">
       {% for entry in changelog_entries %}
-        <article class="changelog-entry{% if entry.version in [app_version, 'v' ~ app_version] %} is-current{% endif %}">
-          <div class="changelog-marker" aria-hidden="true"></div>
-          <div class="changelog-entry-panel">
-            <div class="changelog-entry-header">
-              <span class="release-version">{{ entry.version }}</span>
-              {% if entry.version in [app_version, 'v' ~ app_version] %}
-                <span class="version-chip">Current</span>
-              {% endif %}
+        {% if entry.version not in [app_version, 'v' ~ app_version] %}
+          <article class="changelog-entry">
+            <div class="changelog-marker" aria-hidden="true"></div>
+            <div class="changelog-entry-panel">
+              <div class="changelog-entry-header">
+                <span class="release-version">{{ entry.version }}</span>
+              </div>
+              <h2>{{ entry.display_title }}</h2>
+              <ul class="changelog-change-list">
+                {% for change in entry.changes %}
+                  <li>{{ change }}</li>
+                {% endfor %}
+              </ul>
             </div>
-            <h2>{{ entry.display_title }}</h2>
-            <ul class="changelog-change-list">
-              {% for change in entry.changes %}
-                <li>{{ change }}</li>
-              {% endfor %}
-            </ul>
-          </div>
-        </article>
+          </article>
+        {% endif %}
       {% endfor %}
     </section>
   </section>

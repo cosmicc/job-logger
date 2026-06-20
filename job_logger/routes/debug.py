@@ -16,7 +16,7 @@ from starlette.datastructures import UploadFile
 from job_logger.config import settings
 from job_logger.database import get_database_session
 from job_logger.logging_config import redact_sensitive_text
-from job_logger.models import Job, SubmissionAttempt
+from job_logger.models import Job, SubmissionAttempt, WebUser
 from job_logger.security import add_flash_message, require_super_admin, validate_csrf_token
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
@@ -42,6 +42,9 @@ class DebugSubmissionAttempt:
 
     # job_ticket_number is the optional ticket number on the related job.
     job_ticket_number: str | None
+
+    # job_owner_name is the display name of the managed web user who owns the job.
+    job_owner_name: str | None
 
     # provider identifies mock or live Autotask mode for this attempt.
     provider: str
@@ -95,7 +98,11 @@ def _serialize_connectivity_result(result: AutotaskConnectivityResult) -> dict[s
     }
 
 
-def _serialize_submission_attempt(attempt: SubmissionAttempt, job_ticket_number: str | None) -> DebugSubmissionAttempt:
+def _serialize_submission_attempt(
+    attempt: SubmissionAttempt,
+    job_ticket_number: str | None,
+    job_owner_name: str | None,
+) -> DebugSubmissionAttempt:
     """Return a UI-safe representation of one submission attempt."""
 
     request_snapshot_text = "{}"
@@ -108,6 +115,7 @@ def _serialize_submission_attempt(attempt: SubmissionAttempt, job_ticket_number:
         id=attempt.id,
         job_id=attempt.job_id,
         job_ticket_number=job_ticket_number,
+        job_owner_name=job_owner_name,
         provider=attempt.provider,
         succeeded=attempt.succeeded,
         external_id=attempt.external_id,
@@ -144,16 +152,17 @@ def debug_page(request: Request, database_session: Session = Depends(get_databas
 
     attempt_rows = list(
         database_session.execute(
-            select(SubmissionAttempt, Job.ticket_number)
+            select(SubmissionAttempt, Job.ticket_number, WebUser.full_name)
             .join(Job, SubmissionAttempt.job_id == Job.id, isouter=True)
+            .join(WebUser, Job.web_user_id == WebUser.id, isouter=True)
             .order_by(desc(SubmissionAttempt.created_at_utc))
             .limit(200)
         ).all()
     )
 
     debug_submission_attempts = [
-        _serialize_submission_attempt(attempt, job_ticket_number)
-        for attempt, job_ticket_number in attempt_rows
+        _serialize_submission_attempt(attempt, job_ticket_number, job_owner_name)
+        for attempt, job_ticket_number, job_owner_name in attempt_rows
     ]
 
     return templates.TemplateResponse(

@@ -40,6 +40,7 @@ from job_logger.services.jobs import (
     MAX_ACTIVE_JOBS,
     JobWorkflowError,
     adjust_active_job_rounded_start,
+    adjust_active_job_rounded_stop,
     apply_manual_summary_to_job,
     apply_selected_ticket_from_lookup,
     apply_transcription_result_to_job,
@@ -50,6 +51,7 @@ from job_logger.services.jobs import (
     get_job_or_raise,
     list_active_jobs_for_web_user,
     mark_job_transcription_failed,
+    rounded_stop_for_active_job,
     start_job,
     transcribe_active_job_audio,
     update_active_job_ticket_number,
@@ -590,12 +592,17 @@ def mobile_page(
                 request,
                 database_session=database_session,
                 active_jobs=[],
+                active_rounded_stop_times={},
                 can_start_jobs=False,
                 start_block_reason="The config super admin can view jobs, but cannot start work because it has no Autotask resource ID.",
             ),
         )
 
     active_jobs = list_active_jobs_for_web_user(database_session, web_user.id)
+    active_rounded_stop_times = {
+        active_job.id: active_job.rounded_end_utc or rounded_stop_for_active_job(active_job)
+        for active_job in active_jobs
+    }
 
     return templates.TemplateResponse(
         request,
@@ -604,6 +611,7 @@ def mobile_page(
             request,
             database_session=database_session,
             active_jobs=active_jobs,
+            active_rounded_stop_times=active_rounded_stop_times,
             can_start_jobs=True,
             start_block_reason=None,
         ),
@@ -1019,6 +1027,42 @@ async def adjust_start_time(
         )
         database_session.commit()
         add_flash_message(request, "Rounded start time adjusted.", "success")
+    except (HTTPException, JobWorkflowError, WebUserError) as exc:
+        database_session.rollback()
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
+
+    return RedirectResponse(url="/mobile", status_code=303)
+
+
+@router.post("/jobs/{job_id}/stop-time/adjust")
+async def adjust_stop_time(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Shift the active job rounded stop time by a bounded increment."""
+
+    actor = require_authenticated_username(request)
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+    delta_minutes = form_data.get("delta_minutes")
+
+    try:
+        web_user = _current_enabled_web_user(request, database_session)
+        existing_job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(existing_job, web_user.id)
+        job = adjust_active_job_rounded_stop(database_session, job_id=job_id, delta_minutes=delta_minutes)
+        audit_details = {"delta_minutes": delta_minutes}
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.rounded_stop.adjusted",
+            job_id=job.id,
+            request=request,
+            details=audit_details,
+        )
+        database_session.commit()
+        add_flash_message(request, "Rounded stop time adjusted.", "success")
     except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")

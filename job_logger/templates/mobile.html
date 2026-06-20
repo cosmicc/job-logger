@@ -107,10 +107,10 @@
                       type="submit"
                       class="secondary-button time-step-button"
                       name="delta_minutes"
-                      value="15"
-                      aria-label="Increase rounded start by 15 minutes"
+                      value="-15"
+                      aria-label="Decrease rounded start by 15 minutes"
                     >
-                      +15
+                      -15
                     </button>
                     <output class="time-field-input rounded-start-time-display" aria-label="Rounded start time">
                       {{ active_job.rounded_start_utc|local_time }}
@@ -119,10 +119,54 @@
                       type="submit"
                       class="secondary-button time-step-button"
                       name="delta_minutes"
+                      value="15"
+                      aria-label="Increase rounded start by 15 minutes"
+                    >
+                      +15
+                    </button>
+                  </form>
+                </dd>
+              </div>
+              {% set rounded_stop_utc = active_rounded_stop_times.get(active_job.id) if active_rounded_stop_times is defined else active_job.rounded_end_utc %}
+              <div class="metric-card">
+                <dt>Rounded stop</dt>
+                <dd>
+                  <form
+                    method="post"
+                    action="/jobs/{{ active_job.id }}/stop-time/adjust"
+                    class="rounded-stop-time-form active-time-step-controls"
+                    data-page-loading-form
+                    data-loading-message="Updating rounded stop..."
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button
+                      type="submit"
+                      class="secondary-button time-step-button"
+                      name="delta_minutes"
                       value="-15"
-                      aria-label="Decrease rounded start by 15 minutes"
+                      aria-label="Decrease rounded stop by 15 minutes"
                     >
                       -15
+                    </button>
+                    <output
+                      class="time-field-input rounded-stop-time-display"
+                      aria-label="Rounded stop time"
+                      data-rounded-stop-display
+                      data-rounded-stop-overridden="{% if active_job.rounded_end_utc %}true{% else %}false{% endif %}"
+                      data-rounded-start-utc="{{ active_job.rounded_start_utc|utc_iso }}"
+                      data-initial-rounded-stop-utc="{{ rounded_stop_utc|utc_iso }}"
+                      data-initial-rounded-stop-local-time="{{ rounded_stop_utc|local_time }}"
+                    >
+                      {{ rounded_stop_utc|local_time }}
+                    </output>
+                    <button
+                      type="submit"
+                      class="secondary-button time-step-button"
+                      name="delta_minutes"
+                      value="15"
+                      aria-label="Increase rounded stop by 15 minutes"
+                    >
+                      +15
                     </button>
                   </form>
                 </dd>
@@ -376,7 +420,7 @@
         <section class="work-panel">
           {% if can_start_jobs %}
             <h1>Start a work entry</h1>
-            <p class="muted-text">Start work, choose the client and open ticket during the job, then end work for review.</p>
+            <p class="muted-text">click start work, or choose a service call below to start work on a ticket</p>
             <form method="post" action="/jobs/start" class="start-work-form" data-page-loading-form data-loading-message="Starting work...">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button class="primary-action-button" type="submit">

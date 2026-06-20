@@ -25,6 +25,7 @@ STATIC_ASSET_DIR = Path(__file__).resolve().parent / "static"
 templates.env.filters["local_display"] = time_utils.format_local_display
 templates.env.filters["local_date"] = time_utils.format_local_date
 templates.env.filters["local_time"] = time_utils.format_local_time
+templates.env.filters["utc_iso"] = time_utils.format_utc_iso
 
 
 @lru_cache(maxsize=1)

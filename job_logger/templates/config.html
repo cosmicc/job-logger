@@ -19,7 +19,6 @@
               <h2 id="appearance-heading">Appearance</h2>
               <p class="muted-text">Choose the theme for this login.</p>
             </div>
-            <span class="config-current-pill" data-config-current-theme>{{ selected_theme|title }}</span>
           </div>
           <form method="post" action="/config" class="stack-form config-form" data-config-form>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -33,7 +32,6 @@
                       name="theme"
                       value="{{ option_value }}"
                       data-theme-option
-                      data-theme-label="{{ option_label }}"
                       data-theme-color="{% if option_value == 'light' %}#f6f8fb{% else %}#0b1220{% endif %}"
                       {% if selected_theme == option_value %}checked{% endif %}
                     >
@@ -127,10 +125,6 @@
           <div>
             <dt>Account</dt>
             <dd>{{ config_principal_label }}</dd>
-          </div>
-          <div>
-            <dt>Theme</dt>
-            <dd data-config-theme-summary>{{ selected_theme|title }}</dd>
           </div>
         </dl>
       </section>

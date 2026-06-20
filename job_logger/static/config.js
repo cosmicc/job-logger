@@ -3,10 +3,6 @@
 
   const THEME_CLASS_NAMES = ["theme-dark", "theme-light"];
 
-  function titleCaseTheme(theme) {
-    return `${String(theme || "").slice(0, 1).toUpperCase()}${String(theme || "").slice(1)}`;
-  }
-
   function csrfToken() {
     const csrfMeta = document.querySelector("meta[name='csrf-token']");
     return csrfMeta ? csrfMeta.getAttribute("content") || "" : "";
@@ -22,19 +18,7 @@
     statusElement.classList.toggle("error-text", Boolean(isError));
   }
 
-  function updateThemeLabels(theme, label) {
-    const displayLabel = label || titleCaseTheme(theme);
-    const currentThemeElement = document.querySelector("[data-config-current-theme]");
-    const themeSummaryElement = document.querySelector("[data-config-theme-summary]");
-    if (currentThemeElement) {
-      currentThemeElement.textContent = displayLabel;
-    }
-    if (themeSummaryElement) {
-      themeSummaryElement.textContent = displayLabel;
-    }
-  }
-
-  function applyTheme(theme, themeColor, label) {
+  function applyTheme(theme, themeColor) {
     const themeClassName = `theme-${theme}`;
     document.documentElement.classList.remove(...THEME_CLASS_NAMES);
     document.body.classList.remove(...THEME_CLASS_NAMES);
@@ -45,8 +29,6 @@
     if (themeColorMeta && themeColor) {
       themeColorMeta.setAttribute("content", themeColor);
     }
-
-    updateThemeLabels(theme, label);
   }
 
   function checkedThemeInput(form) {
@@ -63,10 +45,9 @@
 
   async function saveTheme(form, themeInput, previousThemeInput) {
     const theme = themeInput.value;
-    const themeLabel = themeInput.dataset.themeLabel || titleCaseTheme(theme);
     const themeColor = themeInput.dataset.themeColor || "";
 
-    applyTheme(theme, themeColor, themeLabel);
+    applyTheme(theme, themeColor);
     setStatus(form, "Saving...", false);
 
     const formData = new FormData(form);
@@ -85,7 +66,7 @@
         throw new Error(payload.detail || "Configuration update failed.");
       }
 
-      applyTheme(payload.theme || theme, payload.theme_color || themeColor, themeLabel);
+      applyTheme(payload.theme || theme, payload.theme_color || themeColor);
       setStatus(form, payload.message || "Configuration updated.", false);
       return themeInput;
     } catch (error) {
@@ -95,7 +76,6 @@
         applyTheme(
           fallbackInput.value,
           fallbackInput.dataset.themeColor || "",
-          fallbackInput.dataset.themeLabel || titleCaseTheme(fallbackInput.value),
         );
       }
       setStatus(form, error.message || "Configuration update failed.", true);

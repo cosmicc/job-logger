@@ -26,6 +26,9 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert 'data-config-form' in config_response.text
     assert "Save config" not in config_response.text
     assert "Current settings" in config_response.text
+    assert 'class="config-current-pill"' not in config_response.text
+    assert "data-config-current-theme" not in config_response.text
+    assert "data-config-theme-summary" not in config_response.text
     assert re.search(r'name="theme"[^>]+value="dark"[^>]+checked', config_response.text)
 
     csrf_token = extract_csrf_token(config_response.text)

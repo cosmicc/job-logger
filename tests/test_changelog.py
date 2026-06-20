@@ -93,6 +93,9 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
     assert response.text.index("Mobile shell navigation and close behavior") < response.text.index("Initial release")
+    assert '<span class="release-version">v1.0.1</span>' not in response.text
+    assert '<span class="release-version">v1.0.0</span>' in response.text
+    assert 'class="changelog-entry is-current"' not in response.text
     assert 'class="secondary-link-button" href="/review"' not in response.text
     assert "managed-web-user-only Config gear icon" not in response.text
     assert "direct app-shell close behavior first" not in response.text
@@ -101,6 +104,15 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         for change in entry.changes:
             assert change.replace("'", "&#39;") in response.text
     assert 'href="/changelog"' in authenticated_client.get("/mobile").text
+
+
+def test_changelog_title_uses_bold_page_heading_style() -> None:
+    """The changelog page title should keep an explicit bold heading style."""
+
+    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
+
+    assert ".changelog-page-header h1" in stylesheet
+    assert "font-weight: 950;" in stylesheet
 
 
 def test_changelog_page_uses_managed_user_theme(authenticated_client: TestClient) -> None:

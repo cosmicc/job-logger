@@ -344,6 +344,15 @@ svg {
   margin: 32px auto;
 }
 
+.debug-shell {
+  display: grid;
+  gap: 18px;
+}
+
+#full-backup {
+  order: 999;
+}
+
 .login-shell {
   display: grid;
   min-height: calc(100vh - 150px);
@@ -658,9 +667,17 @@ a:focus-visible {
 
 .company-search-status,
 .ticket-picker-status {
-  min-height: 20px;
   margin: 0;
   font-size: 13px;
+}
+
+.company-search-status:not(:empty),
+.ticket-picker-status {
+  min-height: 20px;
+}
+
+.company-search-status:empty {
+  display: none;
 }
 
 .ticket-picker-status.is-loading {
@@ -671,7 +688,7 @@ a:focus-visible {
 
 .mobile-ticket-picker {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   margin: 0 0 14px;
   padding: 14px;
   border: 1px solid var(--border);
@@ -1394,6 +1411,7 @@ a:focus-visible {
 
 .active-jobs-stack .metric-grid {
   grid-template-columns: 1fr;
+  margin-bottom: 0;
 }
 
 .active-jobs-stack .metric-card {
@@ -1442,6 +1460,7 @@ a:focus-visible {
 }
 
 .rounded-start-time-form,
+.rounded-stop-time-form,
 .time-step-controls {
   display: grid;
   grid-template-columns: minmax(42px, 52px) minmax(0, 1fr) minmax(42px, 52px);
@@ -1451,6 +1470,7 @@ a:focus-visible {
 }
 
 .rounded-start-time-form .time-step-button,
+.rounded-stop-time-form .time-step-button,
 .time-step-controls .time-step-button {
   width: 100%;
   min-width: 42px;
@@ -1462,6 +1482,7 @@ a:focus-visible {
 }
 
 .rounded-start-time-display,
+.rounded-stop-time-display,
 .time-step-controls .time-field-input {
   display: grid;
   width: 100%;
@@ -1586,8 +1607,7 @@ a:focus-visible {
   gap: 10px;
 }
 
-.user-count-pill,
-.config-current-pill {
+.user-count-pill {
   display: inline-flex;
   align-items: center;
   min-height: 36px;
@@ -2379,6 +2399,10 @@ td a {
   align-items: flex-end;
 }
 
+.changelog-page-header h1 {
+  font-weight: 950;
+}
+
 .changelog-current-panel {
   display: flex;
   align-items: center;
@@ -2508,6 +2532,28 @@ td a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.review-shell {
+  margin-top: 18px;
+}
+
+.debug-submission-table-wrap {
+  width: 100%;
+}
+
+.debug-submission-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.debug-submission-table th,
+.debug-submission-table td {
+  overflow-wrap: anywhere;
+}
+
+.debug-submission-table .truncate-cell {
+  max-width: none;
 }
 
 .audit-list {

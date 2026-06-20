@@ -19,6 +19,176 @@
       </form>
     </div>
 
+    <section class="table-panel" aria-label="Recent failed login attempts">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <h2>Login failures</h2>
+          <p class="muted-text">
+            Newest records first, max {{ login_failure_debug_rows }}.
+            Source: {{ login_failure_log_path }}
+          </p>
+          <a class="secondary-link-button" href="/debug/logs/login-failures">Download log</a>
+        </div>
+
+        {% if login_failures %}
+          <div class="table-wrap login-failure-window">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date/time</th>
+                  <th>Client IP</th>
+                  <th>Username</th>
+                  <th>Password length</th>
+                  <th>Web client</th>
+                  <th>Reason</th>
+                  <th>Attempts</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for failure in login_failures %}
+                  <tr>
+                    <td>{{ failure.created_at_display }}</td>
+                    <td>{{ failure.client_ip }}</td>
+                    <td>
+                      {{ failure.username or "blank" }}{% if failure.username_truncated %}...{% endif %}
+                    </td>
+                    <td>{{ failure.password_length }}</td>
+                    <td class="truncate-cell" title="{{ failure.user_agent }}">{{ failure.user_agent or "unknown" }}</td>
+                    <td>
+                      <span class="status-chip status-submission_failed">{{ failure.reason.replace("_", " ").title() }}</span>
+                      {% if failure.lockout_applied %}
+                        <span class="status-chip status-waiting_customer">Lockout</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if failure.max_attempts %}
+                        {{ failure.failed_count }} / {{ failure.max_attempts }}
+                      {% else %}
+                        -
+                      {% endif %}
+                    </td>
+                    <td>
+                      <details class="debug-requests login-failure-details">
+                        <summary>View</summary>
+                        <dl class="debug-list compact-debug-list">
+                          <div>
+                            <dt>UTC</dt>
+                            <dd>{{ failure.created_at_utc or "unknown" }}</dd>
+                          </div>
+                          <div>
+                            <dt>Request</dt>
+                            <dd>{{ failure.method }} {{ failure.path }}{% if failure.next_url %} next={{ failure.next_url }}{% endif %}</dd>
+                          </div>
+                          <div>
+                            <dt>Direct client</dt>
+                            <dd>{{ failure.direct_client_ip or "unknown" }}</dd>
+                          </div>
+                          <div>
+                            <dt>X-Real-IP</dt>
+                            <dd>{{ failure.x_real_ip or "not provided" }}</dd>
+                          </div>
+                          <div>
+                            <dt>X-Forwarded-For</dt>
+                            <dd>{{ failure.x_forwarded_for or "not provided" }}</dd>
+                          </div>
+                          <div>
+                            <dt>Forwarded proto</dt>
+                            <dd>{{ failure.forwarded_proto or "not provided" }}</dd>
+                          </div>
+                          <div>
+                            <dt>Host</dt>
+                            <dd>{{ failure.host or "unknown" }}</dd>
+                          </div>
+                          <div>
+                            <dt>Username length</dt>
+                            <dd>{{ failure.username_length }}</dd>
+                          </div>
+                          <div>
+                            <dt>Password supplied</dt>
+                            <dd>{% if failure.password_supplied %}Yes{% else %}No{% endif %}</dd>
+                          </div>
+                          <div>
+                            <dt>Lockout remaining</dt>
+                            <dd>{{ failure.lockout_remaining_seconds }} seconds</dd>
+                          </div>
+                        </dl>
+                      </details>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="muted-text">No failed application login attempts have been logged yet.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="table-panel" aria-label="Recent Autotask submission attempts">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <h2>Autotask submission attempts</h2>
+          <p class="muted-text">Newest records first, max 200.</p>
+        </div>
+
+        {% if submission_attempts %}
+          <div class="table-wrap debug-submission-table-wrap">
+            <table class="debug-submission-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>User</th>
+                  <th>Job</th>
+                  <th>Ticket</th>
+                  <th>Provider</th>
+                  <th>Status</th>
+                  <th>External ID</th>
+                  <th>Error</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for attempt in submission_attempts %}
+                  <tr>
+                    <td>{{ attempt.created_at_display }}</td>
+                    <td>{{ attempt.job_owner_name or "Unassigned" }}</td>
+                    <td title="{{ attempt.job_id }}">{{ attempt.job_id[:8] }}</td>
+                    <td>{{ attempt.job_ticket_number or "No ticket" }}</td>
+                    <td>{{ attempt.provider }}</td>
+                    <td>
+                      {% if attempt.succeeded %}
+                        <span class="status-chip status-submitted">Succeeded</span>
+                      {% else %}
+                        <span class="status-chip status-submission_failed">Failed</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ attempt.external_id or "-" }}</td>
+                    <td class="truncate-cell">{{ attempt.safe_error or "-" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <details class="debug-requests">
+            <summary>Show last 200 request snapshots</summary>
+            {% for attempt in submission_attempts %}
+              <div class="debug-attempt">
+                <p>
+                  <strong>{{ attempt.id }}</strong>
+                  <span class="muted-text">{{ attempt.created_at_display }} · {{ attempt.job_owner_name or "Unassigned" }} · {{ attempt.provider }}</span>
+                </p>
+                <pre class="debug-code">{{ attempt.request_snapshot }}</pre>
+              </div>
+            {% endfor %}
+          </details>
+        {% else %}
+          <p class="muted-text">No Autotask submission attempts have been recorded yet.</p>
+        {% endif %}
+      </div>
+    </section>
+
     <section class="table-panel" aria-label="Autotask configuration">
       <div class="debug-panel-body">
         <h2>Autotask configuration snapshot</h2>
@@ -155,174 +325,6 @@
             <dd>Jobs, submission attempts, and audit events are replaced with the uploaded backup contents.</dd>
           </div>
         </dl>
-      </div>
-    </section>
-
-    <section class="table-panel" aria-label="Recent failed login attempts">
-      <div class="debug-panel-body">
-        <div class="review-header">
-          <h2>Login failures</h2>
-          <p class="muted-text">
-            Newest records first, max {{ login_failure_debug_rows }}.
-            Source: {{ login_failure_log_path }}
-          </p>
-          <a class="secondary-link-button" href="/debug/logs/login-failures">Download log</a>
-        </div>
-
-        {% if login_failures %}
-          <div class="table-wrap login-failure-window">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date/time</th>
-                  <th>Client IP</th>
-                  <th>Username</th>
-                  <th>Password length</th>
-                  <th>Web client</th>
-                  <th>Reason</th>
-                  <th>Attempts</th>
-                  <th>Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for failure in login_failures %}
-                  <tr>
-                    <td>{{ failure.created_at_display }}</td>
-                    <td>{{ failure.client_ip }}</td>
-                    <td>
-                      {{ failure.username or "blank" }}{% if failure.username_truncated %}...{% endif %}
-                    </td>
-                    <td>{{ failure.password_length }}</td>
-                    <td class="truncate-cell" title="{{ failure.user_agent }}">{{ failure.user_agent or "unknown" }}</td>
-                    <td>
-                      <span class="status-chip status-submission_failed">{{ failure.reason.replace("_", " ").title() }}</span>
-                      {% if failure.lockout_applied %}
-                        <span class="status-chip status-waiting_customer">Lockout</span>
-                      {% endif %}
-                    </td>
-                    <td>
-                      {% if failure.max_attempts %}
-                        {{ failure.failed_count }} / {{ failure.max_attempts }}
-                      {% else %}
-                        —
-                      {% endif %}
-                    </td>
-                    <td>
-                      <details class="debug-requests login-failure-details">
-                        <summary>View</summary>
-                        <dl class="debug-list compact-debug-list">
-                          <div>
-                            <dt>UTC</dt>
-                            <dd>{{ failure.created_at_utc or "unknown" }}</dd>
-                          </div>
-                          <div>
-                            <dt>Request</dt>
-                            <dd>{{ failure.method }} {{ failure.path }}{% if failure.next_url %} next={{ failure.next_url }}{% endif %}</dd>
-                          </div>
-                          <div>
-                            <dt>Direct client</dt>
-                            <dd>{{ failure.direct_client_ip or "unknown" }}</dd>
-                          </div>
-                          <div>
-                            <dt>X-Real-IP</dt>
-                            <dd>{{ failure.x_real_ip or "not provided" }}</dd>
-                          </div>
-                          <div>
-                            <dt>X-Forwarded-For</dt>
-                            <dd>{{ failure.x_forwarded_for or "not provided" }}</dd>
-                          </div>
-                          <div>
-                            <dt>Forwarded proto</dt>
-                            <dd>{{ failure.forwarded_proto or "not provided" }}</dd>
-                          </div>
-                          <div>
-                            <dt>Host</dt>
-                            <dd>{{ failure.host or "unknown" }}</dd>
-                          </div>
-                          <div>
-                            <dt>Username length</dt>
-                            <dd>{{ failure.username_length }}</dd>
-                          </div>
-                          <div>
-                            <dt>Password supplied</dt>
-                            <dd>{% if failure.password_supplied %}Yes{% else %}No{% endif %}</dd>
-                          </div>
-                          <div>
-                            <dt>Lockout remaining</dt>
-                            <dd>{{ failure.lockout_remaining_seconds }} seconds</dd>
-                          </div>
-                        </dl>
-                      </details>
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <p class="muted-text">No failed application login attempts have been logged yet.</p>
-        {% endif %}
-      </div>
-    </section>
-
-    <section class="table-panel" aria-label="Recent Autotask submission attempts">
-      <div class="debug-panel-body">
-        <div class="review-header">
-          <h2>Autotask submission attempts</h2>
-          <p class="muted-text">Newest records first, max 200.</p>
-        </div>
-
-        {% if submission_attempts %}
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Job</th>
-                  <th>Ticket</th>
-                  <th>Provider</th>
-                  <th>Status</th>
-                  <th>External ID</th>
-                  <th>Error</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for attempt in submission_attempts %}
-                  <tr>
-                    <td>{{ attempt.created_at_display }}</td>
-                    <td title="{{ attempt.job_id }}">{{ attempt.job_id[:8] }}</td>
-                    <td>{{ attempt.job_ticket_number or "No ticket" }}</td>
-                    <td>{{ attempt.provider }}</td>
-                    <td>
-                      {% if attempt.succeeded %}
-                        <span class="status-chip status-submitted">Succeeded</span>
-                      {% else %}
-                        <span class="status-chip status-submission_failed">Failed</span>
-                      {% endif %}
-                    </td>
-                    <td>{{ attempt.external_id or "—" }}</td>
-                    <td class="truncate-cell">{{ attempt.safe_error or "—" }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-
-          <details class="debug-requests">
-            <summary>Show last 200 request snapshots</summary>
-            {% for attempt in submission_attempts %}
-              <div class="debug-attempt">
-                <p>
-                  <strong>{{ attempt.id }}</strong>
-                  <span class="muted-text">{{ attempt.created_at_display }} · {{ attempt.provider }}</span>
-                </p>
-                <pre class="debug-code">{{ attempt.request_snapshot }}</pre>
-              </div>
-            {% endfor %}
-          </details>
-        {% else %}
-          <p class="muted-text">No Autotask submission attempts have been recorded yet.</p>
-        {% endif %}
       </div>
     </section>
   </section>

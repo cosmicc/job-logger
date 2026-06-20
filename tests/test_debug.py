@@ -305,6 +305,13 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert "Autotask debug" in debug_response.text
     assert "Application version" in debug_response.text
     assert APP_VERSION in debug_response.text
+    assert debug_response.text.index("Login failures") < debug_response.text.index("Autotask submission attempts")
+    assert debug_response.text.index("Autotask submission attempts") < debug_response.text.index("Autotask configuration snapshot")
+    assert debug_response.text.index("Autotask configuration snapshot") < debug_response.text.index("Full data backup")
+    assert '<section class="table-panel"' not in debug_response.text.split('id="full-backup"', 1)[1]
+    assert '<table class="debug-submission-table">' in debug_response.text
+    assert "<th>User</th>" in debug_response.text
+    assert "Test Technician" in debug_response.text
     assert attempt_id in debug_response.text
     assert attempt_display_timestamp in debug_response.text
     assert attempt_iso_timestamp not in debug_response.text

@@ -9,7 +9,10 @@ from job_logger.time_utils import (
     format_local_compact_time_range,
     format_local_display,
     format_local_time,
+    format_utc_iso,
     parse_local_form_datetime,
+    round_end_for_technician,
+    round_start_for_technician,
     round_to_nearest_quarter_hour,
     to_local,
 )
@@ -33,6 +36,23 @@ def test_round_to_nearest_quarter_hour_rounds_backward() -> None:
     assert to_local(rounded_timestamp).strftime("%H:%M") == "08:00"
 
 
+def test_technician_favoring_start_rounds_down_and_stop_rounds_up() -> None:
+    """Active work starts round down while active stops round up."""
+
+    timestamp = datetime(2026, 6, 16, 12, 8, tzinfo=UTC)
+
+    assert to_local(round_start_for_technician(timestamp)).strftime("%H:%M") == "08:00"
+    assert to_local(round_end_for_technician(timestamp)).strftime("%H:%M") == "08:15"
+
+
+def test_technician_favoring_end_keeps_exact_quarter_hour() -> None:
+    """A stop already on a quarter-hour boundary should not round forward."""
+
+    timestamp = datetime(2026, 6, 16, 12, 15, tzinfo=UTC)
+
+    assert round_end_for_technician(timestamp) == timestamp
+
+
 def test_enforce_minimum_rounded_end_adds_one_interval() -> None:
     """A very short job still receives at least one 15-minute rounded block."""
 
@@ -49,6 +69,14 @@ def test_format_local_time_uses_detroit_twelve_hour_display() -> None:
 
     assert format_local_time(timestamp) == "8:15 am"
     assert format_local_display(timestamp) == "Jun 16, 2026 8:15 am"
+
+
+def test_format_utc_iso_keeps_explicit_utc_offset_for_naive_database_values() -> None:
+    """Browser data attributes should not let UTC values parse as local time."""
+
+    timestamp = datetime(2026, 6, 16, 12, 15)
+
+    assert format_utc_iso(timestamp) == "2026-06-16T12:15:00+00:00"
 
 
 def test_format_local_compact_time_range_uses_detroit_twelve_hour_display() -> None:
