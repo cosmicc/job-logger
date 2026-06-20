@@ -2,19 +2,96 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 import os
 import tomllib
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 
 from job_logger import database
-from job_logger.models import SubmissionAttempt
+from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
+from job_logger.models import AuditEvent, Job, SubmissionAttempt
 from job_logger.services.jobs import get_active_job
 from job_logger.time_utils import format_local_display
 from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
+
+
+def _seed_full_backup_data() -> str:
+    """Create representative rows for diagnostics backup and restore tests."""
+
+    created_at_utc = datetime(2026, 6, 19, 14, 30, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        job = Job(
+            status=JobStatus.READY_FOR_REVIEW,
+            ticket_number="T20260619.0001",
+            ticket_title="Backup test ticket",
+            client_name="Backup Client",
+            autotask_company_id=1001,
+            ticket_status=TicketStatus.IN_PROGRESS,
+            summary_notes="Verified full backup and restore.",
+            description_text="Verified full backup and restore.",
+            work_location=WorkLocation.REMOTE,
+            raw_start_utc=created_at_utc,
+            raw_end_utc=created_at_utc,
+            rounded_start_utc=created_at_utc,
+            rounded_end_utc=created_at_utc,
+            transcription_provider="mock",
+            transcription_status=TranscriptionStatus.SUCCEEDED,
+            autotask_provider="mock",
+            idempotency_key="job-backup-test",
+            created_at_utc=created_at_utc,
+            updated_at_utc=created_at_utc,
+        )
+        database_session.add(job)
+        database_session.flush()
+        database_session.add(
+            SubmissionAttempt(
+                job_id=job.id,
+                provider="mock",
+                idempotency_key=job.idempotency_key,
+                succeeded=True,
+                external_id="mock-time-entry-backup-test",
+                request_snapshot={"ticket_number": job.ticket_number},
+                created_at_utc=created_at_utc,
+            )
+        )
+        database_session.add(
+            AuditEvent(
+                job_id=job.id,
+                actor="admin",
+                action="backup.seeded",
+                details={"purpose": "backup round trip"},
+                created_at_utc=created_at_utc,
+            )
+        )
+        database_session.commit()
+        return job.id
+
+
+def _add_temporary_job() -> str:
+    """Add a row that should disappear after a full restore."""
+
+    created_at_utc = datetime(2026, 6, 19, 15, 45, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        job = Job(
+            status=JobStatus.ACTIVE,
+            client_name="Temporary Client",
+            raw_start_utc=created_at_utc,
+            rounded_start_utc=created_at_utc,
+            work_location=WorkLocation.ON_SITE,
+            transcription_status=TranscriptionStatus.NOT_REQUESTED,
+            idempotency_key="job-temporary-test",
+            created_at_utc=created_at_utc,
+            updated_at_utc=created_at_utc,
+        )
+        database_session.add(job)
+        database_session.commit()
+        return job.id
 
 
 def test_application_version_matches_package_metadata() -> None:
@@ -33,6 +110,14 @@ def test_debug_route_requires_login(client: TestClient) -> None:
     response = client.get("/debug", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/login"
+
+
+def test_openapi_schema_route_is_disabled(client: TestClient) -> None:
+    """The app should not expose generated API schema metadata."""
+
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 404
 
 
 def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) -> None:
@@ -215,3 +300,105 @@ def test_debug_route_tests_autotask_api(authenticated_client: TestClient) -> Non
     assert debug_result_response.status_code == 200
     assert "Last Autotask API test" in debug_result_response.text
     assert "Mock Autotask provider is available" in debug_result_response.text
+
+
+def test_debug_full_backup_download_and_restore_round_trip(authenticated_client: TestClient) -> None:
+    """Diagnostics can download and restore a full Job Logger data snapshot."""
+
+    original_job_id = _seed_full_backup_data()
+
+    debug_page_response = authenticated_client.get("/debug")
+    assert debug_page_response.status_code == 200
+    assert "Full data backup" in debug_page_response.text
+    csrf_token = extract_csrf_token(debug_page_response.text)
+
+    backup_response = authenticated_client.post(
+        "/debug/backup",
+        data={"csrf_token": csrf_token},
+    )
+    payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
+
+    assert backup_response.status_code == 200
+    assert backup_response.headers["cache-control"] == "no-store"
+    assert "job-logger-full-backup" in backup_response.headers["content-disposition"]
+    assert payload["format"] == "job_logger.full_backup"
+    assert payload["table_counts"]["jobs"] == 1
+    assert payload["table_counts"]["submission_attempts"] == 1
+    assert payload["table_counts"]["audit_events"] >= 1
+    assert payload["tables"]["jobs"][0]["ticket_number"] == "T20260619.0001"
+    assert any(row["action"] == "backup.seeded" for row in payload["tables"]["audit_events"])
+
+    temporary_job_id = _add_temporary_job()
+
+    restore_page_response = authenticated_client.get("/debug")
+    restore_csrf_token = extract_csrf_token(restore_page_response.text)
+    restore_response = authenticated_client.post(
+        "/debug/restore",
+        data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
+        files={
+            "backup_file": (
+                "job-logger-full-backup.json.gz",
+                backup_response.content,
+                "application/gzip",
+            )
+        },
+        follow_redirects=False,
+    )
+    assert restore_response.status_code == 303
+    assert restore_response.headers["location"] == "/debug#full-backup"
+
+    restored_page_response = authenticated_client.get("/debug")
+    assert restored_page_response.status_code == 200
+    assert "Full data restore completed." in restored_page_response.text
+
+    with database.SessionLocal() as database_session:
+        assert database_session.scalar(select(func.count(Job.id))) == 1
+        assert database_session.get(Job, original_job_id) is not None
+        assert database_session.get(Job, temporary_job_id) is None
+        assert database_session.scalar(select(func.count(SubmissionAttempt.id))) == 1
+        actions = list(database_session.scalars(select(AuditEvent.action).order_by(AuditEvent.created_at_utc)))
+        assert "backup.seeded" in actions
+        assert "debug.full_backup.restored" in actions
+        assert "debug.full_backup.downloaded" not in actions
+
+
+def test_debug_restore_requires_confirmation(authenticated_client: TestClient) -> None:
+    """Restore must not replace data unless the operator types RESTORE."""
+
+    _seed_full_backup_data()
+    debug_page_response = authenticated_client.get("/debug")
+    csrf_token = extract_csrf_token(debug_page_response.text)
+    backup_response = authenticated_client.post("/debug/backup", data={"csrf_token": csrf_token})
+    temporary_job_id = _add_temporary_job()
+
+    restore_page_response = authenticated_client.get("/debug")
+    restore_csrf_token = extract_csrf_token(restore_page_response.text)
+    restore_response = authenticated_client.post(
+        "/debug/restore",
+        data={"csrf_token": restore_csrf_token, "confirmation": "restore"},
+        files={
+            "backup_file": (
+                "job-logger-full-backup.json.gz",
+                backup_response.content,
+                "application/gzip",
+            )
+        },
+        follow_redirects=False,
+    )
+
+    assert restore_response.status_code == 303
+    assert restore_response.headers["location"] == "/debug#full-backup"
+    with database.SessionLocal() as database_session:
+        assert database_session.scalar(select(func.count(Job.id))) == 2
+        assert database_session.get(Job, temporary_job_id) is not None
+
+    result_page_response = authenticated_client.get("/debug")
+    assert "Type RESTORE to confirm full data restore." in result_page_response.text
+
+
+def test_debug_backup_download_requires_csrf(authenticated_client: TestClient) -> None:
+    """Full backup downloads are sensitive and require CSRF protection."""
+
+    response = authenticated_client.post("/debug/backup", data={}, follow_redirects=False)
+
+    assert response.status_code == 403

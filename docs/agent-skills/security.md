@@ -92,6 +92,7 @@ Audit-worthy actions include:
 - Accept/retry.
 - Autotask submission attempts and outcomes.
 - Debug Autotask API tests.
+- Full backup downloads and full restores.
 - Delete time entry or other destructive cleanup.
 
 Do not include secrets, raw headers, raw audio, or excessive user text in audit
@@ -205,6 +206,16 @@ Autotask jobs so local history remains tied to the external time entry.
 Submitted-entry corrections belong in the audited Edit Entry or Delete From
 Autotask routes, not local cleanup or resend flows.
 
+The `/debug` full backup and restore actions are the supported whole-app data
+export/import path. They must remain authenticated and CSRF-protected. Backup
+files contain all Job Logger database rows and should be treated as sensitive
+customer/work history. Restore must validate backup format, version, required
+tables, and expected columns before deleting current rows, must use the
+application backup service instead of ad hoc shell commands, and must record a
+post-restore audit event after the backup data has been restored. Failed
+confirmation, oversized upload, malformed JSON, wrong format, or schema
+mismatch must leave current database rows untouched.
+
 ## Docker And Runtime Safety
 
 The application container starts as root only long enough to prepare
@@ -213,6 +224,14 @@ unprivileged `appuser` account.
 
 PostgreSQL data must live in a persistent volume or documented persistent
 storage.
+
+The internet-facing nginx template must expose only the web interface and the
+authenticated browser actions required by those pages. Keep API-style,
+generated schema/documentation, and public health paths blocked at nginx:
+`/api`, `/openapi.json`, `/docs`, `/redoc`, `/nginx-health`, and `/health/*`.
+Container health checks should use private Docker networking instead. Full
+restore uploads may have a larger nginx body limit, but that limit must stay
+scoped to `/debug/restore`.
 
 Cloudflare Tunnel tokens and app secrets must remain outside source control.
 

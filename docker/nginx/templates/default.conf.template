@@ -12,18 +12,54 @@ server {
     # security posture instead of Nginx's smaller default body limit.
     client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
 
-    # This endpoint proves Nginx itself is running. It intentionally does not
-    # depend on FastAPI so Docker does not keep restarting or delaying the
-    # reverse proxy when the upstream app is still starting.
+    # API-style, generated documentation, and health endpoints are not part of
+    # the public web interface. Docker health checks use private container
+    # networking, so these public paths stay closed at the internet-facing edge.
     location = /nginx-health {
         access_log off;
-        return 204;
+        return 404;
     }
 
-    # This endpoint lets diagnostics verify the same proxy path that
-    # Cloudflare will use for the application after Nginx is up.
-    location = /health/live {
-        proxy_pass http://${APP_UPSTREAM_HOST}:8000/health/live;
+    location = /health {
+        access_log off;
+        return 404;
+    }
+
+    location ^~ /health/ {
+        access_log off;
+        return 404;
+    }
+
+    location = /api {
+        access_log off;
+        return 404;
+    }
+
+    location ^~ /api/ {
+        access_log off;
+        return 404;
+    }
+
+    location = /openapi.json {
+        access_log off;
+        return 404;
+    }
+
+    location ^~ /docs {
+        access_log off;
+        return 404;
+    }
+
+    location ^~ /redoc {
+        access_log off;
+        return 404;
+    }
+
+    # Full restore uploads can be larger than audio uploads. Limit that higher
+    # body allowance to the authenticated diagnostics restore action only.
+    location = /debug/restore {
+        client_max_body_size ${NGINX_RESTORE_MAX_BODY_SIZE};
+        proxy_pass http://${APP_UPSTREAM_HOST}:8000/debug/restore;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -31,7 +67,19 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_request_buffering off;
     }
+
+    # This private FastAPI endpoint is intentionally not proxied publicly. The
+    # app container health check reaches it directly through 127.0.0.1:8000.
+    #
+    # This endpoint used to let diagnostics verify the Nginx -> app path, but
+    # public health URLs are now closed so the internet-facing surface remains
+    # web-page-only.
+    #
+    # location = /health/live {
+    #     proxy_pass http://${APP_UPSTREAM_HOST}:8000/health/live;
+    # }
 
     location ~ ^/jobs/[^/]+/description/audio/stream$ {
         proxy_pass http://${APP_UPSTREAM_HOST}:8000;

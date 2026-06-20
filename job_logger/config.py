@@ -134,6 +134,9 @@ class Settings:
     # MAX_AUDIO_UPLOAD_BYTES prevents memory exhaustion from oversized audio uploads.
     max_audio_upload_bytes: int
 
+    # MAX_BACKUP_RESTORE_BYTES bounds full-data restore uploads on /debug.
+    max_backup_restore_bytes: int
+
     # FASTER_WHISPER_MODEL is a local model size, Hugging Face model name, or local model path.
     faster_whisper_model: str
 
@@ -296,6 +299,7 @@ def load_settings() -> Settings:
         cloudflare_access_required=_get_boolean("CLOUDFLARE_ACCESS_REQUIRED", False),
         transcription_provider=os.getenv("TRANSCRIPTION_PROVIDER", "mock").strip().lower(),
         max_audio_upload_bytes=_get_integer("MAX_AUDIO_UPLOAD_BYTES", 10 * 1024 * 1024),
+        max_backup_restore_bytes=_get_integer("MAX_BACKUP_RESTORE_BYTES", 250 * 1024 * 1024),
         faster_whisper_model=os.getenv("FASTER_WHISPER_MODEL", "base.en"),
         faster_whisper_device=os.getenv("FASTER_WHISPER_DEVICE", "cpu"),
         faster_whisper_compute_type=os.getenv("FASTER_WHISPER_COMPUTE_TYPE", "int8"),

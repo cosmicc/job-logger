@@ -35,7 +35,7 @@ def create_app(application_settings: Settings = settings) -> FastAPI:
 
     configure_logging(application_settings)
     validate_runtime_settings(application_settings)
-    fastapi_app = FastAPI(title="Job Logger", docs_url=None, redoc_url=None)
+    fastapi_app = FastAPI(title="Job Logger", docs_url=None, redoc_url=None, openapi_url=None)
 
     fastapi_app.add_middleware(
         SessionMiddleware,

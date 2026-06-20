@@ -144,15 +144,15 @@ resolve the Docker service name `nginx`. In that separate-deployment case,
 either move `cloudflared` into this Compose stack or point the tunnel at the
 actual host-reachable Nginx URL.
 
-Nginx exposes two health paths:
-
-- `/nginx-health` checks only the Nginx container.
-- `/health/live` proxies through Nginx to the FastAPI app.
+Nginx is the public web edge and intentionally blocks API-style, generated
+schema/documentation, and health-check paths such as `/api`, `/openapi.json`,
+`/docs`, `/redoc`, `/nginx-health`, and `/health/*`. The Docker health checks
+use private container networking instead of public URLs.
 
 The nginx container is built from `docker/nginx/Dockerfile` with this app's
-proxy template baked in. If `/nginx-health` returns a stock nginx 404 page, the
-running container is not using this project's nginx image/config and should be
-rebuilt.
+proxy template baked in. If blocked public paths do not return this app's nginx
+response, the running container may not be using this project's image/config and
+should be rebuilt.
 
 The normal Nginx startup log ends with `Configuration complete; ready for start
 up` and `start worker process`. If the log later says `signal 3 (SIGQUIT)
@@ -196,29 +196,31 @@ Check these items first:
   to reach) is `http://<server-internal-ip>:11030` by default, or your configured
   `NGINX_PUBLIC_PORT`. For the current production network, that is
   `http://192.168.199.11:11030`.
-- Confirm Nginx itself is reachable from the Docker host:
+- Confirm the public web path reaches the app login from the Docker host:
 
   ```bash
-  curl -i http://127.0.0.1:11030/nginx-health
+  curl -i http://127.0.0.1:11030/login
   ```
 
-- Confirm Nginx can reach the app from the Docker host:
+- Confirm the public health/API paths stay blocked at Nginx. These should
+  return HTTP 404:
 
   ```bash
   curl -i http://127.0.0.1:11030/health/live
+  curl -i http://127.0.0.1:11030/openapi.json
   ```
 
 - Confirm Nginx is reachable through the same server IP used by Cloudflare:
 
   ```bash
-  curl -i http://192.168.199.11:11030/nginx-health
+  curl -i http://192.168.199.11:11030/login
   ```
 
 - Confirm the app accepts the Cloudflare public hostname after container
   recreation:
 
   ```bash
-  curl -i -H 'Host: joblogger.lsec.io' http://127.0.0.1:11030/health/live
+  curl -i -H 'Host: joblogger.lsec.io' http://127.0.0.1:11030/login
   ```
 
 - Confirm the app is healthy from inside the app container:
@@ -574,6 +576,26 @@ username and length, user agent, request path, host/proxy metadata, reason, and
 whether a password was supplied with its length. The raw submitted password is
 never stored or displayed. The `/debug/logs/login-failures` endpoint downloads
 the raw JSONL file for authenticated diagnostics.
+
+The `/debug` page also includes **Download Full Backup** and **Restore Full
+Backup** controls. Backups download as sensitive `.json.gz` files containing
+all Job Logger database tables: jobs, submission attempts, and audit events.
+Store backup files somewhere private because they contain customer, ticket, and
+work-summary history.
+
+To restore, upload a Job Logger full-backup file on `/debug` and type
+`RESTORE`. Restore validates the archive format, required tables, and columns
+before deleting current app rows. A successful restore replaces the current app
+database contents with the backup contents, then records a new restore audit
+event. The default restore upload cap is 250 MB: `MAX_BACKUP_RESTORE_BYTES`
+controls app-side validation and `NGINX_RESTORE_MAX_BODY_SIZE` controls the
+matching nginx body limit for `/debug/restore`.
+
+The Docker Compose database uses the named `postgres_data` volume mounted at
+`/var/lib/postgresql/data` inside the PostgreSQL container. That volume persists
+across normal container rebuilds and recreates. Do not run `docker compose down
+-v`, prune volumes, or change the Compose project/stack name unless you have a
+verified backup and intend to replace or discard the existing data.
 
 The `scripts/discover_autotask_ids.py` helper also prints a workflow endpoint
 preflight section. Role, billing-code, and ticket-status ID discovery can

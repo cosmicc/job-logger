@@ -21,6 +21,7 @@ services:
       CLOUDFLARE_ACCESS_REQUIRED: ${CLOUDFLARE_ACCESS_REQUIRED:-false}
       TRANSCRIPTION_PROVIDER: ${TRANSCRIPTION_PROVIDER:-mock}
       MAX_AUDIO_UPLOAD_BYTES: ${MAX_AUDIO_UPLOAD_BYTES:-10485760}
+      MAX_BACKUP_RESTORE_BYTES: ${MAX_BACKUP_RESTORE_BYTES:-262144000}
       FASTER_WHISPER_MODEL: ${FASTER_WHISPER_MODEL:-base.en}
       FASTER_WHISPER_DEVICE: ${FASTER_WHISPER_DEVICE:-cpu}
       FASTER_WHISPER_COMPUTE_TYPE: ${FASTER_WHISPER_COMPUTE_TYPE:-int8}
@@ -94,6 +95,8 @@ services:
       APP_UPSTREAM_HOST: app
       # NGINX_CLIENT_MAX_BODY_SIZE bounds compatibility uploads and streamed audio.
       NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-12m}
+      # NGINX_RESTORE_MAX_BODY_SIZE applies only to /debug/restore uploads.
+      NGINX_RESTORE_MAX_BODY_SIZE: ${NGINX_RESTORE_MAX_BODY_SIZE:-250m}
     depends_on:
       app:
         condition: service_healthy
@@ -120,6 +123,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-job_logger}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-job_logger_password}
     volumes:
+      # Keep PostgreSQL data persistent across container rebuilds/recreates.
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]

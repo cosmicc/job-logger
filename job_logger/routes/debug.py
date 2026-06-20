@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
+from starlette.datastructures import UploadFile
 
 from job_logger.config import settings
 from job_logger.database import get_database_session
@@ -18,11 +20,13 @@ from job_logger.models import Job, SubmissionAttempt
 from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_token
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
+from job_logger.services.backups import BACKUP_MEDIA_TYPE, BackupValidationError, create_full_backup, restore_full_backup
 from job_logger.services.login_failures import read_recent_login_failures
 from job_logger.time_utils import format_local_display
 from job_logger.ui import template_context, templates
 from job_logger.version import APP_VERSION
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/debug", tags=["debug"])
 
 
@@ -114,6 +118,12 @@ def _serialize_submission_attempt(attempt: SubmissionAttempt, job_ticket_number:
     )
 
 
+def _backup_upload_max_mb() -> int:
+    """Return the configured restore upload limit rounded down to MiB."""
+
+    return settings.max_backup_restore_bytes // (1024 * 1024)
+
+
 @router.get("", response_class=HTMLResponse)
 def debug_page(request: Request, database_session: Session = Depends(get_database_session)) -> Response:
     """Render authenticated diagnostics, submission attempts, and login failures."""
@@ -149,6 +159,7 @@ def debug_page(request: Request, database_session: Session = Depends(get_databas
             login_failure_debug_rows=settings.login_failure_debug_rows,
             login_failures=read_recent_login_failures(),
             submission_attempts=debug_submission_attempts,
+            backup_upload_max_mb=_backup_upload_max_mb(),
         ),
     )
 
@@ -174,6 +185,112 @@ def download_login_failure_log(request: Request) -> Response:
             "Cache-Control": "no-store",
         },
     )
+
+
+@router.post("/backup")
+async def download_full_backup(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> Response:
+    """Download a CSRF-protected full application data backup."""
+
+    try:
+        actor = require_authenticated_username(request)
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=303)
+
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+
+    backup = create_full_backup(database_session)
+    record_audit_event(
+        database_session,
+        actor=actor,
+        action="debug.full_backup.downloaded",
+        request=request,
+        details={
+            "filename": backup.filename,
+            "table_count": len(backup.table_counts),
+            "total_rows": backup.total_rows,
+            "table_counts": backup.table_counts,
+        },
+    )
+    database_session.commit()
+    logger.warning(
+        "Created full Job Logger backup filename=%s total_rows=%s actor=%s",
+        backup.filename,
+        backup.total_rows,
+        actor,
+    )
+    return Response(
+        content=backup.content,
+        media_type=BACKUP_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="{backup.filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@router.post("/restore")
+async def restore_full_backup_form(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Restore a previously downloaded full application data backup."""
+
+    try:
+        actor = require_authenticated_username(request)
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=303)
+
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+
+    if str(form_data.get("confirmation", "")).strip() != "RESTORE":
+        add_flash_message(request, "Type RESTORE to confirm full data restore.", "error")
+        return RedirectResponse(url="/debug#full-backup", status_code=303)
+
+    backup_file = form_data.get("backup_file")
+    if not isinstance(backup_file, UploadFile):
+        add_flash_message(request, "Choose a Job Logger backup file to restore.", "error")
+        return RedirectResponse(url="/debug#full-backup", status_code=303)
+
+    content = await backup_file.read(settings.max_backup_restore_bytes + 1)
+    await backup_file.close()
+    if len(content) > settings.max_backup_restore_bytes:
+        add_flash_message(request, f"Backup file is larger than {_backup_upload_max_mb()} MB.", "error")
+        return RedirectResponse(url="/debug#full-backup", status_code=303)
+
+    try:
+        summary = restore_full_backup(database_session, content)
+    except BackupValidationError as exc:
+        logger.warning("Rejected full Job Logger restore upload: %s", exc)
+        add_flash_message(request, str(exc), "error")
+        return RedirectResponse(url="/debug#full-backup", status_code=303)
+    except Exception:
+        logger.exception("Full Job Logger restore failed unexpectedly")
+        add_flash_message(request, "Restore failed. Check the app log before trying again.", "error")
+        return RedirectResponse(url="/debug#full-backup", status_code=303)
+
+    record_audit_event(
+        database_session,
+        actor=actor,
+        action="debug.full_backup.restored",
+        request=request,
+        details={
+            "table_count": len(summary.table_counts),
+            "total_rows": summary.total_rows,
+            "table_counts": summary.table_counts,
+        },
+    )
+    database_session.commit()
+    add_flash_message(
+        request,
+        f"Full data restore completed. Restored {summary.total_rows} rows across {len(summary.table_counts)} tables.",
+        "success",
+    )
+    return RedirectResponse(url="/debug#full-backup", status_code=303)
 
 
 @router.post("/autotask/test")

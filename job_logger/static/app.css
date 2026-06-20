@@ -1592,6 +1592,22 @@ td a {
   white-space: pre-wrap;
 }
 
+.backup-restore-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(160px, 220px) minmax(180px, auto);
+  align-items: end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.backup-restore-form .danger-button {
+  width: auto;
+}
+
+.backup-details {
+  margin-top: 14px;
+}
+
 .debug-requests {
   margin-top: 18px;
 }
@@ -1708,8 +1724,13 @@ td a {
   .button-grid,
   .metric-grid,
   .ticket-number-form,
-  .form-grid {
+  .form-grid,
+  .backup-restore-form {
     grid-template-columns: 1fr;
+  }
+
+  .backup-restore-form .danger-button {
+    width: 100%;
   }
 
   .work-panel,

@@ -4,6 +4,14 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Added authenticated `/debug` full backup and restore controls. Backups download as gzip JSON
+  snapshots of all Job Logger database tables, restores require CSRF plus typed `RESTORE`
+  confirmation, validate the archive before deleting current rows, and record audit events.
+- Blocked public nginx access to API-style, generated schema/docs, and health paths while keeping
+  the Job Logger web pages and their authenticated browser actions available.
+- Documented the persistent PostgreSQL `postgres_data` volume and added restore upload size settings
+  for app-side and nginx-side validation.
+
 - Changed Docker logging to match the Mileage Logger pattern: `LOG_DIR=/data/logs` in the
   container, host logs under `/var/log/job-logger`, and startup preparation before dropping to the
   unprivileged app user.

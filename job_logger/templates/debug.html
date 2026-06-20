@@ -106,6 +106,62 @@
       </div>
     </section>
 
+    <section id="full-backup" class="table-panel" aria-label="Full data backup and restore">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <div>
+            <h2>Full data backup</h2>
+            <p class="muted-text">Download or restore all Job Logger database tables.</p>
+          </div>
+          <form method="post" action="/debug/backup" class="debug-test-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="secondary-button" type="submit">Download Full Backup</button>
+          </form>
+        </div>
+
+        <form
+          method="post"
+          action="/debug/restore"
+          enctype="multipart/form-data"
+          class="backup-restore-form"
+        >
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>
+            Backup file
+            <input
+              type="file"
+              name="backup_file"
+              accept=".json,.gz,.json.gz,application/json,application/gzip"
+              required
+            >
+          </label>
+          <label>
+            Confirmation
+            <input
+              type="text"
+              name="confirmation"
+              pattern="RESTORE"
+              placeholder="RESTORE"
+              autocomplete="off"
+              required
+            >
+          </label>
+          <button class="secondary-button danger-button" type="submit">Restore Full Backup</button>
+        </form>
+
+        <dl class="debug-list compact-debug-list backup-details">
+          <div>
+            <dt>Upload limit</dt>
+            <dd>{{ backup_upload_max_mb }} MB</dd>
+          </div>
+          <div>
+            <dt>Restore scope</dt>
+            <dd>Jobs, submission attempts, and audit events are replaced with the uploaded backup contents.</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
     <section class="table-panel" aria-label="Recent failed login attempts">
       <div class="debug-panel-body">
         <div class="review-header">

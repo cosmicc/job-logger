@@ -336,8 +336,9 @@ The application is a FastAPI project under `job_logger/`.
   updating or deleting existing submitted Autotask entries, ticket lookup for a
   selected job, and explicit local **Delete time entry** cleanup.
 - `job_logger/routes/debug.py` handles the authenticated diagnostic page, the
-  sanitized failed-login window, and the Autotask API connectivity test.
-- `job_logger/routes/health.py` exposes container health endpoints.
+  sanitized failed-login window, full backup/restore actions, and the Autotask
+  API connectivity test.
+- `job_logger/routes/health.py` exposes private container health endpoints.
 - `job_logger/routes/pwa.py` serves the web app manifest and root-scoped
   service worker for installed mobile app behavior. The service worker must not
   cache authenticated job, session, Autotask, or transcription data.
@@ -351,6 +352,8 @@ The application is a FastAPI project under `job_logger/`.
   URL validation, safe response parsing, and provider error normalization.
 - `job_logger/services/transcription.py` owns speech-to-text provider behavior.
 - `job_logger/services/audit.py` records immutable audit events.
+- `job_logger/services/backups.py` creates and restores portable gzip JSON full
+  database backups for authenticated diagnostics.
 - `job_logger/services/login_failures.py` writes and reads the host-mounted
   sanitized failed-login JSONL log in `LOG_DIR`, defaulting to
   `job-logger-login-failures.log` inside Docker's `/data/logs` mount.
