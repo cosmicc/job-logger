@@ -31,18 +31,18 @@ Important workflow service responsibilities include:
 The mobile page is `/mobile`, implemented by `job_logger/routes/mobile.py` and
 `job_logger/templates/mobile.html`.
 
-The `/mobile` top bar includes both the normal logout form and an X close button
-wired by `job_logger/static/pwa.js`. CSS decides which action is visible:
-full-width web layouts show logout, while phone-sized mobile layouts show the X.
-The close button should only attempt to close the installed web app or browser
-tab; it must not clear the authenticated local session, submit logout, or
-perform another state-changing action. In standalone PWA display mode, the
-browser script self-targets the current PWA window before calling `close()`
-because some mobile shells ignore a plain `window.close()` request. Regular
-phone browser mode, or a standalone close request that is ignored while the
-document remains visible, falls back to `about:blank` so the user leaves the
-authenticated app surface without posting logout or hitting another app route.
-Keep the explicit logout form available on non-mobile authenticated pages.
+Phone-sized authenticated layouts hide the brand mark and logout form. The
+visible top bar should place the left navigation icons on the left, the version
+link centered in the middle, and right-side action icons on the right. Managed
+web users see Home and Review on the left, with Config and close on the right.
+The config super admin sees Users, Review, and Diagnostics on the left, with
+close on the right, and must not see Config. The close button is wired by
+`job_logger/static/pwa.js` and should only attempt to close the installed web
+app or browser tab; it must not clear the authenticated local session, submit
+logout, or perform another state-changing action. The browser script should call
+`window.close()` directly first because that was the working app-shell behavior,
+then fall back to `about:blank` only if the document remains visible. Keep the
+explicit logout form available on non-mobile authenticated pages.
 
 New blank work starts through `POST /jobs/start`. A user can also start work
 from an Autotask service call selected in the mobile day navigator through

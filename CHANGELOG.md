@@ -7,10 +7,18 @@ All notable changes to Job Logger are documented in this file.
 - Added a managed-web-user-only Config gear icon to the phone-sized
   authenticated top bar so mobile users can reach `/config` when the full
   desktop navigation is hidden.
-- Changed the mobile X close action so standalone PWA mode self-targets the
-  current window before requesting close, while regular phone browser mode and
-  blocked close requests fall back out of the app surface to `about:blank`
-  without logging out or navigating through app routes.
+- Changed the mobile X close action to use direct app-shell close behavior
+  first, then fall back out of the app surface to `about:blank` if the browser
+  keeps the page visible.
+- Changed the authenticated phone top bar to show the version link, Home,
+  Review, Config, and close icons while hiding the brand mark and logout button
+  on phone-sized layouts.
+- Added the current release's change list to the web changelog's current-version
+  panel so each released version has visible notes in both `CHANGELOG.md` and
+  `/changelog`.
+- Added `WEB_CHANGELOG.md` as the concise source for `/changelog` so the web
+  page can show quick user-facing summaries while this changelog keeps more
+  detailed release notes.
 
 ## v1.0.0 - Initial release
 

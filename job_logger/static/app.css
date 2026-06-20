@@ -284,12 +284,18 @@ svg {
   color: var(--muted);
 }
 
-.mobile-close-action,
-.mobile-config-action {
+.mobile-nav-actions,
+.mobile-version-group,
+.mobile-close-action {
   display: none;
 }
 
-.mobile-config-action:hover {
+.mobile-nav-actions {
+  align-items: center;
+  gap: 6px;
+}
+
+.mobile-nav-action:hover {
   border-color: rgba(45, 212, 191, 0.42);
   background: var(--ticket-option-hover);
   color: var(--accent-strong);
@@ -2411,6 +2417,12 @@ td a {
   margin-bottom: 0;
 }
 
+.changelog-current-copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
 .version-chip,
 .release-version {
   display: inline-flex;
@@ -2502,7 +2514,8 @@ td a {
   font-size: 22px;
 }
 
-.changelog-change-list {
+.changelog-change-list,
+.changelog-current-change-list {
   display: grid;
   gap: 8px;
   margin: 0;

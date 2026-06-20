@@ -304,9 +304,11 @@ currently `v1.0.1`. Version history starts at `v1.0.0`.
 
 Authenticated pages show the current version discreetly in the shared header.
 Clicking that version opens `/changelog`, which displays the current version
-and release notes parsed from `CHANGELOG.md`. The changelog page uses the same
-authenticated session, dark/light theme variables, and responsive layout system
-as the rest of the app.
+and concise release notes parsed from `WEB_CHANGELOG.md`. The current-version
+panel lists short user-facing changes directly, and the timeline keeps prior
+versions visible. `CHANGELOG.md` remains the detailed source changelog for
+operators and agents. The changelog page uses the same authenticated session,
+dark/light theme variables, and responsive layout system as the rest of the app.
 
 ## Provider Modes
 
@@ -584,18 +586,18 @@ Companies and Tickets permissions already required by the app.
 
 The shared page data is styled through `app.css`, then viewport-specific
 `phone.css` or `desktop.css` loads automatically with media queries so phones
-and desktop browsers get appropriately sized layouts. Phone-sized `/mobile`
-layouts use an X button in the top bar to close the installed web app or browser
-tab without logging out. Managed web users also get a compact Config gear icon
-in the phone top bar because the full desktop navigation is hidden on small
-screens. In standalone PWA display mode, the X close action self-targets the
-current PWA window before requesting close, which improves support in installed
-mobile shells while still leaving the server-side session intact. Regular phone
-browser mode, or a mobile platform that blocks the close request, falls back to
-`about:blank` instead of logging out or posting to another app route. Full-width
-`/mobile`, review, debug, and other non-mobile pages keep the explicit logout
-button. Mobile submit actions show a loading overlay once the tap is accepted so
-slow redirects or Autotask lookups do not look like ignored buttons.
+and desktop browsers get appropriately sized layouts. Phone-sized authenticated
+layouts hide the brand mark and logout button, place left navigation icons on
+the left, center the version link, and put right-side actions on the right.
+Managed web users see Home and Review on the left, with Config and close on the
+right. The config super admin sees Users, Review, and Diagnostics on the left,
+with close on the right. The X close action first requests the original direct
+app-shell close behavior. If the browser keeps the page visible, it falls back
+to `about:blank` instead of logging out or posting to another app route.
+Full-width `/mobile`, review, debug, and other non-mobile pages keep the
+explicit logout button. Mobile submit actions show a loading overlay once the
+tap is accepted so slow redirects or Autotask lookups do not look like ignored
+buttons.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 

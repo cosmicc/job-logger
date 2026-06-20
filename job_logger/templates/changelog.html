@@ -19,10 +19,15 @@
     </div>
 
     <section class="changelog-current-panel" aria-labelledby="current-version-heading">
-      <div>
+      <div class="changelog-current-copy">
         <p class="eyebrow-text">Current version</p>
         <h2 id="current-version-heading">v{{ app_version }}</h2>
         <p class="muted-text">{{ current_changelog_entry.display_title }}</p>
+        <ul class="changelog-current-change-list">
+          {% for change in current_changelog_entry.changes %}
+            <li>{{ change }}</li>
+          {% endfor %}
+        </ul>
       </div>
       <span class="version-chip">Active</span>
     </section>

@@ -240,15 +240,17 @@ user management, config, debug, and login surfaces through shared CSS variables
 instead of a separate unaudited template branch. Super-admin pages always use
 dark mode.
 
-On phone-sized `/mobile` layouts, the authenticated top bar uses an X close
-control instead of the logout action so an installed mobile web app can be
-dismissed without ending the local server-side session. Managed web users also
-get a compact mobile Config gear icon in the authenticated top bar because the
-desktop navigation is hidden on small screens. The config super admin must not
-see that mobile Config shortcut. The X close action must remain a best-effort
-app-shell close only: in standalone PWA display mode it may self-target the
-current PWA window before calling `close()`, and regular phone browser mode or
-blocked close requests may fall back to `about:blank`, but it must not log out,
+On phone-sized authenticated layouts, the top bar hides the brand mark and
+logout control. It shows only the discreet version link, compact navigation
+icons, and an X close control on the right so an installed mobile web app can be
+dismissed without ending the local server-side session. The version link is
+centered between the left navigation group and the right action group. Managed
+web users see Home and Review on the left, with Config and close on the right.
+The config super admin sees Users, Review, and Diagnostics on the left, with
+close on the right, and must not see the Config shortcut. The X close action
+must remain a best-effort app-shell close only: it should request a direct
+`window.close()` first and may fall back to
+`about:blank` when the browser keeps the page visible, but it must not log out,
 post forms, or navigate through app routes. Full-width `/mobile`, review,
 debug, and other non-mobile authenticated views still expose the explicit
 logout control.
@@ -340,6 +342,12 @@ Changes that affect security, database schema, Autotask integration, speech to
 text, Docker deployment, authentication, or audit logging must be called out
 clearly.
 
+Every released version must update both the detailed source changelog and the
+authenticated web changelog. `CHANGELOG.md` is the detailed operator and
+agent-facing record. `WEB_CHANGELOG.md` is the concise source parsed by
+`/changelog`; keep each web entry to short, simple user-facing bullets and do
+not copy the detailed `CHANGELOG.md` wording into the web page.
+
 ## Development Process
 
 Read this `AGENTS.md` before making changes.
@@ -398,7 +406,10 @@ The application is a FastAPI project under `job_logger/`.
   static asset version used to bust browser/PWA caches after CSS or JavaScript
   changes without changing the source-controlled app version.
 - `job_logger/services/changelog.py` parses the source-controlled
-  `CHANGELOG.md` into plain-text release entries for authenticated display.
+  `WEB_CHANGELOG.md` into concise plain-text release entries for authenticated
+  display.
+- `CHANGELOG.md` contains detailed release notes for operators and agents.
+  `WEB_CHANGELOG.md` contains short user-facing release notes for `/changelog`.
 - `job_logger/routes/auth.py` handles config super-admin login, managed web-user
   login, logout, and local authenticated sessions, including sanitized
   failed-login file logging.
@@ -524,8 +535,9 @@ The normal workflow is:
 17. Submission attempts and important state changes are recorded for audit and
     diagnostics.
 18. Authenticated users may open `/changelog` from the discreet header version
-    link to view the current source-controlled version and prior release notes
-    parsed from `CHANGELOG.md`.
+    link to view the current source-controlled version and prior concise release
+    notes parsed from `WEB_CHANGELOG.md`. The current-version panel must show
+    that version's simple change list, not only the release title.
 
 ## Current Autotask Dependency
 
@@ -561,3 +573,5 @@ configuration, database schema, or diagnostics:
   changes.
 - Update `CHANGELOG.md` for every user-visible, security, workflow, database,
   Docker, Autotask, transcription, or diagnostic change.
+- Update `WEB_CHANGELOG.md` for every released version with short web-facing
+  bullets that are simpler than the detailed `CHANGELOG.md` entry.

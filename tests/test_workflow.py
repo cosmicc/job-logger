@@ -468,37 +468,77 @@ def test_mobile_page_and_blank_start_do_not_probe_autotask(
         assert get_active_job(database_session) is not None
 
 
-def test_authenticated_mobile_header_renders_responsive_close_and_logout_controls(authenticated_client: TestClient) -> None:
-    """The mobile route should let CSS choose close on phones and logout on desktop."""
+def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated_client: TestClient) -> None:
+    """Phone-sized headers should show version, icon navigation, and close."""
 
     response = authenticated_client.get("/mobile")
 
     assert response.status_code == 200
-    assert 'class="header-status-group"' in response.text
+    assert 'class="header-status-group desktop-status-group"' in response.text
+    assert 'class="header-status-group mobile-version-group"' in response.text
     assert "autotask-api-indicator" not in response.text
     assert "Autotask API:" not in response.text
     assert 'class="secure-pill secure-connection-indicator"' in response.text
+    assert 'class="mobile-nav-actions mobile-nav-left"' in response.text
+    assert 'class="mobile-nav-actions mobile-nav-right"' in response.text
+    assert 'data-mobile-home-link' in response.text
+    assert 'aria-label="Home"' in response.text
+    assert 'data-mobile-review-link' in response.text
+    assert 'aria-label="Review"' in response.text
+    assert 'data-mobile-users-link' not in response.text
+    assert 'data-mobile-debug-link' not in response.text
     assert 'data-close-app-button' in response.text
     assert 'class="icon-button close-app-button mobile-close-action"' in response.text
     assert 'aria-label="Close app"' in response.text
-    assert 'class="icon-button mobile-config-action"' in response.text
-    assert 'aria-label="Open config"' in response.text
+    assert 'class="icon-button mobile-nav-action mobile-config-action"' in response.text
+    assert 'aria-label="Config"' in response.text
     assert 'data-mobile-config-link' in response.text
-    assert 'class="logout-form mobile-logout-action"' in response.text
+    assert 'mobile-logout-action' not in response.text
+    assert 'class="logout-form"' in response.text
     assert 'action="/logout"' in response.text
     assert '/static/mobile.js?v=' in response.text
     assert '<div class="mobile-status-row">\n      <a href="/review" class="text-link">Review jobs</a>' in response.text
 
 
-def test_non_mobile_authenticated_header_keeps_logout_control(authenticated_client: TestClient) -> None:
-    """Non-mobile pages should still expose explicit local-session logout."""
+def test_super_admin_mobile_header_renders_users_review_debug_and_close(super_admin_client: TestClient) -> None:
+    """Super-admin phone navigation should expose admin routes without Config."""
+
+    response = super_admin_client.get("/users")
+
+    assert response.status_code == 200
+    assert 'class="header-status-group desktop-status-group"' in response.text
+    assert 'class="header-status-group mobile-version-group"' in response.text
+    assert 'class="mobile-nav-actions mobile-nav-left"' in response.text
+    assert 'class="mobile-nav-actions mobile-nav-right"' in response.text
+    assert 'data-mobile-users-link' in response.text
+    assert 'aria-label="Users"' in response.text
+    assert 'data-mobile-review-link' in response.text
+    assert 'aria-label="Review"' in response.text
+    assert 'data-mobile-debug-link' in response.text
+    assert 'class="icon-button mobile-nav-action mobile-debug-action"' in response.text
+    assert 'aria-label="Diagnostics"' in response.text
+    assert 'data-mobile-home-link' not in response.text
+    assert 'data-mobile-config-link' not in response.text
+    assert 'data-close-app-button' in response.text
+    assert response.text.index("data-mobile-users-link") < response.text.index("data-mobile-review-link")
+    assert response.text.index("data-mobile-review-link") < response.text.index('class="header-status-group mobile-version-group"')
+    assert response.text.index('class="mobile-nav-actions mobile-nav-right"') < response.text.index("data-mobile-debug-link")
+    assert response.text.index("data-mobile-debug-link") < response.text.index("data-close-app-button")
+
+
+def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(authenticated_client: TestClient) -> None:
+    """Non-mobile layouts should still expose explicit local-session logout."""
 
     response = authenticated_client.get("/review")
 
     assert response.status_code == 200
     assert 'action="/logout"' in response.text
     assert 'aria-label="Sign out"' in response.text
-    assert 'data-close-app-button' not in response.text
+    assert 'data-close-app-button' in response.text
+    assert 'class="mobile-nav-actions mobile-nav-left"' in response.text
+    assert 'class="mobile-nav-actions mobile-nav-right"' in response.text
+    assert 'data-mobile-home-link' in response.text
+    assert 'data-mobile-review-link' in response.text
     assert 'data-mobile-config-link' in response.text
 
 
@@ -536,8 +576,15 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "background: var(--success);" in stylesheet
     assert ".ai-cleanup-button,\n.summary-tool-row .ai-cleanup-button" in stylesheet
     assert "background: var(--ai-action);" in stylesheet
-    assert ".mobile-close-action,\n.mobile-config-action {\n  display: inline-grid;" in phone_stylesheet
-    assert ".mobile-logout-action {\n  display: none;" in phone_stylesheet
+    assert ".app-header {\n  display: grid;" in phone_stylesheet
+    assert "grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);" in phone_stylesheet
+    assert ".brand {\n  display: none;" in phone_stylesheet
+    assert ".mobile-version-group {\n  display: inline-flex;" in phone_stylesheet
+    assert ".mobile-nav-actions {\n  display: flex;" in phone_stylesheet
+    assert ".mobile-nav-left {\n  grid-column: 1;" in phone_stylesheet
+    assert ".mobile-nav-right {\n  grid-column: 3;" in phone_stylesheet
+    assert ".mobile-close-action {\n  display: inline-grid;" in phone_stylesheet
+    assert ".logout-form {\n  display: none;" in phone_stylesheet
     mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
     review_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
     assert mobile_template.index("data-record-audio-label") < mobile_template.index("data-ai-cleanup-button")

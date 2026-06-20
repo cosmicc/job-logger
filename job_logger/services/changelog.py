@@ -1,4 +1,4 @@
-"""Read source-controlled release notes for the authenticated changelog page."""
+"""Read concise web release notes for the authenticated changelog page."""
 
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ from pathlib import Path
 
 from job_logger.version import APP_VERSION
 
-CHANGELOG_PATH = Path(__file__).resolve().parents[2] / "CHANGELOG.md"
+WEB_CHANGELOG_PATH = Path(__file__).resolve().parents[2] / "WEB_CHANGELOG.md"
 
 
 @dataclass(frozen=True)
 class ChangelogEntry:
-    """One parsed version entry from ``CHANGELOG.md``."""
+    """One parsed version entry from ``WEB_CHANGELOG.md``."""
 
     version: str
     title: str
@@ -40,13 +40,13 @@ def _parse_heading(raw_heading: str) -> tuple[str, str]:
     return version.strip(), title.strip()
 
 
-def load_changelog_entries(path: Path = CHANGELOG_PATH) -> list[ChangelogEntry]:
-    """Load versioned changelog entries from the repository changelog file.
+def load_changelog_entries(path: Path = WEB_CHANGELOG_PATH) -> list[ChangelogEntry]:
+    """Load versioned web changelog entries from the concise web changelog file.
 
     The parser intentionally supports a small markdown subset: level-two
-    headings followed by bullet lines. Rendering escaped plain text keeps the
-    release history display predictable and avoids treating changelog content as
-    trusted HTML.
+    headings followed by short bullet lines. Rendering escaped plain text keeps
+    the release history display predictable and avoids treating changelog
+    content as trusted HTML.
     """
 
     if not path.exists():

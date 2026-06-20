@@ -1,4 +1,4 @@
-"""Authenticated changelog route for source-controlled release notes."""
+"""Authenticated changelog route for concise source-controlled release notes."""
 
 from __future__ import annotations
 

@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 
-def test_mobile_close_button_self_targets_before_close(tmp_path: Path) -> None:
+def test_mobile_close_button_uses_direct_close_before_fallback(tmp_path: Path) -> None:
     """The mobile X should attempt an app-shell close without logging out."""
 
     node_path = shutil.which("node")
@@ -50,12 +50,8 @@ def test_mobile_close_button_self_targets_before_close(tmp_path: Path) -> None:
                   locationReplacements.push(url);
                 }},
               }},
-              matchMedia(query) {{
-                return {{matches: query === "(display-mode: standalone)"}};
-              }},
-              open(url, target) {{
-                closeCalls.push(["open", url, target]);
-                return browserWindow;
+              open() {{
+                throw new Error("mobile close should not self-target the window");
               }},
               setTimeout(callback, delay) {{
                 queuedTimers.push({{callback, delay}});
@@ -83,10 +79,7 @@ def test_mobile_close_button_self_targets_before_close(tmp_path: Path) -> None:
             }});
 
             assert.strictEqual(preventedDefault, true);
-            assert.deepStrictEqual(closeCalls, [
-              ["open", "", "_self"],
-              ["close"],
-            ]);
+            assert.deepStrictEqual(closeCalls, [["close"]]);
             assert.strictEqual(queuedTimers.length, 1);
             assert.strictEqual(queuedTimers[0].delay, 250);
             queuedTimers[0].callback();

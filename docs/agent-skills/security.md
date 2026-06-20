@@ -50,10 +50,13 @@ matching the returned Autotask resource ID to the user's stored ID.
 
 Per-user configuration lives behind authenticated managed-web-user-only
 `/config` routes. The config super admin has no user settings, must not see the
-Config menu item or mobile Config icon, must receive 403 on direct `/config`
-access, and always renders in dark mode. Theme preferences are not secrets, but
-autosaving them is still a state-changing action that must require
-authentication and CSRF.
+Config menu item or phone-sized Config icon, must receive 403 on direct
+`/config` access, and always renders in dark mode. Phone-sized super-admin
+navigation may show Users, Review, and Diagnostics icons; those links do not
+grant any capability beyond the server-side authorization checks on the target
+routes. Phone-sized managed-user navigation may show Home, Review, and Config,
+but must not show Debug. Theme preferences are not secrets, but autosaving them
+is still a state-changing action that must require authentication and CSRF.
 Disabled managed web users must not use old signed sessions to change
 preferences. The `/config/password` route is managed-web-user-only, requires
 CSRF, requires two matching password entries, uses the managed-user complexity
@@ -115,7 +118,9 @@ Authenticated pages may show the source-controlled application version because
 it is non-secret build metadata; do not source that value from environment
 variables that could drift between containers. Keep `/changelog` authenticated
 so release history stays inside the app shell even though it contains only
-source-controlled release notes.
+source-controlled release notes. The web changelog must come from concise
+`WEB_CHANGELOG.md` entries, while `CHANGELOG.md` remains the detailed
+operator/agent release record.
 
 ## Audit Requirements
 
