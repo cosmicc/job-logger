@@ -23,8 +23,10 @@ MIN_PASSWORD_LENGTH = 8
 MAX_PASSWORD_LENGTH = 1024
 MAX_USERNAME_LENGTH = 120
 MAX_FULL_NAME_LENGTH = 160
+MAX_EMAIL_LENGTH = 254
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_.@-]+$")
 USERNAME_AUTOGENERATE_STRIP_PATTERN = re.compile(r"[^A-Za-z0-9]")
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PASSWORD_LOWERCASE_PATTERN = re.compile(r"[a-z]")
 PASSWORD_UPPERCASE_PATTERN = re.compile(r"[A-Z]")
 PASSWORD_DIGIT_PATTERN = re.compile(r"\d")
@@ -123,6 +125,19 @@ def normalize_autotask_resource_id(raw_resource_id: int | str | None) -> int:
     if resource_id <= 0:
         raise WebUserError("Autotask resource ID must be a positive number.")
     return resource_id
+
+
+def normalize_optional_email(email: str | None) -> str | None:
+    """Return a bounded optional email captured from Autotask Resource lookup."""
+
+    normalized_email = (email or "").strip()
+    if not normalized_email:
+        return None
+    if len(normalized_email) > MAX_EMAIL_LENGTH:
+        raise WebUserError(f"Email must be {MAX_EMAIL_LENGTH} characters or fewer.")
+    if not EMAIL_PATTERN.fullmatch(normalized_email):
+        raise WebUserError("Email must be a valid address.")
+    return normalized_email
 
 
 def _normalize_new_password(password: str | None) -> str:
@@ -287,6 +302,7 @@ def create_web_user(
     username: str | None,
     password: str | None,
     autotask_resource_id: int | str | None,
+    email: str | None = None,
     disabled: bool = False,
 ) -> WebUserCreateResult:
     """Create a managed user and assign legacy jobs when this is the first one."""
@@ -301,6 +317,7 @@ def create_web_user(
         username_normalized=username_normalized(normalized_username),
         password_hash=hash_password(password or ""),
         autotask_resource_id=normalize_autotask_resource_id(autotask_resource_id),
+        email=normalize_optional_email(email),
         disabled=disabled,
     )
     database_session.add(user)
@@ -326,6 +343,7 @@ def update_web_user(
     username: str | None,
     password: str | None,
     autotask_resource_id: int | str | None,
+    email: str | None,
     disabled: bool,
 ) -> WebUser:
     """Update editable managed-user fields, including optional password reset."""
@@ -338,7 +356,24 @@ def update_web_user(
     if password:
         user.password_hash = hash_password(password)
     user.autotask_resource_id = normalize_autotask_resource_id(autotask_resource_id)
+    user.email = normalize_optional_email(email)
     user.disabled = disabled
+    return user
+
+
+def change_web_user_password(
+    database_session: Session,
+    user: WebUser,
+    *,
+    new_password: str | None,
+    confirm_password: str | None,
+) -> WebUser:
+    """Change a managed web user's password after confirming both entries match."""
+
+    if (new_password or "") != (confirm_password or ""):
+        raise WebUserError("Password entries must match.")
+    user.password_hash = hash_password(new_password or "")
+    database_session.add(user)
     return user
 
 

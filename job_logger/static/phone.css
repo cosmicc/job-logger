@@ -55,19 +55,141 @@
 
 .review-layout,
 .users-layout,
+.config-layout,
 .form-grid,
 .metric-grid,
-.button-grid,
-.user-row {
+  .button-grid,
+  .user-edit-grid,
+  .theme-card-grid,
+  .password-field-grid {
   grid-template-columns: 1fr;
 }
 
 .review-header,
+.users-page-header,
+.config-page-header,
 .resource-picker-header,
 .form-header-row,
+.panel-title-row,
+.user-edit-footer,
 .mobile-status-row {
   align-items: flex-start;
   flex-direction: column;
+}
+
+.users-page-actions,
+.user-edit-actions {
+  width: 100%;
+}
+
+.users-page-actions .secondary-link-button,
+.user-edit-actions button,
+.user-actions-cell button,
+.user-actions-cell form,
+.config-save-button,
+.config-password-button {
+  width: 100%;
+}
+
+.add-user-panel {
+  position: static;
+}
+
+.users-list-panel {
+  padding: 0;
+}
+
+.users-table-wrap {
+  overflow: visible;
+}
+
+.users-table {
+  min-width: 0;
+}
+
+.users-table th,
+.users-table td {
+  width: auto !important;
+}
+
+.users-table,
+.users-table thead,
+.users-table tbody,
+.users-table tr,
+.users-table td {
+  display: block;
+}
+
+.users-table thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.users-table tbody {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.user-display-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.users-table td {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.42fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 46px;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.users-table td::before {
+  content: attr(data-label);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.users-table .user-actions-cell {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-width: 0;
+  white-space: normal;
+}
+
+.users-table .user-actions-cell::before {
+  align-self: start;
+}
+
+.user-actions-cell form {
+  margin: 8px 0 0;
+}
+
+.user-edit-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+
+.user-edit-row td {
+  display: block;
+  padding: 0;
+  border-bottom: 0;
+}
+
+.user-edit-row td::before {
+  content: "";
+  display: none;
 }
 
 .resource-picker-header .secondary-button {

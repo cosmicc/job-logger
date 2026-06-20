@@ -34,7 +34,9 @@ on create. API credentials, ticket status IDs, time-entry type, and optional
 `AUTOTASK_IMPERSONATION_RESOURCE_ID` remain environment-backed settings.
 The config super admin may use `/users` to query Autotask Resources by name
 while creating a managed web user, but that lookup must still go through the
-server-side provider and return only safe resource metadata.
+server-side provider and return only safe resource metadata. When the selected
+resource includes an email address, the user manager stores it with the managed
+web-user row for future user-scoped features.
 
 ## Provider Location
 
@@ -170,9 +172,9 @@ the authorization source for starting a job.
 ## Resource Lookup
 
 The `/users/autotask-resources` endpoint is for config super admins only. It
-lets the user manager search Autotask Resources while creating managed web
-users and returns safe fields such as resource ID, first name, last name,
-display name, and email when available.
+lets the user manager search Autotask Resources while creating or editing
+managed web users and returns safe fields such as resource ID, first name, last
+name, display name, and email when available.
 
 Resource lookup must stay inside `job_logger/services/autotask.py`. Browser
 JavaScript may call Job Logger's authenticated endpoint, but it must never call
@@ -180,6 +182,9 @@ Autotask directly or receive Autotask credentials. Autotask formats resource
 names as `Last, First`; the provider should accept either `First Last` or
 `Last, First`, query `Resources/query` with bounded first-name and last-name
 filters, deduplicate IDs, and cache only positive non-secret results briefly.
+When the browser submits the selected resource email back with the add/edit
+form, the server must treat it as optional metadata, validate it as a bounded
+email address, and never trust it as an authorization source.
 
 Remote/On-Site detection is intentionally simple and auditable: scan the
 service-call details for `remote`, `onsite`, `on-site`, or `on site`. If neither

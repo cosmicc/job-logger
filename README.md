@@ -78,16 +78,23 @@ Autotask REST API references used by this app:
 
 7. Sign in with the config super-admin account, open `/users`, and create at
    least one web user with full name, username, password, and Autotask resource
-   ID. The add-user form suggests a username from the name, such as `jblow` for
-   `Joe Blow`, and can search Autotask Resources so you can select the matching
-   `Last, First` resource and fill its ID. Managed-user passwords must be at
-   least 8 characters and include lowercase, uppercase, number, and symbol
-   characters. The first web user you create takes ownership of any existing
-   unowned jobs from earlier single-user installs.
+   ID. The users page shows managed accounts in a table with per-row edit,
+   disable, and delete controls, including any email address captured from
+   Autotask Resource lookup. The add-user form suggests a username from the
+   name, such as `jblow` for `Joe Blow`, and add/edit forms can search Autotask
+   Resources so you can select the matching `Last, First` resource and fill its
+   ID. When Autotask returns an email for the selected resource, Job Logger
+   saves it with that web-user account. Managed-user passwords must be at least
+   8 characters and include lowercase, uppercase, number, and symbol characters.
+   The first web user you create takes ownership of any existing unowned jobs
+   from earlier single-user installs.
 
-8. Open `/config` from any authenticated account to choose the user's visual
-   theme. Dark is the default; light and dark themes apply to mobile and web
-   pages for that login only.
+8. Managed web users can open `/config` to choose their visual theme. Dark is
+   the default, and changes save and apply immediately without a Save button.
+   Light and dark themes apply to mobile and web pages for that login only.
+   The same page includes an explicit **Change password** action with two
+   matching password fields; password changes are not autosaved. The config
+   super-admin account has no user settings and always uses dark mode.
 
 ## Cloudflare Tunnel
 
@@ -276,7 +283,7 @@ the browser and launch it without the normal browser toolbar.
 Use the Cloudflare HTTPS hostname on the phone, sign in, open the browser menu,
 and choose the platform's install action such as **Add to Home Screen** or
 **Install App**. After launching from that home-screen icon, the app uses
-standalone display mode, the authenticated user's saved page theme, safe-area
+standalone display mode, the managed web user's saved page theme, safe-area
 padding for phone status bars, and disabled page overscroll/bounce behavior.
 
 The service worker is intentionally network-only. It supports standalone app
@@ -466,9 +473,12 @@ inherits the selected ticket's `billingCodeID` on create without requiring
 separate Allocation Code edit permission.
 
 The super-admin `/users` page can query Autotask Resources through the server
-while adding a web user. Resource names are displayed in Autotask's `Last, First`
-format, and choosing one fills the required resource ID field. The browser never
-receives Autotask credentials and cannot query Autotask directly.
+while adding or editing a web user. Resource names are displayed in Autotask's
+`Last, First` format in a dropdown-style picker, and choosing one fills the
+required resource ID field. If Autotask returns an email address for the chosen
+resource, the email is saved with the managed web-user account and displayed in
+the Users table for future user-scoped features. The browser never receives
+Autotask credentials and cannot query Autotask directly.
 
 Autotask ticket status picklist IDs vary by tenant. Configure these before
 production use so the full workflow can update the selected ticket status:
@@ -618,8 +628,9 @@ the raw JSONL file for authenticated diagnostics.
 
 The `/debug` page also includes **Download Full Backup** and **Restore Full
 Backup** controls. Backups download as sensitive `.json.gz` files containing
-all Job Logger database tables: jobs, submission attempts, and audit events.
-Store backup files somewhere private because they contain customer, ticket, and
+all Job Logger database tables, including managed web-user password hashes and
+email metadata, jobs, submission attempts, and audit events. Store backup files
+somewhere private because they contain account, customer, ticket, and
 work-summary history.
 
 To restore, upload a Job Logger full-backup file on `/debug` and type

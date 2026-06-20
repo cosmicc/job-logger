@@ -34,14 +34,37 @@
 
   function clearResourceResults(form) {
     const resultsElement = form.querySelector("[data-resource-results]");
-    if (resultsElement) {
-      resultsElement.replaceChildren();
+    if (!resultsElement) {
+      return;
     }
+
+    resultsElement.replaceChildren();
+    resultsElement.hidden = true;
   }
 
   function resourceOptionLabel(resource) {
     const resourceName = resource.resource_name || `Resource ${resource.resource_id}`;
     return `${resourceName} (ID ${resource.resource_id})`;
+  }
+
+  function resourceOptionMeta(resource) {
+    const nameParts = [resource.first_name, resource.last_name].filter(Boolean);
+    if (resource.email && nameParts.length > 0) {
+      return `${nameParts.join(" ")} | ${resource.email}`;
+    }
+    if (resource.email) {
+      return resource.email;
+    }
+    return nameParts.join(" ");
+  }
+
+  function setResourceEmail(form, email) {
+    const resourceEmailInput = form.querySelector("[data-resource-email-input]");
+    if (!resourceEmailInput) {
+      return;
+    }
+
+    resourceEmailInput.value = String(email || "").trim();
   }
 
   function renderResourceResults(form, resources) {
@@ -53,10 +76,12 @@
 
     resultsElement.replaceChildren();
     if (!Array.isArray(resources) || resources.length === 0) {
+      resultsElement.hidden = true;
       setResourceStatus(form, "No matching Autotask resources found.", true);
       return;
     }
 
+    resultsElement.hidden = false;
     resources.forEach((resource) => {
       const optionButton = document.createElement("button");
       optionButton.type = "button";
@@ -67,22 +92,31 @@
       labelElement.textContent = resourceOptionLabel(resource);
       optionButton.appendChild(labelElement);
 
-      if (resource.email) {
-        const emailElement = document.createElement("span");
-        emailElement.className = "resource-option-meta";
-        emailElement.textContent = resource.email;
-        optionButton.appendChild(emailElement);
+      const metaText = resourceOptionMeta(resource);
+      if (metaText) {
+        const metaElement = document.createElement("span");
+        metaElement.className = "resource-option-meta";
+        metaElement.textContent = metaText;
+        optionButton.appendChild(metaElement);
       }
 
       optionButton.addEventListener("click", () => {
         resourceIdInput.value = String(resource.resource_id || "");
-        setResourceStatus(form, `Selected ${resourceOptionLabel(resource)}.`, false);
+        setResourceEmail(form, resource.email || "");
+        clearResourceResults(form);
+        const emailMessage = resource.email ? " Email saved with this user." : " No email returned.";
+        setResourceStatus(form, `Selected ${resourceOptionLabel(resource)}.${emailMessage}`, false);
       });
 
       resultsElement.appendChild(optionButton);
     });
 
-    setResourceStatus(form, "Select the Autotask resource for this web user.", false);
+    if (resources.length === 1) {
+      setResourceStatus(form, "One Autotask resource found.", false);
+      return;
+    }
+
+    setResourceStatus(form, "Select the matching Autotask resource.", false);
   }
 
   async function searchAutotaskResources(form) {
@@ -101,6 +135,7 @@
     if (searchButton) {
       searchButton.disabled = true;
     }
+    clearResourceResults(form);
     setResourceStatus(form, "Searching Autotask resources...", false);
 
     try {
@@ -123,13 +158,15 @@
     }
   }
 
-  function initializeUserCreateForm(form) {
+  function initializeUsernameSuggestion(form) {
+    if (!form.hasAttribute("data-username-autogenerate")) {
+      return;
+    }
+
     const fullNameInput = form.querySelector("[data-user-full-name]");
     const usernameInput = form.querySelector("[data-username-input]");
-    const searchButton = form.querySelector("[data-resource-search-button]");
     let lastGeneratedUsername = usernameInput ? usernameInput.value : "";
     let usernameWasEdited = false;
-    let resourceSearchTimer = null;
 
     function updateGeneratedUsername() {
       if (!fullNameInput || !usernameInput) {
@@ -143,6 +180,25 @@
       }
     }
 
+    if (fullNameInput) {
+      fullNameInput.addEventListener("input", updateGeneratedUsername);
+    }
+
+    if (usernameInput) {
+      usernameInput.addEventListener("input", () => {
+        usernameWasEdited = usernameInput.value.trim() !== "" && usernameInput.value !== lastGeneratedUsername;
+      });
+    }
+
+    updateGeneratedUsername();
+  }
+
+  function initializeResourceLookup(form) {
+    const fullNameInput = form.querySelector("[data-user-full-name]");
+    const searchButton = form.querySelector("[data-resource-search-button]");
+    const resourceIdInput = form.querySelector("[data-resource-id-input]");
+    let resourceSearchTimer = null;
+
     function scheduleResourceSearch() {
       window.clearTimeout(resourceSearchTimer);
       resourceSearchTimer = window.setTimeout(() => {
@@ -151,16 +207,7 @@
     }
 
     if (fullNameInput) {
-      fullNameInput.addEventListener("input", () => {
-        updateGeneratedUsername();
-        scheduleResourceSearch();
-      });
-    }
-
-    if (usernameInput) {
-      usernameInput.addEventListener("input", () => {
-        usernameWasEdited = usernameInput.value.trim() !== "" && usernameInput.value !== lastGeneratedUsername;
-      });
+      fullNameInput.addEventListener("input", scheduleResourceSearch);
     }
 
     if (searchButton) {
@@ -170,8 +217,109 @@
       });
     }
 
-    updateGeneratedUsername();
+    if (resourceIdInput) {
+      resourceIdInput.addEventListener("input", () => {
+        setResourceEmail(form, "");
+      });
+    }
   }
 
-  document.querySelectorAll("[data-user-create-form]").forEach(initializeUserCreateForm);
+  function editPanelForUser(userId) {
+    return document.querySelector(`[data-user-edit-panel][data-user-id="${CSS.escape(userId)}"]`);
+  }
+
+  function editToggleForUser(userId) {
+    return document.querySelector(`[data-user-edit-toggle][data-user-id="${CSS.escape(userId)}"]`);
+  }
+
+  function displayRowForUser(userId) {
+    return document.querySelector(`[data-user-display-row][data-user-id="${CSS.escape(userId)}"]`);
+  }
+
+  function setUserEditMode(userId, isEditing) {
+    const editPanel = editPanelForUser(userId);
+    const editToggle = editToggleForUser(userId);
+    const displayRow = displayRowForUser(userId);
+    if (!editPanel || !editToggle) {
+      return;
+    }
+
+    editPanel.hidden = !isEditing;
+    editToggle.setAttribute("aria-expanded", String(isEditing));
+    editToggle.classList.toggle("is-active", isEditing);
+    if (displayRow) {
+      displayRow.classList.toggle("is-editing", isEditing);
+    }
+  }
+
+  function closeOtherEditPanels(activeUserId) {
+    document.querySelectorAll("[data-user-edit-panel]").forEach((panel) => {
+      const userId = panel.dataset.userId || "";
+      if (userId && userId !== activeUserId) {
+        setUserEditMode(userId, false);
+      }
+    });
+  }
+
+  function initializeEditControls() {
+    document.querySelectorAll("[data-user-edit-toggle]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const userId = button.dataset.userId || "";
+        const editPanel = editPanelForUser(userId);
+        if (!userId || !editPanel) {
+          return;
+        }
+
+        const shouldOpen = editPanel.hidden;
+        if (shouldOpen) {
+          closeOtherEditPanels(userId);
+        }
+        setUserEditMode(userId, shouldOpen);
+        if (shouldOpen) {
+          const firstInput = editPanel.querySelector("input:not([type='hidden'])");
+          if (firstInput) {
+            firstInput.focus();
+          }
+        }
+      });
+    });
+
+    document.querySelectorAll("[data-user-edit-cancel]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const userId = button.dataset.userId || "";
+        const editPanel = editPanelForUser(userId);
+        const editForm = editPanel ? editPanel.querySelector("form") : null;
+        if (editForm) {
+          editForm.reset();
+          clearResourceResults(editForm);
+        }
+        setUserEditMode(userId, false);
+      });
+    });
+  }
+
+  function initializeConfirmations() {
+    document.addEventListener("submit", (event) => {
+      const formElement = event.target.closest("[data-confirm-message]");
+      if (!formElement || event.defaultPrevented) {
+        return;
+      }
+
+      const confirmationMessage = formElement.dataset.confirmMessage || "";
+      if (confirmationMessage && !window.confirm(confirmationMessage)) {
+        event.preventDefault();
+      }
+    });
+  }
+
+  function initializeForms() {
+    document.querySelectorAll("[data-user-create-form], [data-user-edit-form]").forEach((form) => {
+      initializeUsernameSuggestion(form);
+      initializeResourceLookup(form);
+    });
+  }
+
+  initializeForms();
+  initializeEditControls();
+  initializeConfirmations();
 }());

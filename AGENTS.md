@@ -31,19 +31,26 @@ Only the config super admin may see or access `/debug` and `/debug/*` routes;
 managed web users must receive 403 for direct debug requests.
 
 Managed web users must have a full name, unique username, password hash, and
-Autotask resource ID. The `/users` add form may suggest usernames from full
-names, such as `jblow` for `Joe Blow`, and may query Autotask Resources for a
-super-admin-only resource picker. Store only salted password verifiers, never
-raw managed user passwords. Managed-user passwords must be at least 8
-characters and include lowercase, uppercase, number, and symbol characters.
+Autotask resource ID. They may also store the email address returned by the
+selected Autotask Resource lookup. The `/users` page presents managed accounts
+in a table with per-row edit controls and visible stored email metadata. The
+add form may suggest usernames from full names, such as `jblow` for `Joe Blow`,
+and add/edit forms may query Autotask Resources for a super-admin-only resource
+picker. Store only salted password verifiers, never raw managed user passwords.
+Managed-user passwords must be at least 8 characters and include lowercase,
+uppercase, number, and symbol characters.
 Disabled web users must be blocked from new logins and from using old signed
 sessions. Deleting a web user with job history must preserve history by
 disabling the account instead of removing the row.
 
-Authenticated users may save per-login configuration on `/config`. Per-user
-configuration is database-backed, defaults to the dark theme, and currently
-supports `dark` or `light` visual themes for all authenticated mobile and web
-pages.
+Managed web users may change per-login configuration on `/config`. Per-user
+configuration is database-backed, defaults to the dark theme, saves immediately
+when an option changes, and currently supports `dark` or `light` visual themes
+for all authenticated mobile and web pages. The password-change section on
+`/config` is the exception: it requires two matching password entries and an
+explicit **Change password** submit button. The config super admin does not have
+user settings, does not see the Config menu item, cannot access `/config`, and
+always renders in dark mode.
 
 Never rely on the mobile UI, browser state, or hidden form fields for security
 decisions. The server must validate authentication, authorization, CSRF tokens,
@@ -179,7 +186,7 @@ Work Type on create. API credentials, ticket status IDs, time-entry type, and
 optional `AUTOTASK_IMPERSONATION_RESOURCE_ID` remain environment configuration.
 The super-admin `/users` page may query `/Resources/query` through the server
 to find matching Autotask Resources by `Last, First` name and fill the
-user-specific resource ID.
+user-specific resource ID and optional email address.
 
 Autotask API errors must be recorded clearly for review and troubleshooting
 without exposing credentials or sensitive protocol details.
@@ -222,10 +229,11 @@ Do not permanently store raw audio by default.
 
 The mobile interface must be optimized for quick use from a phone.
 
-Authenticated pages must respect the current user's saved theme preference.
+Managed web-user pages must respect the current user's saved theme preference.
 The default is the dark theme. Light theme support must cover mobile, review,
 user management, config, debug, and login surfaces through shared CSS variables
-instead of a separate unaudited template branch.
+instead of a separate unaudited template branch. Super-admin pages always use
+dark mode.
 
 On phone-sized `/mobile` layouts, the authenticated top bar uses an X close
 control instead of the logout action so an installed mobile web app can be
@@ -385,8 +393,9 @@ The application is a FastAPI project under `job_logger/`.
   selected job, and explicit local **Delete time entry** cleanup.
 - `job_logger/routes/users.py` handles the super-admin managed web-user page,
   including add/edit/disable/delete-or-disable behavior.
-- `job_logger/routes/configuration.py` handles authenticated per-user
-  configuration such as light/dark theme selection.
+- `job_logger/routes/configuration.py` handles authenticated managed-web-user
+  configuration such as immediate light/dark theme selection and explicit
+  managed-user password changes.
 - `job_logger/routes/debug.py` handles the super-admin diagnostic page, the
   sanitized failed-login window, full backup/restore actions, and the Autotask
   API connectivity test.
@@ -400,8 +409,9 @@ The application is a FastAPI project under `job_logger/`.
   company/ticket lookup, per-user resource service-call lookup, cache behavior,
   pagination, status mapping, time entry submission, existing-entry updates, and
   existing-entry deletes.
-- `job_logger/services/users.py` owns managed web-user validation, password
-  hashing, first-user legacy job claiming, and delete-or-disable rules.
+- `job_logger/services/users.py` owns managed web-user validation, optional
+  Autotask Resource email storage, password hashing and changes, first-user
+  legacy job claiming, and delete-or-disable rules.
 - `job_logger/services/preferences.py` owns per-authenticated-user
   configuration validation and persistence.
 - `job_logger/services/ai_cleanup.py` owns server-side Gemini, Groq, Ollama,
@@ -430,12 +440,16 @@ The normal workflow is:
 
 1. User authenticates through Cloudflare Access when enabled, then through the
    app login.
-2. The config super admin opens `/users` to create managed web users. The form
-   suggests a username from the full name and can query Autotask Resources to
-   select the matching resource ID. The first managed web user claims any
-   existing unowned jobs from earlier single-user installs.
-3. Any authenticated user may open `/config` to choose dark or light theme for
-   their own login.
+2. The config super admin opens `/users` to create and edit managed web users.
+   The page lists users in a desktop table and mobile card layout. The add form
+   suggests a username from the full name, and add/edit forms can query
+   Autotask Resources to select the matching resource ID and capture the
+   returned email address. The first managed web user claims any existing
+   unowned jobs from earlier single-user installs.
+3. A managed web user may open `/config` to choose dark or light theme for
+   their own login. Config changes save and apply immediately without a visible
+   save action. The same page allows an explicit two-entry login password
+   change. The config super admin has no `/config` access and stays dark.
 4. A managed web user opens `/mobile`.
 5. The `/mobile` page renders from local application state without running an
    Autotask API contactability check. After the page has loaded, browser
@@ -501,6 +515,8 @@ In production:
   still call Autotask only when those specific workflows need provider data.
 - Super-admin resource lookup on `/users` calls Autotask Resources only through
   the server-side provider; browser code never contacts Autotask directly.
+  Returned resource email metadata is optional and is stored only when a user
+  selects a resource that includes one.
 - The `/debug` page provides the supported manual **Test Autotask API** action.
 - Mock Autotask mode is only for tests and isolated development.
 

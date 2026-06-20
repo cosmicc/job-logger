@@ -71,6 +71,15 @@ class WebUser(Base):
         comment="Autotask resource ID used for this user's service calls and time entries.",
     )
 
+    # email is captured from Autotask Resource lookup when available. It is not
+    # required for login today, but preserving it avoids another directory query
+    # for future user-scoped features.
+    email: Mapped[str | None] = mapped_column(
+        String(254),
+        nullable=True,
+        comment="Optional email address captured from the linked Autotask resource.",
+    )
+
     # disabled blocks future local login without deleting job/audit history.
     disabled: Mapped[bool] = mapped_column(
         Boolean,
@@ -105,12 +114,12 @@ class UserPreference(Base):
     # id is stable for backups and future preference expansion.
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string, comment="Stable preference UUID.")
 
-    # principal_key identifies either a managed web user or the config super admin.
+    # principal_key identifies the managed web user whose preferences are stored.
     principal_key: Mapped[str] = mapped_column(
         String(180),
         nullable=False,
         unique=True,
-        comment="Stable authenticated-user key, such as web_user:<uuid> or super_admin:<username>.",
+        comment="Stable authenticated-user key, such as web_user:<uuid>.",
     )
 
     # theme stores the preferred visual theme for every authenticated page.

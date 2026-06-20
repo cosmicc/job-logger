@@ -12,13 +12,11 @@ from job_logger.config import Settings, settings
 from job_logger.enums import ThemeMode
 from job_logger.models import UserPreference
 from job_logger.security import (
-    SUPER_ADMIN_SESSION_KIND,
     WEB_USER_SESSION_KIND,
     current_user_kind_from_session,
     current_username_from_session,
     current_web_user_id_from_session,
 )
-from job_logger.services.users import username_normalized
 
 DEFAULT_THEME = ThemeMode.DARK
 THEME_META_COLORS = {
@@ -60,12 +58,6 @@ def preference_principal_from_session(
 
     user_kind = current_user_kind_from_session(session, application_settings)
     username = current_username_from_session(session)
-    if user_kind == SUPER_ADMIN_SESSION_KIND and username:
-        return PreferencePrincipal(
-            key=f"super_admin:{username_normalized(username)}",
-            label=f"{username} (super admin)",
-        )
-
     web_user_id = current_web_user_id_from_session(session)
     if user_kind == WEB_USER_SESSION_KIND and web_user_id:
         return PreferencePrincipal(key=f"web_user:{web_user_id}", label=username or "Web user")

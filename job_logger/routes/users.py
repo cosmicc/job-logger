@@ -124,6 +124,7 @@ async def add_user(
             username=form_values.get("username"),
             password=form_values.get("password"),
             autotask_resource_id=form_values.get("autotask_resource_id"),
+            email=form_values.get("autotask_resource_email"),
             disabled="disabled" in form_values,
         )
         record_audit_event(
@@ -136,6 +137,7 @@ async def add_user(
                 "username": result.user.username,
                 "disabled": result.user.disabled,
                 "autotask_resource_id": result.user.autotask_resource_id,
+                "email_saved": result.user.email is not None,
                 "claimed_unowned_job_count": result.claimed_unowned_job_count,
             },
         )
@@ -174,6 +176,7 @@ async def edit_user(
             username=form_values.get("username"),
             password=form_values.get("password") or None,
             autotask_resource_id=form_values.get("autotask_resource_id"),
+            email=form_values.get("autotask_resource_email"),
             disabled="disabled" in form_values,
         )
         record_audit_event(
@@ -186,6 +189,7 @@ async def edit_user(
                 "username": user.username,
                 "disabled": user.disabled,
                 "autotask_resource_id": user.autotask_resource_id,
+                "email_saved": user.email is not None,
                 "password_changed": bool(form_values.get("password")),
             },
         )

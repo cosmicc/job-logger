@@ -4,6 +4,24 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Added a managed-web-user password change card on `/config`. Users must enter
+  the new password twice and click **Change password**; password changes remain
+  CSRF-protected, audited, and separate from instant autosave settings.
+
+- Added a nullable managed-user email field with migration `0009_web_user_email`.
+  The Autotask Resource picker now saves returned resource email addresses with
+  web-user accounts, and the Users table displays the stored email for each
+  account.
+
+- Changed `/config` so only managed web users can access user settings. Theme
+  changes now save and apply immediately without a Save button, while the
+  config super admin no longer sees Config and always stays in dark mode.
+
+- Redesigned `/users` with a desktop table, mobile card layout, per-row edit
+  mode, safer delete confirmation wiring, and dropdown-style Autotask Resource
+  selection. Redesigned `/config` with professional theme cards and a settings
+  summary panel consistent with the rest of the app.
+
 - Hardened `/debug` so only the config super admin can see the menu link or
   access debug pages, downloads, backup/restore, and Autotask test actions.
   Managed web-user sessions now receive 403 on direct `/debug/*` requests.
@@ -19,9 +37,10 @@ All recorded changes to Job Logger are documented in this file.
   from `Joe Blow`, and managed-user password creation/reset now requires at
   least 8 characters with lowercase, uppercase, number, and symbol characters.
 
-- Added an authenticated `/config` page with per-login light/dark theme
-  preferences, defaulting to dark, and added light-theme styling across mobile,
-  review, user management, config, debug, and login surfaces.
+- Added an authenticated managed-web-user `/config` page with per-login
+  light/dark theme preferences, defaulting to dark, and added light-theme
+  styling across mobile, review, user management, config, debug, and login
+  surfaces.
 - Changed review **Delete time entry** so managed web users can delete their own
   active local jobs from review detail while successfully submitted Autotask
   jobs remain protected.

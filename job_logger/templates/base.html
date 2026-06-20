@@ -41,7 +41,9 @@
             <a href="/users">Users</a>
           {% endif %}
           <a href="/review">Review</a>
-          <a href="/config">Config</a>
+          {% if not current_is_super_admin %}
+            <a href="/config">Config</a>
+          {% endif %}
           {% if current_is_super_admin %}
             <a href="/debug">Debug</a>
           {% endif %}

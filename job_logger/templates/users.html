@@ -3,31 +3,236 @@
 {% block title %}Users - Job Logger{% endblock %}
 
 {% block content %}
-  <section class="users-shell">
-    <div class="review-header">
+  <section class="users-shell users-page-shell">
+    <div class="review-header users-page-header">
       <div>
         <h1>Web users</h1>
         <p class="muted-text">Manage technician logins and the Autotask resource ID used for their work.</p>
       </div>
-      <a class="secondary-link-button" href="/review">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M15 18l-6-6 6-6"></path>
-        </svg>
-        Review
-      </a>
+      <div class="users-page-actions">
+        <span class="user-count-pill">{{ user_rows|length }} managed users</span>
+        <a class="secondary-link-button" href="/review">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6"></path>
+          </svg>
+          Review
+        </a>
+      </div>
     </div>
 
     <div class="users-layout">
-      <section class="edit-panel" aria-labelledby="add-user-heading">
-        <h2 id="add-user-heading">Add user</h2>
+      <section class="table-panel users-list-panel" aria-labelledby="user-list-heading">
+        <div class="users-list-header">
+          <div>
+            <h2 id="user-list-heading">Current web users</h2>
+            <p class="muted-text">The config super admin is intentionally not listed here.</p>
+          </div>
+        </div>
+
+        {% if user_rows %}
+          <div class="table-wrap users-table-wrap">
+            <table class="users-table">
+              <thead>
+                <tr>
+                  <th scope="col">User</th>
+                  <th scope="col">Username</th>
+                  <th scope="col">Email</th>
+                  <th scope="col">Resource ID</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Jobs</th>
+                  <th scope="col">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in user_rows %}
+                  <tr class="user-display-row" data-user-display-row data-user-id="{{ row.user.id }}">
+                    <td data-label="User">
+                      <span class="user-name-cell">{{ row.user.full_name }}</span>
+                    </td>
+                    <td data-label="Username">
+                      <span class="mono-value">{{ row.user.username }}</span>
+                    </td>
+                    <td data-label="Email">
+                      {% if row.user.email %}
+                        <span class="user-email-cell">{{ row.user.email }}</span>
+                      {% else %}
+                        <span class="muted-text">Not saved</span>
+                      {% endif %}
+                    </td>
+                    <td data-label="Resource ID">
+                      <span class="mono-value">{{ row.user.autotask_resource_id }}</span>
+                    </td>
+                    <td data-label="Status">
+                      {% if row.user.disabled %}
+                        <span class="status-chip user-status-chip user-status-disabled">Disabled</span>
+                      {% else %}
+                        <span class="status-chip user-status-chip user-status-enabled">Enabled</span>
+                      {% endif %}
+                    </td>
+                    <td data-label="Jobs">
+                      <span class="user-job-pill">{{ row.job_count }}</span>
+                    </td>
+                    <td data-label="Actions" class="user-actions-cell">
+                      <button
+                        class="secondary-button user-edit-toggle"
+                        type="button"
+                        data-user-edit-toggle
+                        data-user-id="{{ row.user.id }}"
+                        aria-expanded="false"
+                        aria-controls="user-edit-{{ row.user.id }}"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M12 20h9"></path>
+                          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+                        </svg>
+                        Edit
+                      </button>
+                      <form
+                        method="post"
+                        action="/users/{{ row.user.id }}/delete"
+                        data-confirm-message="Delete this user? Users with job history will be disabled instead so audit history is preserved."
+                      >
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button class="danger-outline-button" type="submit">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 6h18"></path>
+                            <path d="M8 6V4h8v2"></path>
+                            <path d="M10 11v6"></path>
+                            <path d="M14 11v6"></path>
+                          </svg>
+                          Delete
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                  <tr
+                    id="user-edit-{{ row.user.id }}"
+                    class="user-edit-row"
+                    data-user-edit-panel
+                    data-user-id="{{ row.user.id }}"
+                    hidden
+                  >
+                    <td colspan="7">
+                      <form
+                        id="user-update-{{ row.user.id }}"
+                        method="post"
+                        action="/users/{{ row.user.id }}/update"
+                        class="user-management-form user-edit-form"
+                        data-user-edit-form
+                        data-autotask-resource-url="/users/autotask-resources"
+                      >
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input
+                          type="hidden"
+                          name="autotask_resource_email"
+                          value="{{ row.user.email or '' }}"
+                          data-resource-email-input
+                        >
+                        <div class="user-edit-grid">
+                          <label>
+                            <span>Full name</span>
+                            <input name="full_name" value="{{ row.user.full_name }}" maxlength="160" data-user-full-name required>
+                          </label>
+                          <label>
+                            <span>Username</span>
+                            <input name="username" value="{{ row.user.username }}" maxlength="120" data-username-input required>
+                          </label>
+                          <label>
+                            <span>New password</span>
+                            <input
+                              name="password"
+                              type="password"
+                              autocomplete="new-password"
+                              minlength="8"
+                              maxlength="1024"
+                              pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
+                              title="Use at least 8 characters with lowercase, uppercase, number, and symbol."
+                              placeholder="Keep current"
+                            >
+                          </label>
+                          <label>
+                            <span>Autotask resource ID</span>
+                            <input
+                              name="autotask_resource_id"
+                              type="number"
+                              min="1"
+                              step="1"
+                              inputmode="numeric"
+                              value="{{ row.user.autotask_resource_id }}"
+                              data-resource-id-input
+                              required
+                            >
+                          </label>
+                        </div>
+                        <section class="resource-picker" aria-label="Autotask resource lookup" data-resource-picker>
+                          <div class="resource-picker-header">
+                            <div>
+                              <h3>Autotask resource</h3>
+                              <p class="muted-text">Search by full name and choose the matching Last, First resource.</p>
+                            </div>
+                            <button class="secondary-button" type="button" data-resource-search-button>Find resource</button>
+                          </div>
+                          <p class="resource-picker-status muted-text" data-resource-status aria-live="polite">
+                            Use the full name above to refresh the resource ID.
+                          </p>
+                          <div class="resource-picker-results" data-resource-results hidden></div>
+                        </section>
+                        <div class="user-edit-footer">
+                          <label class="checkbox-label user-disabled-toggle">
+                            <input
+                              name="disabled"
+                              type="checkbox"
+                              value="1"
+                              {% if row.user.disabled %}checked{% endif %}
+                            >
+                            <span>Disabled account</span>
+                          </label>
+                          <div class="user-edit-actions">
+                            <button class="secondary-button" type="button" data-user-edit-cancel data-user-id="{{ row.user.id }}">
+                              Cancel
+                            </button>
+                            <button class="primary-button" type="submit">
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                <path d="M17 21v-8H7v8"></path>
+                                <path d="M7 3v5h8"></path>
+                              </svg>
+                              Save user
+                            </button>
+                          </div>
+                        </div>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state users-empty-state">
+            <h2>No web users</h2>
+            <p class="muted-text">Create the first web user to assign existing jobs and enable work entry.</p>
+          </div>
+        {% endif %}
+      </section>
+
+      <section class="edit-panel add-user-panel" aria-labelledby="add-user-heading">
+        <div class="panel-title-row">
+          <div>
+            <h2 id="add-user-heading">Add user</h2>
+            <p class="muted-text">All fields are required for work-entry accounts.</p>
+          </div>
+        </div>
         <form
           method="post"
           action="/users"
           class="user-management-form"
           data-user-create-form
+          data-username-autogenerate
           data-autotask-resource-url="/users/autotask-resources"
         >
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="autotask_resource_email" data-resource-email-input>
           <label>
             <span>Full name</span>
             <input name="full_name" autocomplete="name" maxlength="160" data-user-full-name required>
@@ -57,18 +262,18 @@
             <div class="resource-picker-header">
               <div>
                 <h3>Autotask resource</h3>
-                <p class="muted-text">Matches use the full name, including Last, First Autotask names.</p>
+                <p class="muted-text">Search by full name and choose the matching Last, First resource.</p>
               </div>
               <button class="secondary-button" type="button" data-resource-search-button>Find resource</button>
             </div>
             <p class="resource-picker-status muted-text" data-resource-status aria-live="polite">
               Enter a full name to search Autotask resources.
             </p>
-            <div class="resource-picker-results" data-resource-results></div>
+            <div class="resource-picker-results" data-resource-results hidden></div>
           </section>
           <label class="checkbox-label">
             <input name="disabled" type="checkbox" value="1">
-            <span>Disabled</span>
+            <span>Disabled account</span>
           </label>
           <button class="primary-button" type="submit">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -78,102 +283,6 @@
             Add user
           </button>
         </form>
-      </section>
-
-      <section class="table-panel users-list-panel" aria-labelledby="user-list-heading">
-        <div class="users-list-header">
-          <h2 id="user-list-heading">Current web users</h2>
-          <p class="muted-text">The config super admin is not listed here.</p>
-        </div>
-
-        <div class="user-row-list">
-          {% for row in user_rows %}
-            <section class="user-row" aria-label="Edit user {{ row.user.username }}">
-              <form id="user-update-{{ row.user.id }}" method="post" action="/users/{{ row.user.id }}/update"></form>
-              <input form="user-update-{{ row.user.id }}" type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <label>
-                <span>Full name</span>
-                <input form="user-update-{{ row.user.id }}" name="full_name" value="{{ row.user.full_name }}" maxlength="160" required>
-              </label>
-              <label>
-                <span>Username</span>
-                <input form="user-update-{{ row.user.id }}" name="username" value="{{ row.user.username }}" maxlength="120" required>
-              </label>
-              <label>
-                <span>New password</span>
-                <input
-                  form="user-update-{{ row.user.id }}"
-                  name="password"
-                  type="password"
-                  autocomplete="new-password"
-                  minlength="8"
-                  maxlength="1024"
-                  pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
-                  title="Use at least 8 characters with lowercase, uppercase, number, and symbol."
-                  placeholder="Leave blank to keep current"
-                >
-              </label>
-              <label>
-                <span>Autotask resource ID</span>
-                <input
-                  form="user-update-{{ row.user.id }}"
-                  name="autotask_resource_id"
-                  type="number"
-                  min="1"
-                  step="1"
-                  inputmode="numeric"
-                  value="{{ row.user.autotask_resource_id }}"
-                  required
-                >
-              </label>
-              <label class="checkbox-label user-disabled-toggle">
-                <input
-                  form="user-update-{{ row.user.id }}"
-                  name="disabled"
-                  type="checkbox"
-                  value="1"
-                  {% if row.user.disabled %}checked{% endif %}
-                >
-                <span>Disabled</span>
-              </label>
-              <div class="user-job-count">
-                <span class="metric-label">Jobs</span>
-                <strong>{{ row.job_count }}</strong>
-              </div>
-              <div class="user-row-actions">
-                <button class="primary-button" type="submit" form="user-update-{{ row.user.id }}">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                    <path d="M17 21v-8H7v8"></path>
-                    <path d="M7 3v5h8"></path>
-                  </svg>
-                  Save
-                </button>
-                <form
-                  method="post"
-                  action="/users/{{ row.user.id }}/delete"
-                  data-confirm-message="Delete this user? Users with job history will be disabled instead so audit history is preserved."
-                >
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                  <button class="danger-outline-button" type="submit">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M3 6h18"></path>
-                      <path d="M8 6V4h8v2"></path>
-                      <path d="M10 11v6"></path>
-                      <path d="M14 11v6"></path>
-                    </svg>
-                    Delete
-                  </button>
-                </form>
-              </div>
-            </section>
-          {% else %}
-            <div class="empty-state">
-              <h2>No web users</h2>
-              <p class="muted-text">Create the first web user to assign existing jobs and enable work entry.</p>
-            </div>
-          {% endfor %}
-        </div>
       </section>
     </div>
   </section>

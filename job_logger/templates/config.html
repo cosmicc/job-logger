@@ -3,8 +3,8 @@
 {% block title %}Config - Job Logger{% endblock %}
 
 {% block content %}
-  <section class="config-shell">
-    <div class="review-header">
+  <section class="config-shell config-page-shell">
+    <div class="review-header config-page-header">
       <div>
         <h1>Config</h1>
         <p class="muted-text">Settings for {{ config_principal_label }}.</p>
@@ -17,35 +17,131 @@
       </a>
     </div>
 
-    <section class="edit-panel config-panel" aria-labelledby="appearance-heading">
-      <h2 id="appearance-heading">Appearance</h2>
-      <form method="post" action="/config" class="stack-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <fieldset class="segmented-fieldset">
-          <legend>Theme</legend>
-          <div class="theme-option-grid" role="radiogroup" aria-label="Theme">
-            {% for option_value, option_label in theme_options %}
-              <label class="theme-choice-card">
-                <input
-                  type="radio"
-                  name="theme"
-                  value="{{ option_value }}"
-                  {% if selected_theme == option_value %}checked{% endif %}
-                >
-                <span>{{ option_label }}</span>
-              </label>
-            {% endfor %}
+    <div class="config-layout">
+      <div class="config-main-stack">
+        <section class="edit-panel config-panel" aria-labelledby="appearance-heading">
+          <div class="panel-title-row">
+            <div>
+              <h2 id="appearance-heading">Appearance</h2>
+              <p class="muted-text">Choose the theme for this login.</p>
+            </div>
+            <span class="config-current-pill" data-config-current-theme>{{ selected_theme|title }}</span>
           </div>
-        </fieldset>
-        <button class="primary-button" type="submit">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-            <path d="M17 21v-8H7v8"></path>
-            <path d="M7 3v5h8"></path>
-          </svg>
-          Save config
-        </button>
-      </form>
-    </section>
+          <form method="post" action="/config" class="stack-form config-form" data-config-form>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <fieldset class="segmented-fieldset theme-card-fieldset">
+              <legend>Theme</legend>
+              <div class="theme-option-grid theme-card-grid" role="radiogroup" aria-label="Theme">
+                {% for option_value, option_label in theme_options %}
+                  <label class="theme-choice-card theme-choice-card-{{ option_value }}">
+                    <input
+                      type="radio"
+                      name="theme"
+                      value="{{ option_value }}"
+                      data-theme-option
+                      data-theme-label="{{ option_label }}"
+                      data-theme-color="{% if option_value == 'light' %}#f6f8fb{% else %}#0b1220{% endif %}"
+                      {% if selected_theme == option_value %}checked{% endif %}
+                    >
+                    <span class="theme-choice-icon" aria-hidden="true">
+                      {% if option_value == "light" %}
+                        <svg viewBox="0 0 24 24">
+                          <circle cx="12" cy="12" r="4"></circle>
+                          <path d="M12 2v2"></path>
+                          <path d="M12 20v2"></path>
+                          <path d="m4.93 4.93 1.41 1.41"></path>
+                          <path d="m17.66 17.66 1.41 1.41"></path>
+                          <path d="M2 12h2"></path>
+                          <path d="M20 12h2"></path>
+                          <path d="m6.34 17.66-1.41 1.41"></path>
+                          <path d="m19.07 4.93-1.41 1.41"></path>
+                        </svg>
+                      {% else %}
+                        <svg viewBox="0 0 24 24">
+                          <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8Z"></path>
+                        </svg>
+                      {% endif %}
+                    </span>
+                    <span class="theme-choice-copy">
+                      <strong>{{ option_label }}</strong>
+                      <small>{% if option_value == "light" %}Bright workspace{% else %}Default workspace{% endif %}</small>
+                    </span>
+                  </label>
+                {% endfor %}
+              </div>
+            </fieldset>
+            <p class="config-save-status muted-text" data-config-status aria-live="polite">Changes save automatically.</p>
+          </form>
+        </section>
+
+        <section class="edit-panel config-panel config-password-panel" aria-labelledby="password-heading">
+          <div class="panel-title-row">
+            <div>
+              <h2 id="password-heading">Password</h2>
+              <p class="muted-text">Change the login password for this account.</p>
+            </div>
+          </div>
+          <form method="post" action="/config/password" class="stack-form config-password-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="password-field-grid">
+              <label>
+                <span>New password</span>
+                <input
+                  name="new_password"
+                  type="password"
+                  autocomplete="new-password"
+                  minlength="8"
+                  maxlength="1024"
+                  pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
+                  title="Use at least 8 characters with lowercase, uppercase, number, and symbol."
+                  required
+                >
+              </label>
+              <label>
+                <span>Confirm password</span>
+                <input
+                  name="confirm_password"
+                  type="password"
+                  autocomplete="new-password"
+                  minlength="8"
+                  maxlength="1024"
+                  pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
+                  title="Enter the same password again."
+                  required
+                >
+              </label>
+            </div>
+            <button class="primary-button config-password-button" type="submit">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="4" y="11" width="16" height="9" rx="2"></rect>
+                <path d="M8 11V7a4 4 0 0 1 8 0v4"></path>
+              </svg>
+              Change password
+            </button>
+          </form>
+        </section>
+      </div>
+
+      <section class="table-panel config-summary-panel" aria-labelledby="config-summary-heading">
+        <div class="users-list-header">
+          <div>
+            <h2 id="config-summary-heading">Current settings</h2>
+            <p class="muted-text">Saved preferences are scoped to the signed-in account.</p>
+          </div>
+        </div>
+        <dl class="config-summary-list">
+          <div>
+            <dt>Account</dt>
+            <dd>{{ config_principal_label }}</dd>
+          </div>
+          <div>
+            <dt>Theme</dt>
+            <dd data-config-theme-summary>{{ selected_theme|title }}</dd>
+          </div>
+        </dl>
+      </section>
+    </div>
   </section>
+
+  <script src="/static/config.js?v={{ static_asset_version }}" defer></script>
 {% endblock %}

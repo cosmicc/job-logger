@@ -27,11 +27,12 @@ account can manage `/users`, view all review jobs, use diagnostics, and run
 backup/restore, but it must not start, edit, submit, delete, record, or
 AI-cleanup jobs because it has no Autotask resource ID. Work-entry users are
 database-managed `WebUser` rows created on `/users`; they store full name,
-username, salted password hash, required Autotask resource ID, and disabled
-state. Disabled web users must be blocked from new logins and from old signed
-sessions. Managed-user passwords must be at least 8 characters and include
-lowercase, uppercase, number, and symbol characters. Enforce that rule
-server-side before hashing; browser validation is only a usability aid.
+username, salted password hash, required Autotask resource ID, optional email
+captured from Autotask Resource lookup, and disabled state. Disabled web users
+must be blocked from new logins and from old signed sessions. Managed-user
+passwords must be at least 8 characters and include lowercase, uppercase,
+number, and symbol characters. Enforce that rule server-side before hashing;
+browser validation is only a usability aid.
 
 The `/debug` page and all `/debug/*` actions are config-super-admin-only.
 Normal managed web users must not see a Debug navigation item, and direct
@@ -39,14 +40,21 @@ requests from managed web-user sessions must receive 403 instead of being
 treated as anonymous login redirects.
 
 The `/users/autotask-resources` lookup endpoint is super-admin-only and must
-return only safe Autotask Resource metadata. Browser code can use it to fill the
-resource ID field, but the server must still validate the submitted resource ID
-and must never expose Autotask credentials or raw remote error details.
+return only safe Autotask Resource metadata. Browser code can use it from
+add/edit user forms to fill the resource ID field, but the server must still
+validate the submitted resource ID and must never expose Autotask credentials or
+raw remote error details.
 
-Per-user configuration lives behind authenticated `/config` routes. Theme
-preferences are not secrets, but saving them is still a state-changing action
-that must require authentication and CSRF. Disabled managed web users must not
-use old signed sessions to change preferences.
+Per-user configuration lives behind authenticated managed-web-user-only
+`/config` routes. The config super admin has no user settings, must not see the
+Config menu item, must receive 403 on direct `/config` access, and always
+renders in dark mode. Theme preferences are not secrets, but autosaving them is
+still a state-changing action that must require authentication and CSRF.
+Disabled managed web users must not use old signed sessions to change
+preferences. The `/config/password` route is managed-web-user-only, requires
+CSRF, requires two matching password entries, uses the managed-user complexity
+policy before hashing, and must audit only safe metadata such as user ID or
+username. Never log, audit, or flash the raw submitted password.
 
 Deleting a managed web user with job history must preserve auditability by
 disabling the account instead of deleting the row. Hard deletion is allowed only
@@ -112,6 +120,7 @@ Audit-worthy actions include:
 - Authentication-sensitive events.
 - Managed web-user add, edit, disable, and delete/delete-as-disable actions.
 - Per-user configuration updates.
+- Managed web-user password changes.
 - Job start.
 - Job active edit save.
 - Active job delete.
