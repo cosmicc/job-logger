@@ -284,8 +284,15 @@ svg {
   color: var(--muted);
 }
 
-.mobile-close-action {
+.mobile-close-action,
+.mobile-config-action {
   display: none;
+}
+
+.mobile-config-action:hover {
+  border-color: rgba(45, 212, 191, 0.42);
+  background: var(--ticket-option-hover);
+  color: var(--accent-strong);
 }
 
 .close-app-button:hover {

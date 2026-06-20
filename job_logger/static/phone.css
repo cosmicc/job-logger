@@ -22,7 +22,8 @@
   margin-left: auto;
 }
 
-.mobile-close-action {
+.mobile-close-action,
+.mobile-config-action {
   display: inline-grid;
 }
 

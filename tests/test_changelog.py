@@ -11,10 +11,10 @@ from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
 
-def test_app_version_starts_at_one_zero_zero() -> None:
-    """The first versionized release should be v1.0.0."""
+def test_app_version_matches_current_release() -> None:
+    """The source-controlled version should match the current release."""
 
-    assert APP_VERSION == "1.0.0"
+    assert APP_VERSION == "1.0.1"
 
 
 def test_changelog_file_starts_fresh_at_initial_release() -> None:
@@ -23,6 +23,7 @@ def test_changelog_file_starts_fresh_at_initial_release() -> None:
     changelog_path = Path(__file__).resolve().parents[1] / "CHANGELOG.md"
     changelog_text = changelog_path.read_text(encoding="utf-8")
 
+    assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
     assert "## Unreleased" not in changelog_text
@@ -35,7 +36,16 @@ def test_changelog_parser_reads_current_release() -> None:
     entries = load_changelog_entries()
     current_entry = current_changelog_entry(entries)
 
-    assert current_entry == ChangelogEntry(version="v1.0.0", title="Initial release", changes=("Initial release.",))
+    assert current_entry == ChangelogEntry(
+        version="v1.0.1",
+        title="Mobile shell navigation and close behavior",
+        changes=(
+            "Added a managed-web-user-only Config gear icon to the phone-sized authenticated top bar so mobile users can reach `/config` "
+            "when the full desktop navigation is hidden.",
+            "Changed the mobile X close action so standalone PWA mode self-targets the current window before requesting close, while regular phone "
+            "browser mode and blocked close requests fall back out of the app surface to `about:blank` without logging out or navigating through app routes.",
+        ),
+    )
 
 
 def test_changelog_route_requires_login(client: TestClient) -> None:
@@ -55,8 +65,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
-    assert "v1.0.0" in response.text
-    assert "Initial release." in response.text
+    assert "v1.0.1" in response.text
+    assert "Mobile shell navigation and close behavior" in response.text
     assert 'href="/changelog"' in authenticated_client.get("/mobile").text
 
 
@@ -85,4 +95,4 @@ def test_super_admin_can_view_changelog_in_dark_theme(super_admin_client: TestCl
 
     assert response.status_code == 200
     assert 'class="theme-dark"' in response.text
-    assert "v1.0.0" in response.text
+    assert "v1.0.1" in response.text

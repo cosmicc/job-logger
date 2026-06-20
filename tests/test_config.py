@@ -62,7 +62,11 @@ def test_super_admin_has_no_config_menu_or_theme_preferences(client: TestClient)
     users_response = client.get("/users")
     assert users_response.status_code == 200
     assert 'href="/config"' not in users_response.text
+    assert 'data-mobile-config-link' not in users_response.text
     assert 'class="theme-dark"' in users_response.text
+
+    mobile_response = client.get("/mobile")
+    assert 'data-mobile-config-link' not in mobile_response.text
 
     admin_config_response = client.get("/config")
     assert admin_config_response.status_code == 403

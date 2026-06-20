@@ -242,9 +242,16 @@ dark mode.
 
 On phone-sized `/mobile` layouts, the authenticated top bar uses an X close
 control instead of the logout action so an installed mobile web app can be
-dismissed without ending the local server-side session. Full-width `/mobile`,
-review, debug, and other non-mobile authenticated views still expose the
-explicit logout control.
+dismissed without ending the local server-side session. Managed web users also
+get a compact mobile Config gear icon in the authenticated top bar because the
+desktop navigation is hidden on small screens. The config super admin must not
+see that mobile Config shortcut. The X close action must remain a best-effort
+app-shell close only: in standalone PWA display mode it may self-target the
+current PWA window before calling `close()`, and regular phone browser mode or
+blocked close requests may fall back to `about:blank`, but it must not log out,
+post forms, or navigate through app routes. Full-width `/mobile`, review,
+debug, and other non-mobile authenticated views still expose the explicit
+logout control.
 
 The standard review interface must work well on a full computer screen.
 

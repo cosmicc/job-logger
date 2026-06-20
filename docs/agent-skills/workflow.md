@@ -36,8 +36,13 @@ wired by `job_logger/static/pwa.js`. CSS decides which action is visible:
 full-width web layouts show logout, while phone-sized mobile layouts show the X.
 The close button should only attempt to close the installed web app or browser
 tab; it must not clear the authenticated local session, submit logout, or
-perform another state-changing action. Keep the explicit logout form available
-on non-mobile authenticated pages.
+perform another state-changing action. In standalone PWA display mode, the
+browser script self-targets the current PWA window before calling `close()`
+because some mobile shells ignore a plain `window.close()` request. Regular
+phone browser mode, or a standalone close request that is ignored while the
+document remains visible, falls back to `about:blank` so the user leaves the
+authenticated app surface without posting logout or hitting another app route.
+Keep the explicit logout form available on non-mobile authenticated pages.
 
 New blank work starts through `POST /jobs/start`. A user can also start work
 from an Autotask service call selected in the mobile day navigator through

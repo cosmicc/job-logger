@@ -50,9 +50,10 @@ matching the returned Autotask resource ID to the user's stored ID.
 
 Per-user configuration lives behind authenticated managed-web-user-only
 `/config` routes. The config super admin has no user settings, must not see the
-Config menu item, must receive 403 on direct `/config` access, and always
-renders in dark mode. Theme preferences are not secrets, but autosaving them is
-still a state-changing action that must require authentication and CSRF.
+Config menu item or mobile Config icon, must receive 403 on direct `/config`
+access, and always renders in dark mode. Theme preferences are not secrets, but
+autosaving them is still a state-changing action that must require
+authentication and CSRF.
 Disabled managed web users must not use old signed sessions to change
 preferences. The `/config/password` route is managed-web-user-only, requires
 CSRF, requires two matching password entries, uses the managed-user complexity

@@ -481,6 +481,9 @@ def test_authenticated_mobile_header_renders_responsive_close_and_logout_control
     assert 'data-close-app-button' in response.text
     assert 'class="icon-button close-app-button mobile-close-action"' in response.text
     assert 'aria-label="Close app"' in response.text
+    assert 'class="icon-button mobile-config-action"' in response.text
+    assert 'aria-label="Open config"' in response.text
+    assert 'data-mobile-config-link' in response.text
     assert 'class="logout-form mobile-logout-action"' in response.text
     assert 'action="/logout"' in response.text
     assert '/static/mobile.js?v=' in response.text
@@ -496,6 +499,7 @@ def test_non_mobile_authenticated_header_keeps_logout_control(authenticated_clie
     assert 'action="/logout"' in response.text
     assert 'aria-label="Sign out"' in response.text
     assert 'data-close-app-button' not in response.text
+    assert 'data-mobile-config-link' in response.text
 
 
 def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrollable() -> None:
@@ -532,7 +536,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "background: var(--success);" in stylesheet
     assert ".ai-cleanup-button,\n.summary-tool-row .ai-cleanup-button" in stylesheet
     assert "background: var(--ai-action);" in stylesheet
-    assert ".mobile-close-action {\n  display: inline-grid;" in phone_stylesheet
+    assert ".mobile-close-action,\n.mobile-config-action {\n  display: inline-grid;" in phone_stylesheet
     assert ".mobile-logout-action {\n  display: none;" in phone_stylesheet
     mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
     review_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")

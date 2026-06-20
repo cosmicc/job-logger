@@ -299,8 +299,8 @@ requiring an application version bump.
 ## Application Version And Changelog
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
-defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and currently
-starts at `v1.0.0`.
+defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
+currently `v1.0.1`. Version history starts at `v1.0.0`.
 
 Authenticated pages show the current version discreetly in the shared header.
 Clicking that version opens `/changelog`, which displays the current version
@@ -586,10 +586,16 @@ The shared page data is styled through `app.css`, then viewport-specific
 `phone.css` or `desktop.css` loads automatically with media queries so phones
 and desktop browsers get appropriately sized layouts. Phone-sized `/mobile`
 layouts use an X button in the top bar to close the installed web app or browser
-tab without logging out; full-width `/mobile`, review, debug, and other
-non-mobile pages keep the explicit logout button. Mobile submit actions show a
-loading overlay once the tap is accepted so slow redirects or Autotask lookups
-do not look like ignored buttons.
+tab without logging out. Managed web users also get a compact Config gear icon
+in the phone top bar because the full desktop navigation is hidden on small
+screens. In standalone PWA display mode, the X close action self-targets the
+current PWA window before requesting close, which improves support in installed
+mobile shells while still leaving the server-side session intact. Regular phone
+browser mode, or a mobile platform that blocks the close request, falls back to
+`about:blank` instead of logging out or posting to another app route. Full-width
+`/mobile`, review, debug, and other non-mobile pages keep the explicit logout
+button. Mobile submit actions show a loading overlay once the tap is accepted so
+slow redirects or Autotask lookups do not look like ignored buttons.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 
