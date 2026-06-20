@@ -34,7 +34,10 @@ another approved secret store.
 
 Do not log secrets, session tokens, raw authentication headers, Cloudflare Access
 JWTs, Autotask API credentials, transcription provider credentials, raw audio,
-or other sensitive values.
+or other sensitive values. Failed app-login attempts may be written to the
+host-mounted JSONL login-failure log and shown on `/debug`, but only with
+sanitized metadata such as timestamp, client IP, submitted username, user agent,
+and password-present/length. Never write or display the raw submitted password.
 
 Prefer secure defaults. Cookies must be HTTP-only, secure when served over HTTPS,
 and SameSite-protected. Forms and state-changing requests must use CSRF
@@ -323,7 +326,7 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/time_utils.py` centralizes UTC/local conversion and 15-minute
   rounding. Do not duplicate rounding logic elsewhere.
 - `job_logger/routes/auth.py` handles login/logout and local authenticated
-  sessions.
+  sessions, including sanitized failed-login file logging.
 - `job_logger/routes/mobile.py` handles `/mobile`, active job start/end/save,
   active rounded-start adjustment, WebSocket recording streams for active and
   unsubmitted review jobs, compatibility recording uploads, description text
@@ -331,8 +334,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/routes/review.py` handles review listing, edit/save/accept/retry,
   updating or deleting existing submitted Autotask entries, ticket lookup for a
   selected job, and explicit local **Delete time entry** cleanup.
-- `job_logger/routes/debug.py` handles the authenticated diagnostic page and the
-  Autotask API connectivity test.
+- `job_logger/routes/debug.py` handles the authenticated diagnostic page, the
+  sanitized failed-login window, and the Autotask API connectivity test.
 - `job_logger/routes/health.py` exposes container health endpoints.
 - `job_logger/routes/pwa.py` serves the web app manifest and root-scoped
   service worker for installed mobile app behavior. The service worker must not
@@ -347,6 +350,8 @@ The application is a FastAPI project under `job_logger/`.
   URL validation, safe response parsing, and provider error normalization.
 - `job_logger/services/transcription.py` owns speech-to-text provider behavior.
 - `job_logger/services/audit.py` records immutable audit events.
+- `job_logger/services/login_failures.py` writes and reads the host-mounted
+  sanitized failed-login JSONL log.
 - `job_logger/templates/` contains Jinja pages for mobile, review, debug, and
   authentication views.
 - `job_logger/static/` contains browser-side JavaScript, CSS, PWA metadata, and

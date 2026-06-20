@@ -109,6 +109,13 @@ class Settings:
     # It must be provided through a secret environment file or secret store.
     app_password: str | None
 
+    # LOGIN_FAILURE_LOG_PATH is a JSONL file for failed app-login attempts.
+    # It should live in a host-mounted log directory for Docker deployments.
+    login_failure_log_path: str
+
+    # LOGIN_FAILURE_DEBUG_ROWS limits failed-login rows shown on /debug.
+    login_failure_debug_rows: int
+
     # APP_SESSION_COOKIE_SECURE should be true when served through HTTPS/Cloudflare.
     session_cookie_secure: bool
 
@@ -275,6 +282,11 @@ def load_settings() -> Settings:
         ),
         app_username=os.getenv("APP_USERNAME", "admin"),
         app_password=os.getenv("APP_PASSWORD") or None,
+        login_failure_log_path=os.getenv(
+            "LOGIN_FAILURE_LOG_PATH",
+            "/var/log/job-logger/job-logger-login-failures.log",
+        ),
+        login_failure_debug_rows=_get_integer("LOGIN_FAILURE_DEBUG_ROWS", 200),
         session_cookie_secure=_get_boolean("APP_SESSION_COOKIE_SECURE", False),
         allowed_hosts=_get_csv("APP_ALLOWED_HOSTS", "localhost,127.0.0.1,app"),
         cloudflare_access_required=_get_boolean("CLOUDFLARE_ACCESS_REQUIRED", False),

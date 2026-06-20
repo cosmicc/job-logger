@@ -43,7 +43,19 @@ Autotask REST API references used by this app:
 
 3. Replace `APP_SECRET_KEY` with a long random value.
 
-4. Start the stack:
+4. Create the host-mounted log directory:
+
+   ```bash
+   mkdir -p logs
+   sudo chown 1000:1000 logs
+   chmod 750 logs
+   ```
+
+   Docker Compose mounts `${JOB_LOGGER_HOST_LOG_DIR:-./logs}` to
+   `/var/log/job-logger` inside the app container. The image runs as UID/GID
+   `1000`, so the host directory must be writable by that ID.
+
+5. Start the stack:
 
    ```bash
    docker compose up -d --build
@@ -55,7 +67,7 @@ Autotask REST API references used by this app:
    docker compose up -d --build app db nginx
    ```
 
-5. Open the local troubleshooting URL at:
+6. Open the local troubleshooting URL at:
 
    ```text
    http://127.0.0.1:11030
@@ -552,6 +564,16 @@ The `/debug` page shows the source-controlled application version and includes a
 configuration and the live Companies/Tickets API calls used by the app. The
 debug button is manual and always runs a fresh live check. It is not used by
 the initial mobile page or blank Start Work route.
+
+The same `/debug` page also shows a recent failed-login window. Failed local
+app login attempts are appended as JSON Lines to
+`/var/log/job-logger/job-logger-login-failures.log` inside the app container.
+Docker Compose bind-mounts that directory from
+`${JOB_LOGGER_HOST_LOG_DIR:-./logs}`, so the default host-readable file is
+`./logs/job-logger-login-failures.log`. The log and debug page include the
+attempt timestamp, client IP, submitted username, user agent, and whether a
+password was supplied with its length. The raw submitted password is never
+stored or displayed.
 
 The `scripts/discover_autotask_ids.py` helper also prints a workflow endpoint
 preflight section. Role, billing-code, and ticket-status ID discovery can

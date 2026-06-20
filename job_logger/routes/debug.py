@@ -1,4 +1,4 @@
-"""Troubleshooting routes for Autotask provider connectivity diagnostics."""
+"""Troubleshooting routes for Autotask and authentication diagnostics."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from job_logger.models import Job, SubmissionAttempt
 from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_token
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
+from job_logger.services.login_failures import read_recent_login_failures
 from job_logger.time_utils import format_local_display
 from job_logger.ui import template_context, templates
 from job_logger.version import APP_VERSION
@@ -113,7 +114,7 @@ def _serialize_submission_attempt(attempt: SubmissionAttempt, job_ticket_number:
 
 @router.get("", response_class=HTMLResponse)
 def debug_page(request: Request, database_session: Session = Depends(get_database_session)) -> Response:
-    """Render the Autotask connection and submission logs page."""
+    """Render authenticated diagnostics, submission attempts, and login failures."""
 
     try:
         require_authenticated_username(request)
@@ -142,6 +143,9 @@ def debug_page(request: Request, database_session: Session = Depends(get_databas
             app_version=APP_VERSION,
             autotask_settings=_safe_autotask_config(),
             autotask_connectivity=request.session.get("autotask_connectivity_result"),
+            login_failure_log_path=settings.login_failure_log_path,
+            login_failure_debug_rows=settings.login_failure_debug_rows,
+            login_failures=read_recent_login_failures(),
             submission_attempts=debug_submission_attempts,
         ),
     )

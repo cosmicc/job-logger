@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,6 +14,8 @@ os.environ["APP_ENV"] = "development"
 os.environ["APP_SECRET_KEY"] = "test-secret-key-with-enough-length"
 os.environ["APP_USERNAME"] = "admin"
 os.environ["APP_PASSWORD"] = "test-password"
+os.environ["LOGIN_FAILURE_LOG_PATH"] = "/tmp/job-logger-test-login-failures.log"
+os.environ["LOGIN_FAILURE_DEBUG_ROWS"] = "20"
 os.environ["APP_ALLOWED_HOSTS"] = "testserver,localhost,127.0.0.1"
 os.environ["APP_SESSION_COOKIE_SECURE"] = "false"
 os.environ["CLOUDFLARE_ACCESS_REQUIRED"] = "false"
@@ -37,12 +40,15 @@ def extract_csrf_token(html_text: str) -> str:
 def client() -> Generator[TestClient, None, None]:
     """Return a TestClient backed by a fresh in-memory database."""
 
+    login_failure_log_path = Path(os.environ["LOGIN_FAILURE_LOG_PATH"])
+    login_failure_log_path.unlink(missing_ok=True)
     database.configure_database("sqlite+pysqlite://")
     Base.metadata.create_all(database.engine)
     test_app = create_app()
     with TestClient(test_app) as test_client:
         yield test_client
     Base.metadata.drop_all(database.engine)
+    login_failure_log_path.unlink(missing_ok=True)
 
 
 @pytest.fixture()

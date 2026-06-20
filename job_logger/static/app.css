@@ -1596,6 +1596,11 @@ td a {
   margin-top: 18px;
 }
 
+.login-failure-window {
+  max-height: 280px;
+  overflow: auto;
+}
+
 .debug-requests summary {
   cursor: pointer;
 }

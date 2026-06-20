@@ -4,6 +4,10 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Added host-mounted sanitized failed-login JSONL logging and a `/debug` login
+  failures window, while keeping raw submitted passwords out of logs and
+  diagnostics.
+
 - Added server-local Ollama and LM Studio options for AI Cleanup, including
   local-provider URL validation, Docker host-gateway configuration, and
   provider-specific model/base URL settings.

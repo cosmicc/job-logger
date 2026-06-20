@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import tomllib
 from pathlib import Path
 
@@ -31,6 +33,62 @@ def test_debug_route_requires_login(client: TestClient) -> None:
     response = client.get("/debug", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/login"
+
+
+def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) -> None:
+    """Failed app logins should be visible in diagnostics without raw passwords."""
+
+    login_page_response = client.get("/login")
+    csrf_token = extract_csrf_token(login_page_response.text)
+    failed_password = "bad-password"
+    failed_response = client.post(
+        "/login",
+        headers={
+            "X-Forwarded-For": "203.0.113.9, 10.0.0.2",
+            "User-Agent": "Failed Login Test",
+        },
+        data={
+            "csrf_token": csrf_token,
+            "username": "bad-user",
+            "password": failed_password,
+        },
+        follow_redirects=False,
+    )
+    assert failed_response.status_code == 303
+
+    log_path = Path(os.environ["LOGIN_FAILURE_LOG_PATH"])
+    log_text = log_path.read_text(encoding="utf-8")
+    assert failed_password not in log_text
+
+    log_payload = json.loads(log_text.strip())
+    assert log_payload["username"] == "bad-user"
+    assert log_payload["client_ip"] == "203.0.113.9"
+    assert log_payload["password_supplied"] is True
+    assert log_payload["password_length"] == len(failed_password)
+    assert log_payload["user_agent"] == "Failed Login Test"
+    assert "created_at_utc" in log_payload
+
+    login_page_response = client.get("/login")
+    csrf_token = extract_csrf_token(login_page_response.text)
+    success_response = client.post(
+        "/login",
+        data={
+            "csrf_token": csrf_token,
+            "username": "admin",
+            "password": "test-password",
+        },
+        follow_redirects=False,
+    )
+    assert success_response.status_code == 303
+
+    debug_response = client.get("/debug")
+    assert debug_response.status_code == 200
+    assert "Login failures" in debug_response.text
+    assert "bad-user" in debug_response.text
+    assert "203.0.113.9" in debug_response.text
+    assert "supplied, 12 chars" in debug_response.text
+    assert os.environ["LOGIN_FAILURE_LOG_PATH"] in debug_response.text
+    assert failed_password not in debug_response.text
 
 
 def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -> None:

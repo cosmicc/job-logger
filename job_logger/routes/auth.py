@@ -17,6 +17,7 @@ from job_logger.security import (
     verify_password,
 )
 from job_logger.services.audit import record_audit_event
+from job_logger.services.login_failures import log_failed_login_attempt
 from job_logger.ui import template_context, templates
 
 router = APIRouter(tags=["auth"])
@@ -63,6 +64,11 @@ async def login(
         action="auth.login.failed",
         request=request,
         details={"username": submitted_username},
+    )
+    log_failed_login_attempt(
+        request,
+        submitted_username=submitted_username,
+        submitted_password=submitted_password,
     )
     database_session.commit()
     add_flash_message(request, "Invalid username or password.", "error")

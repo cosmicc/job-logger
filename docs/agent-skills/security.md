@@ -31,6 +31,15 @@ Application setup in `job_logger/main.py` configures:
 
 Production must not use default secrets or missing passwords.
 
+Failed local app login attempts are recorded in the configured JSONL file,
+defaulting to `/var/log/job-logger/job-logger-login-failures.log` inside the
+container. Docker Compose mounts `/var/log/job-logger` from the host-configured
+`JOB_LOGGER_HOST_LOG_DIR` so operators can read log files from the Docker host.
+The failed-login log and `/debug` failed-login window may show timestamp,
+client IP, submitted username, user agent, and password-present/length
+metadata. They must never include the raw submitted password, session tokens,
+authentication headers, or Cloudflare Access JWTs.
+
 ## CSRF Rules
 
 Forms use rendered CSRF tokens.

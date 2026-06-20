@@ -106,6 +106,53 @@
       </div>
     </section>
 
+    <section class="table-panel" aria-label="Recent failed login attempts">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <h2>Login failures</h2>
+          <p class="muted-text">
+            Newest records first, max {{ login_failure_debug_rows }}.
+            Source: {{ login_failure_log_path }}
+          </p>
+        </div>
+
+        {% if login_failures %}
+          <div class="table-wrap login-failure-window">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Client IP</th>
+                  <th>Username</th>
+                  <th>Password supplied</th>
+                  <th>User agent</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for failure in login_failures %}
+                  <tr>
+                    <td>{{ failure.created_at_display }}</td>
+                    <td>{{ failure.client_ip }}</td>
+                    <td>{{ failure.username or "blank" }}</td>
+                    <td>
+                      {% if failure.password_supplied %}
+                        supplied, {{ failure.password_length }} chars
+                      {% else %}
+                        not supplied
+                      {% endif %}
+                    </td>
+                    <td class="truncate-cell" title="{{ failure.user_agent }}">{{ failure.user_agent or "unknown" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="muted-text">No failed application login attempts have been logged yet.</p>
+        {% endif %}
+      </div>
+    </section>
+
     <section class="table-panel" aria-label="Recent Autotask submission attempts">
       <div class="debug-panel-body">
         <div class="review-header">
