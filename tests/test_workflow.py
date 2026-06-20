@@ -1692,9 +1692,9 @@ def test_mobile_service_call_date_labels(authenticated_client: TestClient, monke
     invalid_response = authenticated_client.get("/mobile/service-calls?date=not-a-date")
 
     assert today_response.status_code == 200
-    assert today_response.json()["date_label"] == "Friday (today)"
-    assert yesterday_response.json()["date_label"] == "Thursday (yesterday)"
-    assert tomorrow_response.json()["date_label"] == "Saturday (tomorrow)"
+    assert today_response.json()["date_label"] == "Friday (Today)"
+    assert yesterday_response.json()["date_label"] == "Thursday (Yesterday)"
+    assert tomorrow_response.json()["date_label"] == "Saturday (Tomorrow)"
     assert outside_week_response.json()["date_label"] == "Jun 25, 2026"
     assert invalid_response.status_code == 400
     assert invalid_response.json()["detail"] == "Selected service-call date is invalid."

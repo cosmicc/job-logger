@@ -691,7 +691,7 @@ a:focus-visible {
   grid-template-columns: 34px minmax(0, 1fr) 34px;
   gap: 8px;
   align-items: center;
-  width: min(100%, 360px);
+  width: 100%;
 }
 
 .service-call-date-step-button {

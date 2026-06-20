@@ -5,7 +5,7 @@ All recorded changes to Job Logger are documented in this file.
 ## Unreleased
 
 - Added previous/next day navigation and a calendar picker to the mobile
-  service-call start list. The selected day label shows today/yesterday/tomorrow
+  service-call start list. The selected day label shows Today/Yesterday/Tomorrow
   context inside the current week and falls back to the calendar date outside
   the current week. Service-call starts now submit the selected date and the
   server re-verifies that date's resource-specific service-call list before

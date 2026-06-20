@@ -140,9 +140,9 @@ def _service_call_date_label(selected_service_call_date: date) -> str:
     day_label = selected_service_call_date.strftime("%A")
     relative_day_delta = (selected_service_call_date - current_local_date).days
     relative_labels = {
-        -1: "yesterday",
-        0: "today",
-        1: "tomorrow",
+        -1: "Yesterday",
+        0: "Today",
+        1: "Tomorrow",
     }
     relative_label = relative_labels.get(relative_day_delta)
     if relative_label:
