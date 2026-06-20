@@ -468,7 +468,7 @@ tests or isolated development.
 
 Do not set a global `AUTOTASK_RESOURCE_ID`. Each managed web user has a required
 Autotask resource ID on `/users`; Job Logger uses that user-specific resource ID
-for today's service-call lookup and for `TimeEntries.resourceID` when that user
+for service-call lookup and for `TimeEntries.resourceID` when that user
 submits work.
 
 Do not set static role or billing-code IDs. When a reviewed job is submitted,
@@ -544,22 +544,25 @@ read-only identity/context fields; review save and submit use the stored values
 instead of trusting form posts. Once a job has a ticket number, the open-ticket
 picker is hidden for that job.
 
-When an active job slot is available, the mobile start panel also lists today's
-Autotask service calls assigned to the logged-in web user's Autotask resource
-ID. The mobile page
-renders first with a loading state and no synchronous Autotask calls. After the
-window load event, the browser fetches `/mobile/service-calls` so slow Autotask
-service-call lookups show progress instead of delaying the whole start screen.
+When an active job slot is available, the mobile start panel also lists Autotask
+service calls assigned to the logged-in web user's Autotask resource ID for the
+selected local date. The mobile page renders first with a loading state and no
+synchronous Autotask calls. After the window load event, the browser fetches
+`/mobile/service-calls` so slow Autotask service-call lookups show progress
+instead of delaying the whole start screen. The compact date navigator can move
+to the previous or next day, and tapping the displayed day opens a calendar
+picker. Current-week days are labeled by day name with today/yesterday/tomorrow
+context when applicable; dates outside the current week use a calendar date.
 Each service-call choice shows the client name, the detected `Remote` or
 `On-Site` value from the service-call details text, the local start/end time
 range such as `4:00pm-5:00pm`, and the associated ticket title. Remote and
 On-Site cards use stronger distinct accent colors and badges so scheduled call
 type is easy to scan without wasting mobile screen space.
-Tapping a service call starts an active job with
-the server-verified ticket number, ticket title, bounded ticket description,
-client name, company ID, and detected work-location mode. The browser submits
-only the service-call ticket association ID and CSRF token; the server re-checks
-today's resource-specific service-call list before creating the job. If service-call
+Tapping a service call starts an active job with the server-verified ticket
+number, ticket title, bounded ticket description, client name, company ID, and
+detected work-location mode. The browser submits only the service-call ticket
+association ID, selected date, and CSRF token; the server re-checks that date's
+resource-specific service-call list before creating the job. If service-call
 lookup fails because permissions are missing, the blank Start Work path remains
 available.
 

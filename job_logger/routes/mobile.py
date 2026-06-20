@@ -5,10 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 import time as monotonic_time
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 
@@ -56,7 +57,7 @@ from job_logger.services.jobs import (
 )
 from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
 from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
-from job_logger.time_utils import format_local_compact_time_range
+from job_logger.time_utils import format_local_compact_time_range, local_date_for, now_utc
 from job_logger.ui import template_context, templates
 
 router = APIRouter(tags=["mobile"])
@@ -106,11 +107,76 @@ def _current_enabled_web_user(request: Request, database_session: Session):
     return get_enabled_web_user_by_id_or_raise(database_session, web_user_id)
 
 
-def _load_todays_service_calls_for_mobile_start(resource_id: int) -> tuple[list[AutotaskServiceCallOption], str | None]:
-    """Return today's service calls and a safe display error for the start panel."""
+def _parse_service_call_local_date(raw_service_call_date: str | None) -> date:
+    """Return the selected local service-call date or today's local date."""
+
+    normalized_service_call_date = (raw_service_call_date or "").strip()
+    if not normalized_service_call_date:
+        return local_date_for(now_utc())
+    if len(normalized_service_call_date) > 10:
+        raise ValueError("Selected service-call date is invalid.")
 
     try:
-        return get_autotask_provider().list_todays_service_calls_for_resource(resource_id=resource_id), None
+        return date.fromisoformat(normalized_service_call_date)
+    except ValueError as exc:
+        raise ValueError("Selected service-call date is invalid.") from exc
+
+
+def _format_service_call_calendar_date(selected_service_call_date: date) -> str:
+    """Return a compact user-facing date for service-call day navigation."""
+
+    return f"{selected_service_call_date.strftime('%b')} {selected_service_call_date.day}, {selected_service_call_date.year}"
+
+
+def _service_call_date_label(selected_service_call_date: date) -> str:
+    """Return the mobile day label for service-call date navigation."""
+
+    current_local_date = local_date_for(now_utc())
+    current_week_start = current_local_date - timedelta(days=current_local_date.weekday())
+    current_week_end = current_week_start + timedelta(days=6)
+    if not current_week_start <= selected_service_call_date <= current_week_end:
+        return _format_service_call_calendar_date(selected_service_call_date)
+
+    day_label = selected_service_call_date.strftime("%A")
+    relative_day_delta = (selected_service_call_date - current_local_date).days
+    relative_labels = {
+        -1: "yesterday",
+        0: "today",
+        1: "tomorrow",
+    }
+    relative_label = relative_labels.get(relative_day_delta)
+    if relative_label:
+        return f"{day_label} ({relative_label})"
+
+    return day_label
+
+
+def _service_call_date_payload(selected_service_call_date: date) -> dict[str, str]:
+    """Return date-navigation metadata for the mobile service-call panel."""
+
+    previous_service_call_date = selected_service_call_date - timedelta(days=1)
+    next_service_call_date = selected_service_call_date + timedelta(days=1)
+    date_label = _service_call_date_label(selected_service_call_date)
+    return {
+        "selected_date": selected_service_call_date.isoformat(),
+        "previous_date": previous_service_call_date.isoformat(),
+        "next_date": next_service_call_date.isoformat(),
+        "date_label": date_label,
+        "empty_message": f"No service calls are scheduled for {date_label}.",
+    }
+
+
+def _load_service_calls_for_mobile_start(
+    resource_id: int,
+    selected_service_call_date: date,
+) -> tuple[list[AutotaskServiceCallOption], str | None]:
+    """Return service calls for the selected day and a safe display error."""
+
+    try:
+        return get_autotask_provider().list_todays_service_calls_for_resource(
+            resource_id=resource_id,
+            local_service_date=selected_service_call_date,
+        ), None
     except AutotaskSubmissionError as exc:
         return [], str(exc)
 
@@ -547,25 +613,45 @@ def mobile_page(
 @router.get("/mobile/service-calls")
 def mobile_service_call_options(
     request: Request,
+    service_call_date: str | None = Query(default=None, alias="date"),
     database_session: Session = Depends(get_database_session),
 ) -> JSONResponse:
-    """Return today's service-call start options for the already-rendered mobile page."""
+    """Return service-call start options for the already-rendered mobile page."""
 
     try:
         web_user = _current_enabled_web_user(request, database_session)
     except (HTTPException, WebUserError) as exc:
         return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=403)
 
+    try:
+        selected_service_call_date = _parse_service_call_local_date(service_call_date)
+    except ValueError as exc:
+        return JSONResponse({"detail": str(exc), "service_calls": []}, status_code=400)
+
+    service_call_date_context = _service_call_date_payload(selected_service_call_date)
     active_jobs = list_active_jobs_for_web_user(database_session, web_user.id)
     if len(active_jobs) >= MAX_ACTIVE_JOBS:
-        return JSONResponse({"service_calls": [], "active_job_slots_available": False})
+        return JSONResponse(
+            {
+                **service_call_date_context,
+                "service_calls": [],
+                "active_job_slots_available": False,
+            }
+        )
 
-    service_call_options, service_call_error = _load_todays_service_calls_for_mobile_start(web_user.autotask_resource_id)
+    service_call_options, service_call_error = _load_service_calls_for_mobile_start(
+        web_user.autotask_resource_id,
+        selected_service_call_date,
+    )
     if service_call_error:
-        return JSONResponse({"detail": service_call_error, "service_calls": []}, status_code=400)
+        return JSONResponse(
+            {**service_call_date_context, "detail": service_call_error, "service_calls": []},
+            status_code=400,
+        )
 
     return JSONResponse(
         {
+            **service_call_date_context,
             "active_job_slots_available": True,
             "service_calls": [
                 _service_call_option_payload(service_call_option)
@@ -674,13 +760,20 @@ async def start_work_from_service_call(
         return RedirectResponse(url="/mobile", status_code=303)
 
     try:
+        selected_service_call_date = _parse_service_call_local_date(str(form_data.get("service_call_date") or ""))
+    except ValueError as exc:
+        add_flash_message(request, str(exc), "error")
+        return RedirectResponse(url="/mobile", status_code=303)
+
+    try:
         web_user = _current_enabled_web_user(request, database_session)
         service_call_options = get_autotask_provider().list_todays_service_calls_for_resource(
-            resource_id=web_user.autotask_resource_id
+            resource_id=web_user.autotask_resource_id,
+            local_service_date=selected_service_call_date,
         )
         selected_service_call = _find_matching_service_call_option(service_call_options, service_call_ticket_id)
         if selected_service_call is None:
-            raise JobWorkflowError("Selected service call is not assigned to this resource for today.")
+            raise JobWorkflowError("Selected service call is not assigned to this resource for that date.")
 
         job = start_job(
             database_session,
@@ -708,6 +801,7 @@ async def start_work_from_service_call(
                 "autotask_resource_id": web_user.autotask_resource_id,
                 "service_call_id": selected_service_call.service_call_id,
                 "service_call_ticket_id": selected_service_call.service_call_ticket_id,
+                "service_call_date": selected_service_call_date.isoformat(),
                 "ticket_number": job.ticket_number,
                 "autotask_company_selected": job.autotask_company_id is not None,
                 "work_location": job.work_location.value,

@@ -60,7 +60,8 @@ Current provider responsibilities:
   super-admin user manager.
 - Query one selected company by ID.
 - Query open tickets for a company.
-- Query today's service calls for the logged-in managed web user's resource.
+- Query selected-day service calls for the logged-in managed web user's
+  resource.
 - Resolve service-call ticket/resource relationships before starting a job from
   a service call.
 - Query ticket status picklist metadata.
@@ -147,24 +148,26 @@ verified JSON response rather than trusting the clicked browser option.
 
 ## Service Call Lookup
 
-The mobile start panels can list today's Autotask service calls for the
+The mobile start panels can list selected-day Autotask service calls for the
 logged-in managed web user's Autotask resource ID. This is a read-only
 convenience path for starting a job from scheduled dispatch data, not a
-separate trust boundary.
+separate trust boundary. The browser may ask for another local date through
+`/mobile/service-calls?date=YYYY-MM-DD`; the resource ID still comes only from
+the authenticated managed web user.
 
 Service-call lookup must stay inside `job_logger/services/autotask.py` because
 it needs several related Autotask entities:
 
-- `ServiceCalls` for today's scheduled call details.
+- `ServiceCalls` for scheduled call details in the selected local date bounds.
 - `ServiceCallTickets` to identify tickets associated with each service call.
 - `ServiceCallTicketResources` to verify the user's resource is assigned to
   that specific service-call ticket row.
 - `Tickets` for ticket number, title, and bounded description.
 - `Companies` for the client name stored with the new active job.
 
-The browser must submit only `service_call_ticket_id` plus CSRF to
-`POST /jobs/start/service-call`. The route re-reads the provider's
-server-verified list for the current local day and current managed web user's
+The browser must submit only `service_call_ticket_id`, `service_call_date`, and
+CSRF to `POST /jobs/start/service-call`. The route re-reads the provider's
+server-verified list for the selected local date and current managed web user's
 resource before creating a job. Never accept ticket number, ticket title, ticket
 description, client name, company ID, or work-location values from hidden fields
 for this path.
@@ -218,7 +221,7 @@ Current cache policy:
 - Selected company metadata by ID: two hours.
 - Ticket status picklist labels: 15 minutes.
 - Recently displayed open-ticket selection lists: two minutes.
-- Today's displayed service-call start list: two minutes.
+- Displayed service-call start list for one selected local date: two minutes.
 - Other short-lived Autotask lookup data: 15 minutes unless documented
   otherwise.
 

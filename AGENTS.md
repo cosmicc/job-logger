@@ -180,7 +180,7 @@ entries for the same accepted job.
 
 Autotask resource IDs are not global configuration. They belong to managed web
 users and are required before a user can start work. The app uses the logged-in
-or owning user's resource ID for today's service-call lookup and for
+or owning user's resource ID for service-call lookup and for
 `TimeEntries.resourceID` on create. Static Autotask role and billing-code IDs
 must not be configured. The live provider must query the selected ticket at
 submission time, use `Tickets.assignedResourceroleID` as `TimeEntries.roleID`,
@@ -465,9 +465,11 @@ The normal workflow is:
 4. A managed web user opens `/mobile`.
 5. The `/mobile` page renders from local application state without running an
    Autotask API contactability check. After the page has loaded, browser
-   JavaScript queries `/mobile/service-calls` to populate today's service-call
-   start cards for that user's Autotask resource, including each call's local
-   start/end time range.
+   JavaScript queries `/mobile/service-calls` to populate service-call start
+   cards for the selected local date and that user's Autotask resource,
+   including each call's local start/end time range. The mobile date navigator
+   can move backward/forward by day or open a calendar picker, but service-call
+   starts are still verified server-side for the submitted date and resource.
 6. User starts Job 1 or Job 2. Blank Start Work creates a local active job
    owned by that web user without first probing Autotask. At most two active
    jobs may exist at once per web user.

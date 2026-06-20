@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -511,6 +511,9 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "linear-gradient(90deg, rgba(45, 212, 191" in stylesheet
     assert "linear-gradient(90deg, rgba(245, 158, 11" in stylesheet
     assert ".service-call-loading-state" in stylesheet
+    assert ".service-call-date-nav" in stylesheet
+    assert ".service-call-date-step-button" in stylesheet
+    assert ".service-call-date-button" in stylesheet
     assert ".mobile-page-loading" in stylesheet
     assert "button:not(:disabled):active" in stylesheet
     assert "transform: translateY(1px) scale(0.985);" in stylesheet
@@ -1595,7 +1598,11 @@ def test_mobile_service_call_start_populates_active_job(authenticated_client: Te
     mobile_html = mobile_page_response.text
     csrf_token = extract_csrf_token(mobile_html)
 
-    assert "Today's service calls" in mobile_html
+    assert "Service calls" in mobile_html
+    assert 'data-service-call-date-previous' in mobile_html
+    assert 'data-service-call-date-button' in mobile_html
+    assert 'data-service-call-date-next' in mobile_html
+    assert 'data-service-call-date-input' in mobile_html
     assert "Loading service calls..." in mobile_html
     assert 'data-service-call-url="/mobile/service-calls"' in mobile_html
     assert "Mock onsite service call" not in mobile_html
@@ -1603,10 +1610,15 @@ def test_mobile_service_call_start_populates_active_job(authenticated_client: Te
     assert "Mock open ticket for Scheduled Service Client" not in mobile_html
     assert "T20260616.0001 - Mock open ticket for Scheduled Service Client" not in mobile_html
 
-    service_calls_response = authenticated_client.get("/mobile/service-calls")
+    service_calls_response = authenticated_client.get("/mobile/service-calls?date=2026-06-20")
     assert service_calls_response.status_code == 200
     service_calls_payload = service_calls_response.json()
     assert service_calls_payload["active_job_slots_available"] is True
+    assert service_calls_payload["selected_date"] == "2026-06-20"
+    assert service_calls_payload["previous_date"] == "2026-06-19"
+    assert service_calls_payload["next_date"] == "2026-06-21"
+    assert service_calls_payload["date_label"]
+    assert "No service calls are scheduled for" in service_calls_payload["empty_message"]
     assert service_calls_payload["service_calls"][0] == {
         "service_call_ticket_id": 6101,
         "client_name": "Scheduled Service Client",
@@ -1619,7 +1631,7 @@ def test_mobile_service_call_start_populates_active_job(authenticated_client: Te
 
     start_response = authenticated_client.post(
         "/jobs/start/service-call",
-        data={"csrf_token": csrf_token, "service_call_ticket_id": "6101"},
+        data={"csrf_token": csrf_token, "service_call_ticket_id": "6101", "service_call_date": "2026-06-20"},
         follow_redirects=False,
     )
     assert start_response.status_code == 303
@@ -1638,6 +1650,7 @@ def test_mobile_service_call_start_populates_active_job(authenticated_client: Te
         assert start_audit_event.details["source"] == "autotask_service_call"
         assert start_audit_event.details["service_call_id"] == 6001
         assert start_audit_event.details["service_call_ticket_id"] == 6101
+        assert start_audit_event.details["service_call_date"] == "2026-06-20"
 
     updated_mobile_page_response = authenticated_client.get("/mobile")
     updated_mobile_html = updated_mobile_page_response.text
@@ -1662,6 +1675,29 @@ def test_mobile_service_call_start_rejects_unlisted_selection(authenticated_clie
 
     with database.SessionLocal() as database_session:
         assert get_active_job(database_session) is None
+
+
+def test_mobile_service_call_date_labels(authenticated_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Service-call day navigation should label current-week dates clearly."""
+
+    monkeypatch.setattr(
+        "job_logger.routes.mobile.now_utc",
+        lambda: datetime(2026, 6, 19, 13, 0, tzinfo=UTC),
+    )
+
+    today_response = authenticated_client.get("/mobile/service-calls?date=2026-06-19")
+    yesterday_response = authenticated_client.get("/mobile/service-calls?date=2026-06-18")
+    tomorrow_response = authenticated_client.get("/mobile/service-calls?date=2026-06-20")
+    outside_week_response = authenticated_client.get("/mobile/service-calls?date=2026-06-25")
+    invalid_response = authenticated_client.get("/mobile/service-calls?date=not-a-date")
+
+    assert today_response.status_code == 200
+    assert today_response.json()["date_label"] == "Friday (today)"
+    assert yesterday_response.json()["date_label"] == "Thursday (yesterday)"
+    assert tomorrow_response.json()["date_label"] == "Saturday (tomorrow)"
+    assert outside_week_response.json()["date_label"] == "Jun 25, 2026"
+    assert invalid_response.status_code == 400
+    assert invalid_response.json()["detail"] == "Selected service-call date is invalid."
 
 
 def test_mobile_selected_ticket_title_drives_review_heading(authenticated_client: TestClient) -> None:

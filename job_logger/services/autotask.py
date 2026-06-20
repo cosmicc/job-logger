@@ -6,7 +6,7 @@ import re
 import time
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from threading import RLock
 from typing import Any
@@ -54,8 +54,8 @@ COMPANY_CACHE_TTL_SECONDS = 2 * 60 * 60
 # while still expiring quickly so stale ticket state is not treated as durable.
 OPEN_TICKET_SELECTION_CACHE_TTL_SECONDS = 2 * 60
 
-# SERVICE_CALL_SELECTION_CACHE_TTL_SECONDS keeps today's service-call list long
-# enough for a tap-to-start action to reuse the server-resolved Autotask data.
+# SERVICE_CALL_SELECTION_CACHE_TTL_SECONDS keeps a selected-day service-call
+# list long enough for a tap-to-start action to reuse server-resolved data.
 SERVICE_CALL_SELECTION_CACHE_TTL_SECONDS = 2 * 60
 
 # AUTOTASK_MAX_RECORDS_PER_PAGE uses Autotask's maximum documented query page size.
@@ -337,8 +337,9 @@ class BaseAutotaskProvider:
         self,
         resource_id: int,
         current_time_utc: datetime | None = None,
+        local_service_date: date | None = None,
     ) -> list[AutotaskServiceCallOption]:
-        """Return today's service calls for one Autotask resource."""
+        """Return service calls for one resource on a selected local date."""
 
         raise NotImplementedError
 
@@ -676,11 +677,13 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         self,
         resource_id: int,
         current_time_utc: datetime | None = None,
+        local_service_date: date | None = None,
     ) -> list[AutotaskServiceCallOption]:
         """Return deterministic service-call options for local mobile testing."""
 
         safe_current_time_utc = ensure_utc(current_time_utc or now_utc())
-        local_day_start_utc, _local_day_end_utc = local_day_bounds_utc(local_date_for(safe_current_time_utc))
+        selected_local_date = local_service_date or local_date_for(safe_current_time_utc)
+        local_day_start_utc, _local_day_end_utc = local_day_bounds_utc(selected_local_date)
         first_start_utc = local_day_start_utc + timedelta(hours=12)
         first_end_utc = first_start_utc + timedelta(hours=1)
         second_start_utc = local_day_start_utc + timedelta(hours=14)
@@ -790,7 +793,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         local_day_start_utc: datetime,
         local_day_end_utc: datetime,
     ) -> tuple[str, int, str, str]:
-        """Return the cache key for today's service-call start list."""
+        """Return the cache key for a selected-day service-call start list."""
 
         return (
             self._cache_namespace(),
@@ -1758,14 +1761,16 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         self,
         resource_id: int,
         current_time_utc: datetime | None = None,
+        local_service_date: date | None = None,
     ) -> list[AutotaskServiceCallOption]:
-        """Return today's service calls assigned to one managed user's resource."""
+        """Return service calls assigned to one managed user's resource for a local date."""
 
         if resource_id <= 0:
             raise AutotaskSubmissionError("A managed web user's Autotask resource ID is required before loading today's service calls.")
 
         safe_current_time_utc = ensure_utc(current_time_utc or now_utc())
-        local_day_start_utc, local_day_end_utc = local_day_bounds_utc(local_date_for(safe_current_time_utc))
+        selected_local_date = local_service_date or local_date_for(safe_current_time_utc)
+        local_day_start_utc, local_day_end_utc = local_day_bounds_utc(selected_local_date)
         cache_key = self._service_call_selection_cache_key(resource_id, local_day_start_utc, local_day_end_utc)
         cached_service_call_options = _get_cached_value(_SERVICE_CALL_SELECTION_CACHE, cache_key)
         if isinstance(cached_service_call_options, list):

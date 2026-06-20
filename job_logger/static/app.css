@@ -677,6 +677,63 @@ a:focus-visible {
   margin: 0;
 }
 
+.service-call-panel-header {
+  display: grid;
+  gap: 10px;
+}
+
+.service-call-panel-header h3 {
+  margin: 0;
+}
+
+.service-call-date-nav {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  gap: 8px;
+  align-items: center;
+  width: min(100%, 360px);
+}
+
+.service-call-date-step-button {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+}
+
+.service-call-date-step-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.service-call-date-picker {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.service-call-date-button {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.service-call-date-input {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  border: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .service-call-start-panel {
   display: grid;
   gap: 10px;

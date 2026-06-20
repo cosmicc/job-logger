@@ -40,7 +40,7 @@ perform another state-changing action. Keep the explicit logout form available
 on non-mobile authenticated pages.
 
 New blank work starts through `POST /jobs/start`. A user can also start work
-from a current-day Autotask service call through
+from an Autotask service call selected in the mobile day navigator through
 `POST /jobs/start/service-call`.
 
 Only database-managed web users can start or mutate jobs. The config super
@@ -59,12 +59,12 @@ Security and data-integrity requirements for start:
   values. The route ignores stale or crafted pre-start client/ticket fields so
   those values can only be attached through the active-job workflow.
 - Service-call starts must submit only the selected service-call ticket
-  association ID plus CSRF. The route must resolve today's service-call list
-  server-side for the logged-in managed web user's Autotask resource ID, verify
-  the selected association belongs to that list, then populate the job from the
-  provider's ticket/client data. Do not trust browser-submitted ticket number,
-  title, description, client name, company ID, or work-location values for this
-  path.
+  association ID, the selected local service-call date, and CSRF. The route must
+  resolve the service-call list server-side for that date and the logged-in
+  managed web user's Autotask resource ID, verify the selected association
+  belongs to that list, then populate the job from the provider's ticket/client
+  data. Do not trust browser-submitted ticket number, title, description, client
+  name, company ID, or work-location values for this path.
 - The service layer must enforce the two-active-job limit for the current web
   user.
 
@@ -114,17 +114,19 @@ reviewer can correct Remote versus On-Site before accepting or editing an
 existing Autotask entry. Save/accept handlers must parse the visible prefix back
 into `work_location` and keep stored local notes unprefixed.
 
-The mobile start panels show today's Autotask service calls when an active job
-slot is available. The page should render immediately with a **Loading service
-calls...** state and no synchronous Autotask calls. After the window `load`
-event, `job_logger/static/mobile.js` loads `/mobile/service-calls` to fetch safe
-card data. Service-call options are provided by
-`list_todays_service_calls_for_resource(resource_id=...)`, which derives
-Remote/On-Site from the service-call details text. The resource ID must come
-from the enabled managed web user, not config or browser input. Each rendered
-card should stay compact and show the client name, Remote/On-Site label, local
-start/end time range, and associated ticket title, with different Remote and
-On-Site coloring for quick scanning. Use the specific
+The mobile start panels show Autotask service calls for a selected local date
+when an active job slot is available. The page should render immediately with a
+**Loading service calls...** state and no synchronous Autotask calls. After the
+window `load` event, `job_logger/static/mobile.js` loads `/mobile/service-calls`
+to fetch safe card data for the current selected date. The panel has compact
+previous/next day buttons with the displayed day between them; clicking that day
+opens the native calendar picker. Service-call options are provided by
+`list_todays_service_calls_for_resource(resource_id=..., local_service_date=...)`,
+which derives Remote/On-Site from the service-call details text. The resource ID
+must come from the enabled managed web user, not config or browser input. Each
+rendered card should stay compact and show the client name, Remote/On-Site
+label, local start/end time range, and associated ticket title, with different
+Remote and On-Site coloring for quick scanning. Use the specific
 `.service-call-option-button.service-call-location-*` styling hooks so these
 cards do not regress to the generic grey button treatment. Clicking a service
 call starts an active job with the associated ticket number, ticket title,
@@ -133,11 +135,12 @@ mode.
 
 The `/mobile/service-calls` endpoint is only for drawing already-verified
 candidate cards in the browser. `POST /jobs/start/service-call` must still
-re-read today's provider list and verify the submitted service-call ticket
-association ID before creating a job. Mobile forms that navigate or redirect,
-including start, service-call start, end, rounded-start adjustment, and active
-delete, should show the shared loading overlay once a submit is accepted so slow
-Autotask lookups do not look like ignored taps.
+re-read the provider list for the submitted local service-call date and verify
+the submitted service-call ticket association ID before creating a job. Mobile
+forms that navigate or redirect, including start, service-call start, end,
+rounded-start adjustment, and active delete, should show the shared loading
+overlay once a submit is accepted so slow Autotask lookups do not look like
+ignored taps.
 
 Selected ticket descriptions on mobile are read-only Autotask context. Long
 descriptions should stay escaped, bounded to an internal scroll area, and

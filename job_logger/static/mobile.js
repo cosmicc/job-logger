@@ -1058,6 +1058,9 @@ function setServiceCallPanelLoading(panel, isLoading) {
   if (loadingElement) {
     loadingElement.classList.toggle("is-hidden", !isLoading);
   }
+  panel.querySelectorAll("[data-service-call-date-control]").forEach((controlElement) => {
+    controlElement.disabled = isLoading;
+  });
 }
 
 function setServiceCallPanelError(panel, message) {
@@ -1068,7 +1071,63 @@ function setServiceCallPanelError(panel, message) {
   }
 }
 
-function createServiceCallStartForm(serviceCallOption) {
+function setServiceCallDateState(panel, payload) {
+  const dateButton = panel.querySelector("[data-service-call-date-button]");
+  const dateInput = panel.querySelector("[data-service-call-date-input]");
+  const previousButton = panel.querySelector("[data-service-call-date-previous]");
+  const nextButton = panel.querySelector("[data-service-call-date-next]");
+  const emptyElement = panel.querySelector("[data-service-call-empty]");
+  const selectedDate = toSafeMapString(payload.selected_date).trim();
+  const dateLabel = toSafeMapString(payload.date_label).trim() || "Choose date";
+
+  panel.dataset.serviceCallSelectedDate = selectedDate;
+  if (dateButton) {
+    dateButton.textContent = dateLabel;
+  }
+  if (dateInput) {
+    dateInput.value = selectedDate;
+  }
+  if (previousButton) {
+    previousButton.dataset.serviceCallTargetDate = toSafeMapString(payload.previous_date).trim();
+  }
+  if (nextButton) {
+    nextButton.dataset.serviceCallTargetDate = toSafeMapString(payload.next_date).trim();
+  }
+  if (emptyElement) {
+    emptyElement.textContent = payload.empty_message || "No service calls are scheduled for this date.";
+  }
+}
+
+function openServiceCallCalendar(panel) {
+  const dateInput = panel.querySelector("[data-service-call-date-input]");
+  if (!dateInput || dateInput.disabled) {
+    return;
+  }
+
+  if (typeof dateInput.showPicker === "function") {
+    dateInput.showPicker();
+    return;
+  }
+
+  dateInput.focus();
+  dateInput.click();
+}
+
+function serviceCallPanelUrl(panel, selectedDate) {
+  const serviceCallUrl = panel.dataset.serviceCallUrl || "";
+  if (!serviceCallUrl) {
+    return "";
+  }
+
+  const lookupUrl = new URL(serviceCallUrl, window.location.origin);
+  const safeSelectedDate = toSafeMapString(selectedDate).trim();
+  if (safeSelectedDate) {
+    lookupUrl.searchParams.set("date", safeSelectedDate);
+  }
+  return lookupUrl.toString();
+}
+
+function createServiceCallStartForm(serviceCallOption, selectedDate) {
   const serviceCallForm = document.createElement("form");
   serviceCallForm.method = "post";
   serviceCallForm.action = "/jobs/start/service-call";
@@ -1085,6 +1144,11 @@ function createServiceCallStartForm(serviceCallOption) {
   serviceCallTicketInput.type = "hidden";
   serviceCallTicketInput.name = "service_call_ticket_id";
   serviceCallTicketInput.value = toSafeMapString(serviceCallOption.service_call_ticket_id);
+
+  const serviceCallDateInput = document.createElement("input");
+  serviceCallDateInput.type = "hidden";
+  serviceCallDateInput.name = "service_call_date";
+  serviceCallDateInput.value = toSafeMapString(selectedDate);
 
   const optionButton = document.createElement("button");
   optionButton.type = "submit";
@@ -1116,12 +1180,12 @@ function createServiceCallStartForm(serviceCallOption) {
     optionButton.append(timeRange);
   }
   optionButton.append(ticketTitle);
-  serviceCallForm.append(csrfInput, serviceCallTicketInput, optionButton);
+  serviceCallForm.append(csrfInput, serviceCallTicketInput, serviceCallDateInput, optionButton);
   return serviceCallForm;
 }
 
-async function loadServiceCallPanel(panel) {
-  const serviceCallUrl = panel.dataset.serviceCallUrl || "";
+async function loadServiceCallPanel(panel, selectedDate = "") {
+  const serviceCallUrl = serviceCallPanelUrl(panel, selectedDate);
   const resultsElement = panel.querySelector("[data-service-call-results]");
   const emptyElement = panel.querySelector("[data-service-call-empty]");
   if (!serviceCallUrl || !resultsElement) {
@@ -1133,6 +1197,9 @@ async function loadServiceCallPanel(panel) {
   try {
     const response = await fetch(serviceCallUrl, {headers: {Accept: "application/json"}});
     const payload = await response.json();
+    if (payload && payload.selected_date) {
+      setServiceCallDateState(panel, payload);
+    }
     if (!response.ok) {
       throw new Error(payload.detail || "Service calls could not be loaded.");
     }
@@ -1146,12 +1213,51 @@ async function loadServiceCallPanel(panel) {
     }
 
     for (const serviceCallOption of serviceCallOptions) {
-      resultsElement.append(createServiceCallStartForm(serviceCallOption));
+      resultsElement.append(createServiceCallStartForm(serviceCallOption, payload.selected_date));
     }
   } catch (error) {
     setServiceCallPanelError(panel, error.message || "Service calls could not be loaded.");
   } finally {
     setServiceCallPanelLoading(panel, false);
+  }
+}
+
+function initializeServiceCallDateControls(panel) {
+  const previousButton = panel.querySelector("[data-service-call-date-previous]");
+  const nextButton = panel.querySelector("[data-service-call-date-next]");
+  const dateButton = panel.querySelector("[data-service-call-date-button]");
+  const dateInput = panel.querySelector("[data-service-call-date-input]");
+
+  if (previousButton) {
+    previousButton.addEventListener("click", () => {
+      const targetDate = previousButton.dataset.serviceCallTargetDate || "";
+      if (targetDate) {
+        loadServiceCallPanel(panel, targetDate);
+      }
+    });
+  }
+
+  if (nextButton) {
+    nextButton.addEventListener("click", () => {
+      const targetDate = nextButton.dataset.serviceCallTargetDate || "";
+      if (targetDate) {
+        loadServiceCallPanel(panel, targetDate);
+      }
+    });
+  }
+
+  if (dateButton) {
+    dateButton.addEventListener("click", () => {
+      openServiceCallCalendar(panel);
+    });
+  }
+
+  if (dateInput) {
+    dateInput.addEventListener("change", () => {
+      if (dateInput.value) {
+        loadServiceCallPanel(panel, dateInput.value);
+      }
+    });
   }
 }
 
@@ -1585,6 +1691,10 @@ function loadServiceCallPanelsAfterPageLoad() {
   for (const serviceCallPanel of serviceCallPanels) {
     loadServiceCallPanel(serviceCallPanel);
   }
+}
+
+for (const serviceCallPanel of serviceCallPanels) {
+  initializeServiceCallDateControls(serviceCallPanel);
 }
 
 if (document.readyState === "complete") {

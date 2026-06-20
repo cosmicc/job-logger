@@ -9,8 +9,57 @@
     data-service-call-panel
     data-service-call-url="/mobile/service-calls"
   >
-    <div class="mobile-ticket-picker-header">
-      <h3 id="service-call-start-heading">Today's service calls</h3>
+    <div class="service-call-panel-header">
+      <h3 id="service-call-start-heading">Service calls</h3>
+      <div class="service-call-date-nav" aria-label="Service-call date">
+        <button
+          class="secondary-button service-call-date-step-button"
+          type="button"
+          data-service-call-date-previous
+          data-service-call-date-control
+          title="Previous day"
+          aria-label="Previous service-call day"
+          disabled
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6"></path>
+          </svg>
+        </button>
+        <span class="service-call-date-picker">
+          <button
+            class="secondary-button service-call-date-button"
+            type="button"
+            data-service-call-date-button
+            data-service-call-date-control
+            aria-label="Choose service-call date"
+            disabled
+          >
+            Loading...
+          </button>
+          <input
+            class="service-call-date-input"
+            type="date"
+            data-service-call-date-input
+            data-service-call-date-control
+            aria-label="Choose service-call date"
+            tabindex="-1"
+            disabled
+          >
+        </span>
+        <button
+          class="secondary-button service-call-date-step-button"
+          type="button"
+          data-service-call-date-next
+          data-service-call-date-control
+          title="Next day"
+          aria-label="Next service-call day"
+          disabled
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 18l6-6-6-6"></path>
+          </svg>
+        </button>
+      </div>
     </div>
     <div class="service-call-loading-state" data-service-call-loading role="status" aria-live="polite">
       <span class="loading-spinner" aria-hidden="true"></span>
