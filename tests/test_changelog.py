@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -37,6 +38,18 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "WEB_CHANGELOG.md" in changelog_text
 
 
+def test_web_changelog_is_available_to_runtime_artifacts() -> None:
+    """Docker and wheel builds should include the concise web changelog source."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    dockerfile_text = (repository_root / "Dockerfile").read_text(encoding="utf-8")
+    pyproject = tomllib.loads((repository_root / "pyproject.toml").read_text(encoding="utf-8"))
+    wheel_force_include = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
+
+    assert "WEB_CHANGELOG.md" in dockerfile_text
+    assert wheel_force_include["WEB_CHANGELOG.md"] == "job_logger/WEB_CHANGELOG.md"
+
+
 def test_changelog_parser_reads_current_release() -> None:
     """The web page parser should expose the current version entry."""
 
@@ -50,6 +63,7 @@ def test_changelog_parser_reads_current_release() -> None:
             "Mobile users now have version, Home, Review, Config, and close icons in the top bar.",
             "The mobile close button exits the app screen without logging out.",
             "The changelog page now shows short release notes for each version.",
+            "The mobile home page now starts directly with the work-entry card.",
         ),
     )
 
@@ -72,10 +86,14 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
     assert "v1.0.1" in response.text
+    assert "v1.0.0" in response.text
     assert "Mobile shell navigation and close behavior" in response.text
     assert "Mobile users now have version, Home, Review, Config, and close icons in the top bar." in response.text
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
+    assert "The mobile home page now starts directly with the work-entry card." in response.text
+    assert response.text.index("Mobile shell navigation and close behavior") < response.text.index("Initial release")
+    assert 'class="secondary-link-button" href="/review"' not in response.text
     assert "managed-web-user-only Config gear icon" not in response.text
     assert "direct app-shell close behavior first" not in response.text
     for entry in load_changelog_entries():

@@ -715,6 +715,8 @@ a:focus-visible {
 .service-call-panel-header {
   display: grid;
   gap: 10px;
+  justify-items: center;
+  text-align: center;
 }
 
 .service-call-panel-header h3 {
@@ -727,6 +729,7 @@ a:focus-visible {
   gap: 8px;
   align-items: center;
   width: 100%;
+  max-width: 420px;
 }
 
 .service-call-date-step-button {
@@ -794,6 +797,9 @@ a:focus-visible {
 .service-call-start-list {
   display: grid;
   gap: 8px;
+  justify-self: center;
+  width: 100%;
+  max-width: 420px;
 }
 
 .service-call-start-form {
@@ -1041,7 +1047,6 @@ a:focus-visible {
   }
 }
 
-.mobile-status-row,
 .review-header,
 .form-header-row,
 .action-row {
@@ -1053,31 +1058,6 @@ a:focus-visible {
 
 .mobile-shell {
   max-width: 520px;
-}
-
-.secure-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 34px;
-  padding: 7px 10px;
-  border: 1px solid rgba(45, 212, 191, 0.24);
-  border-radius: var(--radius);
-  background: rgba(45, 212, 191, 0.14);
-  color: var(--accent-strong);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.secure-pill svg {
-  width: 15px;
-  height: 15px;
-  flex: 0 0 auto;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .work-panel {
@@ -2603,11 +2583,6 @@ td a {
     margin-left: auto;
   }
 
-  .secure-connection-indicator {
-    display: none;
-  }
-
-  .mobile-status-row,
   .review-header,
   .users-page-header,
   .config-page-header,

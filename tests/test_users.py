@@ -100,6 +100,7 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert 'title="Edit user"' in users_page.text
     assert 'title="Refresh Autotask resource"' in users_page.text
     assert 'class="danger-outline-button user-action-icon-button"' in users_page.text
+    assert 'class="secondary-link-button" href="/review"' not in users_page.text
     assert ">Edit<" not in users_page.text
     assert ">Delete<" not in users_page.text
     assert 'name="autotask_resource_email"' in users_page.text

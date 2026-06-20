@@ -478,7 +478,9 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert 'class="header-status-group mobile-version-group"' in response.text
     assert "autotask-api-indicator" not in response.text
     assert "Autotask API:" not in response.text
-    assert 'class="secure-pill secure-connection-indicator"' in response.text
+    assert "Secure session" not in response.text
+    assert '<a href="/mobile">Home</a>' in response.text
+    assert '<a href="/mobile">Mobile</a>' not in response.text
     assert 'class="mobile-nav-actions mobile-nav-left"' in response.text
     assert 'class="mobile-nav-actions mobile-nav-right"' in response.text
     assert 'data-mobile-home-link' in response.text
@@ -497,7 +499,8 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert 'class="logout-form"' in response.text
     assert 'action="/logout"' in response.text
     assert '/static/mobile.js?v=' in response.text
-    assert '<div class="mobile-status-row">\n      <a href="/review" class="text-link">Review jobs</a>' in response.text
+    assert "Review jobs" not in response.text
+    assert ">Ready<" not in response.text
 
 
 def test_super_admin_mobile_header_renders_users_review_debug_and_close(super_admin_client: TestClient) -> None:
@@ -532,9 +535,13 @@ def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(aut
     response = authenticated_client.get("/review")
 
     assert response.status_code == 200
+    assert "Secure session" not in response.text
+    assert '<a href="/mobile">Home</a>' in response.text
+    assert '<a href="/mobile">Mobile</a>' not in response.text
     assert 'action="/logout"' in response.text
     assert 'aria-label="Sign out"' in response.text
     assert 'data-close-app-button' in response.text
+    assert '/static/pwa.js?v=' in response.text
     assert 'class="mobile-nav-actions mobile-nav-left"' in response.text
     assert 'class="mobile-nav-actions mobile-nav-right"' in response.text
     assert 'data-mobile-home-link' in response.text
@@ -556,6 +563,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "linear-gradient(90deg, rgba(245, 158, 11" in stylesheet
     assert ".service-call-loading-state" in stylesheet
     assert ".service-call-date-nav" in stylesheet
+    assert "max-width: 420px;" in stylesheet
     assert ".service-call-date-step-button" in stylesheet
     assert ".service-call-date-button" in stylesheet
     assert ".mobile-page-loading" in stylesheet

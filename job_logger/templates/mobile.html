@@ -80,10 +80,6 @@
   </div>
 
   <section class="mobile-shell">
-    <div class="mobile-status-row">
-      <a href="/review" class="text-link">Review jobs</a>
-    </div>
-
     <section class="active-jobs-stack">
       {% if active_jobs %}
         {% for active_job in active_jobs %}
@@ -379,7 +375,6 @@
       {% else %}
         <section class="work-panel">
           {% if can_start_jobs %}
-            <p class="eyebrow-text">Ready</p>
             <h1>Start a work entry</h1>
             <p class="muted-text">Start work, choose the client and open ticket during the job, then end work for review.</p>
             <form method="post" action="/jobs/start" class="start-work-form" data-page-loading-form data-loading-message="Starting work...">
@@ -396,12 +391,6 @@
             <p class="eyebrow-text">Read only</p>
             <h1>Work entry unavailable</h1>
             <p class="muted-text">{{ start_block_reason or "This account cannot start work entries." }}</p>
-            <a class="secondary-link-button" href="/review">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M9 18l6-6-6-6"></path>
-              </svg>
-              Review jobs
-            </a>
           {% endif %}
         </section>
       {% endif %}

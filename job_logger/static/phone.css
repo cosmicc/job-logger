@@ -68,10 +68,6 @@
   display: none;
 }
 
-.secure-connection-indicator {
-  display: none;
-}
-
 .mobile-shell,
 .review-shell,
 .debug-shell,
@@ -81,6 +77,14 @@
 .login-shell {
   width: min(100% - 20px, 560px);
   margin: 18px auto;
+}
+
+.mobile-shell {
+  margin-top: 8px;
+}
+
+.mobile-shell > .active-jobs-stack > .work-panel:first-child {
+  margin-top: 0;
 }
 
 .work-panel,
@@ -113,7 +117,6 @@
 .form-header-row,
 .panel-title-row,
 .user-edit-footer,
-.mobile-status-row,
 .changelog-current-panel {
   align-items: flex-start;
   flex-direction: column;

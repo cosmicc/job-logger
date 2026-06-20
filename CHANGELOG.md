@@ -19,6 +19,9 @@ All notable changes to Job Logger are documented in this file.
 - Added `WEB_CHANGELOG.md` as the concise source for `/changelog` so the web
   page can show quick user-facing summaries while this changelog keeps more
   detailed release notes.
+- Tightened the phone-sized home page by removing redundant top labels above
+  the start-work panel and moving the main work-entry card closer to the app
+  header.
 
 ## v1.0.0 - Initial release
 

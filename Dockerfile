@@ -18,7 +18,7 @@ RUN groupadd --gid 1000 appuser \
     && mkdir -p /models/faster-whisper /data/logs \
     && chown -R appuser:appuser /models /data/logs
 
-COPY pyproject.toml README.md /app/
+COPY pyproject.toml README.md WEB_CHANGELOG.md /app/
 COPY job_logger /app/job_logger
 COPY migrations /app/migrations
 COPY alembic.ini /app/alembic.ini

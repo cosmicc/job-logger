@@ -7,7 +7,10 @@ from pathlib import Path
 
 from job_logger.version import APP_VERSION
 
-WEB_CHANGELOG_PATH = Path(__file__).resolve().parents[2] / "WEB_CHANGELOG.md"
+WEB_CHANGELOG_FILE_NAMES = ("WEB_CHANGELOG.md", "web_changelog.md")
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+WEB_CHANGELOG_PATH = REPOSITORY_ROOT / "WEB_CHANGELOG.md"
 
 
 @dataclass(frozen=True)
@@ -40,7 +43,31 @@ def _parse_heading(raw_heading: str) -> tuple[str, str]:
     return version.strip(), title.strip()
 
 
-def load_changelog_entries(path: Path = WEB_CHANGELOG_PATH) -> list[ChangelogEntry]:
+def _default_changelog_paths() -> tuple[Path, ...]:
+    """Return source locations used across local, Docker, and wheel installs."""
+
+    candidates: list[Path] = []
+    for base_path in (REPOSITORY_ROOT, Path.cwd(), PACKAGE_ROOT):
+        for file_name in WEB_CHANGELOG_FILE_NAMES:
+            candidate_path = base_path / file_name
+            if candidate_path not in candidates:
+                candidates.append(candidate_path)
+    return tuple(candidates)
+
+
+def _resolve_changelog_path(path: Path | None) -> Path | None:
+    """Find the changelog source without silently inventing release content."""
+
+    if path is not None:
+        return path if path.exists() else None
+
+    for candidate_path in _default_changelog_paths():
+        if candidate_path.exists():
+            return candidate_path
+    return None
+
+
+def load_changelog_entries(path: Path | None = None) -> list[ChangelogEntry]:
     """Load versioned web changelog entries from the concise web changelog file.
 
     The parser intentionally supports a small markdown subset: level-two
@@ -49,7 +76,8 @@ def load_changelog_entries(path: Path = WEB_CHANGELOG_PATH) -> list[ChangelogEnt
     content as trusted HTML.
     """
 
-    if not path.exists():
+    resolved_path = _resolve_changelog_path(path)
+    if resolved_path is None:
         return [_fallback_entry()]
 
     entries: list[ChangelogEntry] = []
@@ -67,7 +95,7 @@ def load_changelog_entries(path: Path = WEB_CHANGELOG_PATH) -> list[ChangelogEnt
                 )
             )
 
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
+    for raw_line in resolved_path.read_text(encoding="utf-8").splitlines():
         stripped_line = raw_line.strip()
         if stripped_line.startswith("## "):
             flush_current_entry()

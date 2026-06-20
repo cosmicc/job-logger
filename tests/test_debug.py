@@ -135,6 +135,9 @@ def test_debug_routes_are_super_admin_only(client: TestClient) -> None:
     users_response = client.get("/users")
     assert users_response.status_code == 200
     assert 'href="/debug"' in users_response.text
+    debug_response = client.get("/debug")
+    assert debug_response.status_code == 200
+    assert 'class="secondary-link-button" href="/review"' not in debug_response.text
 
 
 def test_openapi_schema_route_is_disabled(client: TestClient) -> None:

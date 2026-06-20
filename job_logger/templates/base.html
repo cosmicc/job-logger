@@ -25,18 +25,12 @@
         <span>Job Logger</span>
       </a>
       {% if current_username %}
-        <div class="header-status-group desktop-status-group" aria-label="Connection status">
-          <span class="secure-pill secure-connection-indicator">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            </svg>
-            Secure session
-          </span>
+        <div class="header-status-group desktop-status-group" aria-label="Application version">
           <a class="app-version-link" href="/changelog" aria-label="View changelog for version {{ app_version }}">v{{ app_version }}</a>
         </div>
         <nav class="top-nav" aria-label="Primary navigation">
           {% if not current_is_super_admin %}
-            <a href="/mobile">Mobile</a>
+            <a href="/mobile">Home</a>
           {% endif %}
           {% if current_is_super_admin %}
             <a href="/users">Users</a>
@@ -77,13 +71,7 @@
             </svg>
           </a>
         </nav>
-        <div class="header-status-group mobile-version-group" aria-label="Connection status">
-          <span class="secure-pill secure-connection-indicator">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            </svg>
-            Secure session
-          </span>
+        <div class="header-status-group mobile-version-group" aria-label="Application version">
           <a class="app-version-link" href="/changelog" aria-label="View changelog for version {{ app_version }}">v{{ app_version }}</a>
         </div>
         <nav class="mobile-nav-actions mobile-nav-right" aria-label="Mobile quick actions">
