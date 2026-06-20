@@ -62,6 +62,7 @@ def template_context(
         "theme_color": THEME_META_COLORS[current_theme],
         "flash_messages": pop_flash_messages(request),
         "ai_cleanup_enabled": settings.ai_cleanup_enabled,
+        "app_version": APP_VERSION,
         "static_asset_version": static_asset_version(),
     }
     context.update(extra_context)

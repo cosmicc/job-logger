@@ -11,7 +11,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from job_logger.config import Settings, settings
 from job_logger.logging_config import configure_logging
-from job_logger.routes import auth, configuration, debug, health, mobile, pwa, review, users
+from job_logger.routes import auth, changelog, configuration, debug, health, mobile, pwa, review, users
 
 
 def validate_runtime_settings(application_settings: Settings) -> None:
@@ -98,6 +98,7 @@ def create_app(application_settings: Settings = settings) -> FastAPI:
     fastapi_app.include_router(mobile.router)
     fastapi_app.include_router(configuration.router)
     fastapi_app.include_router(users.router)
+    fastapi_app.include_router(changelog.router)
     fastapi_app.include_router(debug.router)
     fastapi_app.include_router(review.router)
     return fastapi_app

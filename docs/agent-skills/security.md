@@ -110,9 +110,11 @@ Never commit or print:
 - Raw audio.
 
 Diagnostic pages and audit details must use safe summaries only.
-The diagnostics page may show the source-controlled application version because
+Authenticated pages may show the source-controlled application version because
 it is non-secret build metadata; do not source that value from environment
-variables that could drift between containers.
+variables that could drift between containers. Keep `/changelog` authenticated
+so release history stays inside the app shell even though it contains only
+source-controlled release notes.
 
 ## Audit Requirements
 
@@ -289,5 +291,6 @@ Security-sensitive changes usually need tests in:
 - `tests/test_security.py`.
 - `tests/test_workflow.py`.
 - `tests/test_debug.py`.
+- `tests/test_changelog.py` when version or release-history display changes.
 
 When in doubt, add a regression test for the security boundary being changed.

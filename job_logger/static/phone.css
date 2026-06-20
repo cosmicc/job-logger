@@ -39,6 +39,7 @@
 .debug-shell,
 .users-shell,
 .config-shell,
+.changelog-shell,
 .login-shell {
   width: min(100% - 20px, 560px);
   margin: 18px auto;
@@ -69,11 +70,13 @@
 .review-header,
 .users-page-header,
 .config-page-header,
+.changelog-page-header,
 .resource-picker-header,
 .form-header-row,
 .panel-title-row,
 .user-edit-footer,
-.mobile-status-row {
+.mobile-status-row,
+.changelog-current-panel {
   align-items: flex-start;
   flex-direction: column;
 }
@@ -88,6 +91,24 @@
 .config-save-button,
 .config-password-button {
   width: 100%;
+}
+
+.changelog-current-panel,
+.changelog-entry-panel {
+  padding: 16px;
+}
+
+.changelog-timeline {
+  padding-left: 0;
+}
+
+.changelog-timeline::before,
+.changelog-marker {
+  display: none;
+}
+
+.changelog-entry {
+  grid-template-columns: 1fr;
 }
 
 .add-user-panel {

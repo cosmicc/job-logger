@@ -375,7 +375,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/main.py` creates the FastAPI app, registers routers, applies
   TrustedHost, session, Cloudflare Access, CSP, and security-header middleware.
 - `job_logger/version.py` owns the source-controlled application version shown
-  on authenticated diagnostics and must only be advanced when requested.
+  in authenticated headers, `/changelog`, and diagnostics. Advance it only
+  when requested and keep it aligned with `pyproject.toml`.
 - `job_logger/config.py` loads every runtime setting from environment variables.
   Production must use `AUTOTASK_PROVIDER=autotask`; Autotask resource IDs are
   stored on managed web users, not in config.
@@ -389,6 +390,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/ui.py` owns shared template context, including the content-derived
   static asset version used to bust browser/PWA caches after CSS or JavaScript
   changes without changing the source-controlled app version.
+- `job_logger/services/changelog.py` parses the source-controlled
+  `CHANGELOG.md` into plain-text release entries for authenticated display.
 - `job_logger/routes/auth.py` handles config super-admin login, managed web-user
   login, logout, and local authenticated sessions, including sanitized
   failed-login file logging.
@@ -405,6 +408,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/routes/configuration.py` handles authenticated managed-web-user
   configuration such as immediate light/dark theme selection and explicit
   managed-user password changes.
+- `job_logger/routes/changelog.py` handles authenticated `/changelog` release
+  history for the discreet version link shown in the shared app header.
 - `job_logger/routes/debug.py` handles the super-admin diagnostic page, the
   sanitized failed-login window, full backup/restore actions, and the Autotask
   API connectivity test.
@@ -434,7 +439,7 @@ The application is a FastAPI project under `job_logger/`.
   sanitized failed-login JSONL log in `LOG_DIR`, defaulting to
   `job-logger-login-failures.log` inside Docker's `/data/logs` mount.
 - `job_logger/templates/` contains Jinja pages for mobile, review, users,
-  config, debug, and authentication views.
+  config, changelog, debug, and authentication views.
 - `job_logger/static/` contains browser-side JavaScript, CSS, PWA metadata, and
   source-controlled app icons.
 - `migrations/versions/` contains Alembic schema migrations.
@@ -511,6 +516,9 @@ The normal workflow is:
     while the job remains submitted.
 17. Submission attempts and important state changes are recorded for audit and
     diagnostics.
+18. Authenticated users may open `/changelog` from the discreet header version
+    link to view the current source-controlled version and prior release notes
+    parsed from `CHANGELOG.md`.
 
 ## Current Autotask Dependency
 

@@ -296,6 +296,18 @@ Static CSS and JavaScript links include a content-derived version value so
 browser and installed-app shells fetch changed assets after deploy without
 requiring an application version bump.
 
+## Application Version And Changelog
+
+Job Logger uses source-controlled semantic versioning. The runtime version is
+defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and currently
+starts at `v1.0.0`.
+
+Authenticated pages show the current version discreetly in the shared header.
+Clicking that version opens `/changelog`, which displays the current version
+and release notes parsed from `CHANGELOG.md`. The changelog page uses the same
+authenticated session, dark/light theme variables, and responsive layout system
+as the rest of the app.
+
 ## Provider Modes
 
 ### Speech To Text
@@ -621,10 +633,11 @@ access.
 The `/debug` page is available only to the config super admin. Managed web
 users do not see the Debug menu item, and direct `/debug/*` requests from those
 sessions return 403. It shows the source-controlled application version and
-includes a **Test Autotask API** button. That check verifies required workflow
-configuration and the live Companies/Tickets API calls used by the app. The
-debug button is manual and always runs a fresh live check. It is not used by
-the initial mobile page or blank Start Work route.
+includes a **Test Autotask API** button. All authenticated pages also include a
+discreet version link to `/changelog`. The debug check verifies required
+workflow configuration and the live Companies/Tickets API calls used by the
+app. The debug button is manual and always runs a fresh live check. It is not
+used by the initial mobile page or blank Start Work route.
 
 The same `/debug` page also shows a recent failed-login window. Failed local
 app login attempts are appended as JSON Lines to

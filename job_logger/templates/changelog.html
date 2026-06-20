@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Changelog - Job Logger{% endblock %}
+
+{% block content %}
+  <section class="changelog-shell">
+    <div class="review-header changelog-page-header">
+      <div>
+        <p class="eyebrow-text">Version history</p>
+        <h1>Changelog</h1>
+        <p class="muted-text">Current release notes for Job Logger.</p>
+      </div>
+      <a class="secondary-link-button" href="/review">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6"></path>
+        </svg>
+        Review
+      </a>
+    </div>
+
+    <section class="changelog-current-panel" aria-labelledby="current-version-heading">
+      <div>
+        <p class="eyebrow-text">Current version</p>
+        <h2 id="current-version-heading">v{{ app_version }}</h2>
+        <p class="muted-text">{{ current_changelog_entry.display_title }}</p>
+      </div>
+      <span class="version-chip">Active</span>
+    </section>
+
+    <section class="changelog-timeline" aria-label="Release history">
+      {% for entry in changelog_entries %}
+        <article class="changelog-entry{% if entry.version in [app_version, 'v' ~ app_version] %} is-current{% endif %}">
+          <div class="changelog-marker" aria-hidden="true"></div>
+          <div class="changelog-entry-panel">
+            <div class="changelog-entry-header">
+              <span class="release-version">{{ entry.version }}</span>
+              {% if entry.version in [app_version, 'v' ~ app_version] %}
+                <span class="version-chip">Current</span>
+              {% endif %}
+            </div>
+            <h2>{{ entry.display_title }}</h2>
+            <ul class="changelog-change-list">
+              {% for change in entry.changes %}
+                <li>{{ change }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </article>
+      {% endfor %}
+    </section>
+  </section>
+{% endblock %}
