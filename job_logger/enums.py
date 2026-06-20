@@ -32,6 +32,13 @@ class WorkLocation(StrEnum):
     ON_SITE = "on_site"
 
 
+class ThemeMode(StrEnum):
+    """Supported per-user visual themes."""
+
+    DARK = "dark"
+    LIGHT = "light"
+
+
 class TranscriptionStatus(StrEnum):
     """State of the most recent speech-to-text attempt for a job."""
 

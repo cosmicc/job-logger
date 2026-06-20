@@ -22,6 +22,36 @@ choices for security decisions. The server remains authoritative.
 
 Authentication routes live in `job_logger/routes/auth.py`.
 
+`APP_USERNAME` and `APP_PASSWORD` authenticate only the config super admin. That
+account can manage `/users`, view all review jobs, use diagnostics, and run
+backup/restore, but it must not start, edit, submit, delete, record, or
+AI-cleanup jobs because it has no Autotask resource ID. Work-entry users are
+database-managed `WebUser` rows created on `/users`; they store full name,
+username, salted password hash, required Autotask resource ID, and disabled
+state. Disabled web users must be blocked from new logins and from old signed
+sessions. Managed-user passwords must be at least 8 characters and include
+lowercase, uppercase, number, and symbol characters. Enforce that rule
+server-side before hashing; browser validation is only a usability aid.
+
+The `/debug` page and all `/debug/*` actions are config-super-admin-only.
+Normal managed web users must not see a Debug navigation item, and direct
+requests from managed web-user sessions must receive 403 instead of being
+treated as anonymous login redirects.
+
+The `/users/autotask-resources` lookup endpoint is super-admin-only and must
+return only safe Autotask Resource metadata. Browser code can use it to fill the
+resource ID field, but the server must still validate the submitted resource ID
+and must never expose Autotask credentials or raw remote error details.
+
+Per-user configuration lives behind authenticated `/config` routes. Theme
+preferences are not secrets, but saving them is still a state-changing action
+that must require authentication and CSRF. Disabled managed web users must not
+use old signed sessions to change preferences.
+
+Deleting a managed web user with job history must preserve auditability by
+disabling the account instead of deleting the row. Hard deletion is allowed only
+when no jobs reference that user.
+
 Application setup in `job_logger/main.py` configures:
 
 - Signed server-side session cookie behavior through Starlette sessions.
@@ -80,6 +110,8 @@ Important actions must record audit events through `job_logger/services/audit.py
 Audit-worthy actions include:
 
 - Authentication-sensitive events.
+- Managed web-user add, edit, disable, and delete/delete-as-disable actions.
+- Per-user configuration updates.
 - Job start.
 - Job active edit save.
 - Active job delete.
@@ -178,8 +210,8 @@ from trusting browser-submitted description values.
 Autotask service-call starts must also be server verified. The mobile browser
 may submit only the service-call ticket association ID and CSRF token; the
 server must confirm the association is in today's service-call list for the
-configured `AUTOTASK_RESOURCE_ID` before it creates a job or stores any
-ticket/client details.
+logged-in managed web user's Autotask resource ID before it creates a job or
+stores any ticket/client details.
 
 Successfully submitted Autotask jobs keep protected ticket/client identity and
 local audit history for the external time entry. The server must reject later
@@ -198,23 +230,25 @@ Jobs should not disappear silently.
 
 Prefer retained workflow states over deletion. If destructive cleanup is
 necessary, it must be explicit, authenticated, CSRF-protected, and auditable.
-Review cleanup must stay blocked for active jobs. The mobile active-job delete
-route is the reviewed exception for discarding an in-progress entry before it
-becomes review history, and it must not be reused for completed jobs. Local
-**Delete time entry** cleanup must also stay blocked for successfully submitted
-Autotask jobs so local history remains tied to the external time entry.
+Review cleanup may delete local unsubmitted jobs, including active jobs, only
+from the selected review detail through the explicit **Delete time entry**
+action. The mobile active-job delete route remains the quick in-progress
+discard path. Local **Delete time entry** cleanup must stay blocked for
+successfully submitted Autotask jobs so local history remains tied to the
+external time entry.
 Submitted-entry corrections belong in the audited Edit Entry or Delete From
 Autotask routes, not local cleanup or resend flows.
 
 The `/debug` full backup and restore actions are the supported whole-app data
-export/import path. They must remain authenticated and CSRF-protected. Backup
-files contain all Job Logger database rows and should be treated as sensitive
-customer/work history. Restore must validate backup format, version, required
-tables, and expected columns before deleting current rows, must use the
-application backup service instead of ad hoc shell commands, and must record a
-post-restore audit event after the backup data has been restored. Failed
-confirmation, oversized upload, malformed JSON, wrong format, or schema
-mismatch must leave current database rows untouched.
+export/import path. They must remain super-admin-only and CSRF-protected. Backup
+files contain all Job Logger database rows, including managed web-user password
+hashes and customer/work history, and should be treated as sensitive. Restore
+must validate backup format, version, required tables, and expected columns
+before deleting current rows, must use the application backup service instead of
+ad hoc shell commands, and must record a post-restore audit event after the
+backup data has been restored. Failed confirmation, oversized upload, malformed
+JSON, wrong format, or schema mismatch must leave current database rows
+untouched.
 
 ## Docker And Runtime Safety
 

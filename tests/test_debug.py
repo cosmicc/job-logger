@@ -18,7 +18,7 @@ from job_logger.models import AuditEvent, Job, SubmissionAttempt
 from job_logger.services.jobs import get_active_job
 from job_logger.time_utils import format_local_display
 from job_logger.version import APP_VERSION
-from tests.conftest import extract_csrf_token
+from tests.conftest import extract_csrf_token, login_as_super_admin, login_as_web_user
 
 
 def _seed_full_backup_data() -> str:
@@ -110,6 +110,31 @@ def test_debug_route_requires_login(client: TestClient) -> None:
     response = client.get("/debug", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/login"
+
+
+def test_debug_routes_are_super_admin_only(client: TestClient) -> None:
+    """Managed web users must not see or access debug diagnostics."""
+
+    login_as_web_user(client)
+    mobile_response = client.get("/mobile")
+    assert mobile_response.status_code == 200
+    assert 'href="/debug"' not in mobile_response.text
+
+    forbidden_routes = (
+        ("GET", "/debug"),
+        ("GET", "/debug/logs/login-failures"),
+        ("POST", "/debug/autotask/test"),
+        ("POST", "/debug/backup"),
+        ("POST", "/debug/restore"),
+    )
+    for method, path in forbidden_routes:
+        response = client.request(method, path, follow_redirects=False)
+        assert response.status_code == 403
+
+    login_as_super_admin(client)
+    users_response = client.get("/users")
+    assert users_response.status_code == 200
+    assert 'href="/debug"' in users_response.text
 
 
 def test_openapi_schema_route_is_disabled(client: TestClient) -> None:
@@ -271,6 +296,7 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
         attempt_iso_timestamp = attempts[0].created_at_utc.isoformat()
         attempt_display_timestamp = format_local_display(attempts[0].created_at_utc)
 
+    login_as_super_admin(authenticated_client)
     debug_response = authenticated_client.get("/debug")
     assert debug_response.status_code == 200
     assert "Autotask debug" in debug_response.text
@@ -282,37 +308,37 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert "mock-time-entry" in debug_response.text
 
 
-def test_debug_route_tests_autotask_api(authenticated_client: TestClient) -> None:
+def test_debug_route_tests_autotask_api(super_admin_client: TestClient) -> None:
     """The debug page can run the safe Autotask API connectivity check."""
 
-    debug_page_response = authenticated_client.get("/debug")
+    debug_page_response = super_admin_client.get("/debug")
     debug_csrf_token = extract_csrf_token(debug_page_response.text)
 
-    test_response = authenticated_client.post(
+    test_response = super_admin_client.post(
         "/debug/autotask/test",
         data={"csrf_token": debug_csrf_token},
         follow_redirects=False,
     )
     assert test_response.status_code == 303
 
-    debug_result_response = authenticated_client.get("/debug")
+    debug_result_response = super_admin_client.get("/debug")
 
     assert debug_result_response.status_code == 200
     assert "Last Autotask API test" in debug_result_response.text
     assert "Mock Autotask provider is available" in debug_result_response.text
 
 
-def test_debug_full_backup_download_and_restore_round_trip(authenticated_client: TestClient) -> None:
+def test_debug_full_backup_download_and_restore_round_trip(super_admin_client: TestClient) -> None:
     """Diagnostics can download and restore a full Job Logger data snapshot."""
 
     original_job_id = _seed_full_backup_data()
 
-    debug_page_response = authenticated_client.get("/debug")
+    debug_page_response = super_admin_client.get("/debug")
     assert debug_page_response.status_code == 200
     assert "Full data backup" in debug_page_response.text
     csrf_token = extract_csrf_token(debug_page_response.text)
 
-    backup_response = authenticated_client.post(
+    backup_response = super_admin_client.post(
         "/debug/backup",
         data={"csrf_token": csrf_token},
     )
@@ -330,9 +356,9 @@ def test_debug_full_backup_download_and_restore_round_trip(authenticated_client:
 
     temporary_job_id = _add_temporary_job()
 
-    restore_page_response = authenticated_client.get("/debug")
+    restore_page_response = super_admin_client.get("/debug")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
-    restore_response = authenticated_client.post(
+    restore_response = super_admin_client.post(
         "/debug/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
@@ -347,7 +373,7 @@ def test_debug_full_backup_download_and_restore_round_trip(authenticated_client:
     assert restore_response.status_code == 303
     assert restore_response.headers["location"] == "/debug#full-backup"
 
-    restored_page_response = authenticated_client.get("/debug")
+    restored_page_response = super_admin_client.get("/debug")
     assert restored_page_response.status_code == 200
     assert "Full data restore completed." in restored_page_response.text
 
@@ -362,18 +388,18 @@ def test_debug_full_backup_download_and_restore_round_trip(authenticated_client:
         assert "debug.full_backup.downloaded" not in actions
 
 
-def test_debug_restore_requires_confirmation(authenticated_client: TestClient) -> None:
+def test_debug_restore_requires_confirmation(super_admin_client: TestClient) -> None:
     """Restore must not replace data unless the operator types RESTORE."""
 
     _seed_full_backup_data()
-    debug_page_response = authenticated_client.get("/debug")
+    debug_page_response = super_admin_client.get("/debug")
     csrf_token = extract_csrf_token(debug_page_response.text)
-    backup_response = authenticated_client.post("/debug/backup", data={"csrf_token": csrf_token})
+    backup_response = super_admin_client.post("/debug/backup", data={"csrf_token": csrf_token})
     temporary_job_id = _add_temporary_job()
 
-    restore_page_response = authenticated_client.get("/debug")
+    restore_page_response = super_admin_client.get("/debug")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
-    restore_response = authenticated_client.post(
+    restore_response = super_admin_client.post(
         "/debug/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "restore"},
         files={
@@ -392,13 +418,13 @@ def test_debug_restore_requires_confirmation(authenticated_client: TestClient) -
         assert database_session.scalar(select(func.count(Job.id))) == 2
         assert database_session.get(Job, temporary_job_id) is not None
 
-    result_page_response = authenticated_client.get("/debug")
+    result_page_response = super_admin_client.get("/debug")
     assert "Type RESTORE to confirm full data restore." in result_page_response.text
 
 
-def test_debug_backup_download_requires_csrf(authenticated_client: TestClient) -> None:
+def test_debug_backup_download_requires_csrf(super_admin_client: TestClient) -> None:
     """Full backup downloads are sensitive and require CSRF protection."""
 
-    response = authenticated_client.post("/debug/backup", data={}, follow_redirects=False)
+    response = super_admin_client.post("/debug/backup", data={}, follow_redirects=False)
 
     assert response.status_code == 403

@@ -71,7 +71,7 @@
   border-color: rgba(245, 158, 11, 0.78) !important;
   background: var(--warning) !important;
   background-color: var(--warning) !important;
-  color: #1f1300 !important;
+  color: var(--on-warning) !important;
   box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25) !important;
 }
 
@@ -80,5 +80,5 @@
 .record-notes-button[aria-pressed="true"]:hover,
 .recording-control-stack .record-notes-button[aria-pressed="true"]:hover {
   background: #fbbf24 !important;
-  color: #1f1300 !important;
+  color: var(--on-warning) !important;
 }

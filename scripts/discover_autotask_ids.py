@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Discover Autotask IDs needed by Job Logger from a local .env file.
 
-The script performs read-only Autotask REST calls for role IDs, billing code
-IDs, ticket status picklist IDs, and workflow endpoint preflight checks. It
-intentionally avoids printing secrets, raw request headers, or raw environment
-values.
+The script performs read-only Autotask REST calls for ticket status picklist IDs
+and workflow endpoint preflight checks. It intentionally avoids printing
+secrets, raw request headers, or raw environment values.
 """
 
 from __future__ import annotations
@@ -68,7 +67,7 @@ def parse_arguments() -> argparse.Namespace:
     """Parse command-line options for the discovery helper."""
 
     parser = argparse.ArgumentParser(
-        description="Discover Autotask role, billing code, and ticket status IDs using a .env file.",
+        description="Discover Autotask ticket status IDs and workflow endpoint access using a .env file.",
     )
     parser.add_argument(
         "--env-file",
@@ -78,7 +77,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--include-inactive",
         action="store_true",
-        help="Print inactive Autotask role, billing code, and status records too.",
+        help="Print inactive Autotask ticket status records too.",
     )
     parser.add_argument(
         "--timeout",
@@ -277,21 +276,6 @@ def print_workflow_preflight(client: httpx.Client) -> None:
     print()
 
 
-def query_entity_records(client: httpx.Client, entity_name: str) -> list[dict[str, Any]]:
-    """Query all records for a simple Autotask entity using id >= 0."""
-
-    query_payload = {"filter": [{"op": "gte", "field": "id", "value": 0}]}
-    response = client.post(f"/{entity_name}/query", json=query_payload)
-    raise_for_autotask_error(response, f"{entity_name}/query")
-
-    response_payload = response.json()
-    records = response_payload.get("items") or response_payload.get("Item") or []
-    if not isinstance(records, list):
-        raise RuntimeError(f"{entity_name}/query did not return a record list.")
-
-    return [record for record in records if isinstance(record, dict)]
-
-
 def query_ticket_status_values(client: httpx.Client) -> list[dict[str, Any]]:
     """Return the Tickets.status picklist values from Autotask metadata."""
 
@@ -341,36 +325,6 @@ def print_zone_information(client: httpx.Client, settings: AutotaskSettings) -> 
     print()
 
 
-def print_role_records(role_records: list[dict[str, Any]], *, include_inactive: bool) -> None:
-    """Print Autotask role IDs and names."""
-
-    print("Role IDs")
-    print("--------")
-    visible_records = [record for record in role_records if include_inactive or is_record_active(record)]
-    for record in sorted(visible_records, key=lambda item: str(item.get("name") or item.get("id"))):
-        active_text = f" active={is_record_active(record)}"
-        print(f"id={record.get('id')} name={get_record_name(record)}{active_text}")
-    print()
-
-
-def print_billing_code_records(billing_code_records: list[dict[str, Any]], *, include_inactive: bool) -> None:
-    """Print Autotask billing code IDs, names, and useful non-secret fields."""
-
-    print("Billing Code IDs")
-    print("----------------")
-    visible_records = [record for record in billing_code_records if include_inactive or is_record_active(record)]
-    for record in sorted(visible_records, key=lambda item: str(item.get("name") or item.get("id"))):
-        useful_fields = []
-        for field_name in ("externalNumber", "unitCost", "unitPrice", "useType"):
-            if record.get(field_name) not in (None, ""):
-                useful_fields.append(f"{field_name}={record.get(field_name)}")
-
-        useful_text = "" if not useful_fields else " " + " ".join(useful_fields)
-        active_text = f" active={is_record_active(record)}"
-        print(f"id={record.get('id')} name={get_record_name(record)}{active_text}{useful_text}")
-    print()
-
-
 def print_ticket_status_records(status_records: list[dict[str, Any]], *, include_inactive: bool) -> None:
     """Print status mappings and all visible Autotask ticket status values."""
 
@@ -410,8 +364,6 @@ def main() -> int:
     with httpx.Client(base_url=settings.base_url, headers=build_headers(settings), timeout=arguments.timeout) as client:
         print_zone_information(client, settings)
         print_workflow_preflight(client)
-        print_role_records(query_entity_records(client, "Roles"), include_inactive=arguments.include_inactive)
-        print_billing_code_records(query_entity_records(client, "BillingCodes"), include_inactive=arguments.include_inactive)
         print_ticket_status_records(query_ticket_status_values(client), include_inactive=arguments.include_inactive)
 
     return 0

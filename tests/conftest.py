@@ -27,6 +27,9 @@ os.environ["AUTOTASK_PROVIDER"] = "mock"
 from job_logger import database  # noqa: E402
 from job_logger.database import Base  # noqa: E402
 from job_logger.main import create_app  # noqa: E402
+from job_logger.services.users import create_web_user  # noqa: E402
+
+TEST_WEB_USER_PASSWORD = "Test-password1!"
 
 
 def extract_csrf_token(html_text: str) -> str:
@@ -37,6 +40,33 @@ def extract_csrf_token(html_text: str) -> str:
     return match.group(1)
 
 
+def login_as(client: TestClient, *, username: str, password: str = "test-password") -> TestClient:
+    """Clear any session cookie and authenticate the test client."""
+
+    client.cookies.clear()
+    login_page_response = client.get("/login")
+    csrf_token = extract_csrf_token(login_page_response.text)
+    login_response = client.post(
+        "/login",
+        data={"csrf_token": csrf_token, "username": username, "password": password},
+        follow_redirects=False,
+    )
+    assert login_response.status_code == 303
+    return client
+
+
+def login_as_web_user(client: TestClient) -> TestClient:
+    """Authenticate the client as the seeded managed web user."""
+
+    return login_as(client, username="tech", password=TEST_WEB_USER_PASSWORD)
+
+
+def login_as_super_admin(client: TestClient) -> TestClient:
+    """Authenticate the client as the config super admin."""
+
+    return login_as(client, username="admin")
+
+
 @pytest.fixture()
 def client() -> Generator[TestClient, None, None]:
     """Return a TestClient backed by a fresh in-memory database."""
@@ -45,6 +75,15 @@ def client() -> Generator[TestClient, None, None]:
     login_failure_log_path.unlink(missing_ok=True)
     database.configure_database("sqlite+pysqlite://")
     Base.metadata.create_all(database.engine)
+    with database.SessionLocal() as database_session:
+        create_web_user(
+            database_session,
+            full_name="Test Technician",
+            username="tech",
+            password=TEST_WEB_USER_PASSWORD,
+            autotask_resource_id=1,
+        )
+        database_session.commit()
     test_app = create_app()
     with TestClient(test_app) as test_client:
         yield test_client
@@ -54,14 +93,13 @@ def client() -> Generator[TestClient, None, None]:
 
 @pytest.fixture()
 def authenticated_client(client: TestClient) -> TestClient:
-    """Return a client with an authenticated local app session."""
+    """Return a client with an authenticated managed web-user session."""
 
-    login_page_response = client.get("/login")
-    csrf_token = extract_csrf_token(login_page_response.text)
-    login_response = client.post(
-        "/login",
-        data={"csrf_token": csrf_token, "username": "admin", "password": "test-password"},
-        follow_redirects=False,
-    )
-    assert login_response.status_code == 303
-    return client
+    return login_as_web_user(client)
+
+
+@pytest.fixture()
+def super_admin_client(client: TestClient) -> TestClient:
+    """Return a client authenticated as the config super admin."""
+
+    return login_as_super_admin(client)

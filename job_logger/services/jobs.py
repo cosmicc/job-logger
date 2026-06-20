@@ -178,17 +178,27 @@ def ensure_job_can_record_description(job: Job) -> None:
 def list_active_jobs(database_session: Session) -> list[Job]:
     """Return all active jobs in slot/date order."""
 
+    active_jobs = list(database_session.execute(select(Job).where(Job.status == JobStatus.ACTIVE)).scalars())
+    active_jobs.sort(key=lambda job: ((job.job_slot or 99), job.created_at_utc))
+    return active_jobs
+
+
+def list_active_jobs_for_web_user(database_session: Session, web_user_id: str) -> list[Job]:
+    """Return active jobs owned by one managed web user."""
+
     active_jobs = list(
-        database_session.execute(select(Job).where(Job.status == JobStatus.ACTIVE)).scalars()
+        database_session.execute(
+            select(Job).where(Job.status == JobStatus.ACTIVE, Job.web_user_id == web_user_id)
+        ).scalars()
     )
     active_jobs.sort(key=lambda job: ((job.job_slot or 99), job.created_at_utc))
     return active_jobs
 
 
-def get_active_job(database_session: Session) -> Job | None:
+def get_active_job(database_session: Session, web_user_id: str | None = None) -> Job | None:
     """Return the first active job, if any."""
 
-    active_jobs = list_active_jobs(database_session)
+    active_jobs = list_active_jobs_for_web_user(database_session, web_user_id) if web_user_id else list_active_jobs(database_session)
     if not active_jobs:
         return None
 
@@ -230,10 +240,20 @@ def get_job_or_raise(database_session: Session, job_id: str) -> Job:
     return job
 
 
-def list_review_jobs(database_session: Session) -> list[Job]:
+def ensure_job_owned_by_web_user(job: Job, web_user_id: str) -> None:
+    """Require that a job belongs to the current managed web user."""
+
+    if job.web_user_id != web_user_id:
+        raise JobWorkflowError("This job belongs to another web user.")
+
+
+def list_review_jobs(database_session: Session, web_user_id: str | None = None) -> list[Job]:
     """Return jobs in newest-first order for the desktop review page."""
 
-    return list(database_session.execute(select(Job).order_by(desc(Job.created_at_utc))).scalars())
+    statement = select(Job).order_by(desc(Job.created_at_utc))
+    if web_user_id is not None:
+        statement = statement.where(Job.web_user_id == web_user_id)
+    return list(database_session.execute(statement).scalars())
 
 
 def normalize_ticket_number(ticket_number: str | None, *, required: bool) -> str | None:
@@ -349,6 +369,7 @@ def preserve_locked_active_autotask_client(
 
 def start_job(
     database_session: Session,
+    web_user_id: str | None = None,
     ticket_number: str | None = None,
     client_name: str | None = None,
     autotask_company_id: int | str | None = None,
@@ -356,7 +377,7 @@ def start_job(
 ) -> Job:
     """Create a new active job while enforcing the two-job overlap limit."""
 
-    active_jobs = list_active_jobs(database_session)
+    active_jobs = list_active_jobs_for_web_user(database_session, web_user_id) if web_user_id else list_active_jobs(database_session)
     job_slot = _next_active_job_slot(active_jobs)
     normalized_ticket_number = normalize_ticket_number(ticket_number, required=False)
     normalized_client_name = normalize_client_name(client_name)
@@ -366,6 +387,7 @@ def start_job(
     rounded_start_timestamp = round_to_nearest_quarter_hour(start_timestamp)
     job = Job(
         status=JobStatus.ACTIVE,
+        web_user_id=web_user_id,
         ticket_number=normalized_ticket_number,
         job_slot=job_slot,
         client_name=normalized_client_name,
@@ -894,10 +916,8 @@ def apply_selected_ticket_from_lookup(
 
 
 def purge_job(database_session: Session, job: Job) -> Job:
-    """Delete a review job and all related submission attempts from local storage."""
+    """Delete a local unsubmitted job and related submission attempts from storage."""
 
-    if job.status == JobStatus.ACTIVE:
-        raise JobWorkflowError("Active jobs cannot be deleted from review.")
     ensure_job_is_not_locked_after_successful_submission(job)
 
     # Remove dependent submission attempts explicitly so deletion works even when the
@@ -937,7 +957,7 @@ def reset_ticket_data(database_session: Session) -> dict[str, int]:
     }
 
 
-def submit_job_to_autotask(database_session: Session, job: Job) -> Job:
+def submit_job_to_autotask(database_session: Session, job: Job, *, resource_id: int) -> Job:
     """Submit a reviewed job to the configured Autotask provider."""
 
     if job.status == JobStatus.ACTIVE:
@@ -945,7 +965,7 @@ def submit_job_to_autotask(database_session: Session, job: Job) -> Job:
     ensure_job_is_not_locked_after_successful_submission(job)
 
     try:
-        submission_result = get_autotask_provider().submit_job(job)
+        submission_result = get_autotask_provider().submit_job(job, resource_id=resource_id)
     except AutotaskSubmissionError as exc:
         submission_result = None
         job.status = JobStatus.SUBMISSION_FAILED

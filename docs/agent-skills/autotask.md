@@ -23,6 +23,19 @@ service-call start verification, or Autotask submission/update/delete actions.
 
 Mock mode remains available for tests and isolated development only.
 
+Autotask resource IDs are database-managed per web user, not environment
+configuration. A managed web user must have an Autotask resource ID before they
+can start work. Routes pass that resource ID into service-call lookup and time
+entry submission. Static role and billing-code IDs must not be environment
+configuration. The live provider gets `TimeEntries.roleID` from the selected
+ticket's `assignedResourceroleID` at submit time and omits
+`TimeEntries.billingCodeID` so Autotask inherits the selected ticket's Work Type
+on create. API credentials, ticket status IDs, time-entry type, and optional
+`AUTOTASK_IMPERSONATION_RESOURCE_ID` remain environment-backed settings.
+The config super admin may use `/users` to query Autotask Resources by name
+while creating a managed web user, but that lookup must still go through the
+server-side provider and return only safe resource metadata.
+
 ## Provider Location
 
 All Autotask behavior belongs in `job_logger/services/autotask.py`.
@@ -37,9 +50,10 @@ Current provider responsibilities:
 - Build non-secret request headers.
 - Test connectivity.
 - Search companies for client autocomplete.
+- Search Resources for super-admin managed-user setup.
 - Query one selected company by ID.
 - Query open tickets for a company.
-- Query today's service calls for the configured resource.
+- Query today's service calls for the logged-in managed web user's resource.
 - Resolve service-call ticket/resource relationships before starting a job from
   a service call.
 - Query ticket status picklist metadata.
@@ -126,31 +140,46 @@ verified JSON response rather than trusting the clicked browser option.
 
 ## Service Call Lookup
 
-The mobile start panels can list today's Autotask service calls for
-`AUTOTASK_RESOURCE_ID`. This is a read-only convenience path for starting a job
-from scheduled dispatch data, not a separate trust boundary.
+The mobile start panels can list today's Autotask service calls for the
+logged-in managed web user's Autotask resource ID. This is a read-only
+convenience path for starting a job from scheduled dispatch data, not a
+separate trust boundary.
 
 Service-call lookup must stay inside `job_logger/services/autotask.py` because
 it needs several related Autotask entities:
 
 - `ServiceCalls` for today's scheduled call details.
 - `ServiceCallTickets` to identify tickets associated with each service call.
-- `ServiceCallTicketResources` to verify the configured resource is assigned
-  to that specific service-call ticket row.
+- `ServiceCallTicketResources` to verify the user's resource is assigned to
+  that specific service-call ticket row.
 - `Tickets` for ticket number, title, and bounded description.
 - `Companies` for the client name stored with the new active job.
 
 The browser must submit only `service_call_ticket_id` plus CSRF to
 `POST /jobs/start/service-call`. The route re-reads the provider's
-server-verified list for the current local day and configured resource before
-creating a job. Never accept ticket number, ticket title, ticket description,
-client name, company ID, or work-location values from hidden fields for this
-path.
+server-verified list for the current local day and current managed web user's
+resource before creating a job. Never accept ticket number, ticket title, ticket
+description, client name, company ID, or work-location values from hidden fields
+for this path.
 
 The `/mobile/service-calls` response may include a preformatted local
 start/end time range for display, such as `4:00pm-5:00pm`. Treat that range as
 read-only card context; it must not be submitted back by the browser or used as
 the authorization source for starting a job.
+
+## Resource Lookup
+
+The `/users/autotask-resources` endpoint is for config super admins only. It
+lets the user manager search Autotask Resources while creating managed web
+users and returns safe fields such as resource ID, first name, last name,
+display name, and email when available.
+
+Resource lookup must stay inside `job_logger/services/autotask.py`. Browser
+JavaScript may call Job Logger's authenticated endpoint, but it must never call
+Autotask directly or receive Autotask credentials. Autotask formats resource
+names as `Last, First`; the provider should accept either `First Last` or
+`Last, First`, query `Resources/query` with bounded first-name and last-name
+filters, deduplicate IDs, and cache only positive non-secret results briefly.
 
 Remote/On-Site detection is intentionally simple and auditable: scan the
 service-call details for `remote`, `onsite`, `on-site`, or `on site`. If neither
@@ -227,16 +256,21 @@ Required local fields before submission:
 
 Required live Autotask values include:
 
-- Resource ID.
-- Role ID.
+- The owning managed web user's Autotask resource ID.
+- The selected ticket's assigned role ID.
 - Time entry type.
 - Tenant-specific ticket status picklist IDs.
 - Impersonation resource ID when configured.
 
+Ticket `TimeEntries` creation must query the selected `Tickets` row by
+`ticketNumber` and use `assignedResourceroleID` for `TimeEntries.roleID`.
+Autotask requires ticket time-entry roles to match the ticket's assigned role
+unless the tenant explicitly allows role edits on ticket time entries.
+
 Ticket `TimeEntries` creation must not include `billingCodeID`. Autotask labels
-that as Allocation Code, and tenants can reject it unless the API resource has
-permission to change allocation codes. Let Autotask use the ticket/resource
-defaults instead.
+that as Allocation Code / Work Type. On create, omitting it lets Autotask
+inherit the selected ticket's `billingCodeID`; passing the field can require
+extra Allocation Code edit permission even when the value matches the ticket.
 
 Ticket `TimeEntries.summaryNotes` must be built from the stored work-location
 mode plus the reviewed summary text. The local `summary_notes` field stays
@@ -271,9 +305,9 @@ falling back to generic HTTP client exception text.
 
 ## Diagnostics And Scripts
 
-The debug page is for runtime visibility. It should show the source-controlled
-application version, sanitized config, connectivity test results, and submission
-attempts.
+The debug page is a super-admin-only runtime visibility surface. It should show
+the source-controlled application version, sanitized config, connectivity test
+results, and submission attempts.
 
 The script `scripts/discover_autotask_ids.py` is for read-only tenant metadata
 discovery using `.env` configuration. Keep it read-only and never print
@@ -281,8 +315,8 @@ credentials.
 
 Discovery success does not prove the full app workflow can run. The script also
 prints non-fatal workflow preflight checks for Companies and Tickets query
-access because role, billing code, and status metadata calls can succeed while
-the API user still lacks endpoint access needed by the mobile/review workflow.
+access because status metadata calls can succeed while the API user still lacks
+endpoint access needed by the mobile/review workflow.
 Autotask may return those permission failures as HTTP 500 responses with a
 body-level permission message.
 

@@ -37,6 +37,8 @@
 .mobile-shell,
 .review-shell,
 .debug-shell,
+.users-shell,
+.config-shell,
 .login-shell {
   width: min(100% - 20px, 560px);
   margin: 18px auto;
@@ -46,22 +48,30 @@
 .edit-panel,
 .login-panel,
 .audit-panel,
+.users-list-panel,
 .debug-table-panel {
   padding: 16px;
 }
 
 .review-layout,
+.users-layout,
 .form-grid,
 .metric-grid,
-.button-grid {
+.button-grid,
+.user-row {
   grid-template-columns: 1fr;
 }
 
 .review-header,
+.resource-picker-header,
 .form-header-row,
 .mobile-status-row {
   align-items: flex-start;
   flex-direction: column;
+}
+
+.resource-picker-header .secondary-button {
+  width: 100%;
 }
 
 .review-table {

@@ -1,4 +1,4 @@
-"""Database models for jobs, submissions, and immutable audit events."""
+"""Database models for users, jobs, submissions, and immutable audit events."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Date, DateTime, Enum, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from job_logger.database import Base
-from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
+from job_logger.enums import JobStatus, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
 
 
 def utc_now() -> datetime:
@@ -40,6 +40,90 @@ def enum_column(enum_type: type[Any], length: int, comment: str) -> Mapped[Any]:
     )
 
 
+class WebUser(Base):
+    """Database-managed application user allowed to record Autotask work."""
+
+    __tablename__ = "web_users"
+
+    # id is a UUID string so job ownership stays stable if usernames change.
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string, comment="Stable web-user UUID.")
+
+    # full_name is the technician display name shown in admin and review views.
+    full_name: Mapped[str] = mapped_column(String(160), nullable=False, comment="Required human-readable user name.")
+
+    # username is the local login name. username_normalized enforces
+    # case-insensitive uniqueness while preserving the display spelling.
+    username: Mapped[str] = mapped_column(String(120), nullable=False, comment="Required local login username.")
+    username_normalized: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+        unique=True,
+        comment="Case-folded username used for unique login lookup.",
+    )
+
+    # password_hash stores only a salted verifier, never the submitted password.
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False, comment="Salted password verifier.")
+
+    # autotask_resource_id is required because web users can create work entries.
+    autotask_resource_id: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Autotask resource ID used for this user's service calls and time entries.",
+    )
+
+    # disabled blocks future local login without deleting job/audit history.
+    disabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Whether this user is blocked from logging in.",
+    )
+
+    # created_at_utc and updated_at_utc support account-management audit review.
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    # jobs links work history to the web user whose Autotask resource was used.
+    jobs: Mapped[list[Job]] = relationship("Job", back_populates="web_user")
+
+    __table_args__ = (
+        Index("ix_web_users_disabled", "disabled"),
+    )
+
+
+class UserPreference(Base):
+    """Per-authenticated-user configuration values."""
+
+    __tablename__ = "user_preferences"
+
+    # id is stable for backups and future preference expansion.
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string, comment="Stable preference UUID.")
+
+    # principal_key identifies either a managed web user or the config super admin.
+    principal_key: Mapped[str] = mapped_column(
+        String(180),
+        nullable=False,
+        unique=True,
+        comment="Stable authenticated-user key, such as web_user:<uuid> or super_admin:<username>.",
+    )
+
+    # theme stores the preferred visual theme for every authenticated page.
+    theme: Mapped[ThemeMode] = enum_column(ThemeMode, 16, "Preferred visual theme.")
+
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
 class Job(Base):
     """A locally recorded work session awaiting review and Autotask submission."""
 
@@ -50,6 +134,15 @@ class Job(Base):
 
     # status controls allowed workflow transitions and review visibility.
     status: Mapped[JobStatus] = enum_column(JobStatus, 32, "Current local job workflow status.")
+
+    # web_user_id identifies the managed web user who owns this job. It is
+    # nullable so existing rows can migrate before the first web user is created.
+    web_user_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("web_users.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Managed web-user UUID that owns this job.",
+    )
 
     # ticket_number is the human Autotask ticket number entered during review.
     ticket_number: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Autotask ticket number.")
@@ -218,9 +311,13 @@ class Job(Base):
     # audit_events links immutable job changes to the owning job.
     audit_events: Mapped[list[AuditEvent]] = relationship("AuditEvent", back_populates="job", cascade="save-update")
 
+    # web_user links the job to its technician account.
+    web_user: Mapped[WebUser | None] = relationship("WebUser", back_populates="jobs")
+
     __table_args__ = (
         Index("ix_jobs_status_created_at", "status", "created_at_utc"),
         Index("ix_jobs_ticket_number", "ticket_number"),
+        Index("ix_jobs_web_user_status_created_at", "web_user_id", "status", "created_at_utc"),
     )
 
 

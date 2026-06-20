@@ -25,6 +25,7 @@
             <tr>
                 <th>Ticket</th>
                 <th>Client</th>
+                {% if show_job_owner %}<th>Owner</th>{% endif %}
                 <th>Status</th>
                 <th>Date</th>
                 <th>Start</th>
@@ -48,6 +49,9 @@
                   <td>
                     {{ job.client_name or "Not set" }}
                   </td>
+                  {% if show_job_owner %}
+                    <td>{{ job.web_user.full_name if job.web_user else "Unassigned" }}</td>
+                  {% endif %}
                   <td>
                     {% if job.autotask_external_id %}
                       <span class="status-chip status-submitted">Submitted</span>
@@ -63,7 +67,7 @@
                 </tr>
               {% else %}
                 <tr>
-                  <td colspan="6">No jobs are available for review.</td>
+                  <td colspan="{% if show_job_owner %}7{% else %}6{% endif %}">No jobs are available for review.</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -76,10 +80,10 @@
           <form
             method="post"
             class="review-form {% if selected_job_submitted %}review-form-submitted{% endif %}"
-            {% if selected_job_submitted %}
+            {% if selected_job_submitted and can_modify_selected_job %}
               action="/review/{{ selected_job.id }}/edit-entry"
             {% endif %}
-            {% if not selected_job_submitted %}
+            {% if not selected_job_submitted and can_modify_selected_job %}
               data-review-autosave-form
               data-review-save-url="/review/{{ selected_job.id }}/save"
             {% endif %}
@@ -94,22 +98,42 @@
               <span class="status-chip status-{{ selected_job.status.value }}">{{ selected_job.status.value.replace("_", " ") }}</span>
             </div>
 
+            {% if show_job_owner %}
+              <div class="readonly-field-card review-owner-card">
+                <span class="metric-label readonly-field-title">Owner</span>
+                <strong class="readonly-field-value">{{ selected_job.web_user.full_name if selected_job.web_user else "Unassigned" }}</strong>
+              </div>
+            {% endif %}
+
             {% if selected_job.autotask_external_id %}
               <p class="success-text">Autotask time entry: {{ selected_job.autotask_external_id }}</p>
             {% endif %}
             {% if selected_job_submitted %}
               <section class="review-submitted-notice" role="note" aria-label="Submitted job editable">
                 <strong>Submitted Autotask entry</strong>
-                <span>Date, start time, end time, summary notes, and ticket status can be updated with Edit Entry. Ticket and client identity stay read-only.</span>
+                <span>
+                  {% if can_modify_selected_job %}
+                    Date, start time, end time, summary notes, and ticket status can be updated with Edit Entry. Ticket and client identity stay read-only.
+                  {% else %}
+                    This submitted Autotask entry is visible to the super admin but cannot be edited from that account.
+                  {% endif %}
+                </span>
+              </section>
+            {% endif %}
+            {% if not can_modify_selected_job %}
+              <section class="review-submitted-notice" role="note" aria-label="Read-only job view">
+                <strong>Read-only view</strong>
+                <span>The config super admin can inspect jobs and audit history, but cannot edit, submit, delete, record audio, or run AI cleanup.</span>
               </section>
             {% endif %}
             {% if selected_job.autotask_error %}
               <p class="error-text">{{ selected_job.autotask_error }}</p>
             {% endif %}
-            {% if not selected_job_submitted %}
+            {% if not selected_job_submitted and can_modify_selected_job %}
               <p class="muted-text" data-review-autosave-status aria-live="polite"></p>
             {% endif %}
 
+            <fieldset class="review-readonly-fieldset" {% if not can_modify_selected_job %}disabled{% endif %}>
             <div class="form-grid">
               <div class="readonly-field-card">
                 <span class="metric-label readonly-field-title">Ticket number</span>
@@ -237,7 +261,7 @@
               </label>
             </div>
 
-            {% if not selected_job_submitted and not selected_job.ticket_number %}
+            {% if can_modify_selected_job and not selected_job_submitted and not selected_job.ticket_number %}
               <section
                 class="ticket-picker"
                 data-ticket-picker
@@ -272,7 +296,7 @@
               <span>Summary notes</span>
               <textarea name="summary_notes" rows="8" data-review-summary-textarea>{{ selected_job_autotask_summary_notes }}</textarea>
             </label>
-            {% if not selected_job_submitted %}
+            {% if can_modify_selected_job and not selected_job_submitted %}
               <div class="recording-control-stack">
                 <button
                   class="secondary-button record-notes-button"
@@ -299,7 +323,7 @@
                 <p class="error-text">{{ selected_job.transcription_error }}</p>
               {% endif %}
             {% endif %}
-            {% if ai_cleanup_enabled %}
+            {% if can_modify_selected_job and ai_cleanup_enabled %}
               <div class="summary-tool-row">
                 <button
                   type="button"
@@ -312,8 +336,9 @@
                 <span class="muted-text ai-cleanup-status" data-ai-cleanup-status aria-live="polite"></span>
               </div>
             {% endif %}
+            </fieldset>
 
-            {% if selected_job_submitted %}
+            {% if can_modify_selected_job and selected_job_submitted %}
               <div class="action-row">
                 <button class="primary-button" type="submit" formaction="/review/{{ selected_job.id }}/edit-entry">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -323,7 +348,7 @@
                   Edit Entry
                 </button>
               </div>
-            {% else %}
+            {% elif can_modify_selected_job %}
               <div class="action-row">
                 <button class="primary-button" type="submit" formaction="/review/{{ selected_job.id }}/accept">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -344,7 +369,7 @@
             {% endif %}
           </form>
 
-          {% if selected_job_submitted %}
+          {% if can_modify_selected_job and selected_job_submitted %}
             <form
               method="post"
               action="/review/{{ selected_job.id }}/delete-entry"
@@ -363,7 +388,7 @@
                 Delete From Autotask
               </button>
             </form>
-          {% else %}
+          {% elif can_modify_selected_job %}
             <form
               method="post"
               action="/review/{{ selected_job.id }}/purge"

@@ -4,6 +4,37 @@ All recorded changes to Job Logger are documented in this file.
 
 ## Unreleased
 
+- Hardened `/debug` so only the config super admin can see the menu link or
+  access debug pages, downloads, backup/restore, and Autotask test actions.
+  Managed web-user sessions now receive 403 on direct `/debug/*` requests.
+
+- Removed static Autotask role and billing-code configuration from the live
+  time-entry flow. Ticket submissions now read the selected ticket's
+  `assignedResourceroleID` for `TimeEntries.roleID`, and omit
+  `billingCodeID` so Autotask inherits the ticket Work Type on create.
+
+- Added super-admin Autotask Resource lookup on `/users` so new web users can
+  be matched by full name to `Last, First` Autotask resources and fill the
+  required resource ID. The add-user form now suggests usernames like `jblow`
+  from `Joe Blow`, and managed-user password creation/reset now requires at
+  least 8 characters with lowercase, uppercase, number, and symbol characters.
+
+- Added an authenticated `/config` page with per-login light/dark theme
+  preferences, defaulting to dark, and added light-theme styling across mobile,
+  review, user management, config, debug, and login surfaces.
+- Changed review **Delete time entry** so managed web users can delete their own
+  active local jobs from review detail while successfully submitted Autotask
+  jobs remain protected.
+- Added super-admin-only owner display on selected review details in addition
+  to the review list owner column.
+
+- Added super-admin-managed web users with full name, username, hashed password,
+  required Autotask resource ID, disable, edit, and delete-or-disable controls.
+  The config `APP_USERNAME` account is now a read-only work viewer plus
+  users/debug administrator, existing unowned jobs are assigned to the first web
+  user created, and `AUTOTASK_RESOURCE_ID` was removed from runtime config in
+  favor of per-user resource IDs for service calls and time-entry creation.
+
 - Added authenticated `/debug` full backup and restore controls. Backups download as gzip JSON
   snapshots of all Job Logger database tables, restores require CSRF plus typed `RESTORE`
   confirmation, validate the archive before deleting current rows, and record audit events.

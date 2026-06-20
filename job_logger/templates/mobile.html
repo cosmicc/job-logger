@@ -329,25 +329,37 @@
         {% endfor %}
       {% else %}
         <section class="work-panel">
-          <p class="eyebrow-text">Ready</p>
-          <h1>Start a work entry</h1>
-          <p class="muted-text">Start work, choose the client and open ticket during the job, then end work for review.</p>
-          <form method="post" action="/jobs/start" class="start-work-form" data-page-loading-form data-loading-message="Starting work...">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button class="primary-action-button" type="submit">
+          {% if can_start_jobs %}
+            <p class="eyebrow-text">Ready</p>
+            <h1>Start a work entry</h1>
+            <p class="muted-text">Start work, choose the client and open ticket during the job, then end work for review.</p>
+            <form method="post" action="/jobs/start" class="start-work-form" data-page-loading-form data-loading-message="Starting work...">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="primary-action-button" type="submit">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 5v14l11-7z"></path>
+                </svg>
+                Start Work
+              </button>
+            </form>
+            {{ render_service_call_start_options() }}
+          {% else %}
+            <p class="eyebrow-text">Read only</p>
+            <h1>Work entry unavailable</h1>
+            <p class="muted-text">{{ start_block_reason or "This account cannot start work entries." }}</p>
+            <a class="secondary-link-button" href="/review">
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M8 5v14l11-7z"></path>
+                <path d="M9 18l6-6-6-6"></path>
               </svg>
-              Start Work
-            </button>
-          </form>
-          {{ render_service_call_start_options() }}
+              Review jobs
+            </a>
+          {% endif %}
         </section>
       {% endif %}
     </section>
 
     {% if active_jobs %}
-      {% if active_jobs|length < 2 %}
+      {% if can_start_jobs and active_jobs|length < 2 %}
       <section class="work-panel">
         <p class="eyebrow-text">Start another job</p>
         <h1>Add a concurrent job</h1>

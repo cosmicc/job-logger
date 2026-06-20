@@ -17,8 +17,12 @@ from job_logger.database import get_database_session
 from job_logger.enums import JobStatus, WorkLocation
 from job_logger.security import (
     add_flash_message,
+    is_super_admin_session,
+    logout_session,
     require_authenticated_username,
     require_authenticated_username_from_session,
+    require_web_user_id,
+    require_web_user_id_from_session,
     validate_csrf_header,
     validate_csrf_session_token,
     validate_csrf_token,
@@ -41,8 +45,9 @@ from job_logger.services.jobs import (
     delete_active_job,
     end_job,
     ensure_job_can_record_description,
+    ensure_job_owned_by_web_user,
     get_job_or_raise,
-    list_active_jobs,
+    list_active_jobs_for_web_user,
     mark_job_transcription_failed,
     start_job,
     transcribe_active_job_audio,
@@ -50,6 +55,7 @@ from job_logger.services.jobs import (
     update_description_text,
 )
 from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
+from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
 from job_logger.time_utils import format_local_compact_time_range
 from job_logger.ui import template_context, templates
 
@@ -93,11 +99,18 @@ def _service_call_start_work_location(service_call_option: AutotaskServiceCallOp
     return service_call_option.detected_work_location or WorkLocation.REMOTE
 
 
-def _load_todays_service_calls_for_mobile_start() -> tuple[list[AutotaskServiceCallOption], str | None]:
+def _current_enabled_web_user(request: Request, database_session: Session):
+    """Return the enabled managed web user for a work route."""
+
+    web_user_id = require_web_user_id(request)
+    return get_enabled_web_user_by_id_or_raise(database_session, web_user_id)
+
+
+def _load_todays_service_calls_for_mobile_start(resource_id: int) -> tuple[list[AutotaskServiceCallOption], str | None]:
     """Return today's service calls and a safe display error for the start panel."""
 
     try:
-        return get_autotask_provider().list_todays_service_calls_for_resource(), None
+        return get_autotask_provider().list_todays_service_calls_for_resource(resource_id=resource_id), None
     except AutotaskSubmissionError as exc:
         return [], str(exc)
 
@@ -497,14 +510,36 @@ def mobile_page(
     if not require_authenticated_username_or_redirect(request):
         return RedirectResponse(url="/login", status_code=303)
 
-    active_jobs = list_active_jobs(database_session)
+    try:
+        web_user = _current_enabled_web_user(request, database_session)
+    except (HTTPException, WebUserError):
+        if not is_super_admin_session(request.session):
+            logout_session(request)
+            add_flash_message(request, "This user account is disabled.", "error")
+            return RedirectResponse(url="/login", status_code=303)
+        return templates.TemplateResponse(
+            request,
+            "mobile.html",
+            template_context(
+                request,
+                database_session=database_session,
+                active_jobs=[],
+                can_start_jobs=False,
+                start_block_reason="The config super admin can view jobs, but cannot start work because it has no Autotask resource ID.",
+            ),
+        )
+
+    active_jobs = list_active_jobs_for_web_user(database_session, web_user.id)
 
     return templates.TemplateResponse(
         request,
         "mobile.html",
         template_context(
             request,
+            database_session=database_session,
             active_jobs=active_jobs,
+            can_start_jobs=True,
+            start_block_reason=None,
         ),
     )
 
@@ -516,12 +551,16 @@ def mobile_service_call_options(
 ) -> JSONResponse:
     """Return today's service-call start options for the already-rendered mobile page."""
 
-    require_authenticated_username(request)
-    active_jobs = list_active_jobs(database_session)
+    try:
+        web_user = _current_enabled_web_user(request, database_session)
+    except (HTTPException, WebUserError) as exc:
+        return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=403)
+
+    active_jobs = list_active_jobs_for_web_user(database_session, web_user.id)
     if len(active_jobs) >= MAX_ACTIVE_JOBS:
         return JSONResponse({"service_calls": [], "active_job_slots_available": False})
 
-    service_call_options, service_call_error = _load_todays_service_calls_for_mobile_start()
+    service_call_options, service_call_error = _load_todays_service_calls_for_mobile_start(web_user.autotask_resource_id)
     if service_call_error:
         return JSONResponse({"detail": service_call_error, "service_calls": []}, status_code=400)
 
@@ -544,10 +583,17 @@ def mobile_typo_redirect() -> RedirectResponse:
 
 
 @router.get("/autotask/companies")
-def autotask_company_options(request: Request, query: str = "") -> JSONResponse:
+def autotask_company_options(
+    request: Request,
+    query: str = "",
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
     """Return safe Autotask company options for authenticated autocomplete."""
 
-    require_authenticated_username(request)
+    try:
+        _current_enabled_web_user(request, database_session)
+    except (HTTPException, WebUserError) as exc:
+        return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=403)
     try:
         company_options = get_autotask_provider().search_companies(query)
     except AutotaskSubmissionError as exc:
@@ -578,10 +624,11 @@ async def start_work(
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
 
     try:
+        web_user = _current_enabled_web_user(request, database_session)
         # New mobile jobs intentionally start blank. Client and ticket data are
         # selected while the job is active so stale or crafted pre-start fields
         # cannot attach the job to the wrong Autotask customer or ticket.
-        job = start_job(database_session)
+        job = start_job(database_session, web_user_id=web_user.id)
         record_audit_event(
             database_session,
             actor=actor,
@@ -589,15 +636,17 @@ async def start_work(
             job_id=job.id,
             request=request,
             details={
+                "web_user_id": web_user.id,
+                "autotask_resource_id": web_user.autotask_resource_id,
                 "ticket_number_present": bool(job.ticket_number),
                 "autotask_company_selected": job.autotask_company_id is not None,
             },
         )
         database_session.commit()
         add_flash_message(request, "Work started.", "success")
-    except JobWorkflowError as exc:
+    except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
-        add_flash_message(request, str(exc), "error")
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
     return RedirectResponse(url="/mobile", status_code=303)
 
@@ -625,13 +674,17 @@ async def start_work_from_service_call(
         return RedirectResponse(url="/mobile", status_code=303)
 
     try:
-        service_call_options = get_autotask_provider().list_todays_service_calls_for_resource()
+        web_user = _current_enabled_web_user(request, database_session)
+        service_call_options = get_autotask_provider().list_todays_service_calls_for_resource(
+            resource_id=web_user.autotask_resource_id
+        )
         selected_service_call = _find_matching_service_call_option(service_call_options, service_call_ticket_id)
         if selected_service_call is None:
             raise JobWorkflowError("Selected service call is not assigned to this resource for today.")
 
         job = start_job(
             database_session,
+            web_user_id=web_user.id,
             ticket_number=selected_service_call.ticket_number,
             client_name=selected_service_call.client_name,
             autotask_company_id=selected_service_call.autotask_company_id,
@@ -651,6 +704,8 @@ async def start_work_from_service_call(
             request=request,
             details={
                 "source": "autotask_service_call",
+                "web_user_id": web_user.id,
+                "autotask_resource_id": web_user.autotask_resource_id,
                 "service_call_id": selected_service_call.service_call_id,
                 "service_call_ticket_id": selected_service_call.service_call_ticket_id,
                 "ticket_number": job.ticket_number,
@@ -661,9 +716,9 @@ async def start_work_from_service_call(
         )
         database_session.commit()
         add_flash_message(request, "Work started from service call.", "success")
-    except (AutotaskSubmissionError, JobWorkflowError) as exc:
+    except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
-        add_flash_message(request, str(exc), "error")
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
     return RedirectResponse(url="/mobile", status_code=303)
 
@@ -689,6 +744,9 @@ async def save_ticket_number(
     submitted_work_location = str(raw_work_location) if raw_work_location is not None else None
 
     try:
+        web_user = _current_enabled_web_user(request, database_session)
+        existing_job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(existing_job, web_user.id)
         job = update_active_job_ticket_number(
             database_session,
             job_id,
@@ -728,11 +786,11 @@ async def save_ticket_number(
                 }
             )
         add_flash_message(request, "Active job changes saved.", "success")
-    except JobWorkflowError as exc:
+    except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         if wants_json_response:
-            return JSONResponse({"detail": str(exc)}, status_code=400)
-        add_flash_message(request, str(exc), "error")
+            return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
     return RedirectResponse(url="/mobile", status_code=303)
 
@@ -750,7 +808,9 @@ async def select_active_ticket(
     payload = await request.json()
     submitted_ticket_number = str(payload.get("ticket_number", ""))
     try:
+        web_user = _current_enabled_web_user(request, database_session)
         job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(job, web_user.id)
         if job.status != JobStatus.ACTIVE:
             raise JobWorkflowError("Tickets can only be selected from mobile during an active job.")
         if not job.client_name:
@@ -784,9 +844,9 @@ async def select_active_ticket(
             },
         )
         database_session.commit()
-    except (AutotaskSubmissionError, JobWorkflowError) as exc:
+    except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
-        return JSONResponse({"detail": str(exc)}, status_code=400)
+        return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
 
     return JSONResponse(
         {
@@ -809,7 +869,9 @@ async def delete_open_job(
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
     try:
+        web_user = _current_enabled_web_user(request, database_session)
         job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(job, web_user.id)
         audit_details = {
             "job_id": job.id,
             "job_status": job.status.value,
@@ -827,9 +889,9 @@ async def delete_open_job(
         )
         database_session.commit()
         add_flash_message(request, "Open job deleted.", "success")
-    except JobWorkflowError as exc:
+    except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
-        add_flash_message(request, str(exc), "error")
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
     return RedirectResponse(url="/mobile", status_code=303)
 
@@ -848,6 +910,9 @@ async def adjust_start_time(
     delta_minutes = form_data.get("delta_minutes")
 
     try:
+        web_user = _current_enabled_web_user(request, database_session)
+        existing_job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(existing_job, web_user.id)
         job = adjust_active_job_rounded_start(database_session, job_id=job_id, delta_minutes=delta_minutes)
         audit_details = {"delta_minutes": delta_minutes}
         record_audit_event(
@@ -860,9 +925,9 @@ async def adjust_start_time(
         )
         database_session.commit()
         add_flash_message(request, "Rounded start time adjusted.", "success")
-    except JobWorkflowError as exc:
+    except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
-        add_flash_message(request, str(exc), "error")
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
     return RedirectResponse(url="/mobile", status_code=303)
 
@@ -885,6 +950,9 @@ async def end_work(
     summary_notes = str(form_data.get("summary_notes", ""))
 
     try:
+        web_user = _current_enabled_web_user(request, database_session)
+        existing_job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(existing_job, web_user.id)
         job = end_job(
             database_session,
             job_id,
@@ -905,9 +973,9 @@ async def end_work(
         )
         database_session.commit()
         add_flash_message(request, "Work ended and moved to review.", "success")
-    except JobWorkflowError as exc:
+    except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
-        add_flash_message(request, str(exc), "error")
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
     return RedirectResponse(url="/mobile", status_code=303)
 
@@ -926,6 +994,9 @@ async def save_browser_description(
     description_text = str(payload.get("summary_notes", "")) or str(payload.get("description_text", ""))
 
     try:
+        web_user = _current_enabled_web_user(request, database_session)
+        existing_job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(existing_job, web_user.id)
         job = update_description_text(database_session, job_id, description_text)
         record_audit_event(
             database_session,
@@ -936,9 +1007,9 @@ async def save_browser_description(
             details={"text_length": len(description_text)},
         )
         database_session.commit()
-    except JobWorkflowError as exc:
+    except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(getattr(exc, "detail", exc))) from exc
 
     return JSONResponse({"summary_notes": job.summary_notes or "", "description_text": job.description_text or ""})
 
@@ -957,7 +1028,9 @@ async def cleanup_active_job_summary(
     submitted_summary_text = str(payload.get("summary_notes", "")) or str(payload.get("description_text", ""))
 
     try:
+        web_user = _current_enabled_web_user(request, database_session)
         job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(job, web_user.id)
         if job.status != JobStatus.ACTIVE:
             raise JobWorkflowError("AI cleanup is only available for active mobile jobs from this page.")
 
@@ -989,9 +1062,9 @@ async def cleanup_active_job_summary(
             },
         )
         database_session.commit()
-    except (AiCleanupError, JobWorkflowError) as exc:
+    except (HTTPException, AiCleanupError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
-        return JSONResponse({"detail": str(exc)}, status_code=400)
+        return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
 
     return JSONResponse(
         {
@@ -1014,6 +1087,7 @@ async def stream_audio_description(
     await websocket.accept()
     try:
         actor = require_authenticated_username_from_session(websocket.session)
+        web_user_id = require_web_user_id_from_session(websocket.session)
     except HTTPException as exc:
         await _send_audio_stream_error(websocket, str(exc.detail), status.WS_1008_POLICY_VIOLATION)
         return
@@ -1031,7 +1105,9 @@ async def stream_audio_description(
         content_type = _normalize_audio_stream_content_type(start_payload.get("content_type"))
         filename = _safe_audio_stream_filename(start_payload.get("filename"))
 
+        web_user = get_enabled_web_user_by_id_or_raise(database_session, web_user_id)
         job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(job, web_user.id)
         ensure_job_can_record_description(job)
 
         record_audit_event(
@@ -1064,7 +1140,7 @@ async def stream_audio_description(
     except HTTPException as exc:
         database_session.rollback()
         await _send_audio_stream_error(websocket, str(exc.detail), status.WS_1008_POLICY_VIOLATION)
-    except (AudioStreamProtocolError, JobWorkflowError) as exc:
+    except (AudioStreamProtocolError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         await _send_audio_stream_error(websocket, str(exc), status.WS_1008_POLICY_VIOLATION)
 
@@ -1089,6 +1165,9 @@ async def upload_audio_description(
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Audio upload is too large.")
 
     try:
+        web_user = _current_enabled_web_user(request, database_session)
+        existing_job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(existing_job, web_user.id)
         job = transcribe_active_job_audio(
             database_session,
             job_id=job_id,
@@ -1105,9 +1184,9 @@ async def upload_audio_description(
             details={"provider": job.transcription_provider, "audio_size_bytes": len(audio_bytes)},
         )
         database_session.commit()
-    except (JobWorkflowError, TranscriptionError) as exc:
+    except (HTTPException, JobWorkflowError, TranscriptionError, WebUserError) as exc:
         database_session.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(getattr(exc, "detail", exc))) from exc
 
     return JSONResponse(
         {"summary_notes": job.summary_notes or "", "description_text": job.description_text or "", "provider": job.transcription_provider}

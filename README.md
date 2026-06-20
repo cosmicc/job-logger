@@ -8,8 +8,10 @@ and submitting accepted jobs to Autotask.
 
 - FastAPI serves the application.
 - Nginx fronts the FastAPI web interface inside Docker.
-- Jinja templates render the mobile capture page and desktop review page.
-- PostgreSQL stores jobs, review fields, submission attempts, and audit events.
+- Jinja templates render the mobile capture page, desktop review page, user
+  manager, config page, and diagnostics.
+- PostgreSQL stores managed web users, jobs, review fields, submission attempts,
+  per-user preferences, and audit events.
 - Alembic manages database migrations.
 - Cloudflare Tunnel publishes the app without opening an inbound firewall port.
 - Cloudflare Access can protect the public hostname before the app login page.
@@ -26,6 +28,7 @@ Autotask REST API references used by this app:
 - TimeEntries entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/TimeEntriesEntity.htm
 - Tickets entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/TicketsEntity.htm
 - Companies entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/CompaniesEntity.htm
+- Resources entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ResourcesEntity.htm
 - ServiceCalls entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ServiceCallsEntity.htm
 - ServiceCallTickets entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ServiceCallTicketsEntity.htm
 - ServiceCallTicketResources entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ServiceCallTicketResourceEntity.htm
@@ -39,7 +42,9 @@ Autotask REST API references used by this app:
    cp .env.example .env
    ```
 
-2. Set `APP_USERNAME` and `APP_PASSWORD` in `.env`.
+2. Set `APP_USERNAME` and `APP_PASSWORD` in `.env`. This config account is the
+   super admin for diagnostics and user management; it does not create work
+   entries because it has no Autotask resource ID.
 
 3. Replace `APP_SECRET_KEY` with a long random value.
 
@@ -70,6 +75,19 @@ Autotask REST API references used by this app:
    ```text
    http://127.0.0.1:11030
    ```
+
+7. Sign in with the config super-admin account, open `/users`, and create at
+   least one web user with full name, username, password, and Autotask resource
+   ID. The add-user form suggests a username from the name, such as `jblow` for
+   `Joe Blow`, and can search Autotask Resources so you can select the matching
+   `Last, First` resource and fill its ID. Managed-user passwords must be at
+   least 8 characters and include lowercase, uppercase, number, and symbol
+   characters. The first web user you create takes ownership of any existing
+   unowned jobs from earlier single-user installs.
+
+8. Open `/config` from any authenticated account to choose the user's visual
+   theme. Dark is the default; light and dark themes apply to mobile and web
+   pages for that login only.
 
 ## Cloudflare Tunnel
 
@@ -258,8 +276,8 @@ the browser and launch it without the normal browser toolbar.
 Use the Cloudflare HTTPS hostname on the phone, sign in, open the browser menu,
 and choose the platform's install action such as **Add to Home Screen** or
 **Install App**. After launching from that home-screen icon, the app uses
-standalone display mode, the configured dark theme color, safe-area padding for
-phone status bars, and disabled page overscroll/bounce behavior.
+standalone display mode, the authenticated user's saved page theme, safe-area
+padding for phone status bars, and disabled page overscroll/bounce behavior.
 
 The service worker is intentionally network-only. It supports standalone app
 launch behavior but does not cache authenticated pages, job data, Autotask
@@ -434,8 +452,23 @@ tests or isolated development.
 - `AUTOTASK_USERNAME`
 - `AUTOTASK_SECRET`
 - `AUTOTASK_API_INTEGRATION_CODE`
-- `AUTOTASK_RESOURCE_ID`
-- `AUTOTASK_ROLE_ID`
+
+Do not set a global `AUTOTASK_RESOURCE_ID`. Each managed web user has a required
+Autotask resource ID on `/users`; Job Logger uses that user-specific resource ID
+for today's service-call lookup and for `TimeEntries.resourceID` when that user
+submits work.
+
+Do not set static role or billing-code IDs. When a reviewed job is submitted,
+Job Logger re-queries the selected ticket and uses that ticket's
+`assignedResourceroleID` for `TimeEntries.roleID`. Billing code / Work Type is
+also ticket-driven: Job Logger omits `TimeEntries.billingCodeID` so Autotask
+inherits the selected ticket's `billingCodeID` on create without requiring
+separate Allocation Code edit permission.
+
+The super-admin `/users` page can query Autotask Resources through the server
+while adding a web user. Resource names are displayed in Autotask's `Last, First`
+format, and choosing one fills the required resource ID field. The browser never
+receives Autotask credentials and cannot query Autotask directly.
 
 Autotask ticket status picklist IDs vary by tenant. Configure these before
 production use so the full workflow can update the selected ticket status:
@@ -493,7 +526,8 @@ instead of trusting form posts. Once a job has a ticket number, the open-ticket
 picker is hidden for that job.
 
 When an active job slot is available, the mobile start panel also lists today's
-Autotask service calls assigned to `AUTOTASK_RESOURCE_ID`. The mobile page
+Autotask service calls assigned to the logged-in web user's Autotask resource
+ID. The mobile page
 renders first with a loading state and no synchronous Autotask calls. After the
 window load event, the browser fetches `/mobile/service-calls` so slow Autotask
 service-call lookups show progress instead of delaying the whole start screen.
@@ -534,7 +568,9 @@ existing Autotask time entry and returns the local job to review without
 removing the local job record. If Autotask refuses the delete, the job remains
 submitted and the safe failure message is shown in review.
 Save, accept/resend, retry, ticket selection, and local **Delete time entry**
-cleanup remain blocked for submitted jobs.
+cleanup remain blocked for submitted jobs. **Delete time entry** may remove
+active or other unsubmitted local jobs from the selected review detail when the
+logged-in managed web user owns the job.
 
 The selected job's audit timeline is collapsed by default and can be expanded
 from the review detail when troubleshooting or checking history.
@@ -546,11 +582,12 @@ summary text. Review detail shows the complete Autotask-bound summary, such as
 corrected before submission or **Edit Entry**. The server parses that prefix
 back into the stored work-location mode and keeps local note storage unprefixed.
 
-Ticket `TimeEntries` payloads intentionally omit `billingCodeID` / Allocation
-Code values. Autotask will use the ticket/resource defaults, which avoids
-requiring the API resource to have Allocation Code edit permission for ticket
-time entries. Existing `AUTOTASK_BILLING_CODE_ID` values in `.env` are ignored
-by the submit payload.
+Ticket `TimeEntries` payloads use the selected ticket's
+`assignedResourceroleID` for `roleID`. They intentionally omit `billingCodeID` /
+Allocation Code values; Autotask inherits the selected ticket's Work Type on
+create, which avoids requiring the API resource to have Allocation Code edit
+permission for ticket time entries. Existing `AUTOTASK_ROLE_ID` and
+`AUTOTASK_BILLING_CODE_ID` values in older `.env` files are ignored by the app.
 
 Leave `AUTOTASK_IMPERSONATION_RESOURCE_ID` blank unless Autotask specifically
 requires impersonation for your tenant. When blank, Job Logger omits the
@@ -559,8 +596,10 @@ value is set, Autotask evaluates Companies/Tickets query permissions for the
 impersonated resource context, which can fail even when the API user itself has
 access.
 
-The `/debug` page shows the source-controlled application version and includes a
-**Test Autotask API** button. That check verifies required workflow
+The `/debug` page is available only to the config super admin. Managed web
+users do not see the Debug menu item, and direct `/debug/*` requests from those
+sessions return 403. It shows the source-controlled application version and
+includes a **Test Autotask API** button. That check verifies required workflow
 configuration and the live Companies/Tickets API calls used by the app. The
 debug button is manual and always runs a fresh live check. It is not used by
 the initial mobile page or blank Start Work route.
@@ -598,12 +637,11 @@ across normal container rebuilds and recreates. Do not run `docker compose down
 verified backup and intend to replace or discard the existing data.
 
 The `scripts/discover_autotask_ids.py` helper also prints a workflow endpoint
-preflight section. Role, billing-code, and ticket-status ID discovery can
-succeed even when the Autotask API user cannot query Companies or Tickets, so
-use the preflight result and the `/debug` failed-operation label when diagnosing
-Autotask HTTP 500 or permission failures. Some Autotask permission denials are
-returned as HTTP 500 responses, so check the preflight detail before changing
-credentials.
+preflight section. Ticket-status ID discovery can succeed even when the
+Autotask API user cannot query Companies or Tickets, so use the preflight
+result and the `/debug` failed-operation label when diagnosing Autotask HTTP
+500 or permission failures. Some Autotask permission denials are returned as
+HTTP 500 responses, so check the preflight detail before changing credentials.
 
 When Autotask rejects ticket status updates or `TimeEntries` creation, Job
 Logger surfaces bounded body-level error details when Autotask provides them.

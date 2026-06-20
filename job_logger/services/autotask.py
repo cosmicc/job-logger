@@ -21,6 +21,8 @@ from job_logger.time_utils import ensure_utc, format_autotask_datetime, local_da
 MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP = 10
 MAX_TICKET_LOOKUP_RESULTS = 25
 MAX_OPEN_TICKET_QUERY_RECORDS = MAX_TICKET_LOOKUP_RESULTS
+MAX_RESOURCE_LOOKUP_RESULTS = 25
+MAX_RESOURCE_NAME_LENGTH = 160
 MAX_SERVICE_CALL_LOOKUP_RESULTS = 25
 MAX_SERVICE_CALL_NAME_LENGTH = 240
 MAX_SERVICE_CALL_DETAIL_LENGTH = 2000
@@ -31,8 +33,10 @@ WORK_LOCATION_SUMMARY_PREFIXES = {
     WorkLocation.ON_SITE: "On-Site",
 }
 MIN_COMPANY_SEARCH_CHARACTERS = 3
+MIN_RESOURCE_SEARCH_CHARACTERS = 2
 REMOTE_SERVICE_CALL_PATTERN = re.compile(r"\bremote\b", re.IGNORECASE)
 ON_SITE_SERVICE_CALL_PATTERN = re.compile(r"\bon[\s-]?site\b", re.IGNORECASE)
+RESOURCE_MATCH_TEXT_PATTERN = re.compile(r"[^a-z0-9]+")
 SUMMARY_WORK_LOCATION_PREFIX_PATTERN = re.compile(
     r"^\s*(?P<prefix>on[\s-]?site|remote)\b(?:\s*[:\-]\s*|\s+|$)(?P<summary>.*)\Z",
     re.IGNORECASE | re.DOTALL,
@@ -84,6 +88,9 @@ _COMPANY_SEARCH_CACHE: dict[tuple[str, str], _AutotaskCacheEntry] = {}
 
 # _COMPANY_ID_CACHE stores one selected company record keyed by tenant URL and Autotask company ID.
 _COMPANY_ID_CACHE: dict[tuple[str, int], _AutotaskCacheEntry] = {}
+
+# _RESOURCE_SEARCH_CACHE stores resource lookup options keyed by tenant URL and normalized name text.
+_RESOURCE_SEARCH_CACHE: dict[tuple[str, str], _AutotaskCacheEntry] = {}
 
 # _TICKET_STATUS_CACHE stores ticket status picklist labels keyed by tenant URL.
 _TICKET_STATUS_CACHE: dict[str, _AutotaskCacheEntry] = {}
@@ -138,6 +145,26 @@ class AutotaskCompanyOption:
 
     # company_name is the Autotask display name shown in autocomplete results.
     company_name: str
+
+
+@dataclass(frozen=True)
+class AutotaskResourceOption:
+    """Safe resource data returned to the super-admin web-user manager."""
+
+    # resource_id is the Autotask Resource ID stored on the managed web user.
+    resource_id: int
+
+    # resource_name is formatted for humans as "Last, First" when available.
+    resource_name: str
+
+    # first_name is included so the browser can explain why a result matched.
+    first_name: str | None = None
+
+    # last_name is included so the browser can explain why a result matched.
+    last_name: str | None = None
+
+    # email is optional non-secret directory context returned by Autotask.
+    email: str | None = None
 
 
 @dataclass(frozen=True)
@@ -205,6 +232,21 @@ class AutotaskTicketOption:
 
 
 @dataclass(frozen=True)
+class AutotaskTicketTimeEntryContext:
+    """Ticket fields required to create a matching Autotask TimeEntries row."""
+
+    # ticket_id is the Autotask Tickets.id used by TimeEntries.ticketID.
+    ticket_id: int
+
+    # role_id is the ticket assignedResourceroleID required by ticket time entries.
+    role_id: int
+
+    # billing_code_id is the ticket Work Type ID; Autotask inherits it on create
+    # when the TimeEntries payload omits billingCodeID.
+    billing_code_id: int | None
+
+
+@dataclass(frozen=True)
 class AutotaskServiceCallOption:
     """Safe service-call data returned to the mobile start-work panel."""
 
@@ -256,7 +298,7 @@ class BaseAutotaskProvider:
 
     provider_name = "base"
 
-    def submit_job(self, job: Job) -> AutotaskSubmissionResult:
+    def submit_job(self, job: Job, *, resource_id: int) -> AutotaskSubmissionResult:
         """Submit a reviewed job to an external destination."""
 
         raise NotImplementedError
@@ -286,11 +328,17 @@ class BaseAutotaskProvider:
 
         raise NotImplementedError
 
+    def search_resources(self, query_text: str) -> list[AutotaskResourceOption]:
+        """Return matching Autotask resources for managed-user setup."""
+
+        raise NotImplementedError
+
     def list_todays_service_calls_for_resource(
         self,
+        resource_id: int,
         current_time_utc: datetime | None = None,
     ) -> list[AutotaskServiceCallOption]:
-        """Return today's service calls for the configured Autotask resource."""
+        """Return today's service calls for one Autotask resource."""
 
         raise NotImplementedError
 
@@ -382,6 +430,38 @@ def _safe_service_call_text(raw_text: Any, fallback_text: str, max_length: int) 
     return safe_text[:max_length]
 
 
+def _safe_optional_resource_text(raw_text: Any, max_length: int = MAX_RESOURCE_NAME_LENGTH) -> str | None:
+    """Return bounded optional Autotask resource text."""
+
+    safe_text = str(raw_text or "").strip()
+    if not safe_text:
+        return None
+
+    return safe_text[:max_length]
+
+
+def _resource_match_text(raw_text: Any) -> str:
+    """Return normalized text used to rank Autotask resource matches."""
+
+    normalized_text = RESOURCE_MATCH_TEXT_PATTERN.sub(" ", str(raw_text or "").strip().casefold())
+    return " ".join(normalized_text.split())
+
+
+def _resource_display_name(first_name: str | None, last_name: str | None, resource_id: int) -> str:
+    """Return the resource label that matches Autotask's last-name-first format."""
+
+    safe_first_name = (first_name or "").strip()
+    safe_last_name = (last_name or "").strip()
+    if safe_first_name and safe_last_name:
+        return f"{safe_last_name}, {safe_first_name}"[:MAX_RESOURCE_NAME_LENGTH]
+    if safe_last_name:
+        return safe_last_name[:MAX_RESOURCE_NAME_LENGTH]
+    if safe_first_name:
+        return safe_first_name[:MAX_RESOURCE_NAME_LENGTH]
+
+    return f"Resource {resource_id}"
+
+
 def _parse_autotask_datetime(raw_datetime: Any) -> datetime | None:
     """Parse an Autotask UTC datetime string for local sorting and audit context."""
 
@@ -461,10 +541,11 @@ class MockAutotaskProvider(BaseAutotaskProvider):
 
     provider_name = "mock"
 
-    def submit_job(self, job: Job) -> AutotaskSubmissionResult:
+    def submit_job(self, job: Job, *, resource_id: int) -> AutotaskSubmissionResult:
         """Return a deterministic mock external ID for end-to-end tests."""
 
         snapshot = build_safe_submission_snapshot(job)
+        snapshot["resourceID"] = resource_id
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,
@@ -551,8 +632,49 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             AutotaskCompanyOption(company_id=1002, company_name=f"{safe_query_text} Holdings"),
         ]
 
+    def search_resources(self, query_text: str) -> list[AutotaskResourceOption]:
+        """Return deterministic resource options for local web-user setup."""
+
+        safe_query_text = query_text.strip()
+        if len(safe_query_text) < MIN_RESOURCE_SEARCH_CHARACTERS:
+            raise AutotaskSubmissionError("Type at least 2 characters before searching Autotask resources.")
+
+        resource_options = [
+            AutotaskResourceOption(
+                resource_id=42,
+                resource_name="Blow, Joe",
+                first_name="Joe",
+                last_name="Blow",
+                email="joe.blow@example.test",
+            ),
+            AutotaskResourceOption(
+                resource_id=1,
+                resource_name="Technician, Test",
+                first_name="Test",
+                last_name="Technician",
+                email="test.technician@example.test",
+            ),
+        ]
+        normalized_query = _resource_match_text(safe_query_text)
+        matching_options = [
+            resource_option
+            for resource_option in resource_options
+            if any(
+                normalized_query in _resource_match_text(resource_text)
+                for resource_text in (
+                    resource_option.resource_name,
+                    f"{resource_option.first_name or ''} {resource_option.last_name or ''}",
+                    f"{resource_option.last_name or ''} {resource_option.first_name or ''}",
+                    resource_option.email,
+                )
+            )
+        ]
+
+        return matching_options[:MAX_RESOURCE_LOOKUP_RESULTS]
+
     def list_todays_service_calls_for_resource(
         self,
+        resource_id: int,
         current_time_utc: datetime | None = None,
     ) -> list[AutotaskServiceCallOption]:
         """Return deterministic service-call options for local mobile testing."""
@@ -656,6 +778,11 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         normalized_client_name = client_name.strip().casefold()
         return (self._cache_namespace(), normalized_client_name, autotask_company_id)
+
+    def _resource_search_cache_key(self, query_text: str) -> tuple[str, str]:
+        """Return the cache key for resource directory lookup results."""
+
+        return (self._cache_namespace(), _resource_match_text(query_text))
 
     def _service_call_selection_cache_key(
         self,
@@ -1061,8 +1188,6 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Return missing settings that would prevent the full Autotask workflow."""
 
         required_workflow_values = {
-            "AUTOTASK_RESOURCE_ID": self.application_settings.autotask_resource_id,
-            "AUTOTASK_ROLE_ID": self.application_settings.autotask_role_id,
             "AUTOTASK_STATUS_IN_PROGRESS_ID": self.application_settings.autotask_status_in_progress_id,
             "AUTOTASK_STATUS_WAITING_CUSTOMER_ID": self.application_settings.autotask_status_waiting_customer_id,
             "AUTOTASK_STATUS_WAITING_PARTS_ID": self.application_settings.autotask_status_waiting_parts_id,
@@ -1185,7 +1310,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 summary=f"Autotask workflow configuration is incomplete: {', '.join(workflow_gaps)}.",
                 tips=(
                     "Fill the listed AUTOTASK_* values in .env and recreate the app container.",
-                    "Use scripts/discover_autotask_ids.py to look up role, billing code, and ticket status IDs after API credentials work.",
+                    "Use scripts/discover_autotask_ids.py to look up ticket status IDs after API credentials work.",
                 ),
                 checked_operations=("configuration",),
                 failed_operation="configuration",
@@ -1339,6 +1464,116 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return None
 
+    def _resource_name_terms(self, query_text: str) -> tuple[str, str | None, str | None]:
+        """Return clean resource search text plus inferred first and last names."""
+
+        safe_query_text = " ".join(query_text.strip().split())
+        if "," in safe_query_text:
+            raw_last_name, raw_first_name = safe_query_text.split(",", 1)
+            first_name = raw_first_name.strip().split()[0] if raw_first_name.strip() else None
+            last_name = raw_last_name.strip() or None
+            return safe_query_text, first_name, last_name
+
+        name_parts = safe_query_text.split()
+        if len(name_parts) >= 2:
+            return safe_query_text, name_parts[0], name_parts[-1]
+        if name_parts:
+            return safe_query_text, name_parts[0], name_parts[0]
+
+        return safe_query_text, None, None
+
+    def _query_resources_by_filters(self, client: httpx.Client, filters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Return one bounded page of Autotask resources for a filter set."""
+
+        query_payload = {
+            "IncludeFields": ["id", "firstName", "lastName", "email"],
+            "filter": filters,
+        }
+        return self._query_paginated_items(
+            client,
+            endpoint_path="/Resources/query",
+            query_payload=query_payload,
+            action_description="Autotask resource lookup",
+            max_records=MAX_RESOURCE_LOOKUP_RESULTS,
+            follow_pagination=False,
+        )
+
+    def _query_resources_by_name(self, client: httpx.Client, query_text: str) -> list[dict[str, Any]]:
+        """Return likely Autotask Resource records for a human-entered name."""
+
+        safe_query_text, first_name, last_name = self._resource_name_terms(query_text)
+        cache_key = self._resource_search_cache_key(safe_query_text)
+        cached_resources = _get_cached_value(_RESOURCE_SEARCH_CACHE, cache_key)
+        if isinstance(cached_resources, list) and cached_resources:
+            return cached_resources[:MAX_RESOURCE_LOOKUP_RESULTS]
+
+        candidate_filter_sets: list[list[dict[str, Any]]] = []
+        if first_name and last_name and _resource_match_text(first_name) != _resource_match_text(last_name):
+            candidate_filter_sets.append(
+                [
+                    {"op": "contains", "field": "lastName", "value": last_name},
+                    {"op": "contains", "field": "firstName", "value": first_name},
+                ]
+            )
+        if last_name:
+            candidate_filter_sets.append([{"op": "contains", "field": "lastName", "value": last_name}])
+        if first_name:
+            candidate_filter_sets.append([{"op": "contains", "field": "firstName", "value": first_name}])
+
+        resource_records_by_id: dict[int, dict[str, Any]] = {}
+        seen_filter_keys: set[tuple[tuple[str, str, str], ...]] = set()
+        for filters in candidate_filter_sets:
+            filter_key = tuple(
+                (str(resource_filter["field"]), str(resource_filter["op"]), str(resource_filter["value"]).casefold())
+                for resource_filter in filters
+            )
+            if filter_key in seen_filter_keys:
+                continue
+            seen_filter_keys.add(filter_key)
+
+            for resource_record in self._query_resources_by_filters(client, filters):
+                resource_id = _coerce_positive_autotask_id(resource_record.get("id"))
+                if resource_id is None:
+                    continue
+                resource_records_by_id.setdefault(resource_id, resource_record)
+                if len(resource_records_by_id) >= MAX_RESOURCE_LOOKUP_RESULTS:
+                    break
+
+            if len(resource_records_by_id) >= MAX_RESOURCE_LOOKUP_RESULTS:
+                break
+
+        resource_records = list(resource_records_by_id.values())
+        resource_records.sort(key=lambda resource_record: self._resource_record_rank(resource_record, safe_query_text))
+        if resource_records:
+            _set_cached_value(_RESOURCE_SEARCH_CACHE, cache_key, resource_records)
+
+        return resource_records[:MAX_RESOURCE_LOOKUP_RESULTS]
+
+    def _resource_record_rank(self, resource_record: dict[str, Any], query_text: str) -> tuple[int, str]:
+        """Return a stable ranking key for resource search results."""
+
+        resource_id = _coerce_positive_autotask_id(resource_record.get("id")) or 0
+        first_name = _safe_optional_resource_text(resource_record.get("firstName"))
+        last_name = _safe_optional_resource_text(resource_record.get("lastName"))
+        resource_name = _resource_display_name(first_name, last_name, resource_id)
+        normalized_query = _resource_match_text(query_text)
+        normalized_candidates = [
+            _resource_match_text(resource_name),
+            _resource_match_text(f"{first_name or ''} {last_name or ''}"),
+            _resource_match_text(f"{last_name or ''} {first_name or ''}"),
+            _resource_match_text(resource_record.get("email")),
+        ]
+        if normalized_query in normalized_candidates:
+            match_rank = 0
+        elif any(candidate.startswith(normalized_query) for candidate in normalized_candidates):
+            match_rank = 1
+        elif any(normalized_query in candidate for candidate in normalized_candidates):
+            match_rank = 2
+        else:
+            match_rank = 3
+
+        return (match_rank, resource_name.casefold())
+
     def _query_tickets_for_company(self, client: httpx.Client, company_id: int) -> list[dict[str, Any]]:
         """Return a small server-filtered page of open Autotask tickets for one company ID."""
 
@@ -1489,15 +1724,45 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             for company in companies
         ]
 
+    def search_resources(self, query_text: str) -> list[AutotaskResourceOption]:
+        """Return likely Autotask resources for a managed web-user name."""
+
+        safe_query_text = query_text.strip()
+        if len(safe_query_text) < MIN_RESOURCE_SEARCH_CHARACTERS:
+            raise AutotaskSubmissionError("Type at least 2 characters before searching Autotask resources.")
+
+        with self._client() as client:
+            resource_records = self._query_resources_by_name(client, safe_query_text)
+
+        resource_options: list[AutotaskResourceOption] = []
+        for resource_record in resource_records:
+            resource_id = _coerce_positive_autotask_id(resource_record.get("id"))
+            if resource_id is None:
+                continue
+
+            first_name = _safe_optional_resource_text(resource_record.get("firstName"))
+            last_name = _safe_optional_resource_text(resource_record.get("lastName"))
+            resource_options.append(
+                AutotaskResourceOption(
+                    resource_id=resource_id,
+                    resource_name=_resource_display_name(first_name, last_name, resource_id),
+                    first_name=first_name,
+                    last_name=last_name,
+                    email=_safe_optional_resource_text(resource_record.get("email")),
+                )
+            )
+
+        return resource_options[:MAX_RESOURCE_LOOKUP_RESULTS]
+
     def list_todays_service_calls_for_resource(
         self,
+        resource_id: int,
         current_time_utc: datetime | None = None,
     ) -> list[AutotaskServiceCallOption]:
-        """Return today's service calls assigned to AUTOTASK_RESOURCE_ID."""
+        """Return today's service calls assigned to one managed user's resource."""
 
-        resource_id = self.application_settings.autotask_resource_id
-        if resource_id is None:
-            raise AutotaskSubmissionError("AUTOTASK_RESOURCE_ID is required before loading today's service calls.")
+        if resource_id <= 0:
+            raise AutotaskSubmissionError("A managed web user's Autotask resource ID is required before loading today's service calls.")
 
         safe_current_time_utc = ensure_utc(current_time_utc or now_utc())
         local_day_start_utc, local_day_end_utc = local_day_bounds_utc(local_date_for(safe_current_time_utc))
@@ -1594,15 +1859,24 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         )
         return service_call_options
 
-    def _query_ticket_id(self, client: httpx.Client, ticket_number: str) -> int:
-        """Find the Autotask ticket ID for the reviewed ticket number."""
+    def _query_ticket_time_entry_context(
+        self,
+        client: httpx.Client,
+        ticket_number: str,
+    ) -> AutotaskTicketTimeEntryContext:
+        """Find ticket fields needed for a matching ticket TimeEntries create."""
 
-        query_payload = {"filter": [{"op": "eq", "field": "ticketNumber", "value": ticket_number}]}
+        query_payload = {
+            "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "billingCodeID"],
+            "filter": [{"op": "eq", "field": "ticketNumber", "value": ticket_number}],
+        }
         tickets = self._query_paginated_items(
             client,
             endpoint_path="/Tickets/query",
             query_payload=query_payload,
             action_description="Autotask ticket number lookup",
+            max_records=1,
+            follow_pagination=False,
         )
         if not tickets:
             raise AutotaskSubmissionError(f"No Autotask ticket found for ticket number {ticket_number}.")
@@ -1611,7 +1885,48 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if ticket_id is None:
             raise AutotaskSubmissionError("Autotask ticket query did not return an ID.")
 
-        return int(ticket_id)
+        safe_ticket_id = _coerce_positive_autotask_id(ticket_id)
+        if safe_ticket_id is None:
+            raise AutotaskSubmissionError("Autotask ticket query returned an invalid ticket ID.")
+
+        raw_role_id = tickets[0].get("assignedResourceroleID")
+        if raw_role_id in (None, ""):
+            raw_role_id = tickets[0].get("assignedResourceRoleID")
+        role_id = _coerce_positive_autotask_id(raw_role_id)
+        if role_id is None:
+            raise AutotaskSubmissionError(
+                f"Autotask ticket {ticket_number} did not return assignedResourceroleID for time entry creation."
+            )
+
+        return AutotaskTicketTimeEntryContext(
+            ticket_id=safe_ticket_id,
+            role_id=role_id,
+            billing_code_id=_coerce_positive_autotask_id(tickets[0].get("billingCodeID")),
+        )
+
+    def _query_ticket_id(self, client: httpx.Client, ticket_number: str) -> int:
+        """Find the Autotask ticket ID for status updates."""
+
+        query_payload = {
+            "IncludeFields": ["id", "ticketNumber"],
+            "filter": [{"op": "eq", "field": "ticketNumber", "value": ticket_number}],
+        }
+        tickets = self._query_paginated_items(
+            client,
+            endpoint_path="/Tickets/query",
+            query_payload=query_payload,
+            action_description="Autotask ticket number lookup",
+            max_records=1,
+            follow_pagination=False,
+        )
+        if not tickets:
+            raise AutotaskSubmissionError(f"No Autotask ticket found for ticket number {ticket_number}.")
+
+        ticket_id = _coerce_positive_autotask_id(tickets[0].get("id"))
+        if ticket_id is None:
+            raise AutotaskSubmissionError("Autotask ticket query did not return a valid ID.")
+
+        return ticket_id
 
     def _update_ticket_status(self, client: httpx.Client, ticket_id: int, ticket_status: TicketStatus | None) -> None:
         """Update the Autotask ticket status when a tenant picklist ID is configured."""
@@ -1626,7 +1941,14 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         response = client.patch("/Tickets", json={"id": ticket_id, "status": status_id})
         self._raise_for_safe_response(response, "Autotask ticket status update")
 
-    def _time_entry_payload(self, job: Job, *, ticket_id: int | None = None) -> dict[str, Any]:
+    def _time_entry_payload(
+        self,
+        job: Job,
+        *,
+        ticket_id: int | None = None,
+        resource_id: int | None = None,
+        role_id: int | None = None,
+    ) -> dict[str, Any]:
         """Build the editable TimeEntries fields shared by create and update."""
 
         if job.rounded_end_utc is None:
@@ -1639,25 +1961,33 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             "summaryNotes": build_autotask_summary_notes(job),
         }
         if ticket_id is not None:
-            if self.application_settings.autotask_resource_id is None:
-                raise AutotaskSubmissionError("AUTOTASK_RESOURCE_ID is required before Autotask submission.")
-            if self.application_settings.autotask_role_id is None:
-                raise AutotaskSubmissionError("AUTOTASK_ROLE_ID is required before Autotask submission.")
+            if resource_id is None or resource_id <= 0:
+                raise AutotaskSubmissionError("A managed web user's Autotask resource ID is required before Autotask submission.")
+            if role_id is None or role_id <= 0:
+                raise AutotaskSubmissionError("The selected Autotask ticket's assigned role ID is required before submission.")
             payload.update(
                 {
                     "ticketID": ticket_id,
-                    "resourceID": self.application_settings.autotask_resource_id,
-                    "roleID": self.application_settings.autotask_role_id,
+                    "resourceID": resource_id,
+                    "roleID": role_id,
                     "timeEntryType": self.application_settings.autotask_time_entry_type,
                 }
             )
 
         return payload
 
-    def _create_time_entry(self, client: httpx.Client, job: Job, ticket_id: int) -> str:
+    def _create_time_entry(
+        self,
+        client: httpx.Client,
+        job: Job,
+        ticket_id: int,
+        *,
+        resource_id: int,
+        role_id: int,
+    ) -> str:
         """Create the Autotask TimeEntries row for the accepted job."""
 
-        payload = self._time_entry_payload(job, ticket_id=ticket_id)
+        payload = self._time_entry_payload(job, ticket_id=ticket_id, resource_id=resource_id, role_id=role_id)
         response = client.post("/TimeEntries", json=payload)
         self._raise_for_safe_response(response, "Autotask time entry creation")
         response_payload = response.json()
@@ -1689,7 +2019,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         response = client.delete(f"/TimeEntries/{time_entry_id}")
         self._raise_for_safe_response(response, "Autotask time entry deletion")
 
-    def submit_job(self, job: Job) -> AutotaskSubmissionResult:
+    def submit_job(self, job: Job, *, resource_id: int) -> AutotaskSubmissionResult:
         """Submit a reviewed job to the Autotask REST API."""
 
         if not job.ticket_number:
@@ -1698,17 +2028,26 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         snapshot = build_safe_submission_snapshot(job)
         snapshot.update(
             {
-                "resourceID": self.application_settings.autotask_resource_id,
-                "roleID": self.application_settings.autotask_role_id,
+                "resourceID": resource_id,
+                "roleIDSource": "ticket.assignedResourceroleID",
+                "billingCodeIDSource": "ticket inheritance",
                 "timeEntryType": self.application_settings.autotask_time_entry_type,
                 "impersonationResourceIDConfigured": self.application_settings.autotask_impersonation_resource_id is not None,
             }
         )
         try:
             with self._client() as client:
-                ticket_id = self._query_ticket_id(client, job.ticket_number)
-                self._update_ticket_status(client, ticket_id, job.ticket_status)
-                external_id = self._create_time_entry(client, job, ticket_id)
+                ticket_context = self._query_ticket_time_entry_context(client, job.ticket_number)
+                snapshot["roleID"] = ticket_context.role_id
+                snapshot["ticketBillingCodeID"] = ticket_context.billing_code_id
+                self._update_ticket_status(client, ticket_context.ticket_id, job.ticket_status)
+                external_id = self._create_time_entry(
+                    client,
+                    job,
+                    ticket_context.ticket_id,
+                    resource_id=resource_id,
+                    role_id=ticket_context.role_id,
+                )
         except (httpx.HTTPError, AutotaskSubmissionError) as exc:
             return AutotaskSubmissionResult(
                 provider=self.provider_name,

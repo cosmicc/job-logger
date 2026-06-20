@@ -60,10 +60,12 @@
             </dd>
           </div>
           <div>
-            <dt>Resource/Role IDs configured</dt>
-            <dd>
-              Resource: {% if autotask_settings.has_resource_id %}Yes{% else %}No{% endif %}, Role: {% if autotask_settings.has_role_id %}Yes{% else %}No{% endif %}
-            </dd>
+            <dt>Time-entry role source</dt>
+            <dd>{{ autotask_settings.time_entry_role_source }}</dd>
+          </div>
+          <div>
+            <dt>Billing code source</dt>
+            <dd>{{ autotask_settings.billing_code_source }}</dd>
           </div>
           <div>
             <dt>Time entry type</dt>

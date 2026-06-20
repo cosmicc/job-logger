@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Config - Job Logger{% endblock %}
+
+{% block content %}
+  <section class="config-shell">
+    <div class="review-header">
+      <div>
+        <h1>Config</h1>
+        <p class="muted-text">Settings for {{ config_principal_label }}.</p>
+      </div>
+      <a class="secondary-link-button" href="/review">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6"></path>
+        </svg>
+        Review
+      </a>
+    </div>
+
+    <section class="edit-panel config-panel" aria-labelledby="appearance-heading">
+      <h2 id="appearance-heading">Appearance</h2>
+      <form method="post" action="/config" class="stack-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <fieldset class="segmented-fieldset">
+          <legend>Theme</legend>
+          <div class="theme-option-grid" role="radiogroup" aria-label="Theme">
+            {% for option_value, option_label in theme_options %}
+              <label class="theme-choice-card">
+                <input
+                  type="radio"
+                  name="theme"
+                  value="{{ option_value }}"
+                  {% if selected_theme == option_value %}checked{% endif %}
+                >
+                <span>{{ option_label }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <button class="primary-button" type="submit">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+            <path d="M17 21v-8H7v8"></path>
+            <path d="M7 3v5h8"></path>
+          </svg>
+          Save config
+        </button>
+      </form>
+    </section>
+  </section>
+{% endblock %}

@@ -13,7 +13,8 @@ templates, JavaScript, or route handlers.
 Important workflow service responsibilities include:
 
 - Starting active jobs.
-- Enforcing the maximum of two simultaneous active jobs.
+- Enforcing the maximum of two simultaneous active jobs per managed web user.
+- Enforcing job ownership before any managed web user mutates a job.
 - Assigning Job 1 and Job 2 slots.
 - Updating active ticket/client/summary fields.
 - Adjusting rounded active start time in 15-minute increments.
@@ -22,7 +23,8 @@ Important workflow service responsibilities include:
 - Validating review fields.
 - Applying review edits.
 - Accepting/retrying Autotask submission.
-- Preventing active jobs from being deleted through review cleanup.
+- Deleting local unsubmitted jobs, including active jobs, through explicit
+  review-detail cleanup.
 
 ## Active Job Flow
 
@@ -41,9 +43,13 @@ New blank work starts through `POST /jobs/start`. A user can also start work
 from a current-day Autotask service call through
 `POST /jobs/start/service-call`.
 
+Only database-managed web users can start or mutate jobs. The config super
+admin can view review data but cannot start, edit, submit, delete, record audio,
+or run AI cleanup because it has no Autotask resource ID.
+
 Security and data-integrity requirements for start:
 
-- The user must be authenticated.
+- The user must be authenticated as an enabled managed web user.
 - CSRF must be valid.
 - The `/mobile` page must render from local database state without running an
   Autotask API contactability check.
@@ -54,11 +60,13 @@ Security and data-integrity requirements for start:
   those values can only be attached through the active-job workflow.
 - Service-call starts must submit only the selected service-call ticket
   association ID plus CSRF. The route must resolve today's service-call list
-  server-side for the configured `AUTOTASK_RESOURCE_ID`, verify the selected
-  association belongs to that list, then populate the job from the provider's
-  ticket/client data. Do not trust browser-submitted ticket number, title,
-  description, client name, company ID, or work-location values for this path.
-- The service layer must enforce the two-active-job limit.
+  server-side for the logged-in managed web user's Autotask resource ID, verify
+  the selected association belongs to that list, then populate the job from the
+  provider's ticket/client data. Do not trust browser-submitted ticket number,
+  title, description, client name, company ID, or work-location values for this
+  path.
+- The service layer must enforce the two-active-job limit for the current web
+  user.
 
 Active jobs support these updates before completion:
 
@@ -111,11 +119,12 @@ slot is available. The page should render immediately with a **Loading service
 calls...** state and no synchronous Autotask calls. After the window `load`
 event, `job_logger/static/mobile.js` loads `/mobile/service-calls` to fetch safe
 card data. Service-call options are provided by
-`list_todays_service_calls_for_resource()`, which derives Remote/On-Site from
-the service-call details text. Each rendered card should stay compact and show
-the client name, Remote/On-Site label, local start/end time range, and
-associated ticket title, with different Remote and On-Site coloring for quick
-scanning. Use the specific
+`list_todays_service_calls_for_resource(resource_id=...)`, which derives
+Remote/On-Site from the service-call details text. The resource ID must come
+from the enabled managed web user, not config or browser input. Each rendered
+card should stay compact and show the client name, Remote/On-Site label, local
+start/end time range, and associated ticket title, with different Remote and
+On-Site coloring for quick scanning. Use the specific
 `.service-call-option-button.service-call-location-*` styling hooks so these
 cards do not regress to the generic grey button treatment. Clicking a service
 call starts an active job with the associated ticket number, ticket title,
@@ -143,10 +152,11 @@ read-only value and submits hidden copies only for normal form flow. The
 service layer still enforces the lock because hidden fields are not security
 controls.
 
-Active jobs can be discarded through `POST /jobs/{job_id}/delete`. This route
-is only for in-progress jobs, requires authentication and CSRF, deletes the
-local active job, and records `job.active.deleted` with sanitized details. Do
-not use this endpoint for reviewed, submitted, or failed jobs.
+Active jobs can be discarded through `POST /jobs/{job_id}/delete` from mobile
+or through the selected review detail **Delete time entry** action. Both routes
+require authentication, CSRF, and job ownership. Mobile active deletion records
+`job.active.deleted`; review deletion records `job.review.deleted`. Do not use
+the mobile endpoint for reviewed, submitted, or failed jobs.
 
 ## Ending Work
 
@@ -154,7 +164,7 @@ Work ends through `POST /jobs/{job_id}/end`.
 
 Ending work requires:
 
-- Authenticated user.
+- Authenticated enabled managed web user who owns the job.
 - Valid CSRF token.
 - Existing active job.
 - Mandatory client name.
@@ -255,6 +265,10 @@ The review page is `/review`, implemented by `job_logger/routes/review.py`,
 Review supports:
 
 - Selecting jobs from the review list.
+- Managed web users see and mutate only their own jobs. The config super admin
+  can see all jobs in read-only mode.
+- Super-admin review is the only place that shows job ownership for each row
+  and selected detail; normal managed users must not see owner fields.
 - Viewing the selected ticket number and client name as read-only Autotask
   identity fields.
 - Editing ticket status, start date/time, end date/time, and summary notes
@@ -322,12 +336,12 @@ default with an expandable detail section.
 Jobs must never disappear silently. Prefer explicit workflow states, archived
 states, failed submission states, or audited cleanup paths.
 
-**Delete time entry** exists for strict local cleanup from review detail, but
-active jobs cannot be deleted from that endpoint. Active jobs have the separate
-audited delete route described above. Successfully submitted Autotask jobs also
-cannot use local review cleanup because local history must stay tied to the
-external time entry. Use the audited Edit Entry or Delete From Autotask paths
-for submitted-entry corrections instead of expanding local destructive behavior.
+**Delete time entry** exists for strict local cleanup from review detail and may
+delete active, ready-for-review, or failed local jobs when the current managed
+web user owns the job. Successfully submitted Autotask jobs cannot use local
+review cleanup because local history must stay tied to the external time entry.
+Use the audited Edit Entry or Delete From Autotask paths for submitted-entry
+corrections instead of expanding local destructive behavior.
 
 ## Time Rules
 

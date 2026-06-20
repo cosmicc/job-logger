@@ -22,6 +22,29 @@ Cloudflare Access protects the public hostname before traffic reaches the
 application. The Python application must still enforce its own authenticated
 server-side sessions and authorization checks.
 
+`APP_USERNAME` and `APP_PASSWORD` define the config super admin. That account
+is for user management, diagnostics, backup/restore, and read-only job review;
+it must not start, edit, submit, delete, record, or AI-cleanup work entries
+because it has no Autotask resource ID. Normal work must be performed through
+database-managed web users created on `/users`.
+Only the config super admin may see or access `/debug` and `/debug/*` routes;
+managed web users must receive 403 for direct debug requests.
+
+Managed web users must have a full name, unique username, password hash, and
+Autotask resource ID. The `/users` add form may suggest usernames from full
+names, such as `jblow` for `Joe Blow`, and may query Autotask Resources for a
+super-admin-only resource picker. Store only salted password verifiers, never
+raw managed user passwords. Managed-user passwords must be at least 8
+characters and include lowercase, uppercase, number, and symbol characters.
+Disabled web users must be blocked from new logins and from using old signed
+sessions. Deleting a web user with job history must preserve history by
+disabling the account instead of removing the row.
+
+Authenticated users may save per-login configuration on `/config`. Per-user
+configuration is database-backed, defaults to the dark theme, and currently
+supports `dark` or `light` visual themes for all authenticated mobile and web
+pages.
+
 Never rely on the mobile UI, browser state, or hidden form fields for security
 decisions. The server must validate authentication, authorization, CSRF tokens,
 job ownership, workflow status, timestamps, ticket numbers, ticket statuses, and
@@ -76,20 +99,24 @@ before the job has been successfully submitted to Autotask.
 Recorded jobs follow this lifecycle:
 
 1. A draft job is created when work starts.
-2. The active job is ended by the user.
-3. The job becomes available for review.
-4. The review page allows time, status, and notes to be edited before
+2. The draft job is owned by the logged-in managed web user.
+3. The active job is ended by the user.
+4. The job becomes available for that user to review. The config super admin
+   may view all jobs but cannot mutate them.
+5. The review page allows time, status, and notes to be edited before
    acceptance while keeping the selected Autotask client and ticket read-only.
-5. An accepted job creates an Autotask time entry.
-6. A successfully submitted Autotask job keeps ticket and client identity
+6. An accepted job creates an Autotask time entry using the owning user's
+   Autotask resource ID.
+7. A successfully submitted Autotask job keeps ticket and client identity
    read-only. Its job date, start time, end time, summary notes, and ticket
    status can be changed only through the audited **Edit Entry** action, which
    updates the existing Autotask time entry instead of creating another entry.
    The audited **Delete From Autotask** action may delete the external time
    entry and move the local job back to review, but must not delete the local
    job record.
-7. Failed or edited jobs remain available for audit history. Local review
-   cleanup is available only through the explicit **Delete time entry** action.
+8. Failed or edited jobs remain available for audit history. Local cleanup is
+   available only through explicit audited delete actions, including **Delete
+   time entry** on review detail for local unsubmitted jobs.
 
 Jobs must never disappear silently. Destructive deletion should be avoided.
 Prefer archived, superseded, or voided states with audit records.
@@ -141,6 +168,19 @@ Supported ticket status values are:
 Autotask submission must be idempotent. A retry must not create duplicate time
 entries for the same accepted job.
 
+Autotask resource IDs are not global configuration. They belong to managed web
+users and are required before a user can start work. The app uses the logged-in
+or owning user's resource ID for today's service-call lookup and for
+`TimeEntries.resourceID` on create. Static Autotask role and billing-code IDs
+must not be configured. The live provider must query the selected ticket at
+submission time, use `Tickets.assignedResourceroleID` as `TimeEntries.roleID`,
+and omit `TimeEntries.billingCodeID` so Autotask inherits the selected ticket's
+Work Type on create. API credentials, ticket status IDs, time-entry type, and
+optional `AUTOTASK_IMPERSONATION_RESOURCE_ID` remain environment configuration.
+The super-admin `/users` page may query `/Resources/query` through the server
+to find matching Autotask Resources by `Last, First` name and fill the
+user-specific resource ID.
+
 Autotask API errors must be recorded clearly for review and troubleshooting
 without exposing credentials or sensitive protocol details.
 
@@ -182,6 +222,11 @@ Do not permanently store raw audio by default.
 
 The mobile interface must be optimized for quick use from a phone.
 
+Authenticated pages must respect the current user's saved theme preference.
+The default is the dark theme. Light theme support must cover mobile, review,
+user management, config, debug, and login surfaces through shared CSS variables
+instead of a separate unaudited template branch.
+
 On phone-sized `/mobile` layouts, the authenticated top bar uses an X close
 control instead of the logout action so an installed mobile web app can be
 dismissed without ending the local server-side session. Full-width `/mobile`,
@@ -212,7 +257,8 @@ Use PostgreSQL for persistent storage.
 Database schema changes must be tracked with migrations.
 
 Important tables should include enough data to support job review, Autotask
-idempotency, transcription status, and immutable audit history.
+idempotency, transcription status, per-user configuration, and immutable audit
+history.
 
 Database fields that represent timestamps must have clear UTC/local-time
 handling documented in model comments, migration comments, and relevant utility
@@ -318,16 +364,18 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/version.py` owns the source-controlled application version shown
   on authenticated diagnostics and must only be advanced when requested.
 - `job_logger/config.py` loads every runtime setting from environment variables.
-  Production must use `AUTOTASK_PROVIDER=autotask`.
+  Production must use `AUTOTASK_PROVIDER=autotask`; Autotask resource IDs are
+  stored on managed web users, not in config.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.
-- `job_logger/models.py` defines persistent tables for jobs, audit events, and
-  Autotask submission attempts.
+- `job_logger/models.py` defines persistent tables for managed web users,
+  per-user preferences, jobs, audit events, and Autotask submission attempts.
 - `job_logger/enums.py` defines workflow, transcription, and ticket-status
   enums used by routes, services, templates, and migrations.
 - `job_logger/time_utils.py` centralizes UTC/local conversion and 15-minute
   rounding. Do not duplicate rounding logic elsewhere.
-- `job_logger/routes/auth.py` handles login/logout and local authenticated
-  sessions, including sanitized failed-login file logging.
+- `job_logger/routes/auth.py` handles config super-admin login, managed web-user
+  login, logout, and local authenticated sessions, including sanitized
+  failed-login file logging.
 - `job_logger/routes/mobile.py` handles `/mobile`, active job start/end/save,
   active rounded-start adjustment, WebSocket recording streams for active and
   unsubmitted review jobs, compatibility recording uploads, description text
@@ -335,7 +383,11 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/routes/review.py` handles review listing, edit/save/accept/retry,
   updating or deleting existing submitted Autotask entries, ticket lookup for a
   selected job, and explicit local **Delete time entry** cleanup.
-- `job_logger/routes/debug.py` handles the authenticated diagnostic page, the
+- `job_logger/routes/users.py` handles the super-admin managed web-user page,
+  including add/edit/disable/delete-or-disable behavior.
+- `job_logger/routes/configuration.py` handles authenticated per-user
+  configuration such as light/dark theme selection.
+- `job_logger/routes/debug.py` handles the super-admin diagnostic page, the
   sanitized failed-login window, full backup/restore actions, and the Autotask
   API connectivity test.
 - `job_logger/routes/health.py` exposes private container health endpoints.
@@ -343,10 +395,15 @@ The application is a FastAPI project under `job_logger/`.
   service worker for installed mobile app behavior. The service worker must not
   cache authenticated job, session, Autotask, or transcription data.
 - `job_logger/services/jobs.py` owns core job state transitions and must remain
-  the primary place for workflow validation.
+  the primary place for workflow and job-ownership validation.
 - `job_logger/services/autotask.py` owns Autotask providers, connectivity tests,
-  company/ticket lookup, cache behavior, pagination, status mapping, time entry
-  submission, existing-entry updates, and existing-entry deletes.
+  company/ticket lookup, per-user resource service-call lookup, cache behavior,
+  pagination, status mapping, time entry submission, existing-entry updates, and
+  existing-entry deletes.
+- `job_logger/services/users.py` owns managed web-user validation, password
+  hashing, first-user legacy job claiming, and delete-or-disable rules.
+- `job_logger/services/preferences.py` owns per-authenticated-user
+  configuration validation and persistence.
 - `job_logger/services/ai_cleanup.py` owns server-side Gemini, Groq, Ollama,
   and LM Studio summary cleanup, including request construction, local-provider
   URL validation, safe response parsing, and provider error normalization.
@@ -357,8 +414,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/login_failures.py` writes and reads the host-mounted
   sanitized failed-login JSONL log in `LOG_DIR`, defaulting to
   `job-logger-login-failures.log` inside Docker's `/data/logs` mount.
-- `job_logger/templates/` contains Jinja pages for mobile, review, debug, and
-  authentication views.
+- `job_logger/templates/` contains Jinja pages for mobile, review, users,
+  config, debug, and authentication views.
 - `job_logger/static/` contains browser-side JavaScript, CSS, PWA metadata, and
   source-controlled app icons.
 - `migrations/versions/` contains Alembic schema migrations.
@@ -373,49 +430,58 @@ The normal workflow is:
 
 1. User authenticates through Cloudflare Access when enabled, then through the
    app login.
-2. User opens `/mobile`.
-3. The `/mobile` page renders from local application state without running an
+2. The config super admin opens `/users` to create managed web users. The form
+   suggests a username from the full name and can query Autotask Resources to
+   select the matching resource ID. The first managed web user claims any
+   existing unowned jobs from earlier single-user installs.
+3. Any authenticated user may open `/config` to choose dark or light theme for
+   their own login.
+4. A managed web user opens `/mobile`.
+5. The `/mobile` page renders from local application state without running an
    Autotask API contactability check. After the page has loaded, browser
    JavaScript queries `/mobile/service-calls` to populate today's service-call
-   start cards, including each call's local start/end time range.
-4. User starts Job 1 or Job 2. Blank Start Work creates a local active job
-   without first probing Autotask. At most two active jobs may exist at once.
-5. After the job starts, the user enters/selects an Autotask company by client
+   start cards for that user's Autotask resource, including each call's local
+   start/end time range.
+6. User starts Job 1 or Job 2. Blank Start Work creates a local active job
+   owned by that web user without first probing Autotask. At most two active
+   jobs may exist at once per web user.
+7. After the job starts, the user enters/selects an Autotask company by client
    name. Manual client text is allowed, but selected company IDs are preferred
    for exact ticket lookup.
-6. User chooses an open Autotask ticket from the active-job ticket panel. If no
+8. User chooses an open Autotask ticket from the active-job ticket panel. If no
    tickets are loaded yet, the whole panel is the load control and shows a
    spinner while Autotask data is being queried. Mobile ticket numbers are
    populated from that selection instead of manual entry. Read-only ticket
    descriptions stay in short scrollable boxes on Work in Progress and review
    detail.
-7. User chooses whether the work is Remote or On-Site. The mode is stored on
+9. User chooses whether the work is Remote or On-Site. The mode is stored on
    the job and appears as the leading prefix in the review summary textarea so
    it can be corrected before Autotask submission.
-8. User records notes during an active job from the Summary notes area above
+10. User records notes during an active job from the Summary notes area above
    the optional AI Cleanup action. The record button becomes a stop button
    while audio chunks stream to the server over WebSocket. Recording, sending,
    and converting progress use plain status text, and stopping capture keeps
    the disabled record button in a loading state until the final transcript
    returns.
-9. When enabled, user can click **AI Cleanup** to send the current summary text
+11. When enabled, user can click **AI Cleanup** to send the current summary text
    through the configured server-side cleanup provider. On
    mobile, progress and failure details use the same plain-text status line as
    audio recording, while the **AI Cleanup** button itself shows the spinner
    during cleanup. The returned text replaces the summary textarea and remains
    subject to normal save/review behavior.
-10. User can save active job edits before ending work.
-11. User ends work with a mandatory client name. The job moves to review.
-12. User reviews the job from `/review`, edits time/status/notes if needed,
+12. User can save active job edits before ending work.
+13. User ends work with a mandatory client name. The job moves to review.
+14. User reviews the job from `/review`, edits time/status/notes if needed,
     optionally records more audio notes before Autotask submission, and keeps
     the selected client/ticket identity read-only.
-13. Accept/retry submits a reviewed job to Autotask idempotently.
-14. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes
+15. Accept/retry submits a reviewed job to Autotask idempotently with the
+    owning managed web user's resource ID.
+16. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes
     updates against the existing Autotask time entry, or **Delete From Autotask**
     to remove the external time entry and return the local job to review.
     Ticket/client identity, local delete, accept/resend, and retry stay blocked
     while the job remains submitted.
-15. Submission attempts and important state changes are recorded for audit and
+17. Submission attempts and important state changes are recorded for audit and
     diagnostics.
 
 ## Current Autotask Dependency
@@ -427,9 +493,14 @@ submitted.
 In production:
 
 - `APP_ENV=production` requires `AUTOTASK_PROVIDER=autotask`.
+- `APP_USERNAME`/`APP_PASSWORD` authenticate the config super admin only.
+- Each managed web user must be created on `/users` with an Autotask resource
+  ID before that person can start work.
 - `/mobile` and blank Start Work do not run Autotask contactability probes.
 - Service-call loading, company lookup, ticket lookup, and Autotask submission
   still call Autotask only when those specific workflows need provider data.
+- Super-admin resource lookup on `/users` calls Autotask Resources only through
+  the server-side provider; browser code never contacts Autotask directly.
 - The `/debug` page provides the supported manual **Test Autotask API** action.
 - Mock Autotask mode is only for tests and isolated development.
 

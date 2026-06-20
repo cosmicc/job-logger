@@ -16,6 +16,7 @@ from job_logger.services.autotask import (
     _COMPANY_ID_CACHE,
     _COMPANY_SEARCH_CACHE,
     _OPEN_TICKET_SELECTION_CACHE,
+    _RESOURCE_SEARCH_CACHE,
     _SERVICE_CALL_SELECTION_CACHE,
     _TICKET_STATUS_CACHE,
     AutotaskConnectivityResult,
@@ -292,6 +293,42 @@ class FakeServiceCallLookupClient:
         raise AssertionError(f"Unexpected fake Autotask GET endpoint: {endpoint_path}")
 
 
+class FakeResourceLookupClient:
+    """Fake Autotask client that exposes Resources/query for user setup."""
+
+    def __init__(self) -> None:
+        """Initialize captured resource lookup requests."""
+
+        # post_requests records each Resources query for assertions.
+        self.post_requests: list[tuple[str, dict[str, Any]]] = []
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return one matching resource for every generated name filter."""
+
+        self.post_requests.append((endpoint_path, dict(json)))
+        assert endpoint_path == "/Resources/query"
+        assert json["MaxRecords"] == 25
+        assert json["IncludeFields"] == ["id", "firstName", "lastName", "email"]
+        return FakeAutotaskResponse(
+            {
+                "items": [
+                    {
+                        "id": 42,
+                        "firstName": "Joe",
+                        "lastName": "Blow",
+                        "email": "joe.blow@example.test",
+                    }
+                ],
+                "pageDetails": {},
+            }
+        )
+
+    def get(self, endpoint_path: str) -> FakeAutotaskResponse:
+        """Fail if resource lookup performs unexpected metadata GET calls."""
+
+        raise AssertionError(f"Unexpected fake Autotask GET endpoint: {endpoint_path}")
+
+
 class FakeEmptyCompanyQueryClient:
     """Fake Autotask client that returns no companies for each live query."""
 
@@ -373,6 +410,35 @@ class FakeTimeEntryCreateClient:
         return FakeAutotaskResponse({"itemId": 987654})
 
 
+class FakeTicketTimeEntryContextClient:
+    """Fake Autotask client that returns ticket fields used for TimeEntries."""
+
+    def __init__(self) -> None:
+        """Initialize captured ticket context query payloads."""
+
+        # posted_payload stores the exact Tickets/query body sent by the provider.
+        self.posted_payload: dict[str, Any] | None = None
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return a ticket with assigned role and billing code context."""
+
+        assert endpoint_path == "/Tickets/query"
+        self.posted_payload = dict(json)
+        return FakeAutotaskResponse(
+            {
+                "items": [
+                    {
+                        "id": 123456,
+                        "ticketNumber": "T20260616.0001",
+                        "assignedResourceroleID": 8,
+                        "billingCodeID": 24746620,
+                    }
+                ],
+                "pageDetails": {},
+            }
+        )
+
+
 class FakeTimeEntryUpdateClient:
     """Fake Autotask client that captures the TimeEntries update payload."""
 
@@ -439,9 +505,6 @@ def _live_test_provider() -> LiveAutotaskProvider:
         autotask_username="api-user-key",
         autotask_secret="api-secret",
         autotask_api_integration_code="integration-code",
-        autotask_resource_id=1,
-        autotask_role_id=2,
-        autotask_billing_code_id=24746620,
         autotask_status_in_progress_id=1,
         autotask_status_waiting_customer_id=2,
         autotask_status_waiting_parts_id=3,
@@ -458,6 +521,7 @@ def _clear_autotask_lookup_caches() -> None:
     _COMPANY_ID_CACHE.clear()
     _TICKET_STATUS_CACHE.clear()
     _OPEN_TICKET_SELECTION_CACHE.clear()
+    _RESOURCE_SEARCH_CACHE.clear()
     _SERVICE_CALL_SELECTION_CACHE.clear()
 
 
@@ -551,8 +615,8 @@ def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypat
     monkeypatch.setattr(provider, "_client", fake_client_context)
 
     current_time_utc = datetime(2026, 6, 16, 15, 30, tzinfo=UTC)
-    first_lookup = provider.list_todays_service_calls_for_resource(current_time_utc=current_time_utc)
-    second_lookup = provider.list_todays_service_calls_for_resource(current_time_utc=current_time_utc)
+    first_lookup = provider.list_todays_service_calls_for_resource(resource_id=1, current_time_utc=current_time_utc)
+    second_lookup = provider.list_todays_service_calls_for_resource(resource_id=1, current_time_utc=current_time_utc)
 
     assert len(first_lookup) == 1
     service_call_option = first_lookup[0]
@@ -575,6 +639,45 @@ def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypat
         "/ServiceCallTicketResources/query",
         "/Tickets/query",
         "/Companies/query",
+    ]
+
+
+def test_resource_lookup_uses_name_filters_and_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Managed-user resource lookup should search first/last names and cache the result."""
+
+    _clear_autotask_lookup_caches()
+    provider = _live_test_provider()
+    fake_client = FakeResourceLookupClient()
+
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeConnectivityContext:
+        """Return one fake resource client while matching the provider signature."""
+
+        # timeout_seconds is accepted so the fake matches LiveAutotaskProvider._client.
+        assert timeout_seconds == 30.0
+        return FakeConnectivityContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    first_lookup = provider.search_resources("Joe Blow")
+    second_lookup = provider.search_resources("Joe Blow")
+
+    assert len(first_lookup) == 1
+    assert first_lookup[0].resource_id == 42
+    assert first_lookup[0].resource_name == "Blow, Joe"
+    assert first_lookup[0].first_name == "Joe"
+    assert first_lookup[0].last_name == "Blow"
+    assert first_lookup[0].email == "joe.blow@example.test"
+    assert second_lookup == first_lookup
+    assert len(fake_client.post_requests) == 3
+    assert fake_client.post_requests[0][1]["filter"] == [
+        {"op": "contains", "field": "lastName", "value": "Blow"},
+        {"op": "contains", "field": "firstName", "value": "Joe"},
+    ]
+    assert fake_client.post_requests[1][1]["filter"] == [
+        {"op": "contains", "field": "lastName", "value": "Blow"}
+    ]
+    assert fake_client.post_requests[2][1]["filter"] == [
+        {"op": "contains", "field": "firstName", "value": "Joe"}
     ]
 
 
@@ -652,8 +755,28 @@ def test_safe_autotask_error_detail_extracts_nested_error_messages() -> None:
     assert "Use a billing code available" in error_message
 
 
-def test_time_entry_creation_omits_billing_code_id() -> None:
-    """Ticket TimeEntries must not try to change Autotask allocation code."""
+def test_ticket_time_entry_context_uses_ticket_role_and_billing_code() -> None:
+    """Ticket submission should read the role and billing code from the selected ticket."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTicketTimeEntryContextClient()
+
+    ticket_context = provider._query_ticket_time_entry_context(fake_client, "T20260616.0001")
+
+    assert ticket_context.ticket_id == 123456
+    assert ticket_context.role_id == 8
+    assert ticket_context.billing_code_id == 24746620
+    assert fake_client.posted_payload is not None
+    assert fake_client.posted_payload["IncludeFields"] == [
+        "id",
+        "ticketNumber",
+        "assignedResourceroleID",
+        "billingCodeID",
+    ]
+
+
+def test_time_entry_creation_uses_ticket_role_and_inherits_billing_code() -> None:
+    """Ticket TimeEntries should use ticket role and let Autotask inherit billing code."""
 
     provider = _live_test_provider()
     fake_client = FakeTimeEntryCreateClient()
@@ -671,13 +794,13 @@ def test_time_entry_creation_omits_billing_code_id() -> None:
         rounded_end_utc=rounded_start_utc + timedelta(minutes=30),
     )
 
-    external_id = provider._create_time_entry(fake_client, job, ticket_id=123456)
+    external_id = provider._create_time_entry(fake_client, job, ticket_id=123456, resource_id=1, role_id=8)
 
     assert external_id == "987654"
     assert fake_client.posted_payload is not None
     assert fake_client.posted_payload["ticketID"] == 123456
     assert fake_client.posted_payload["resourceID"] == 1
-    assert fake_client.posted_payload["roleID"] == 2
+    assert fake_client.posted_payload["roleID"] == 8
     assert fake_client.posted_payload["timeEntryType"] == 2
     assert fake_client.posted_payload["summaryNotes"] == "Remote Payload must not include allocation code."
     assert "billingCodeID" not in fake_client.posted_payload
@@ -747,7 +870,7 @@ def test_time_entry_summary_notes_use_hidden_work_location_prefix() -> None:
         rounded_end_utc=rounded_start_utc + timedelta(minutes=30),
     )
 
-    external_id = provider._create_time_entry(fake_client, job, ticket_id=123456)
+    external_id = provider._create_time_entry(fake_client, job, ticket_id=123456, resource_id=1, role_id=8)
 
     assert external_id == "987654"
     assert fake_client.posted_payload is not None

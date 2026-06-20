@@ -228,17 +228,6 @@ class Settings:
     # AUTOTASK_API_INTEGRATION_CODE is the Autotask API tracking identifier.
     autotask_api_integration_code: str | None
 
-    # AUTOTASK_RESOURCE_ID is the resource that owns created time entries.
-    autotask_resource_id: int | None
-
-    # AUTOTASK_ROLE_ID is the Autotask role for created ticket time entries.
-    autotask_role_id: int | None
-
-    # AUTOTASK_BILLING_CODE_ID is retained for legacy .env files and discovery output.
-    # Ticket time-entry submission intentionally omits billingCodeID so Autotask
-    # uses the ticket/resource defaults and does not require Allocation Code edit permission.
-    autotask_billing_code_id: int | None
-
     # AUTOTASK_TIME_ENTRY_TYPE defaults to ticket time entry type 2.
     autotask_time_entry_type: int
 
@@ -353,9 +342,6 @@ def load_settings() -> Settings:
         autotask_username=os.getenv("AUTOTASK_USERNAME") or None,
         autotask_secret=os.getenv("AUTOTASK_SECRET") or None,
         autotask_api_integration_code=os.getenv("AUTOTASK_API_INTEGRATION_CODE") or None,
-        autotask_resource_id=_get_optional_integer("AUTOTASK_RESOURCE_ID"),
-        autotask_role_id=_get_optional_integer("AUTOTASK_ROLE_ID"),
-        autotask_billing_code_id=_get_optional_integer("AUTOTASK_BILLING_CODE_ID"),
         autotask_time_entry_type=_get_integer("AUTOTASK_TIME_ENTRY_TYPE", 2),
         autotask_impersonation_resource_id=_get_optional_integer("AUTOTASK_IMPERSONATION_RESOURCE_ID"),
         autotask_status_in_progress_id=_get_optional_integer("AUTOTASK_STATUS_IN_PROGRESS_ID"),

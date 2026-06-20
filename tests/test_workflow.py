@@ -17,7 +17,7 @@ from job_logger.models import AuditEvent, Job, SubmissionAttempt
 from job_logger.services.ai_cleanup import AiCleanupResult
 from job_logger.services.jobs import get_active_job
 from job_logger.time_utils import format_local_time
-from tests.conftest import extract_csrf_token
+from tests.conftest import extract_csrf_token, login_as_super_admin
 
 
 def create_submitted_mock_job(authenticated_client: TestClient, *, summary_notes: str = "Locked submitted job notes") -> tuple[str, str]:
@@ -528,7 +528,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".end-work-button,\n.work-finish-stack .end-work-button" in stylesheet
     assert "background: var(--success);" in stylesheet
     assert ".ai-cleanup-button,\n.summary-tool-row .ai-cleanup-button" in stylesheet
-    assert "background: #3b82f6;" in stylesheet
+    assert "background: var(--ai-action);" in stylesheet
     assert ".mobile-close-action {\n  display: inline-grid;" in phone_stylesheet
     assert ".mobile-logout-action {\n  display: none;" in phone_stylesheet
     mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
@@ -617,18 +617,71 @@ def test_mobile_job_start_ignores_prestart_client_and_ticket_fields(authenticate
         assert active_job is not None
         assert active_job.ticket_number is None
         assert active_job.client_name is None
-        assert active_job.autotask_company_id is None
-        assert active_job.work_location == WorkLocation.REMOTE
+    assert active_job.autotask_company_id is None
 
-    active_mobile_page_response = authenticated_client.get("/mobile")
-    active_mobile_html = active_mobile_page_response.text
-    assert "Open tickets" in active_mobile_html
-    assert "Find tickets" not in active_mobile_html
-    assert "Choose a client, then click this box to load open tickets." in active_mobile_html
-    assert 'data-active-ticket-picker' in active_mobile_html
-    assert 'data-active-ticket-lookup-button' not in active_mobile_html
-    assert 'data-auto-load-ticket-options="true"' not in active_mobile_html
-    assert active_mobile_html.index('<span class="metric-label">Client name</span>') < active_mobile_html.index("<h3>Open tickets</h3>")
+
+def test_super_admin_review_shows_job_owner_only_for_admin(authenticated_client: TestClient) -> None:
+    """Only the super-admin review list and detail should expose job ownership."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    user_review_response = authenticated_client.get(f"/review/{active_job_id}")
+    assert "<th>Owner</th>" not in user_review_response.text
+    assert "review-owner-card" not in user_review_response.text
+    assert "Test Technician" not in user_review_response.text
+
+    login_as_super_admin(authenticated_client)
+    admin_review_response = authenticated_client.get(f"/review/{active_job_id}")
+    assert admin_review_response.status_code == 200
+    assert "<th>Owner</th>" in admin_review_response.text
+    assert "review-owner-card" in admin_review_response.text
+    assert "Test Technician" in admin_review_response.text
+
+
+def test_review_delete_time_entry_can_delete_active_jobs(authenticated_client: TestClient) -> None:
+    """The review-page Delete time entry action can remove an active local job."""
+
+    mobile_page_response = authenticated_client.get("/mobile")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    assert "Delete time entry" in review_page_response.text
+    review_csrf_token = extract_csrf_token(review_page_response.text)
+    purge_response = authenticated_client.post(
+        f"/review/{active_job_id}/purge",
+        data={"csrf_token": review_csrf_token},
+        follow_redirects=False,
+    )
+
+    assert purge_response.status_code == 303
+    assert purge_response.headers["location"] == "/review"
+    with database.SessionLocal() as database_session:
+        assert database_session.get(Job, active_job_id) is None
+        audit_event = database_session.query(AuditEvent).filter_by(action="job.review.deleted").one()
+        assert audit_event.details["job_status"] == "active"
 
 
 def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_client: TestClient) -> None:
@@ -1889,8 +1942,8 @@ def test_review_detail_delete_time_entry_removes_job_and_attempts(authenticated_
         assert remaining_attempts == 0
 
 
-def test_review_detail_delete_time_entry_blocks_active_job(authenticated_client: TestClient) -> None:
-    """Active jobs cannot be deleted from the review endpoint."""
+def test_review_detail_delete_time_entry_allows_active_job(authenticated_client: TestClient) -> None:
+    """Active jobs can be explicitly deleted from the review detail endpoint."""
 
     mobile_page_response = authenticated_client.get("/mobile")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -1909,10 +1962,10 @@ def test_review_detail_delete_time_entry_blocks_active_job(authenticated_client:
         follow_redirects=False,
     )
     assert purge_response.status_code == 303
-    assert purge_response.headers["location"] == f"/review/{active_job_id}"
+    assert purge_response.headers["location"] == "/review"
 
     with database.SessionLocal() as database_session:
-        assert database_session.get(Job, active_job_id) is not None
+        assert database_session.get(Job, active_job_id) is None
 
 
 def test_manual_summary_carries_to_review_on_completion(authenticated_client: TestClient) -> None:

@@ -17,7 +17,7 @@ from job_logger.config import settings
 from job_logger.database import get_database_session
 from job_logger.logging_config import redact_sensitive_text
 from job_logger.models import Job, SubmissionAttempt
-from job_logger.security import add_flash_message, require_authenticated_username, validate_csrf_token
+from job_logger.security import add_flash_message, require_super_admin, validate_csrf_token
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
 from job_logger.services.backups import BACKUP_MEDIA_TYPE, BackupValidationError, create_full_backup, restore_full_backup
@@ -74,8 +74,8 @@ def _safe_autotask_config() -> dict[str, object]:
         "has_username": bool(settings.autotask_username),
         "has_secret": bool(settings.autotask_secret),
         "has_api_integration_code": bool(settings.autotask_api_integration_code),
-        "has_resource_id": settings.autotask_resource_id is not None,
-        "has_role_id": settings.autotask_role_id is not None,
+        "time_entry_role_source": "selected ticket assignedResourceroleID",
+        "billing_code_source": "selected ticket inheritance",
         "time_entry_type": settings.autotask_time_entry_type,
         "status_id_map": settings.autotask_status_id_map,
         "max_attempt_rows": 200,
@@ -124,14 +124,23 @@ def _backup_upload_max_mb() -> int:
     return settings.max_backup_restore_bytes // (1024 * 1024)
 
 
+def _redirect_anonymous_or_raise(exc: HTTPException) -> RedirectResponse:
+    """Redirect anonymous users to login while preserving super-admin-only 403s."""
+
+    if exc.status_code == 401:
+        return RedirectResponse(url="/login", status_code=303)
+
+    raise exc
+
+
 @router.get("", response_class=HTMLResponse)
 def debug_page(request: Request, database_session: Session = Depends(get_database_session)) -> Response:
     """Render authenticated diagnostics, submission attempts, and login failures."""
 
     try:
-        require_authenticated_username(request)
-    except HTTPException:
-        return RedirectResponse(url="/login", status_code=303)
+        require_super_admin(request)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
 
     attempt_rows = list(
         database_session.execute(
@@ -152,6 +161,7 @@ def debug_page(request: Request, database_session: Session = Depends(get_databas
         "debug.html",
         template_context(
             request,
+            database_session=database_session,
             app_version=APP_VERSION,
             autotask_settings=_safe_autotask_config(),
             autotask_connectivity=request.session.get("autotask_connectivity_result"),
@@ -169,9 +179,9 @@ def download_login_failure_log(request: Request) -> Response:
     """Download the raw failed-login JSONL log for authenticated diagnostics."""
 
     try:
-        require_authenticated_username(request)
-    except HTTPException:
-        return RedirectResponse(url="/login", status_code=303)
+        require_super_admin(request)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
 
     log_path = Path(settings.login_failure_log_path)
     if not log_path.exists():
@@ -195,9 +205,9 @@ async def download_full_backup(
     """Download a CSRF-protected full application data backup."""
 
     try:
-        actor = require_authenticated_username(request)
-    except HTTPException:
-        return RedirectResponse(url="/login", status_code=303)
+        actor = require_super_admin(request)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
 
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
@@ -240,9 +250,9 @@ async def restore_full_backup_form(
     """Restore a previously downloaded full application data backup."""
 
     try:
-        actor = require_authenticated_username(request)
-    except HTTPException:
-        return RedirectResponse(url="/login", status_code=303)
+        actor = require_super_admin(request)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
 
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
@@ -301,9 +311,9 @@ async def test_autotask_api(
     """Test mandatory Autotask API connectivity from the debug page."""
 
     try:
-        actor = require_authenticated_username(request)
-    except HTTPException:
-        return RedirectResponse(url="/login", status_code=303)
+        actor = require_super_admin(request)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
 
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
