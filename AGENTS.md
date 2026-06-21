@@ -419,6 +419,25 @@ could not be run.
 Do not commit secrets, generated credentials, local environment files, database
 data volumes, raw audio files, or private tunnel tokens.
 
+## Branch And Deployment Workflow
+
+`main` is the production branch. Treat it as the branch that production
+instances should pull from after a tested release is ready.
+
+`dev` is the integration and testing branch. It is tracked on GitHub as
+`origin/dev` and should receive normal development changes before they are
+merged back to `main`. When the user asks for work intended for the dev
+instance, make and push that work on `dev` unless they explicitly name another
+branch. Do not merge `dev` into `main`, tag a release, or report production
+deployment readiness unless the user explicitly asks for that release step.
+
+The dev deployment should run as a separate instance from production, with its
+own checkout or worktree, Docker Compose project name, `.env`, database volume,
+backup path, host log path, Cloudflare Tunnel token, public hostname, allowed
+host setting, WebAuthn origin, and host-facing `NGINX_PUBLIC_PORT`. This keeps
+dev testing from sharing production sessions, logs, backups, database state, or
+tunnel credentials.
+
 ## Agent Orientation Map
 
 Future AI agents should treat this file as the mandatory starting point for the

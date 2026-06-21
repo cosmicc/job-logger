@@ -40,6 +40,10 @@ All notable changes to Job Logger are documented in this file.
   app log tail card for quick operator diagnostics.
 - Changed the successful-login diagnostics table so config super-admin account
   chips are yellow and easier to distinguish from managed web-user logins.
+- Added production/development branch workflow documentation describing
+  `main` as the production branch, `dev` as the GitHub-tracked testing branch,
+  and the required isolation for a separate dev deployment and Cloudflare
+  Tunnel.
 - Added a super-admin-only **Log out web users** control on `/debug` that
   invalidates all managed web-user sessions while leaving the current config
   super-admin session intact.

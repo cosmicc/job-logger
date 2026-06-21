@@ -106,6 +106,46 @@ Autotask REST API references used by this app:
    in normally once. The config super-admin account has no user settings and
    always uses dark mode.
 
+## Branch And Deployment Flow
+
+`main` is the production branch. Production deployments should pull from
+`main` only after changes have already been tested and intentionally merged.
+
+`dev` is the integration and testing branch. It was created as a copy of the
+current `main` branch and is intended for a separate dev instance where changes
+can be tested before they are merged back to `main`.
+
+For a dev deployment, use a separate checkout or working tree on the server:
+
+```bash
+git clone --branch dev https://github.com/cosmicc/job-logger.git job-logger-dev
+```
+
+Keep the dev instance isolated from production:
+
+- Use a separate `.env` with its own `APP_SECRET_KEY`, database password,
+  Cloudflare tunnel token, allowed hostname, and WebAuthn origin.
+- Use a separate Cloudflare Tunnel and public hostname for dev testing.
+- Use a separate Docker Compose project name, PostgreSQL volume, backup
+  directory, and host log directory so dev cannot overwrite production data.
+- Use a different `NGINX_PUBLIC_PORT`, such as `11031`, if production and dev
+  run on the same Docker host.
+- Use real Autotask credentials only when the dev workflow intentionally needs
+  live Autotask testing. Keep `AUTOTASK_PROVIDER=mock` for isolated UI or
+  workflow-only checks.
+
+Example same-host dev startup:
+
+```bash
+COMPOSE_PROJECT_NAME=job_logger_dev \
+HOST_LOG_DIR=/var/log/job-logger-dev \
+NGINX_PUBLIC_PORT=11031 \
+docker compose up -d --build
+```
+
+Do not merge `dev` into `main` until the dev instance has passed the intended
+validation and a production release is ready.
+
 ## Cloudflare Tunnel
 
 The Compose file starts Nginx and `cloudflared` by default. This keeps the
