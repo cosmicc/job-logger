@@ -70,6 +70,9 @@ def test_changelog_parser_reads_current_release() -> None:
             "App sessions can now require users to sign in again after the configured timeout.",
             "The Home passkey setup card now appears only once after login, while Config always keeps passkey setup available.",
             "Ticket source can now mark alert-created tickets as Remote when ticket text does not say Remote or On-Site.",
+            "Review detail now shows the active Work in Progress rounded stop time before the job is ended.",
+            "Review open-ticket choices now match Work in Progress ticket card details and colors.",
+            "Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay.",
         ),
     )
 
@@ -102,6 +105,9 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "App sessions can now require users to sign in again after the configured timeout." in response.text
     assert "The Home passkey setup card now appears only once after login" in response.text
     assert "Ticket source can now mark alert-created tickets as Remote" in response.text
+    assert "Review detail now shows the active Work in Progress rounded stop time" in response.text
+    assert "Review open-ticket choices now match Work in Progress ticket card details and colors." in response.text
+    assert "Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay." in response.text
     assert "automatic database backups" not in response.text
     assert "debug page" not in response.text
     assert "Autotask workflow and desktop layout updates" in response.text
@@ -119,7 +125,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.text.index("Direct submission and passkeys") < response.text.index("Autotask workflow and desktop layout updates")
     assert response.text.index("Autotask workflow and desktop layout updates") < response.text.index("Mobile shell navigation and close behavior")
     assert response.text.index("Mobile shell navigation and close behavior") < response.text.index("Initial release")
-    assert '<span class="release-version">v1.1.0</span>' not in response.text
+    assert '<h2 id="current-version-heading">Direct submission and passkeys</h2>' in response.text
+    assert '<span class="release-version">v1.1.0</span>' in response.text
     assert '<span class="release-version">v1.0.2</span>' in response.text
     assert '<span class="release-version">v1.0.1</span>' in response.text
     assert '<span class="release-version">v1.0.0</span>' in response.text
@@ -140,6 +147,7 @@ def test_changelog_title_uses_bold_page_heading_style() -> None:
     stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
 
     assert ".changelog-page-header h1" in stylesheet
+    assert ".changelog-current-panel h2,\n.changelog-entry-panel h2" in stylesheet
     assert "font-weight: 950;" in stylesheet
 
 

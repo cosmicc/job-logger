@@ -120,8 +120,6 @@
                     method="post"
                     action="/jobs/{{ active_job.id }}/start-time/adjust"
                     class="rounded-start-time-form active-time-step-controls"
-                    data-page-loading-form
-                    data-loading-message="Updating rounded start..."
                   >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button
@@ -156,8 +154,6 @@
                     method="post"
                     action="/jobs/{{ active_job.id }}/stop-time/adjust"
                     class="rounded-stop-time-form active-time-step-controls"
-                    data-page-loading-form
-                    data-loading-message="Updating rounded stop..."
                   >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button

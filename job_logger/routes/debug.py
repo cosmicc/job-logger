@@ -38,7 +38,7 @@ from job_logger.version import APP_VERSION
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/debug", tags=["debug"])
 LOGIN_ATTEMPT_PAGE_SIZE = 10
-APP_LOG_TAIL_LINES = 100
+APP_LOG_TAIL_LINES = 200
 MAX_APP_LOG_LINE_CHARS = 2000
 
 

@@ -159,16 +159,6 @@
                 name="ticket_description"
                 value="{{ selected_job.ticket_description or '' }}"
               >
-              <label>
-                <span>Ticket status</span>
-                <select name="ticket_status" required>
-                  {% for option_value, option_label in ticket_status_options %}
-                    <option value="{{ option_value }}" {% if selected_job.ticket_status and selected_job.ticket_status.value == option_value %}selected{% endif %}>
-                      {{ option_label }}
-                    </option>
-                  {% endfor %}
-                </select>
-              </label>
               <div class="readonly-field-card">
                 <span class="metric-label readonly-field-title">Client name</span>
                 <strong class="readonly-field-value">{{ selected_job.client_name or "No client selected" }}</strong>
@@ -243,7 +233,7 @@
                     name="end_time"
                     type="text"
                     class="time-field-input"
-                    value="{% if selected_job.status.value != 'active' %}{{ selected_job.rounded_end_utc|local_time }}{% endif %}"
+                    value="{{ selected_job_review_end_utc|local_time }}"
                     inputmode="text"
                     autocomplete="off"
                     autocorrect="off"
@@ -260,6 +250,16 @@
                     +15
                   </button>
                 </div>
+              </label>
+              <label class="review-ticket-status-field">
+                <span>Ticket status</span>
+                <select name="ticket_status" required>
+                  {% for option_value, option_label in ticket_status_options %}
+                    <option value="{{ option_value }}" {% if selected_job.ticket_status and selected_job.ticket_status.value == option_value %}selected{% endif %}>
+                      {{ option_label }}
+                    </option>
+                  {% endfor %}
+                </select>
               </label>
             </div>
 

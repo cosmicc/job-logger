@@ -38,6 +38,26 @@ All notable changes to Job Logger are documented in this file.
 - Added a super-admin `/debug` successful-login card, pagination for successful
   and failed login cards, a successful-login JSONL download, and a newest-first
   app log tail card for quick operator diagnostics.
+- Fixed review detail for active jobs so the end-time field shows the current
+  Work in Progress rounded stop preview while review saves continue to ignore
+  that displayed end time until the job is actually ended.
+- Moved ticket status underneath end time on review detail and aligned review
+  open-ticket cards with Work in Progress ticket number, location, title,
+  status, company, and color treatment.
+- Removed the full-page loading overlay from Work in Progress rounded start and
+  rounded stop `-15` and `+15` adjustments so small time changes apply without
+  the Autotask-style status overlay.
+- Changed the web changelog current-version panel so the current release title
+  uses the same heading style as older release titles.
+- Improved the super-admin diagnostics login tables with shorter 10-row
+  windows, clearer row formatting, icon-style extra-info buttons, and grouped
+  proxy/request details.
+- Changed login diagnostics to show the first `X-Forwarded-For` address as the
+  client IP when present, while retaining direct socket and proxy header
+  metadata for troubleshooting.
+- Renamed the debug app-log card to **Application Log**, increased the tail to
+  the newest 200 lines, and constrained the visible pane to about 20 scrollable
+  lines.
 - Fixed the new v1.1.0 migration identifiers so PostgreSQL can store them in
   Alembic's `version_num` column during Docker startup migrations.
 - Clarified Cloudflare Tunnel setup to prefer the Compose-managed loopback

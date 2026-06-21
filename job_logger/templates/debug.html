@@ -32,7 +32,7 @@
 
         {% if login_successes.records %}
           <div class="table-wrap login-attempt-window">
-            <table>
+            <table class="login-attempt-table">
               <thead>
                 <tr>
                   <th>Date/time</th>
@@ -47,9 +47,9 @@
               <tbody>
                 {% for success in login_successes.records %}
                   <tr>
-                    <td>{{ success.created_at_display }}</td>
-                    <td>{{ success.client_ip }}</td>
-                    <td>{{ success.username or "blank" }}</td>
+                    <td class="login-time-cell">{{ success.created_at_display }}</td>
+                    <td class="login-client-ip-cell">{{ success.client_ip }}</td>
+                    <td class="login-username-cell">{{ success.username or "blank" }}</td>
                     <td>
                       {% if success.user_kind == "super_admin" %}
                         <span class="status-chip status-waiting_parts">Super admin</span>
@@ -58,44 +58,69 @@
                       {% endif %}
                     </td>
                     <td>{{ success.authentication_method.replace("_", " ").title() }}</td>
-                    <td class="truncate-cell" title="{{ success.user_agent }}">{{ success.user_agent or "unknown" }}</td>
+                    <td class="login-user-agent-cell" title="{{ success.user_agent }}">{{ success.user_agent or "unknown" }}</td>
                     <td>
-                      <details class="debug-requests login-attempt-details">
-                        <summary>View</summary>
-                        <dl class="debug-list compact-debug-list">
-                          <div>
-                            <dt>UTC</dt>
-                            <dd>{{ success.created_at_utc or "unknown" }}</dd>
-                          </div>
-                          <div>
-                            <dt>Request</dt>
-                            <dd>{{ success.method }} {{ success.path }}</dd>
-                          </div>
-                          <div>
-                            <dt>Direct client</dt>
-                            <dd>{{ success.direct_client_ip or "unknown" }}</dd>
-                          </div>
-                          <div>
-                            <dt>X-Real-IP</dt>
-                            <dd>{{ success.x_real_ip or "not provided" }}</dd>
-                          </div>
-                          <div>
-                            <dt>X-Forwarded-For</dt>
-                            <dd>{{ success.x_forwarded_for or "not provided" }}</dd>
-                          </div>
-                          <div>
-                            <dt>Forwarded proto</dt>
-                            <dd>{{ success.forwarded_proto or "not provided" }}</dd>
-                          </div>
-                          <div>
-                            <dt>Host</dt>
-                            <dd>{{ success.host or "unknown" }}</dd>
-                          </div>
-                          <div>
-                            <dt>Web user ID</dt>
-                            <dd>{{ success.web_user_id or "not applicable" }}</dd>
-                          </div>
-                        </dl>
+                      <details class="login-attempt-details">
+                        <summary class="secondary-button login-details-button">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                          </svg>
+                          <span>Extra info</span>
+                        </summary>
+                        <div class="login-attempt-extra">
+                          <section>
+                            <h3>Request</h3>
+                            <dl class="login-extra-list">
+                              <div>
+                                <dt>UTC</dt>
+                                <dd>{{ success.created_at_utc or "unknown" }}</dd>
+                              </div>
+                              <div>
+                                <dt>Route</dt>
+                                <dd>{{ success.method }} {{ success.path }}</dd>
+                              </div>
+                              <div>
+                                <dt>Host</dt>
+                                <dd>{{ success.host or "unknown" }}</dd>
+                              </div>
+                            </dl>
+                          </section>
+                          <section>
+                            <h3>Proxy</h3>
+                            <dl class="login-extra-list">
+                              <div>
+                                <dt>Client IP</dt>
+                                <dd>{{ success.client_ip }}</dd>
+                              </div>
+                              <div>
+                                <dt>Direct client</dt>
+                                <dd>{{ success.direct_client_ip or "unknown" }}</dd>
+                              </div>
+                              <div>
+                                <dt>X-Real-IP</dt>
+                                <dd>{{ success.x_real_ip or "not provided" }}</dd>
+                              </div>
+                              <div>
+                                <dt>X-Forwarded-For</dt>
+                                <dd>{{ success.x_forwarded_for or "not provided" }}</dd>
+                              </div>
+                              <div>
+                                <dt>Forwarded proto</dt>
+                                <dd>{{ success.forwarded_proto or "not provided" }}</dd>
+                              </div>
+                            </dl>
+                          </section>
+                          <section>
+                            <h3>Account</h3>
+                            <dl class="login-extra-list">
+                              <div>
+                                <dt>Web user ID</dt>
+                                <dd>{{ success.web_user_id or "not applicable" }}</dd>
+                              </div>
+                            </dl>
+                          </section>
+                        </div>
                       </details>
                     </td>
                   </tr>
@@ -136,7 +161,7 @@
 
         {% if login_failures.records %}
           <div class="table-wrap login-attempt-window">
-            <table>
+            <table class="login-attempt-table login-failure-table">
               <thead>
                 <tr>
                   <th>Date/time</th>
@@ -152,13 +177,13 @@
               <tbody>
                 {% for failure in login_failures.records %}
                   <tr>
-                    <td>{{ failure.created_at_display }}</td>
-                    <td>{{ failure.client_ip }}</td>
-                    <td>
+                    <td class="login-time-cell">{{ failure.created_at_display }}</td>
+                    <td class="login-client-ip-cell">{{ failure.client_ip }}</td>
+                    <td class="login-username-cell">
                       {{ failure.username or "blank" }}{% if failure.username_truncated %}...{% endif %}
                     </td>
                     <td>{{ failure.password_length }}</td>
-                    <td class="truncate-cell" title="{{ failure.user_agent }}">{{ failure.user_agent or "unknown" }}</td>
+                    <td class="login-user-agent-cell" title="{{ failure.user_agent }}">{{ failure.user_agent or "unknown" }}</td>
                     <td>
                       <span class="status-chip status-submission_failed">{{ failure.reason.replace("_", " ").title() }}</span>
                       {% if failure.lockout_applied %}
@@ -173,50 +198,75 @@
                       {% endif %}
                     </td>
                     <td>
-                      <details class="debug-requests login-attempt-details">
-                        <summary>View</summary>
-                        <dl class="debug-list compact-debug-list">
-                          <div>
-                            <dt>UTC</dt>
-                            <dd>{{ failure.created_at_utc or "unknown" }}</dd>
-                          </div>
-                          <div>
-                            <dt>Request</dt>
-                            <dd>{{ failure.method }} {{ failure.path }}{% if failure.next_url %} next={{ failure.next_url }}{% endif %}</dd>
-                          </div>
-                          <div>
-                            <dt>Direct client</dt>
-                            <dd>{{ failure.direct_client_ip or "unknown" }}</dd>
-                          </div>
-                          <div>
-                            <dt>X-Real-IP</dt>
-                            <dd>{{ failure.x_real_ip or "not provided" }}</dd>
-                          </div>
-                          <div>
-                            <dt>X-Forwarded-For</dt>
-                            <dd>{{ failure.x_forwarded_for or "not provided" }}</dd>
-                          </div>
-                          <div>
-                            <dt>Forwarded proto</dt>
-                            <dd>{{ failure.forwarded_proto or "not provided" }}</dd>
-                          </div>
-                          <div>
-                            <dt>Host</dt>
-                            <dd>{{ failure.host or "unknown" }}</dd>
-                          </div>
-                          <div>
-                            <dt>Username length</dt>
-                            <dd>{{ failure.username_length }}</dd>
-                          </div>
-                          <div>
-                            <dt>Password supplied</dt>
-                            <dd>{% if failure.password_supplied %}Yes{% else %}No{% endif %}</dd>
-                          </div>
-                          <div>
-                            <dt>Lockout remaining</dt>
-                            <dd>{{ failure.lockout_remaining_seconds }} seconds</dd>
-                          </div>
-                        </dl>
+                      <details class="login-attempt-details">
+                        <summary class="secondary-button login-details-button">
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                          </svg>
+                          <span>Extra info</span>
+                        </summary>
+                        <div class="login-attempt-extra">
+                          <section>
+                            <h3>Request</h3>
+                            <dl class="login-extra-list">
+                              <div>
+                                <dt>UTC</dt>
+                                <dd>{{ failure.created_at_utc or "unknown" }}</dd>
+                              </div>
+                              <div>
+                                <dt>Route</dt>
+                                <dd>{{ failure.method }} {{ failure.path }}{% if failure.next_url %} next={{ failure.next_url }}{% endif %}</dd>
+                              </div>
+                              <div>
+                                <dt>Host</dt>
+                                <dd>{{ failure.host or "unknown" }}</dd>
+                              </div>
+                            </dl>
+                          </section>
+                          <section>
+                            <h3>Proxy</h3>
+                            <dl class="login-extra-list">
+                              <div>
+                                <dt>Client IP</dt>
+                                <dd>{{ failure.client_ip }}</dd>
+                              </div>
+                              <div>
+                                <dt>Direct client</dt>
+                                <dd>{{ failure.direct_client_ip or "unknown" }}</dd>
+                              </div>
+                              <div>
+                                <dt>X-Real-IP</dt>
+                                <dd>{{ failure.x_real_ip or "not provided" }}</dd>
+                              </div>
+                              <div>
+                                <dt>X-Forwarded-For</dt>
+                                <dd>{{ failure.x_forwarded_for or "not provided" }}</dd>
+                              </div>
+                              <div>
+                                <dt>Forwarded proto</dt>
+                                <dd>{{ failure.forwarded_proto or "not provided" }}</dd>
+                              </div>
+                            </dl>
+                          </section>
+                          <section>
+                            <h3>Failure</h3>
+                            <dl class="login-extra-list">
+                              <div>
+                                <dt>Username length</dt>
+                                <dd>{{ failure.username_length }}</dd>
+                              </div>
+                              <div>
+                                <dt>Password supplied</dt>
+                                <dd>{% if failure.password_supplied %}Yes{% else %}No{% endif %}</dd>
+                              </div>
+                              <div>
+                                <dt>Lockout remaining</dt>
+                                <dd>{{ failure.lockout_remaining_seconds }} seconds</dd>
+                              </div>
+                            </dl>
+                          </section>
+                        </div>
                       </details>
                     </td>
                   </tr>
@@ -516,10 +566,10 @@
       </div>
     </section>
 
-    <section id="app-log-tail" class="table-panel" aria-label="Application log tail">
+    <section id="app-log-tail" class="table-panel" aria-label="Application Log">
       <div class="debug-panel-body">
         <div class="review-header">
-          <h2>App log tail</h2>
+          <h2>Application Log</h2>
           <p class="muted-text">
             Newest lines first, last {{ app_log_tail_lines }} lines.
             Source: {{ app_log_path }}

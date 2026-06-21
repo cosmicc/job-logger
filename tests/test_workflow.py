@@ -786,6 +786,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".ticket-option-button.ticket-location-on_site" in stylesheet
     assert ".ticket-option-card-header" in stylesheet
     assert ".ticket-location-badge" in stylesheet
+    assert ".review-ticket-status-field" in stylesheet
+    assert "grid-column: 1;" in stylesheet
     assert "linear-gradient(90deg, rgba(45, 212, 191" in stylesheet
     assert "linear-gradient(90deg, rgba(245, 158, 11" in stylesheet
     assert ".service-call-loading-state" in stylesheet
@@ -1015,9 +1017,23 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'class="end-client-name"' in page_html
     assert 'class="end-autotask-company-id"' in page_html
     assert 'class="rounded-start-time-form active-time-step-controls"' in page_html
+    rounded_start_form_open = re.search(
+        r'<form(?=[^>]*class="rounded-start-time-form active-time-step-controls")[^>]*>',
+        page_html,
+    )
+    assert rounded_start_form_open is not None
+    assert "data-page-loading-form" not in rounded_start_form_open.group(0)
+    assert "data-loading-message" not in rounded_start_form_open.group(0)
     assert 'name="rounded_start_time"' not in page_html
     assert 'class="time-field-input rounded-start-time-display"' in page_html
     assert 'class="rounded-stop-time-form active-time-step-controls"' in page_html
+    rounded_stop_form_open = re.search(
+        r'<form(?=[^>]*class="rounded-stop-time-form active-time-step-controls")[^>]*>',
+        page_html,
+    )
+    assert rounded_stop_form_open is not None
+    assert "data-page-loading-form" not in rounded_stop_form_open.group(0)
+    assert "data-loading-message" not in rounded_stop_form_open.group(0)
     assert f'action="/jobs/{active_job_id}/stop-time/adjust"' in page_html
     assert 'name="rounded_stop_time"' not in page_html
     assert 'class="time-field-input rounded-stop-time-display"' in page_html
@@ -1208,6 +1224,67 @@ def test_review_save_does_not_require_ticket_number(authenticated_client: TestCl
         assert reviewed_job.summary_notes == "Autosaved without ticket during review."
 
 
+def test_review_detail_shows_active_rounded_stop_without_ending_job(authenticated_client: TestClient) -> None:
+    """Active review detail should display the WIP rounded stop preview without applying it as an end time."""
+
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    rounded_start = datetime(2026, 6, 16, 12, 0)
+    rounded_stop_preview = datetime(2026, 6, 16, 12, 30)
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+        active_job.rounded_start_utc = rounded_start
+        active_job.rounded_end_utc = rounded_stop_preview
+        active_job.local_work_date = local_date_for(rounded_start)
+        active_job.summary_notes = "Active review notes."
+        database_session.commit()
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_html = review_page_response.text
+
+    assert review_page_response.status_code == 200
+    assert re.search(r'<input(?=[^>]*name="end_time")(?=[^>]*value="8:30 am")', review_html)
+    assert review_html.index('name="end_time"') < review_html.index('name="ticket_status"')
+    assert 'class="review-ticket-status-field"' in review_html
+
+    review_csrf_token = extract_csrf_token(review_html)
+    autosave_response = authenticated_client.post(
+        f"/review/{active_job_id}/save",
+        headers={"Accept": "application/json"},
+        data={
+            "csrf_token": review_csrf_token,
+            "ticket_number": "",
+            "ticket_status": "follow_up",
+            "job_date": "2026-06-16",
+            "start_time": "8:00 am",
+            "end_time": "8:45 am",
+            "summary_notes": "Changed active review notes.",
+        },
+    )
+
+    assert autosave_response.status_code == 200
+    autosave_payload = autosave_response.json()
+    assert autosave_payload["end_time"] == "8:30 am"
+    assert autosave_payload["ticket_status"] == "follow_up"
+    assert autosave_payload["summary_notes"] == "Remote Changed active review notes."
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
+        assert active_job.status == JobStatus.ACTIVE
+        assert active_job.rounded_end_utc == rounded_stop_preview
+        assert active_job.summary_notes == "Changed active review notes."
+
+
 def test_review_summary_prefix_is_editable_and_updates_work_location(authenticated_client: TestClient) -> None:
     """Review saves the visible Autotask summary prefix back into work_location."""
 
@@ -1270,7 +1347,7 @@ def test_review_summary_prefix_is_editable_and_updates_work_location(authenticat
 
 
 def test_review_save_active_job_without_stop_time(authenticated_client: TestClient) -> None:
-    """Active jobs can be saved in review without end date or end time."""
+    """Active jobs can be saved in review without submitting an end time."""
 
     mobile_page_response = authenticated_client.get("/home")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -1298,7 +1375,7 @@ def test_review_save_active_job_without_stop_time(authenticated_client: TestClie
 
     assert 'type="time"' not in review_page_response.text
     assert f'value="{active_job_display_start}"' in review_page_response.text
-    assert f'value="{active_job_tentative_stop}"' not in review_page_response.text
+    assert f'value="{active_job_tentative_stop}"' in review_page_response.text
     assert " am" in active_job_display_start or " pm" in active_job_display_start
 
     save_response = authenticated_client.post(

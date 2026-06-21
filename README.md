@@ -611,10 +611,11 @@ that panel saves the current active-job client fields before loading open
 tickets. Saved clients do not auto-load tickets when the Work in Progress card
 renders; click the panel to load them. Both mobile and review ticket lookup show
 the spinner loading state while Autotask data is being fetched or a selected
-ticket is being saved. Open-ticket choices show the detected `Remote`,
-`On-Site`, or `Not specified` work-location label from the ticket title and
-description, and Remote/On-Site choices use the same color treatment as
-service-call cards.
+ticket is being saved. Open-ticket choices show the ticket number, title,
+ticket status, company name, and detected `Remote`, `On-Site`, or `Not
+specified` work-location label from the ticket title and description.
+Remote/On-Site choices use the same color treatment as service-call cards on
+both Work in Progress and Review.
 Selecting a returned ticket fills the mobile job's hidden ticket number, stores
 the selected ticket title for the review detail heading, stores the bounded
 ticket description for read-only context, and automatically saves the active-job
@@ -674,7 +675,8 @@ to `about:blank` instead of logging out or posting to another app route.
 Full-width `/home`, review, debug, and other non-mobile pages keep the
 explicit logout button. Mobile submit actions show a loading overlay once the
 tap is accepted so slow redirects or Autotask lookups do not look like ignored
-buttons.
+buttons; rounded start/stop `-15` and `+15` adjustments skip the full-page
+overlay so those small time changes feel immediate.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 
@@ -735,17 +737,20 @@ appended to `/data/logs/job-logger-login-successes.log` inside the app
 container. Docker Compose bind-mounts that directory from
 `${HOST_LOG_DIR:-/var/log/job-logger}`, so the default host-readable files are
 under `/var/log/job-logger/`. The logs and debug page include timestamp, client
-IP and proxy header details, username, user agent, request path, host/proxy
+IP, proxy header details, username, user agent, request path, host/proxy
 metadata, account kind, authentication method, failure reason, and
-password-present/length metadata for failures. The raw submitted password is
-never stored or displayed. The `/debug/logs/login-failures` and
+password-present/length metadata for failures. When `X-Forwarded-For` is
+present, the first forwarded address is shown as the client IP so Cloudflare
+Tunnel deployments show the actual browser address instead of the tunnel peer.
+The raw submitted password is never stored or displayed. The `/debug/logs/login-failures` and
 `/debug/logs/login-successes` endpoints download the raw JSONL files for
 authenticated diagnostics.
 
-At the bottom of `/debug`, the **App log tail** card shows the newest lines
-first from `${LOG_DIR}/app.log`, normally
-`/var/log/job-logger/app.log` on the Docker host. The card is intended for quick
-operator triage; use the host log files for longer history.
+At the bottom of `/debug`, the **Application Log** card shows the newest 200
+lines first from `${LOG_DIR}/app.log`, normally
+`/var/log/job-logger/app.log` on the Docker host. The card's viewport shows
+about 20 lines at a time and scrolls for the rest; use the host log files for
+longer history.
 
 The app also creates automatic full-database backups every hour when
 `AUTOMATIC_BACKUPS_ENABLED=true`, which is the default. Docker Compose stores
@@ -809,8 +814,10 @@ time on the selected date are rejected.
 
 Start time, end time, and resulting duration are rounded to 15-minute intervals.
 The active mobile end-work path still protects against a zero-minute rounded
-duration, while review edits must explicitly choose a valid later end time on
-the same job date.
+duration. Review detail shows the active Work in Progress rounded stop preview
+when an active job is selected, but review save ignores that displayed end time
+until the user actually ends the job. Ended review edits must explicitly choose
+a valid later end time on the same job date.
 
 ## Ticket Numbers
 

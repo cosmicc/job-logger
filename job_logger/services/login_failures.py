@@ -97,15 +97,15 @@ def client_ip_from_request(request: Request | None) -> str:
     if request is None:
         return "unknown"
 
-    real_ip = request.headers.get("x-real-ip", "").strip()
-    if real_ip:
-        return _bounded_text(real_ip, MAX_CLIENT_IP_LOG_CHARS)
-
     forwarded_for = request.headers.get("x-forwarded-for", "")
     if forwarded_for:
         first_forwarded_ip = forwarded_for.split(",", maxsplit=1)[0].strip()
         if first_forwarded_ip:
             return _bounded_text(first_forwarded_ip, MAX_CLIENT_IP_LOG_CHARS)
+
+    real_ip = request.headers.get("x-real-ip", "").strip()
+    if real_ip:
+        return _bounded_text(real_ip, MAX_CLIENT_IP_LOG_CHARS)
 
     if request.client is not None and request.client.host:
         return _bounded_text(request.client.host, MAX_CLIENT_IP_LOG_CHARS)

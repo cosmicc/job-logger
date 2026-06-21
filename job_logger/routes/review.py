@@ -37,6 +37,7 @@ from job_logger.services.jobs import (
     is_job_locked_after_successful_submission,
     list_review_jobs,
     purge_job,
+    rounded_stop_for_active_job,
     submit_job_to_autotask,
     ticket_status_from_autotask_label,
     update_submitted_job_autotask_entry,
@@ -210,7 +211,7 @@ def _review_save_payload(job: object) -> dict[str, object]:
 
     ticket_status = getattr(job, "ticket_status", None)
     job_status = getattr(job, "status", None)
-    rounded_end_utc = None if job_status == JobStatus.ACTIVE else getattr(job, "rounded_end_utc", None)
+    rounded_end_utc = _review_display_end_time_utc(job)
     local_work_date = getattr(job, "local_work_date", None)
     job_date = (
         str(local_work_date)
@@ -226,6 +227,18 @@ def _review_save_payload(job: object) -> dict[str, object]:
         "start_time": format_local_time(getattr(job, "rounded_start_utc", None)),
         "end_time": format_local_time(rounded_end_utc),
     }
+
+
+def _review_display_end_time_utc(job: object | None):
+    """Return the review-detail end time shown to the user without ending active work."""
+
+    if job is None:
+        return None
+
+    if getattr(job, "status", None) == JobStatus.ACTIVE:
+        return getattr(job, "rounded_end_utc", None) or rounded_stop_for_active_job(job)
+
+    return getattr(job, "rounded_end_utc", None)
 
 
 def _render_review(
@@ -271,6 +284,7 @@ def _render_review(
             selected_job_autotask_summary_notes=(
                 build_autotask_summary_notes(selected_job) if selected_job is not None else ""
             ),
+            selected_job_review_end_utc=_review_display_end_time_utc(selected_job),
             can_modify_selected_job=can_modify_jobs and selected_job is not None,
             show_job_owner=is_super_admin,
             audit_events=audit_events,
@@ -296,8 +310,11 @@ async def save_review(
         ensure_job_owned_by_web_user(job, web_user.id)
         ensure_job_is_not_locked_after_successful_submission(job)
         require_end_time_fields = job.status != JobStatus.ACTIVE
+        locked_form_values = _read_only_review_form_values(form_values, job)
+        if job.status == JobStatus.ACTIVE:
+            locked_form_values["end_time"] = ""
         review_fields = validate_review_fields(
-            _read_only_review_form_values(form_values, job),
+            locked_form_values,
             require_ticket_number=False,
             require_end_time_fields=require_end_time_fields,
         )

@@ -1125,6 +1125,7 @@ function renderTicketOptionButton(optionButton, ticketOption) {
   const ticketNumber = ticketOption.ticket_number || "No ticket number";
   const ticketTitle = ticketOption.title || "Untitled ticket";
   const ticketStatus = ticketOption.status_label || "Unknown status";
+  const companyName = ticketOption.company_name || "Unknown company";
   const locationLabel = ticketOption.work_location_label || "Not specified";
   const locationClass = ticketOption.work_location_class || "ticket-location-unknown";
   const cardHeader = document.createElement("span");
@@ -1137,7 +1138,7 @@ function renderTicketOptionButton(optionButton, ticketOption) {
   optionButton.replaceChildren(
     cardHeader,
     createTicketOptionSpan("ticket-option-title", ticketTitle),
-    createTicketOptionSpan("ticket-option-meta", ticketStatus),
+    createTicketOptionSpan("ticket-option-meta", `${ticketStatus} | ${companyName}`),
   );
 }
 

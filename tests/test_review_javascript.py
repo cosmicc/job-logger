@@ -10,6 +10,21 @@ from pathlib import Path
 import pytest
 
 
+def test_open_ticket_renderers_share_status_and_company_metadata() -> None:
+    """Review and Work in Progress ticket cards should expose the same visible metadata."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    mobile_script = (repository_root / "job_logger" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "job_logger" / "static" / "review.js").read_text(encoding="utf-8")
+    expected_company_line = 'const companyName = ticketOption.company_name || "Unknown company";'
+    expected_meta_line = 'createTicketOptionSpan("ticket-option-meta", `${ticketStatus} | ${companyName}`),'
+
+    assert expected_company_line in mobile_script
+    assert expected_company_line in review_script
+    assert expected_meta_line in mobile_script
+    assert expected_meta_line in review_script
+
+
 def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
     """Review edits must save through the background save endpoint without a button."""
 

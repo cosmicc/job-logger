@@ -93,7 +93,9 @@ written to host-mounted JSONL login-attempt logs and shown on `/debug`, but only
 with sanitized metadata such as timestamp, client IP, submitted username,
 account kind, authentication method, user agent, request/proxy details, failure
 reason, and password-present/length for failures. Never write or display the raw
-submitted password.
+submitted password. For login diagnostics, prefer the first `X-Forwarded-For`
+address as the displayed client IP when present, while retaining the direct
+socket peer and proxy headers as supporting metadata.
 
 Prefer secure defaults. Cookies must be HTTP-only, secure when served over HTTPS,
 and SameSite-protected. Forms and state-changing requests must use CSRF
@@ -594,7 +596,9 @@ The normal workflow is:
     optionally records more audio notes before Autotask submission, and keeps
     the selected client/ticket identity read-only. Directly submitted jobs still
     appear in Review for submitted-entry **Edit Entry** and **Delete From
-    Autotask** actions.
+    Autotask** actions. Active jobs opened in Review show the same rounded stop
+    preview as Work in Progress, but review saves must not apply that displayed
+    end time until the job is actually ended.
 15. Accept/retry submits a reviewed job to Autotask idempotently with the
     owning managed web user's resource ID.
 16. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes

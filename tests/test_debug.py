@@ -184,7 +184,7 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
 
     log_payload = json.loads(log_text.strip())
     assert log_payload["username"] == "bad-user"
-    assert log_payload["client_ip"] == "198.51.100.7"
+    assert log_payload["client_ip"] == "203.0.113.9"
     assert log_payload["x_real_ip"] == "198.51.100.7"
     assert log_payload["x_forwarded_for"] == "203.0.113.9, 10.0.0.2"
     assert log_payload["forwarded_proto"] == "https"
@@ -229,6 +229,9 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
     assert "bad-user" in debug_response.text
     assert "198.51.100.7" in debug_response.text
     assert "203.0.113.9, 10.0.0.2" in debug_response.text
+    assert "<td class=\"login-client-ip-cell\">203.0.113.9</td>" in debug_response.text
+    assert "login-details-button" in debug_response.text
+    assert "Extra info" in debug_response.text
     assert "Failed Login Test" in debug_response.text
     assert "Invalid Credentials" in debug_response.text
     assert ">12<" in debug_response.text
@@ -319,7 +322,7 @@ def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient)
     app_log_path.write_text(
         "".join(
             f"line-{index} password=raw-secret-{index}\n"
-            for index in range(105)
+            for index in range(205)
         ),
         encoding="utf-8",
     )
@@ -327,16 +330,28 @@ def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient)
     debug_response = super_admin_client.get("/debug?success_page=2&failure_page=2")
     assert debug_response.status_code == 200
     assert "Page 2 of 2" in debug_response.text
+    assert "Application Log" in debug_response.text
+    assert "last 200 lines" in debug_response.text
     assert "failure-1" in debug_response.text
     assert "failure-0" in debug_response.text
     assert "success-1" in debug_response.text
     assert "success-0" in debug_response.text
     assert "failure-11" not in debug_response.text
     assert "success-11" not in debug_response.text
-    assert debug_response.text.index("line-104") < debug_response.text.index("line-103")
+    assert debug_response.text.index("line-204") < debug_response.text.index("line-203")
+    assert "line-5 " in debug_response.text
     assert "line-4 " not in debug_response.text
     assert "password=***" in debug_response.text
     assert "raw-secret" not in debug_response.text
+
+    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
+    assert ".login-attempt-window" in stylesheet
+    assert "max-height: 430px;" in stylesheet
+    assert ".login-details-button" in stylesheet
+    assert ".login-attempt-extra" in stylesheet
+    assert "position: absolute;" in stylesheet
+    assert "width: min(760px, calc(100vw - 96px));" in stylesheet
+    assert "max-height: calc(20lh + 24px);" in stylesheet
 
 
 def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -> None:
@@ -423,7 +438,7 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert debug_response.text.index("Autotask submission attempts") < debug_response.text.index("Autotask configuration snapshot")
     assert debug_response.text.index("Autotask configuration snapshot") < debug_response.text.index("Automatic database backups")
     assert debug_response.text.index("Automatic database backups") < debug_response.text.index("Full data backup")
-    assert debug_response.text.index("Full data backup") < debug_response.text.index("App log tail")
+    assert debug_response.text.index("Full data backup") < debug_response.text.index("Application Log")
     assert '<table class="debug-submission-table">' in debug_response.text
     assert "<th>User</th>" in debug_response.text
     assert "Test Technician" in debug_response.text

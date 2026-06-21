@@ -1553,7 +1553,7 @@ a:focus-visible {
 }
 
 .start-work-form .primary-action-button {
-  margin-top: 10px;
+  margin-top: 0;
 }
 
 .active-jobs-stack .metric-grid {
@@ -2361,6 +2361,10 @@ td a {
   margin-top: 14px;
 }
 
+.review-ticket-status-field {
+  grid-column: 1;
+}
+
 .ticket-picker {
   display: grid;
   gap: 10px;
@@ -2368,7 +2372,7 @@ td a {
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--surface-muted);
+  background: var(--surface-strong);
 }
 
 .ticket-picker-header {
@@ -2539,17 +2543,143 @@ td a {
   margin-top: 18px;
 }
 
-.login-attempt-panel {
-  min-height: 560px;
+.login-attempt-window {
+  max-height: 430px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
-.login-attempt-window {
-  max-height: 360px;
-  overflow: auto;
+.login-attempt-table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.login-attempt-table th,
+.login-attempt-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.login-attempt-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.login-attempt-table tbody tr:hover {
+  background: var(--surface-muted);
+}
+
+.login-time-cell {
+  width: 150px;
+  white-space: nowrap;
+}
+
+.login-client-ip-cell {
+  width: 130px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  overflow-wrap: anywhere;
+}
+
+.login-username-cell {
+  width: 150px;
+  overflow-wrap: anywhere;
+  font-weight: 800;
+}
+
+.login-user-agent-cell {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .login-attempt-details {
+  position: relative;
   margin-top: 0;
+}
+
+.login-attempt-details[open] {
+  z-index: 3;
+}
+
+.login-details-button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.login-details-button::-webkit-details-marker {
+  display: none;
+}
+
+.login-details-button::marker {
+  content: "";
+}
+
+.login-attempt-extra {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  width: min(760px, calc(100vw - 96px));
+  max-height: min(420px, calc(100vh - 160px));
+  margin-top: 10px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.login-attempt-extra h3 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.login-extra-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.login-extra-list div {
+  display: grid;
+  gap: 3px;
+}
+
+.login-extra-list dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.login-extra-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
 }
 
 .debug-pagination {
@@ -2567,7 +2697,8 @@ td a {
 }
 
 .app-log-tail {
-  max-height: 440px;
+  max-height: calc(20lh + 24px);
+  overflow: auto;
   white-space: pre-wrap;
 }
 
@@ -2621,7 +2752,6 @@ td a {
   box-shadow: var(--shadow);
 }
 
-.changelog-current-panel h2,
 .changelog-current-panel p {
   margin-bottom: 0;
 }
@@ -2630,6 +2760,10 @@ td a {
   display: grid;
   gap: 8px;
   min-width: 0;
+}
+
+.changelog-current-panel .changelog-entry-header {
+  margin-bottom: 0;
 }
 
 .version-chip,
@@ -2718,6 +2852,7 @@ td a {
   margin-bottom: 12px;
 }
 
+.changelog-current-panel h2,
 .changelog-entry-panel h2 {
   margin-bottom: 12px;
   font-size: 22px;

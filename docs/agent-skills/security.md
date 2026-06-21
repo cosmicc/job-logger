@@ -120,8 +120,11 @@ username, account kind, authentication method, username length/truncation for
 failures, user agent, request path, host/proxy metadata, reason, and
 password-present/length metadata for failures. They must never include the raw
 submitted password, session tokens, authentication headers, or Cloudflare
-Access JWTs. The bottom of `/debug` may show a sanitized newest-first tail of
-`${LOG_DIR}/app.log`; keep that bounded and redacted.
+Access JWTs. When `X-Forwarded-For` is present, the first forwarded address is
+the display `client_ip` for login diagnostics; retain the direct socket peer
+and other proxy headers as supporting metadata only. The bottom of `/debug` may
+show a sanitized newest-first tail of `${LOG_DIR}/app.log`; keep that bounded,
+scrollable, and redacted.
 
 ## CSRF Rules
 

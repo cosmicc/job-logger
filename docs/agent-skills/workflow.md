@@ -96,6 +96,9 @@ Active jobs support these updates before completion:
   the visible notes.
 - Rounded start time through server-validated mobile `-15` and `+15` minute
   buttons on either side of the displayed time.
+- Rounded stop time through server-validated mobile `-15` and `+15` minute
+  buttons on either side of the displayed time. These buttons must not use the
+  full-page status overlay because the adjustment should feel immediate.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job client and summary edits, not ticket
@@ -120,9 +123,9 @@ the browser should immediately hide the open-ticket panel and show the selected
 ticket number, ticket title, and ticket description in Work in Progress without
 waiting for a page reload. Mobile and review open-ticket choices should use the
 same Remote/On-Site color treatment as service-call start cards, with
-`.ticket-option-button` location classes and a visible location badge. This
-label is display metadata only; do not trust it to override the active job's
-stored work-location value.
+`.ticket-option-button` location classes, a visible location badge, title,
+ticket status, and company metadata. This label is display metadata only; do
+not trust it to override the active job's stored work-location value.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
@@ -320,7 +323,10 @@ Review supports:
 - Recording additional audio notes on review detail before successful Autotask
   submission.
 - Automatically saving edits without a ticket number.
-- Saving active jobs without an end date/time.
+- Saving active jobs without applying an end date/time. The review detail may
+  display the active rounded stop preview from Work in Progress, but server-side
+  review saves must ignore that displayed end time until the user actually ends
+  the job.
 - Accepting or retrying submission only when the ticket number and required
   submission fields are present.
 - Editing or deleting already submitted entries that may have been created by
