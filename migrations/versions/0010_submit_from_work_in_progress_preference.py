@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0010_submit_from_work_in_progress_preference"
+revision = "0010_direct_submit_pref"
 down_revision = "0009_web_user_email"
 branch_labels = None
 depends_on = None

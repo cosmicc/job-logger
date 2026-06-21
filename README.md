@@ -114,13 +114,14 @@ tunnel connector all come up with one `docker compose up -d --build` command.
 2. Add a public hostname that routes to this Docker service URL:
 
    ```text
-   http://<server-internal-ip>:11030
+   http://127.0.0.1:11030
    ```
 
-   For this deployment, that means `http://192.168.199.11:11030` on your
-   production network. If `cloudflared` runs on the same Docker host, localhost
-   can also work, but the configured service URL must match an address that is
-   reachable from the `cloudflared` connector.
+   The Compose-managed `cloudflared` service uses host networking, so
+   `127.0.0.1` is the stable address from the connector to the host-published
+   Nginx port. Avoid using a Wi-Fi or LAN address unless `cloudflared` is
+   running on a different host, because those addresses can change and produce
+   Cloudflare 502 errors.
 
 3. Optionally create a Cloudflare Access self-hosted application for that hostname.
 4. Put the same hostname in `.env` under `APP_ALLOWED_HOSTS`.
@@ -150,18 +151,20 @@ tunnel connector all come up with one `docker compose up -d --build` command.
 
 Nginx is the web front end for this deployment. Public mobile and review
 traffic should enter through the Cloudflare Tunnel hostname, reach the host-exposed
-Nginx endpoint on `<server-internal-ip>:11030` by default (or
-`<server-internal-ip>:<NGINX_PUBLIC_PORT>` after you change it), and then proxy to FastAPI at
-`http://app:8000`.
+Nginx endpoint on `127.0.0.1:11030` from the Compose-managed connector by
+default (or `127.0.0.1:<NGINX_PUBLIC_PORT>` after you change it), and then
+proxy to FastAPI at `http://app:8000`.
 
 The app container is exposed only to the private Compose network. The local
 troubleshooting URL reaches Nginx on `127.0.0.1`, not the app container
 directly.
 
-Nginx binds `NGINX_PUBLIC_PORT` on host interfaces so a remotely-managed tunnel
-can reach the origin by server IP. Keep host firewall rules limited to trusted
-networks or the tunnel connector path because direct LAN access to this port
-bypasses Cloudflare Access. Application login still protects the app itself.
+Nginx binds `NGINX_PUBLIC_PORT` on host interfaces so the Compose-managed
+tunnel can reach the origin through host networking. If you intentionally point
+a remotely-managed tunnel at a LAN/server IP instead of `127.0.0.1`, keep host
+firewall rules limited to trusted networks or the tunnel connector path because
+direct LAN access to this port bypasses Cloudflare Access. Application login
+still protects the app itself.
 
 `NGINX_PUBLIC_PORT` is the only configurable host-facing port. All other service
 ports are fixed internally and are not intended to be changed via environment:
@@ -230,9 +233,9 @@ Check these items first:
 
 - Confirm `.env` exists and contains a real `CLOUDFLARE_TUNNEL_TOKEN`.
 - Confirm the Cloudflare tunnel origin (what your Cloudflare connector is configured
-  to reach) is `http://<server-internal-ip>:11030` by default, or your configured
-  `NGINX_PUBLIC_PORT`. For the current production network, that is
-  `http://192.168.199.11:11030`.
+  to reach) is `http://127.0.0.1:11030` by default, or your configured
+  `NGINX_PUBLIC_PORT`. If the tunnel is configured to a LAN address, verify that
+  the address is still assigned to this host before looking for app problems.
 - Confirm the public web path reaches the app login from the Docker host:
 
   ```bash
@@ -247,10 +250,10 @@ Check these items first:
   curl -i http://127.0.0.1:11030/openapi.json
   ```
 
-- Confirm Nginx is reachable through the same server IP used by Cloudflare:
+- Confirm Nginx is reachable through the same origin address used by Cloudflare:
 
   ```bash
-  curl -i http://192.168.199.11:11030/login
+  curl -i http://127.0.0.1:11030/login
   ```
 
 - Confirm the app accepts the Cloudflare public hostname after container

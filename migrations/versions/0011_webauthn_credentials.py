@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0011_webauthn_credentials"
-down_revision = "0010_submit_from_work_in_progress_preference"
+down_revision = "0010_direct_submit_pref"
 branch_labels = None
 depends_on = None
 

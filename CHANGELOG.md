@@ -25,6 +25,10 @@ All notable changes to Job Logger are documented in this file.
   sign-ins while password login remains available as the fallback.
 - Added `WEBAUTHN_RP_NAME`, `WEBAUTHN_RP_ID`, and `WEBAUTHN_ORIGIN`
   configuration for passkey relying-party and origin validation.
+- Fixed the new v1.1.0 migration identifiers so PostgreSQL can store them in
+  Alembic's `version_num` column during Docker startup migrations.
+- Clarified Cloudflare Tunnel setup to prefer the Compose-managed loopback
+  Nginx origin instead of a changing LAN address.
 
 ## v1.0.2 - Autotask workflow and desktop layout updates
 
