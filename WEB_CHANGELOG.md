@@ -16,6 +16,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Review open-ticket choices now match Work in Progress ticket card details and colors.
 - Selecting service calls or open tickets now keeps Autotask read-only until submission and defaults the local status to In progress.
 - Ollama and LM Studio cleanup can now use private LAN model servers.
+- Ollama and LM Studio cleanup now keep cleanup rules in the provider instruction field.
 - The mobile top bar now uses a logout icon instead of the app-close X.
 - Mobile Work in Progress actions now use compact button rows with shorter labels and icons.
 - Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay.

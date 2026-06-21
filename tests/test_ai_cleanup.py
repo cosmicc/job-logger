@@ -142,6 +142,7 @@ def test_ollama_cleanup_builds_generate_payload(monkeypatch: pytest.MonkeyPatch)
     assert cleanup_result.model == "test-ollama-model"
     assert captured_payload["model"] == "test-ollama-model"
     assert captured_payload["system"] == "Clean the summary."
+    assert "Cleanup instructions:" not in captured_payload["prompt"]
     assert "remote restarted firewall backups good" in captured_payload["prompt"]
     assert captured_payload["stream"] is False
     assert captured_payload["options"]["temperature"] == 0.2
@@ -182,6 +183,7 @@ def test_lm_studio_cleanup_builds_openai_compatible_payload(monkeypatch: pytest.
     assert cleanup_result.model == "test-lm-studio-model"
     assert captured_payload["model"] == "test-lm-studio-model"
     assert captured_payload["messages"][0] == {"role": "system", "content": "Clean the summary."}
+    assert "Cleanup instructions:" not in captured_payload["messages"][1]["content"]
     assert "onsite replaced ap checked signal" in captured_payload["messages"][1]["content"]
     assert captured_payload["stream"] is False
 

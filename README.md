@@ -442,6 +442,11 @@ The feature is disabled by default. Configure it in Docker or `.env`:
 - `AI_CLEANUP_MAX_INPUT_CHARS`, default `12000`
 - `AI_CLEANUP_INSTRUCTIONS`
 
+Job Logger sends `AI_CLEANUP_INSTRUCTIONS` through the provider's instruction
+channel, such as the system message or local-provider system field. The visible
+summary prompt contains the cleanup task, minimal job context, and the summary
+text without duplicating those configured instructions.
+
 For Gemini free-tier cleanup, configure:
 
 - `GEMINI_API_KEY`

@@ -57,6 +57,9 @@ All notable changes to Job Logger are documented in this file.
 - Changed Ollama and LM Studio AI cleanup URL validation to allow loopback,
   Docker host aliases, and private LAN IPs such as `172.25.x.x` while still
   rejecting public cleanup endpoints.
+- Changed Ollama and LM Studio AI cleanup payloads to keep
+  `AI_CLEANUP_INSTRUCTIONS` in each provider's system/control instruction field
+  without duplicating those rules in the user-visible prompt.
 - Changed the phone-sized top bar to use a CSRF-protected logout icon instead
   of the app-close X button.
 - Changed active mobile Work in Progress controls so **Record** and

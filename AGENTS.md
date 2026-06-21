@@ -121,7 +121,8 @@ AI summary cleanup sends job summary text to the configured provider only when
 must validate authentication and CSRF, bound input length, keep API keys,
 provider URLs, and cleanup instructions server-side in Docker or environment
 variables, set `store=false` on Gemini requests, constrain Ollama and LM Studio
-cleanup URLs to loopback or private-network endpoints, and audit only metadata
+cleanup URLs to loopback or private-network endpoints, send configured cleanup
+instructions through the provider instruction field, and audit only metadata
 such as provider, model, source, and text lengths. Do not store raw cleanup
 prompts or full cleaned/uncleaned summaries in audit details.
 
@@ -511,8 +512,8 @@ The application is a FastAPI project under `job_logger/`.
   storage, credential counters, and safe passkey deletion.
 - `job_logger/services/ai_cleanup.py` owns server-side Gemini, Groq, Ollama,
   and LM Studio summary cleanup, including request construction,
-  private-network provider URL validation, safe response parsing, and provider
-  error normalization.
+  provider-specific instruction placement, private-network provider URL
+  validation, safe response parsing, and provider error normalization.
 - `job_logger/services/transcription.py` owns speech-to-text provider behavior.
 - `job_logger/services/audit.py` records immutable audit events.
 - `job_logger/services/backups.py` creates and restores portable gzip JSON full

@@ -296,6 +296,9 @@ state, calls `job_logger/services/ai_cleanup.py`, records a metadata-only audit
 event, and returns cleaned text. The cleanup route
 must not submit to Autotask, change ticket/client identity, or bypass the normal
 save/review/Edit Entry workflow.
+Configured `AI_CLEANUP_INSTRUCTIONS` must be sent through the selected
+provider's instruction field. Keep the user-visible cleanup prompt focused on
+the cleanup task, job context, and untrusted summary text.
 
 Mobile active jobs use `POST /jobs/{job_id}/summary/cleanup`. After a successful
 response, `job_logger/static/mobile.js` replaces the active summary textarea and

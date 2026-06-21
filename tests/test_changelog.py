@@ -76,6 +76,7 @@ def test_changelog_parser_reads_current_release() -> None:
             "Review open-ticket choices now match Work in Progress ticket card details and colors.",
             "Selecting service calls or open tickets now keeps Autotask read-only until submission and defaults the local status to In progress.",
             "Ollama and LM Studio cleanup can now use private LAN model servers.",
+            "Ollama and LM Studio cleanup now keep cleanup rules in the provider instruction field.",
             "The mobile top bar now uses a logout icon instead of the app-close X.",
             "Mobile Work in Progress actions now use compact button rows with shorter labels and icons.",
             "Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay.",
@@ -118,6 +119,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Review open-ticket choices now match Work in Progress ticket card details and colors." in response.text
     assert "Selecting service calls or open tickets now keeps Autotask read-only until submission" in response.text
     assert "Ollama and LM Studio cleanup can now use private LAN model servers." in response.text
+    assert "Ollama and LM Studio cleanup now keep cleanup rules in the provider instruction field." in response.text
     assert "The mobile top bar now uses a logout icon instead of the app-close X." in response.text
     assert "Mobile Work in Progress actions now use compact button rows with shorter labels and icons." in response.text
     assert "Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay." in response.text

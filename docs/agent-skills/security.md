@@ -222,6 +222,8 @@ Cleanup handling must:
 - Send only bounded summary text and minimal job context to the selected
   provider.
 - Set `store=false` on Gemini generateContent requests.
+- Send configured cleanup instructions through the provider instruction field
+  without duplicating those private rules in the user-visible summary prompt.
 - Reject public Ollama and LM Studio base URLs.
 - Return cleaned text to the browser without submitting to Autotask.
 - Audit provider, model, source, status, and text lengths only.
