@@ -155,7 +155,7 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
               });
               const recordButtonLabel = createFakeElement("span");
               recordButtonLabel.dataset = {};
-              recordButtonLabel.textContent = "Record Audio";
+              recordButtonLabel.textContent = "Record";
               const recordButton = createFakeElement("button");
               recordButton.dataset = {jobId: "job-1"};
               const aiCleanupButton = createFakeElement("button");
@@ -543,7 +543,7 @@ def test_mobile_audio_stop_shows_upload_and_conversion_statuses(tmp_path: Path) 
         assert.strictEqual(recordButton.disabled, true);
         assert.strictEqual(recordButton.classList.contains("is-loading"), true);
         assert.strictEqual(recordButton.attributes["aria-busy"], "true");
-        assert.strictEqual(recordButtonLabel.textContent, "Record Audio");
+        assert.strictEqual(recordButtonLabel.textContent, "Record");
         assert.strictEqual(recordingStatusElement.textContent, "Converting audio to text...");
         assert.strictEqual(recordingStatusElement.classList.contains("is-loading"), false);
         assert.strictEqual(recordingStatusElement.children.length, 0);

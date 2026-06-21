@@ -286,7 +286,7 @@ svg {
 
 .mobile-nav-actions,
 .mobile-version-group,
-.mobile-close-action {
+.mobile-logout-form {
   display: none;
 }
 
@@ -301,7 +301,7 @@ svg {
   color: var(--accent-strong);
 }
 
-.close-app-button:hover {
+.mobile-logout-action:hover {
   border-color: rgba(248, 113, 113, 0.45);
   background: var(--danger-soft);
   color: var(--danger);
@@ -1263,6 +1263,28 @@ a:focus-visible {
   margin-top: 4px;
 }
 
+.summary-action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.summary-action-row .secondary-button {
+  width: 100%;
+  min-height: 48px;
+  padding-inline: 10px;
+}
+
+.summary-action-row .secondary-button span,
+.work-finish-stack button {
+  min-width: 0;
+}
+
+.summary-action-row .record-notes-button:only-child {
+  grid-column: 1 / -1;
+}
+
 .ai-cleanup-button {
   min-height: 48px;
 }
@@ -1585,6 +1607,7 @@ a:focus-visible {
 .work-finish-stack {
   display: grid;
   gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .recording-control-stack .secondary-button,
@@ -1602,7 +1625,7 @@ a:focus-visible {
   width: 100%;
 }
 
-.active-jobs-stack .summary-tool-row .secondary-button {
+.active-jobs-stack .summary-action-row .secondary-button {
   width: 100%;
 }
 
@@ -1643,11 +1666,16 @@ a:focus-visible {
 }
 
 .recording-status {
-  min-height: 24px;
-  margin: 12px 0 0;
+  min-height: 0;
+  margin: 6px 0 0;
   color: var(--muted);
   font-size: 14px;
   font-weight: 650;
+}
+
+.recording-status:empty,
+[data-active-save-status]:empty {
+  display: none;
 }
 
 .record-notes-button.is-recording,

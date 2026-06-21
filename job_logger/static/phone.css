@@ -55,16 +55,16 @@
 }
 
 .mobile-nav-action,
-.mobile-close-action {
+.mobile-logout-action {
   width: 38px;
   height: 38px;
 }
 
-.mobile-close-action {
+.mobile-logout-form {
   display: inline-grid;
 }
 
-.logout-form {
+.desktop-logout-form {
   display: none;
 }
 
@@ -303,10 +303,13 @@
   grid-template-columns: 36px minmax(92px, 1fr) 36px;
 }
 
-.action-row,
-.work-finish-stack {
+.action-row {
   display: grid;
   grid-template-columns: 1fr;
+}
+
+.work-finish-stack {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .action-row button,

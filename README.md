@@ -409,10 +409,12 @@ The active-job and review-detail recorder streams `MediaRecorder` chunks to
 message carries metadata and the CSRF token, then binary audio chunks are sent
 as soon as the browser produces them. The server starts a best-effort interim
 transcription from the first buffered chunk. The **Record Audio** button uses
-an orange treatment and becomes a **Stop recording** button while browser
-capture is active. Stopping capture lets the browser flush the final chunk,
-sends WebSocket `finish`, returns the button to its idle label, keeps that
-disabled button in the shared loading state, and shows clear text progress:
+an orange treatment on review detail. In active mobile Work in Progress cards,
+the same action is labeled **Record** and sits beside **AI Cleanup** when cleanup
+is enabled. It becomes a **Stop recording** button while browser capture is
+active. Stopping capture lets the browser flush the final chunk, sends WebSocket
+`finish`, returns the button to its idle label, keeps that disabled button in
+the shared loading state, and shows clear text progress:
 **Sending data to server...**, then **Converting audio to text...**, then
 **Conversion complete.** after the final saved transcript is returned. Status
 lines do not show spinners; the active button shows the spinner. A bounded error
@@ -495,11 +497,12 @@ Docker host aliases, or private-network IP ranges such as `10.x.x.x`,
 are rejected.
 
 When enabled, active mobile jobs and review detail show **AI Cleanup** with the
-summary box. On mobile and unsubmitted review detail, **Record Audio** appears
-above **AI Cleanup**. Cleaned text replaces the textarea and mobile saves it
-through the existing active-summary save endpoint. Cleanup progress, success,
-and failure details use the same plain-text status line as audio recording;
-the **AI Cleanup** button itself shows the shared spinner while cleanup is in
+summary box. On active mobile jobs, **Record** and **AI Cleanup** share one row;
+on unsubmitted review detail, recording and cleanup remain available with the
+review layout. Cleaned text replaces the textarea and mobile saves it through
+the existing active-summary save endpoint. Cleanup progress, success, and
+failure details use the same plain-text status line as audio recording; the
+**AI Cleanup** button itself shows the shared spinner while cleanup is in
 progress, and cleanup waits until audio recording/transcription is finished. On
 review detail, the cleaned text replaces the textarea; non-submitted jobs
 autosave as usual, while submitted jobs still require **Edit Entry** to patch
@@ -681,18 +684,20 @@ and desktop browsers get appropriately sized layouts. In a full browser view,
 the `/home` Home screen lays out Start Work beside the service-call list, and
 Work in Progress puts job details beside notes and finish actions for easier
 scanning. Phone-sized authenticated
-layouts hide the brand mark and logout button, place left navigation icons on
-the left, center the version link, and put right-side actions on the right.
-Managed web users see Home and Review on the left, with Config and close on the
-right. The config super admin sees Users, Review, and Diagnostics on the left,
-with close on the right. The X close action first requests the original direct
-app-shell close behavior. If the browser keeps the page visible, it falls back
-to `about:blank` instead of logging out or posting to another app route.
-Full-width `/home`, review, debug, and other non-mobile pages keep the
-explicit logout button. Mobile submit actions show a loading overlay once the
+layouts hide the brand mark and desktop logout button, place left navigation
+icons on the left, center the version link, and put right-side actions on the
+right. Managed web users see Home and Review on the left, with Config and a
+logout icon on the right. The config super admin sees Users, Review, and
+Diagnostics on the left, with a logout icon on the right. The mobile logout
+icon submits the normal CSRF-protected `/logout` form. Full-width `/home`,
+review, debug, and other non-mobile pages keep the explicit desktop logout
+button. Mobile submit actions show a loading overlay once the
 tap is accepted so slow redirects or Autotask lookups do not look like ignored
 buttons; rounded start/stop `-15` and `+15` adjustments skip the full-page
 overlay so those small time changes feel immediate.
+In active mobile Work in Progress cards, **End Work** or **Submit to Autotask**
+shares a row with the destructive **Delete** action to keep the active-card
+controls compact.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 

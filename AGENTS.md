@@ -256,8 +256,8 @@ server...**, then **Converting audio to text...**, then **Conversion
 complete.** when the final transcript has been returned and pasted into the
 summary field. Audio and AI Cleanup status lines are plain text only. The
 spinning loading icon belongs in the active button itself, such as the disabled
-**Record Audio** button while the recording is still being sent or converted
-and the **AI Cleanup** button while cleanup is running.
+active-job **Record** button while the recording is still being sent or
+converted and the **AI Cleanup** button while cleanup is running.
 
 The local faster-whisper provider may use `FASTER_WHISPER_INITIAL_PROMPT` to
 guide transcript formatting, including rendering dictated punctuation words as
@@ -293,20 +293,17 @@ user management, config, debug, and login surfaces through shared CSS variables
 instead of a separate unaudited template branch. Super-admin pages always use
 dark mode.
 
-On phone-sized authenticated layouts, the top bar hides the brand mark and
-logout control. It shows only the discreet version link, compact navigation
-icons, and an X close control on the right so an installed mobile web app can be
-dismissed without ending the local server-side session. The version link is
-centered between the left navigation group and the right action group. Managed
-web users see Home and Review on the left, with Config and close on the right.
-The config super admin sees Users, Review, and Diagnostics on the left, with
-close on the right, and must not see the Config shortcut. The X close action
-must remain a best-effort app-shell close only: it should request a direct
-`window.close()` first and may fall back to
-`about:blank` when the browser keeps the page visible, but it must not log out,
-post forms, or navigate through app routes. Full-width `/home`, review,
-debug, and other non-mobile authenticated views still expose the explicit
-logout control.
+On phone-sized authenticated layouts, the top bar hides the brand mark and the
+desktop logout control. It shows only the discreet version link, compact
+navigation icons, and a mobile logout icon button on the right. The version
+link is centered between the left navigation group and the right action group.
+Managed web users see Home and Review on the left, with Config and logout on
+the right. The config super admin sees Users, Review, and Diagnostics on the
+left, with logout on the right, and must not see the Config shortcut. The
+mobile logout button must post to `/logout` with the rendered CSRF token and
+must not use `window.close()` or a browser-only app close fallback. Full-width
+`/home`, review, debug, and other non-mobile authenticated views still expose
+the explicit desktop logout control.
 
 The standard review interface must work well on a full computer screen.
 
@@ -589,12 +586,12 @@ The normal workflow is:
 9. User chooses whether the work is Remote or On-Site. The mode is stored on
    the job and appears as the leading prefix in the review summary textarea so
    it can be corrected before Autotask submission.
-10. User records notes during an active job from the Summary notes area above
-   the optional AI Cleanup action. The record button becomes a stop button
-   while audio chunks stream to the server over WebSocket. Recording, sending,
-   and converting progress use plain status text, and stopping capture keeps
-   the disabled record button in a loading state until the final transcript
-   returns.
+10. User records notes during an active job from the Summary notes action row,
+   where **Record** sits beside the optional **AI Cleanup** action. The record
+   button becomes a stop button while audio chunks stream to the server over
+   WebSocket. Recording, sending, and converting progress use plain status
+   text, and stopping capture keeps the disabled record button in a loading
+   state until the final transcript returns.
 11. When enabled, user can click **AI Cleanup** to send the current summary text
    through the configured server-side cleanup provider. On
    mobile, progress and failure details use the same plain-text status line as
@@ -603,12 +600,13 @@ The normal workflow is:
    subject to normal save/review behavior.
 12. User can save active job edits before ending work.
 13. User ends work with a mandatory client name. With the default workflow, the
-    job moves to review. If **Submit from Work in Progress** is enabled, the
-    end-work action submits to Autotask immediately after validating ticket
-    number, ticket status, rounded end time, client, and summary notes. Missing
-    local submission fields leave the job active so the user can fix them;
-    Autotask provider failures move the job to the failed-submission review
-    state with the safe error message.
+    active-card **End Work** action shares a row with the destructive **Delete**
+    action, and the job moves to review. If **Submit from Work in Progress** is
+    enabled, the end-work action submits to Autotask immediately after
+    validating ticket number, ticket status, rounded end time, client, and
+    summary notes. Missing local submission fields leave the job active so the
+    user can fix them; Autotask provider failures move the job to the
+    failed-submission review state with the safe error message.
 14. User reviews the job from `/review`, edits time/status/notes if needed,
     optionally records more audio notes before Autotask submission, and keeps
     the selected client/ticket identity read-only. Directly submitted jobs still

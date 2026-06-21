@@ -91,8 +91,10 @@ Config menu item or phone-sized Config icon, must receive 403 on direct
 navigation may show Users, Review, and Diagnostics icons; those links do not
 grant any capability beyond the server-side authorization checks on the target
 routes. Phone-sized managed-user navigation may show Home, Review, and Config,
-but must not show Debug. Theme and workflow preferences are not secrets, but
-autosaving them is still a state-changing action that must require
+but must not show Debug. Phone-sized logout controls must submit the normal
+CSRF-protected `/logout` form rather than using browser-only close behavior.
+Theme and workflow preferences are not secrets, but autosaving them is still a
+state-changing action that must require
 authentication and CSRF. The workflow preference **Submit from Work in
 Progress** must default off and must never allow the browser to bypass
 server-side job ownership, workflow status, ticket, time, summary, or Autotask

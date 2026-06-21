@@ -10,16 +10,22 @@ from pathlib import Path
 import pytest
 
 
-def test_mobile_close_button_uses_direct_close_before_fallback(tmp_path: Path) -> None:
-    """The mobile X should attempt an app-shell close without logging out."""
+def test_pwa_script_registers_worker_without_mobile_close_handler(tmp_path: Path) -> None:
+    """The PWA script should not intercept mobile logout buttons."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    pwa_script_path = repository_root / "job_logger" / "static" / "pwa.js"
+    pwa_script = pwa_script_path.read_text(encoding="utf-8")
+
+    assert "data-close-app-button" not in pwa_script
+    assert "window.close" not in pwa_script
+    assert "about:blank" not in pwa_script
 
     node_path = shutil.which("node")
     if node_path is None:
         pytest.skip("Node.js is required to execute pwa.js.")
 
-    repository_root = Path(__file__).resolve().parents[1]
-    pwa_script_path = repository_root / "job_logger" / "static" / "pwa.js"
-    harness_path = tmp_path / "pwa_close_test.js"
+    harness_path = tmp_path / "pwa_worker_test.js"
     harness_path.write_text(
         textwrap.dedent(
             f"""
@@ -28,62 +34,40 @@ def test_mobile_close_button_uses_direct_close_before_fallback(tmp_path: Path) -
             const vm = require("vm");
 
             const pwaScript = fs.readFileSync({str(pwa_script_path)!r}, "utf8");
-            const closeCalls = [];
-            const queuedTimers = [];
-            const locationReplacements = [];
-            let clickHandler = null;
-            let preventedDefault = false;
-            const closeButton = {{
-              addEventListener(eventName, handler) {{
-                if (eventName === "click") {{
-                  clickHandler = handler;
-                }}
-              }},
-            }};
+            const registrations = [];
+            let loadHandler = null;
             const browserWindow = {{
-              addEventListener() {{}},
-              close() {{
-                closeCalls.push(["close"]);
-              }},
-              location: {{
-                replace(url) {{
-                  locationReplacements.push(url);
-                }},
-              }},
-              open() {{
-                throw new Error("mobile close should not self-target the window");
-              }},
-              setTimeout(callback, delay) {{
-                queuedTimers.push({{callback, delay}});
+              addEventListener(eventName, handler) {{
+                if (eventName === "load") {{
+                  loadHandler = handler;
+                }}
               }},
             }};
             const browserContext = {{
               console,
-              document: {{
-                visibilityState: "visible",
-                querySelectorAll(selector) {{
-                  return selector === "[data-close-app-button]" ? [closeButton] : [];
+              navigator: {{
+                serviceWorker: {{
+                  register(path, options) {{
+                    registrations.push({{path, options}});
+                    return {{
+                      catch() {{}},
+                    }};
+                  }},
                 }},
               }},
-              navigator: {{}},
               window: browserWindow,
             }};
 
             vm.runInNewContext(pwaScript, browserContext, {{filename: "pwa.js"}});
 
-            assert.strictEqual(typeof clickHandler, "function");
-            clickHandler({{
-              preventDefault() {{
-                preventedDefault = true;
+            assert.strictEqual(typeof loadHandler, "function");
+            loadHandler();
+            assert.strictEqual(JSON.stringify(registrations), JSON.stringify([
+              {{
+                path: "/service-worker.js",
+                options: {{scope: "/"}},
               }},
-            }});
-
-            assert.strictEqual(preventedDefault, true);
-            assert.deepStrictEqual(closeCalls, [["close"]]);
-            assert.strictEqual(queuedTimers.length, 1);
-            assert.strictEqual(queuedTimers[0].delay, 250);
-            queuedTimers[0].callback();
-            assert.deepStrictEqual(locationReplacements, ["about:blank"]);
+            ]));
           """
         ),
         encoding="utf-8",

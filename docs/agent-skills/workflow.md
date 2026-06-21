@@ -38,18 +38,16 @@ Use `job_logger/static/desktop.css` for wider browser-only layout improvements
 and leave `job_logger/static/phone.css` unchanged unless the request explicitly
 targets the phone or installed mobile app.
 
-Phone-sized authenticated layouts hide the brand mark and logout form. The
-visible top bar should place the left navigation icons on the left, the version
-link centered in the middle, and right-side action icons on the right. Managed
-web users see Home and Review on the left, with Config and close on the right.
-The config super admin sees Users, Review, and Diagnostics on the left, with
-close on the right, and must not see Config. The close button is wired by
-`job_logger/static/pwa.js` and should only attempt to close the installed web
-app or browser tab; it must not clear the authenticated local session, submit
-logout, or perform another state-changing action. The browser script should call
-`window.close()` directly first because that was the working app-shell behavior,
-then fall back to `about:blank` only if the document remains visible. Keep the
-explicit logout form available on non-mobile authenticated pages.
+Phone-sized authenticated layouts hide the brand mark and desktop logout form.
+The visible top bar should place the left navigation icons on the left, the
+version link centered in the middle, and right-side action icons on the right.
+Managed web users see Home and Review on the left, with Config and logout on
+the right. The config super admin sees Users, Review, and Diagnostics on the
+left, with logout on the right, and must not see Config. The mobile logout
+button must submit the normal `/logout` form with the rendered CSRF token. Do
+not wire mobile logout through `window.close()`, `about:blank`, a GET link, or
+another browser-only action. Keep the explicit desktop logout form available on
+non-mobile authenticated pages.
 
 New blank work starts through `POST /jobs/start`. A user can also start work
 from an Autotask service call selected in the mobile day navigator through
@@ -187,6 +185,9 @@ or through the selected review detail **Delete time entry** action. Both routes
 require authentication, CSRF, and job ownership. Mobile active deletion records
 `job.active.deleted`; review deletion records `job.review.deleted`. Do not use
 the mobile endpoint for reviewed, submitted, or failed jobs.
+In the active mobile card, the destructive mobile discard action is labeled
+**Delete** and shares a row with **End Work** or **Submit to Autotask** to keep
+the Work in Progress actions compact.
 
 ## Ending Work
 
@@ -234,13 +235,15 @@ Recording is browser-side in `job_logger/static/mobile.js` for active work and
 
 Current behavior:
 
-- Record Audio starts audio capture and is placed above the optional AI Cleanup
-  action in the active Summary notes area. Review detail shows the same record
-  control for jobs that have not been successfully submitted to Autotask.
-- The Record Audio button uses an orange treatment, and the button label changes
-  to **Stop recording** while browser recording is active. After capture stops,
-  the disabled button returns to the **Record Audio** label and shows the shared
-  loading spinner while the recording is still being sent or converted.
+- The active mobile **Record** button starts audio capture and shares a compact
+  two-button row with optional **AI Cleanup** in the Summary notes area. Review
+  detail shows the same recording control for jobs that have not been
+  successfully submitted to Autotask.
+- The active mobile **Record** button uses an orange treatment, and the button
+  label changes to **Stop recording** while browser recording is active. After
+  capture stops, the disabled button returns to the **Record** label and shows
+  the shared loading spinner while the recording is still being sent or
+  converted.
 - The browser opens `WebSocket /jobs/{job_id}/description/audio/stream`,
   sends CSRF-protected stream metadata first, then streams `MediaRecorder`
   audio chunks as binary WebSocket messages.
@@ -287,10 +290,10 @@ typing state between words on mobile keyboards.
 
 AI cleanup is an optional server-side integration controlled by
 `AI_CLEANUP_ENABLED` and `AI_CLEANUP_PROVIDER`. Supported providers are
-Gemini, Groq, server-local Ollama, and server-local LM Studio. The browser
-sends the current editable summary text to a CSRF-protected cleanup endpoint;
-the server validates the job state, calls `job_logger/services/ai_cleanup.py`,
-records a metadata-only audit event, and returns cleaned text. The cleanup route
+Gemini, Groq, Ollama, and LM Studio. The browser sends the current editable
+summary text to a CSRF-protected cleanup endpoint; the server validates the job
+state, calls `job_logger/services/ai_cleanup.py`, records a metadata-only audit
+event, and returns cleaned text. The cleanup route
 must not submit to Autotask, change ticket/client identity, or bypass the normal
 save/review/Edit Entry workflow.
 

@@ -362,7 +362,7 @@
                   placeholder="Type notes here, then refine with recorded speech if needed."
                 >{{ active_job.summary_notes or active_job.description_text or "" }}</textarea>
               </label>
-              <div class="recording-control-stack">
+              <div class="summary-action-row recording-control-stack">
                 <button
                   class="secondary-button record-notes-button"
                   type="button"
@@ -374,11 +374,9 @@
                     <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                     <path d="M12 19v3"></path>
                   </svg>
-                  <span data-record-audio-label>Record Audio</span>
+                  <span data-record-audio-label>Record</span>
                 </button>
-              </div>
-              {% if ai_cleanup_enabled %}
-                <div class="summary-tool-row">
+                {% if ai_cleanup_enabled %}
                   <button
                     type="button"
                     class="secondary-button ai-cleanup-button"
@@ -386,10 +384,15 @@
                     data-job-id="{{ active_job.id }}"
                     data-cleanup-url="/jobs/{{ active_job.id }}/summary/cleanup"
                   >
-                    AI Cleanup
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 3l1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3Z"></path>
+                      <path d="M19 13l.7 2.3L22 16l-2.3.7L19 19l-.7-2.3L16 16l2.3-.7L19 13Z"></path>
+                      <path d="M5 14l.8 2.2L8 17l-2.2.8L5 20l-.8-2.2L2 17l2.2-.8L5 14Z"></path>
+                    </svg>
+                    <span>AI Cleanup</span>
                   </button>
-                </div>
-              {% endif %}
+                {% endif %}
+              </div>
               <p class="recording-status" data-job-id="{{ active_job.id }}" aria-live="polite"></p>
               {% if active_job.transcription_error %}
                 <p class="error-text">{{ active_job.transcription_error }}</p>
@@ -456,7 +459,7 @@
                       <path d="M10 11v6"></path>
                       <path d="M14 11v6"></path>
                     </svg>
-                    Delete time entry
+                    Delete
                   </button>
                 </form>
               </div>

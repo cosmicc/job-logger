@@ -7,7 +7,7 @@ const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
 const ROUNDING_INTERVAL_MINUTES = 15;
 const LIVE_ROUNDED_STOP_UPDATE_MS = 30000;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
-const RECORD_AUDIO_LABEL = "Record Audio";
+const RECORD_AUDIO_LABEL = "Record";
 const STOP_RECORDING_LABEL = "Stop recording";
 const RECORDING_STATUS_RECORDING = "Recording audio...";
 const RECORDING_STATUS_SENDING = "Sending data to server...";
@@ -617,7 +617,7 @@ async function finalizeRecordingForActiveJob(activeJobId) {
   activeAudioCompletionInProgress = true;
   try {
     if (activeAudioStreamFailed) {
-      setRecordingStatus(safeJobId, "Recording stream failed. Press Record Audio and try again.", true);
+      setRecordingStatus(safeJobId, "Recording stream failed. Press Record and try again.", true);
       return;
     }
 
@@ -1657,13 +1657,13 @@ async function startRecording(activeJobId) {
 
       stopActiveStream();
       if (activeAudioStreamFailed) {
-        setRecordingStatus(jobId, "Recording stream failed. Press Record Audio and try again.", true);
+        setRecordingStatus(jobId, "Recording stream failed. Press Record and try again.", true);
         clearRecordingState();
         return;
       }
 
       if (!hasRecordedAudio) {
-        setRecordingStatus(jobId, "No audio was recorded. Press Record Audio and try again.");
+        setRecordingStatus(jobId, "No audio was recorded. Press Record and try again.");
         clearRecordingState();
         return;
       }
@@ -1697,7 +1697,7 @@ async function stopRecording(activeJobId) {
     setRecordingUi({jobId: activeJobId, isUploading: true});
     setRecordingStatus(activeJobId, RECORDING_STATUS_SENDING, false, true);
     if (!hasRecordedAudio) {
-      setRecordingStatus(activeJobId, "No audio was recorded. Press Record Audio and try again.");
+      setRecordingStatus(activeJobId, "No audio was recorded. Press Record and try again.");
       clearRecordingState();
       return;
     }

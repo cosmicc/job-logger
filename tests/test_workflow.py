@@ -687,7 +687,7 @@ def test_legacy_mobile_routes_redirect_to_home(authenticated_client: TestClient)
 
 
 def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated_client: TestClient) -> None:
-    """Phone-sized headers should show version, icon navigation, and close."""
+    """Phone-sized headers should show version, icon navigation, and logout."""
 
     response = authenticated_client.get("/home")
 
@@ -707,14 +707,16 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert 'aria-label="Review"' in response.text
     assert 'data-mobile-users-link' not in response.text
     assert 'data-mobile-debug-link' not in response.text
-    assert 'data-close-app-button' in response.text
-    assert 'class="icon-button close-app-button mobile-close-action"' in response.text
-    assert 'aria-label="Close app"' in response.text
+    assert 'data-close-app-button' not in response.text
+    assert "close-app-button" not in response.text
+    assert 'class="logout-form mobile-logout-form"' in response.text
+    assert 'class="icon-button mobile-nav-action mobile-logout-action"' in response.text
+    assert 'title="Log out"' in response.text
+    assert 'aria-label="Log out"' in response.text
     assert 'class="icon-button mobile-nav-action mobile-config-action"' in response.text
     assert 'aria-label="Config"' in response.text
     assert 'data-mobile-config-link' in response.text
-    assert 'mobile-logout-action' not in response.text
-    assert 'class="logout-form"' in response.text
+    assert 'class="logout-form desktop-logout-form"' in response.text
     assert 'action="/logout"' in response.text
     assert '/static/mobile.js?v=' in response.text
     assert "Review jobs" not in response.text
@@ -722,7 +724,7 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert "click start work, or choose a service call below to start work on a ticket" in response.text
 
 
-def test_super_admin_mobile_header_renders_users_review_debug_and_close(super_admin_client: TestClient) -> None:
+def test_super_admin_mobile_header_renders_users_review_debug_and_logout(super_admin_client: TestClient) -> None:
     """Super-admin phone navigation should expose admin routes without Config."""
 
     response = super_admin_client.get("/users")
@@ -741,11 +743,14 @@ def test_super_admin_mobile_header_renders_users_review_debug_and_close(super_ad
     assert 'aria-label="Diagnostics"' in response.text
     assert 'data-mobile-home-link' not in response.text
     assert 'data-mobile-config-link' not in response.text
-    assert 'data-close-app-button' in response.text
+    assert 'data-close-app-button' not in response.text
+    assert 'class="logout-form mobile-logout-form"' in response.text
+    assert 'class="icon-button mobile-nav-action mobile-logout-action"' in response.text
+    assert 'aria-label="Log out"' in response.text
     assert response.text.index("data-mobile-users-link") < response.text.index("data-mobile-review-link")
     assert response.text.index("data-mobile-review-link") < response.text.index('class="header-status-group mobile-version-group"')
     assert response.text.index('class="mobile-nav-actions mobile-nav-right"') < response.text.index("data-mobile-debug-link")
-    assert response.text.index("data-mobile-debug-link") < response.text.index("data-close-app-button")
+    assert response.text.index("data-mobile-debug-link") < response.text.index("mobile-logout-action")
 
 
 def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(authenticated_client: TestClient) -> None:
@@ -761,7 +766,8 @@ def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(aut
     assert '<a href="/home">Mobile</a>' not in response.text
     assert 'action="/logout"' in response.text
     assert 'aria-label="Sign out"' in response.text
-    assert 'data-close-app-button' in response.text
+    assert 'data-close-app-button' not in response.text
+    assert 'mobile-logout-action' in response.text
     assert '/static/pwa.js?v=' in response.text
     assert 'class="mobile-nav-actions mobile-nav-left"' in response.text
     assert 'class="mobile-nav-actions mobile-nav-right"' in response.text
@@ -813,6 +819,9 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".end-work-button,\n.work-finish-stack .end-work-button" in stylesheet
     assert "background: var(--success);" in stylesheet
     assert ".ai-cleanup-button,\n.summary-tool-row .ai-cleanup-button" in stylesheet
+    assert ".summary-action-row" in stylesheet
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in stylesheet
+    assert ".recording-status:empty,\n[data-active-save-status]:empty" in stylesheet
     assert "background: var(--ai-action);" in stylesheet
     assert ".app-header {\n  display: grid;" in phone_stylesheet
     assert "grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);" in phone_stylesheet
@@ -821,8 +830,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".mobile-nav-actions {\n  display: flex;" in phone_stylesheet
     assert ".mobile-nav-left {\n  grid-column: 1;" in phone_stylesheet
     assert ".mobile-nav-right {\n  grid-column: 3;" in phone_stylesheet
-    assert ".mobile-close-action {\n  display: inline-grid;" in phone_stylesheet
-    assert ".logout-form {\n  display: none;" in phone_stylesheet
+    assert ".mobile-logout-form {\n  display: inline-grid;" in phone_stylesheet
+    assert ".desktop-logout-form {\n  display: none;" in phone_stylesheet
     assert ".mobile-shell .description-box .job-description,\n.review-shell textarea[data-review-summary-textarea]" in phone_stylesheet
     assert "min-height: 180px;" in phone_stylesheet
     assert ".active-jobs-stack > .work-panel:not([data-active-job-card])" in desktop_stylesheet
@@ -833,7 +842,11 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".work-panel[data-active-job-card]" not in phone_stylesheet
     mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
     review_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+    assert mobile_template.index('class="summary-action-row recording-control-stack"') < mobile_template.index("data-ai-cleanup-button")
     assert mobile_template.index("data-record-audio-label") < mobile_template.index("data-ai-cleanup-button")
+    assert ">Record</span>" in mobile_template
+    assert "Delete time entry" not in mobile_template
+    assert re.search(r">\s*Delete\s*</button>", mobile_template)
     assert review_template.index("data-review-record-button") < review_template.index("data-ai-cleanup-button")
 
 
@@ -1065,9 +1078,11 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'class="secondary-button active-save-button"' not in page_html
     assert "Save Active Changes" not in page_html
     assert "submit-notes-button" not in page_html
-    assert page_html.index("Summary notes") < page_html.index("Record Audio")
+    assert 'class="summary-action-row recording-control-stack"' in page_html
+    assert page_html.index("Summary notes") < page_html.index(">Record<")
     assert "Stop Recording" not in page_html
     assert "Record Notes" not in page_html
+    assert "Record Audio" not in page_html
     assert "Autotask ticket number" not in page_html
     assert 'class="active-ticket-number"' in page_html
     assert 'pattern="[Tt][0-9]{8}\\.[0-9]{4}"' not in page_html
@@ -2200,7 +2215,8 @@ def test_mobile_active_job_delete_discards_open_job_with_audit(authenticated_cli
         active_job_id = active_job.id
 
     active_page_response = authenticated_client.get("/home")
-    assert "Delete time entry" in active_page_response.text
+    assert re.search(r">\s*Delete\s*</button>", active_page_response.text)
+    assert "Delete time entry" not in active_page_response.text
     assert "Delete this time entry? This removes the in-progress entry without sending it to review." in active_page_response.text
     assert 'class="primary-button end-work-button"' in active_page_response.text
     assert 'class="danger-outline-button"' in active_page_response.text
