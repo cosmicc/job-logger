@@ -1954,23 +1954,23 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
     select_ticket_response = authenticated_client.post(
         f"/jobs/{active_job_id}/ticket",
         headers={"X-CSRF-Token": csrf_token},
-        json={"ticket_number": "T20260616.0001"},
+        json={"ticket_number": "T20260616.0002"},
     )
     assert select_ticket_response.status_code == 200
     assert select_ticket_response.json() == {
-        "ticket_number": "T20260616.0001",
-        "ticket_title": "Mock open ticket for Mobile Ticket Client",
-        "ticket_description": "Mock ticket description for Mobile Ticket Client.",
+        "ticket_number": "T20260616.0002",
+        "ticket_title": "Mock follow-up ticket for Mobile Ticket Client",
+        "ticket_description": "Mock follow-up description for Mobile Ticket Client.",
         "ticket_status": "in_progress",
-        "ticket_status_label": "In Progress",
+        "ticket_status_label": "Follow Up",
     }
 
     with database.SessionLocal() as database_session:
         active_job = get_active_job(database_session)
         assert active_job is not None
-        assert active_job.ticket_number == "T20260616.0001"
-        assert active_job.ticket_title == "Mock open ticket for Mobile Ticket Client"
-        assert active_job.ticket_description == "Mock ticket description for Mobile Ticket Client."
+        assert active_job.ticket_number == "T20260616.0002"
+        assert active_job.ticket_title == "Mock follow-up ticket for Mobile Ticket Client"
+        assert active_job.ticket_description == "Mock follow-up description for Mobile Ticket Client."
         assert active_job.ticket_status == TicketStatus.IN_PROGRESS
 
     updated_mobile_page_response = authenticated_client.get("/home")
@@ -1978,9 +1978,9 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
     assert "data-active-ticket-picker" not in updated_mobile_html
     assert '<dt>Ticket number</dt>' in updated_mobile_html
     assert '<dt>Ticket name</dt>' in updated_mobile_html
-    assert "T20260616.0001" in updated_mobile_html
-    assert "Mock open ticket for Mobile Ticket Client" in updated_mobile_html
-    assert "Mock ticket description for Mobile Ticket Client." in updated_mobile_html
+    assert "T20260616.0002" in updated_mobile_html
+    assert "Mock follow-up ticket for Mobile Ticket Client" in updated_mobile_html
+    assert "Mock follow-up description for Mobile Ticket Client." in updated_mobile_html
     assert "data-active-ticket-title-card" in updated_mobile_html
     assert "data-active-ticket-description-card" in updated_mobile_html
 
@@ -2087,7 +2087,8 @@ def test_mobile_service_call_start_populates_active_job(authenticated_client: Te
         assert start_audit_event.details["service_call_ticket_id"] == 6101
         assert start_audit_event.details["service_call_date"] == "2026-06-20"
         assert start_audit_event.details["autotask_ticket_status_label"] == "New"
-        assert start_audit_event.details["autotask_ticket_status_changed_to_in_progress"] is True
+        assert start_audit_event.details["ticket_status_source"] == "local_selection_default"
+        assert "autotask_ticket_status_changed_to_in_progress" not in start_audit_event.details
 
     updated_mobile_page_response = authenticated_client.get("/home")
     updated_mobile_html = updated_mobile_page_response.text

@@ -560,13 +560,14 @@ production use so the full workflow can update the selected ticket status:
 - `AUTOTASK_STATUS_FOLLOW_UP_ID`
 - `AUTOTASK_STATUS_COMPLETE_ID`
 
-Changing a submitted job's ticket status uses the Autotask `Tickets` endpoint,
-not the `TimeEntries` endpoint. When starting work from a selected Autotask
-ticket, Job Logger moves a `New` ticket to `In progress`. If a submitted
-time-entry edit starts from a `Complete` ticket, Job Logger temporarily moves
-the ticket to `In progress`, patches the existing time entry, and moves the
-ticket to the selected final status. Other status changes are applied only when
-the reviewer changes the selected status.
+Open-ticket and service-call selection do not use the Autotask `Tickets`
+endpoint for status changes; they only default the local editable ticket status
+to `In progress`. Autotask ticket status writes wait until the complete time
+entry is submitted or an already submitted entry is explicitly edited. If a
+submitted time-entry edit starts from a `Complete` ticket, Job Logger
+temporarily moves the ticket to `In progress`, patches the existing time entry,
+and moves the ticket to the selected final status. Other status changes are
+applied only when the reviewer changes the selected status.
 
 Managed web users can enable **Submit from Work in Progress** on `/config`.
 This option is off by default so existing accounts keep the review-first
@@ -621,8 +622,10 @@ the selected ticket title for the review detail heading, stores the bounded
 ticket description for read-only context, and automatically saves the active-job
 changes or review ticket selection. The mobile Work in Progress card shows the
 selected ticket number, ticket name, ticket status, and ticket description
-after selection. If Autotask reports the selected ticket as `New`, the server
-moves it to `In progress` as the owning managed web user when work starts.
+after selection. Selection does not update Autotask ticket status. It stores
+verified local ticket metadata and defaults the editable local ticket status to
+`In progress`; the first Autotask write waits until the full time entry is
+submitted or an already submitted entry is explicitly edited/deleted.
 Long ticket descriptions stay inside a scrollable read-only box instead of
 expanding the mobile page indefinitely; phone-sized layouts cap that visible
 box at about 12 lines, and wider layouts cap it at about 25 lines. On the
@@ -647,12 +650,12 @@ On-Site cards use stronger distinct accent colors and badges so scheduled call
 type is easy to scan without wasting mobile screen space.
 Tapping a service call starts an active job with the server-verified ticket
 number, ticket title, bounded ticket description, client name, company ID, and
-detected work-location mode. If the service-call ticket is `New`, the server
-moves it to `In progress` before storing the active job. The browser submits
-only the service-call ticket association ID, selected date, and CSRF token; the
-server re-checks that date's resource-specific service-call list before
-creating the job. If service-call lookup fails because permissions are missing,
-the blank Start Work path remains
+detected work-location mode. It defaults the local editable ticket status to
+`In progress` without updating Autotask. The browser submits only the
+service-call ticket association ID, selected date, and CSRF token; the server
+re-checks that date's resource-specific service-call list before creating the
+job. If service-call lookup fails because permissions are missing, the blank
+Start Work path remains
 available.
 
 Service-call lookup requires the Autotask API user to read `ServiceCalls`,

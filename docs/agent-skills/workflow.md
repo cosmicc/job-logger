@@ -111,21 +111,25 @@ picker posts the clicked ticket number to `POST /jobs/{job_id}/ticket`. That
 route uses the recently loaded server-side open-ticket selection cache when it
 is still fresh, falls back to a live Autotask lookup when needed, verifies the
 submitted ticket belongs to that safe list, stores the ticket number, title,
-and bounded ticket description, and records an audit event. When an active job
-has no ticket number, the mobile page shows the open-ticket panel under the
-client field. The panel itself is the ticket-loading control while no ticket
-options have been loaded; clicking or pressing Enter/Space on the panel saves
-the current active client fields before querying Autotask and shows the shared
-spinner loading state while the request is in flight. A job that already has a
-saved client does not auto-load the picker on mobile page open; the user must
-click or press Enter/Space on the panel to start the lookup. After selection,
-the browser should immediately hide the open-ticket panel and show the selected
-ticket number, ticket title, and ticket description in Work in Progress without
-waiting for a page reload. Mobile and review open-ticket choices should use the
-same Remote/On-Site color treatment as service-call start cards, with
-`.ticket-option-button` location classes, a visible location badge, title,
-ticket status, and company metadata. This label is display metadata only; do
-not trust it to override the active job's stored work-location value.
+and bounded ticket description, defaults the local editable ticket status to
+In progress, and records an audit event. It must not patch Autotask ticket
+status or perform any other remote write; Autotask writes wait until the job's
+time entry is submitted or an already submitted entry is edited/deleted. When
+an active job has no ticket number, the mobile page shows the open-ticket panel
+under the client field. The panel itself is the ticket-loading control while no
+ticket options have been loaded; clicking or pressing Enter/Space on the panel
+saves the current active client fields before querying Autotask and shows the
+shared spinner loading state while the request is in flight. A job that already
+has a saved client does not auto-load the picker on mobile page open; the user
+must click or press Enter/Space on the panel to start the lookup. After
+selection, the browser should immediately hide the open-ticket panel and show
+the selected ticket number, ticket title, and ticket description in Work in
+Progress without waiting for a page reload. Mobile and review open-ticket
+choices should use the same Remote/On-Site color treatment as service-call
+start cards, with `.ticket-option-button` location classes, a visible location
+badge, title, ticket status, and company metadata. This label is display
+metadata only; do not trust it to override the active job's stored work-location
+or ticket-status values.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
@@ -157,11 +161,13 @@ mode.
 The `/home/service-calls` endpoint is only for drawing already-verified
 candidate cards in the browser. `POST /jobs/start/service-call` must still
 re-read the provider list for the submitted local service-call date and verify
-the submitted service-call ticket association ID before creating a job. Mobile
-forms that navigate or redirect, including start, service-call start, end,
-rounded-start adjustment, and active delete, should show the shared loading
-overlay once a submit is accepted so slow Autotask lookups do not look like
-ignored taps.
+the submitted service-call ticket association ID before creating a job. Starting
+from a service call stores verified ticket/client metadata and defaults the
+local editable ticket status to In progress without patching Autotask ticket
+status. Mobile forms that navigate or redirect, including start, service-call
+start, end, rounded-start adjustment, and active delete, should show the shared
+loading overlay once a submit is accepted so slow Autotask lookups do not look
+like ignored taps.
 
 Selected ticket descriptions on mobile are read-only Autotask context. Long
 descriptions should stay escaped, bounded to an internal scroll area, and
@@ -353,10 +359,12 @@ Review ticket selection persists through `POST /review/{job_id}/ticket`. The
 route uses the recently loaded server-side open-ticket selection cache when it
 is still fresh, falls back to a live Autotask lookup when needed, verifies the
 submitted ticket number belongs to that safe list, stores the ticket number,
-title, and bounded ticket description, and records an audit event. Do not trust
-browser-supplied ticket title, ticket description, ticket number, client name,
-or company ID values on review save/accept; the route must overlay those fields
-from the stored job before validation.
+title, and bounded ticket description, defaults the local editable ticket status
+to In progress, and records an audit event. It must not patch Autotask ticket
+status or perform any other remote write. Do not trust browser-supplied ticket
+title, ticket description, ticket number, client name, or company ID values on
+review save/accept; the route must overlay those fields from the stored job
+before validation.
 
 When a ticket is selected from Autotask lookup, store the ticket title with the
 job and use it as the selected-job detail heading. If no ticket has been

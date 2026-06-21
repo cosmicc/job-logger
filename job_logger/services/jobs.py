@@ -42,16 +42,6 @@ RECORDABLE_JOB_STATUSES = {
 DESCRIPTION_RECORDING_UNAVAILABLE_MESSAGE = (
     "Audio descriptions can only be recorded before the job has been submitted to Autotask."
 )
-AUTOTASK_STATUS_LABEL_MAP = {
-    "inprogress": TicketStatus.IN_PROGRESS,
-    "waitingcustomer": TicketStatus.WAITING_CUSTOMER,
-    "waitingparts": TicketStatus.WAITING_PARTS,
-    "followup": TicketStatus.FOLLOW_UP,
-    "complete": TicketStatus.COMPLETE,
-    "completed": TicketStatus.COMPLETE,
-}
-
-
 @dataclass(frozen=True)
 class ReviewFields:
     """Validated editable fields submitted from the review form."""
@@ -324,13 +314,6 @@ def normalize_ticket_status(ticket_status: TicketStatus | str | None, *, require
         return TicketStatus(normalized_ticket_status)
     except ValueError as exc:
         raise JobWorkflowError("Ticket status is invalid.") from exc
-
-
-def ticket_status_from_autotask_label(status_label: str | None) -> TicketStatus | None:
-    """Map a safe Autotask status label onto a supported local ticket status."""
-
-    normalized_status_label = re.sub(r"[^a-z0-9]+", "", (status_label or "").casefold())
-    return AUTOTASK_STATUS_LABEL_MAP.get(normalized_status_label)
 
 
 def normalize_ticket_title(ticket_title: str | None) -> str | None:

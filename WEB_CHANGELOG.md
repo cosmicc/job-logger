@@ -12,6 +12,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Ticket source can now mark alert-created tickets as Remote when ticket text does not say Remote or On-Site.
 - Review detail now shows the active Work in Progress rounded stop time before the job is ended.
 - Review open-ticket choices now match Work in Progress ticket card details and colors.
+- Selecting service calls or open tickets now keeps Autotask read-only until submission and defaults the local status to In progress.
 - Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay.
 
 ## v1.0.2 - Autotask workflow and desktop layout updates

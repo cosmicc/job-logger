@@ -361,17 +361,6 @@ class BaseAutotaskProvider:
 
         raise NotImplementedError
 
-    def mark_ticket_in_progress_if_new(
-        self,
-        ticket_number: str,
-        *,
-        current_status_label: str | None,
-        resource_id: int,
-    ) -> bool:
-        """Move a newly selected ticket into progress when work starts."""
-
-        raise NotImplementedError
-
     def search_resources(self, query_text: str) -> list[AutotaskResourceOption]:
         """Return matching Autotask resources for managed-user setup."""
 
@@ -529,13 +518,6 @@ def _safe_optional_resource_text(raw_text: Any, max_length: int = MAX_RESOURCE_N
         return None
 
     return safe_text[:max_length]
-
-
-def _is_new_ticket_status_label(status_label: str | None) -> bool:
-    """Return whether an Autotask ticket status label represents New."""
-
-    normalized_status_label = re.sub(r"[^a-z0-9]+", "", (status_label or "").casefold())
-    return normalized_status_label == "new"
 
 
 def _resource_match_text(raw_text: Any) -> str:
@@ -753,17 +735,6 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             AutotaskCompanyOption(company_id=1001, company_name=f"{safe_query_text} Services"),
             AutotaskCompanyOption(company_id=1002, company_name=f"{safe_query_text} Holdings"),
         ]
-
-    def mark_ticket_in_progress_if_new(
-        self,
-        ticket_number: str,
-        *,
-        current_status_label: str | None,
-        resource_id: int,
-    ) -> bool:
-        """Return whether a mock newly selected ticket moved to In progress."""
-
-        return _is_new_ticket_status_label(current_status_label)
 
     def search_resources(self, query_text: str) -> list[AutotaskResourceOption]:
         """Return deterministic resource options for local web-user setup."""
@@ -2181,31 +2152,6 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Return whether a local status has a configured Autotask picklist ID."""
 
         return ticket_status is not None and self.application_settings.autotask_status_id_map.get(ticket_status.value) is not None
-
-    def mark_ticket_in_progress_if_new(
-        self,
-        ticket_number: str,
-        *,
-        current_status_label: str | None,
-        resource_id: int,
-    ) -> bool:
-        """Move a newly selected ticket to In progress using the owning managed user."""
-
-        if not _is_new_ticket_status_label(current_status_label):
-            return False
-
-        safe_ticket_number = ticket_number.strip()
-        if not safe_ticket_number:
-            raise AutotaskSubmissionError("Ticket number is required before updating ticket status.")
-
-        try:
-            with self._client() as client:
-                ticket_id = self._query_ticket_id(client, safe_ticket_number)
-                self._update_ticket_status(client, ticket_id, TicketStatus.IN_PROGRESS)
-        except (httpx.HTTPError, AutotaskSubmissionError):
-            raise
-
-        return True
 
     def _time_entry_payload(
         self,

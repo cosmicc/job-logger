@@ -55,7 +55,6 @@ from job_logger.services.jobs import (
     rounded_stop_for_active_job,
     start_job,
     submit_job_to_autotask,
-    ticket_status_from_autotask_label,
     transcribe_active_job_audio,
     update_active_job_ticket_number,
     update_description_text,
@@ -123,24 +122,10 @@ def _ticket_status_options() -> list[tuple[str, str]]:
     ]
 
 
-def _status_for_started_autotask_ticket(
-    ticket_number: str,
-    status_label: str | None,
-    *,
-    resource_id: int,
-) -> tuple[TicketStatus | None, bool]:
-    """Return the local status after starting work on a selected Autotask ticket."""
+def _default_status_for_selected_autotask_ticket() -> TicketStatus:
+    """Return the local editable status for a selected ticket without writing to Autotask."""
 
-    provider = get_autotask_provider()
-    ticket_was_new = provider.mark_ticket_in_progress_if_new(
-        ticket_number,
-        current_status_label=status_label,
-        resource_id=resource_id,
-    )
-    if ticket_was_new:
-        return TicketStatus.IN_PROGRESS, True
-
-    return ticket_status_from_autotask_label(status_label), False
+    return TicketStatus.IN_PROGRESS
 
 
 def _current_enabled_web_user(request: Request, database_session: Session):
@@ -860,11 +845,7 @@ async def start_work_from_service_call(
         if selected_service_call is None:
             raise JobWorkflowError("Selected service call is not assigned to this resource for that date.")
 
-        ticket_status, ticket_status_changed_in_autotask = _status_for_started_autotask_ticket(
-            selected_service_call.ticket_number,
-            selected_service_call.ticket_status_label,
-            resource_id=web_user.autotask_resource_id,
-        )
+        ticket_status = _default_status_for_selected_autotask_ticket()
         job = start_job(
             database_session,
             web_user_id=web_user.id,
@@ -896,8 +877,8 @@ async def start_work_from_service_call(
                 "service_call_date": selected_service_call_date.isoformat(),
                 "ticket_number": job.ticket_number,
                 "ticket_status": job.ticket_status.value if job.ticket_status else None,
+                "ticket_status_source": "local_selection_default",
                 "autotask_ticket_status_label": selected_service_call.ticket_status_label,
-                "autotask_ticket_status_changed_to_in_progress": ticket_status_changed_in_autotask,
                 "autotask_company_selected": job.autotask_company_id is not None,
                 "work_location": job.work_location.value,
                 "work_location_detected": selected_service_call.detected_work_location is not None,
@@ -1019,11 +1000,7 @@ async def select_active_ticket(
         if selected_ticket_option is None:
             raise JobWorkflowError("Selected ticket was not found in the open-ticket list for this client.")
 
-        ticket_status, ticket_status_changed_in_autotask = _status_for_started_autotask_ticket(
-            selected_ticket_option.ticket_number,
-            selected_ticket_option.status_label,
-            resource_id=web_user.autotask_resource_id,
-        )
+        ticket_status = _default_status_for_selected_autotask_ticket()
         apply_selected_ticket_from_lookup(
             job,
             selected_ticket_option.ticket_number,
@@ -1042,8 +1019,8 @@ async def select_active_ticket(
                 "ticket_title_present": bool(job.ticket_title),
                 "ticket_description_present": bool(job.ticket_description),
                 "ticket_status": job.ticket_status.value if job.ticket_status else None,
+                "ticket_status_source": "local_selection_default",
                 "autotask_ticket_status_label": selected_ticket_option.status_label,
-                "autotask_ticket_status_changed_to_in_progress": ticket_status_changed_in_autotask,
                 "autotask_company_selected": job.autotask_company_id is not None,
             },
         )

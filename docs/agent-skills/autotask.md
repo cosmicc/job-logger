@@ -69,8 +69,9 @@ Current provider responsibilities:
   a service call.
 - Query ticket status picklist metadata.
 - Query a ticket ID from a ticket number.
-- Move a selected `New` ticket to `In progress` when work starts.
-- Update selected ticket status around submission and submitted-entry edits
+- Keep service-call and open-ticket selection read-only against Autotask while
+  the workflow stores a local editable default status of `In progress`.
+- Update selected ticket status only during submission and submitted-entry edits
   when configured and required by the workflow.
 - Create `TimeEntries`.
 - Patch existing submitted `TimeEntries`.
@@ -134,16 +135,20 @@ route uses the server-verified open-ticket list that was just loaded when the
 short-lived selection cache is available, falls back to re-querying Autotask
 when that cache is expired or absent, verifies the submitted ticket number is
 valid for the job's stored client/company, then persists the ticket number,
-title, and bounded description as local job metadata. The review detail heading
-and ticket-description card can then show the chosen ticket context without
+title, and bounded description as local job metadata and defaults the local
+editable ticket status to In progress. It must not patch Autotask ticket status
+or perform any other remote write. The review detail heading and
+ticket-description card can then show the chosen ticket context without
 repeatedly querying Autotask.
 
 On mobile, ticket numbers are populated from the open-ticket picker instead of
 manual entry. The ticket choice posts to `POST /jobs/{job_id}/ticket`; that
 route uses the same server-side selection cache or a fresh Autotask lookup,
 verifies the selected ticket is valid for that job, and persists the ticket
-number, title, and bounded description returned by the provider. While no
-ticket options are loaded, the mobile open-ticket panel itself is clickable and
+number, title, and bounded description returned by the provider, then defaults
+the local editable ticket status to In progress. This selection path must not
+patch Autotask ticket status or perform any other remote write. While no ticket
+options are loaded, the mobile open-ticket panel itself is clickable and
 keyboard-activatable; that action first saves the active job's current client
 fields through `POST /jobs/{job_id}/ticket-number` with a JSON response, shows
 the spinner loading state, then loads open tickets from the server-verified
@@ -180,7 +185,9 @@ CSRF to `POST /jobs/start/service-call`. The route re-reads the provider's
 server-verified list for the selected local date and current managed web user's
 resource before creating a job. Never accept ticket number, ticket title, ticket
 description, client name, company ID, or work-location values from hidden fields
-for this path.
+for this path. Starting from a service call stores verified local job metadata
+and defaults local ticket status to In progress, but it must not patch Autotask
+ticket status or perform any other remote write before submission.
 
 The `/home/service-calls` response may include a preformatted local
 start/end time range for display, such as `4:00pm-5:00pm`. Treat that range as

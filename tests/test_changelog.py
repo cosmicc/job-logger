@@ -72,6 +72,7 @@ def test_changelog_parser_reads_current_release() -> None:
             "Ticket source can now mark alert-created tickets as Remote when ticket text does not say Remote or On-Site.",
             "Review detail now shows the active Work in Progress rounded stop time before the job is ended.",
             "Review open-ticket choices now match Work in Progress ticket card details and colors.",
+            "Selecting service calls or open tickets now keeps Autotask read-only until submission and defaults the local status to In progress.",
             "Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay.",
         ),
     )
@@ -107,6 +108,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Ticket source can now mark alert-created tickets as Remote" in response.text
     assert "Review detail now shows the active Work in Progress rounded stop time" in response.text
     assert "Review open-ticket choices now match Work in Progress ticket card details and colors." in response.text
+    assert "Selecting service calls or open tickets now keeps Autotask read-only until submission" in response.text
     assert "Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay." in response.text
     assert "automatic database backups" not in response.text
     assert "debug page" not in response.text

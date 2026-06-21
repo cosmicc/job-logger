@@ -489,8 +489,8 @@ The application is a FastAPI project under `job_logger/`.
   the primary place for workflow and job-ownership validation.
 - `job_logger/services/autotask.py` owns Autotask providers, connectivity tests,
   company/ticket lookup, per-user resource service-call lookup, cache behavior,
-  pagination, status mapping, time entry submission, existing-entry updates, and
-  existing-entry deletes.
+  pagination, submission-time status mapping, time entry submission,
+  existing-entry updates, and existing-entry deletes.
 - `job_logger/services/users.py` owns managed web-user validation, optional
   Autotask Resource email storage, password hashing and changes, first-user
   legacy job claiming, and delete-or-disable rules.
@@ -564,11 +564,12 @@ The normal workflow is:
    `Datto Alert`, `BCDR Alert`, and `Email Alert` when text detection has no
    result. Remote and On-Site color treatment matches service-call cards.
    Mobile ticket numbers are populated from that selection instead of manual
-   entry. If the selected Autotask ticket status is New, the server moves it to
-   In progress using the owning managed web user's resource context. The
-   selected ticket status is shown and editable on Work in Progress. Read-only
-   ticket descriptions stay in short scrollable boxes on Work in Progress and
-   review detail.
+   entry. Selection never patches Autotask ticket status; it stores verified
+   local ticket metadata and defaults the editable local ticket status to
+   In progress until the job's time entry is submitted. The selected ticket
+   status is shown and editable on Work in Progress. Read-only ticket
+   descriptions stay in short scrollable boxes on Work in Progress and review
+   detail.
 9. User chooses whether the work is Remote or On-Site. The mode is stored on
    the job and appears as the leading prefix in the review summary textarea so
    it can be corrected before Autotask submission.
@@ -635,6 +636,8 @@ In production:
 - `/home` and blank Start Work do not run Autotask contactability probes.
 - Service-call loading, company lookup, ticket lookup, and Autotask submission
   still call Autotask only when those specific workflows need provider data.
+  Service-call and open-ticket selection are read/query-only against Autotask
+  and must not patch remote ticket status before time-entry submission.
 - Super-admin resource lookup on `/users` calls Autotask Resources only through
   the server-side provider; browser code never contacts Autotask directly.
   Returned resource email metadata is optional and is stored only when a user

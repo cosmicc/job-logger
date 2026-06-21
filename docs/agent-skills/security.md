@@ -265,6 +265,11 @@ call starts, company lookup, ticket selection, direct Work in Progress
 submission, review submission, submitted-entry edit, and submitted-entry delete.
 The debug API test must remain a fresh live diagnostic check.
 
+Service-call starts and open-ticket selection may query Autotask for verified
+metadata, but they must not patch Autotask ticket status or perform another
+remote write. They only store local job metadata and default the editable local
+ticket status to In progress until the time entry is submitted.
+
 Autotask ticket descriptions are remote provider data shown as read-only job
 context. Store only the bounded description returned by the server-side verified
 open-ticket lookup, render it escaped, and keep review save/accept handlers

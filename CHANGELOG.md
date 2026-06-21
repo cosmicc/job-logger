@@ -44,6 +44,9 @@ All notable changes to Job Logger are documented in this file.
 - Moved ticket status underneath end time on review detail and aligned review
   open-ticket cards with Work in Progress ticket number, location, title,
   status, company, and color treatment.
+- Changed service-call and open-ticket selection so they no longer patch
+  Autotask ticket status before submission; they store verified ticket metadata
+  locally and default the editable local ticket status to In progress.
 - Removed the full-page loading overlay from Work in Progress rounded start and
   rounded stop `-15` and `+15` adjustments so small time changes apply without
   the Autotask-style status overlay.

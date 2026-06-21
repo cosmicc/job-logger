@@ -39,7 +39,6 @@ from job_logger.services.jobs import (
     purge_job,
     rounded_stop_for_active_job,
     submit_job_to_autotask,
-    ticket_status_from_autotask_label,
     update_submitted_job_autotask_entry,
     validate_review_fields,
 )
@@ -592,7 +591,7 @@ async def select_review_ticket(
         if selected_ticket_option is None:
             raise JobWorkflowError("Selected ticket was not found in the open-ticket list for this client.")
 
-        selected_ticket_status = ticket_status_from_autotask_label(selected_ticket_option.status_label)
+        selected_ticket_status = TicketStatus.IN_PROGRESS
         apply_selected_ticket_from_lookup(
             job,
             selected_ticket_option.ticket_number,
@@ -611,6 +610,7 @@ async def select_review_ticket(
                 "ticket_title_present": bool(job.ticket_title),
                 "ticket_description_present": bool(job.ticket_description),
                 "ticket_status": job.ticket_status.value if job.ticket_status else None,
+                "ticket_status_source": "local_selection_default",
                 "autotask_ticket_status_label": selected_ticket_option.status_label,
                 "autotask_company_selected": job.autotask_company_id is not None,
             },
