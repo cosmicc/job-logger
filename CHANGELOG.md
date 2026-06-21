@@ -54,6 +54,9 @@ All notable changes to Job Logger are documented in this file.
 - Changed service-call and open-ticket selection so they no longer patch
   Autotask ticket status before submission; they store verified ticket metadata
   locally and default the editable local ticket status to In progress.
+- Changed Ollama and LM Studio AI cleanup URL validation to allow loopback,
+  Docker host aliases, and private LAN IPs such as `172.25.x.x` while still
+  rejecting public cleanup endpoints.
 - Removed the full-page loading overlay from Work in Progress rounded start and
   rounded stop `-15` and `+15` adjustments so small time changes apply without
   the Autotask-style status overlay.

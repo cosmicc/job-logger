@@ -456,7 +456,7 @@ The provider value `grok` uses GroqCloud. `GROK_API_KEY`,
 `GROK_CLEANUP_MODEL`, and `GROK_CLEANUP_API_BASE_URL` are accepted as
 compatibility fallbacks, but the `GROQ_*` names match Groq's official docs.
 
-For server-local Ollama cleanup, configure:
+For Ollama cleanup on loopback or a private LAN, configure:
 
 - `OLLAMA_CLEANUP_MODEL`, default `llama3.1`
 - `OLLAMA_CLEANUP_API_BASE_URL`, default `http://127.0.0.1:11434/api` for
@@ -465,11 +465,14 @@ For server-local Ollama cleanup, configure:
 For Docker Compose, `.env.example` and `docker-compose.yml` default the Ollama
 URL to `http://host.docker.internal:11434/api` so the app container can reach
 an Ollama process running on the same host. The selected model must already be
-available to that Ollama server. If Job Logger is running in Docker, the local
-Ollama server must listen on an interface reachable from Docker's host gateway;
-keep host firewall rules tight and do not expose the model server publicly.
+available to that Ollama server. To use an Ollama server elsewhere on the
+private network, set the base URL to that server's private IP and API path, for
+example `OLLAMA_CLEANUP_API_BASE_URL=http://172.25.1.99:11234/api`. Job Logger
+appends `/generate` to that base URL. If Job Logger is running in Docker, the
+Ollama server must listen on an interface reachable from the app container; keep
+firewall rules tight and do not expose the model server publicly.
 
-For server-local LM Studio cleanup, configure:
+For LM Studio cleanup on loopback or a private LAN, configure:
 
 - `LM_STUDIO_CLEANUP_MODEL`, default `local-model`
 - `LM_STUDIO_CLEANUP_API_BASE_URL`, default `http://127.0.0.1:1234/v1` for
@@ -479,13 +482,17 @@ For server-local LM Studio cleanup, configure:
 For Docker Compose, `.env.example` and `docker-compose.yml` default the LM
 Studio URL to `http://host.docker.internal:1234/v1`. Set
 `LM_STUDIO_CLEANUP_MODEL` to the model identifier shown by LM Studio for the
-loaded model. If Job Logger is running in Docker, the LM Studio server must be
-reachable from Docker's host gateway; keep host firewall rules tight and do not
-expose the model server publicly.
+loaded model. To use an LM Studio server elsewhere on the private network, set
+the base URL to that server's private IP and OpenAI-compatible `/v1` path, for
+example `LM_STUDIO_CLEANUP_API_BASE_URL=http://172.25.1.99:11234/v1`. Job
+Logger appends `/chat/completions` to that base URL. If Job Logger is running
+in Docker, the LM Studio server must be reachable from the app container; keep
+firewall rules tight and do not expose the model server publicly.
 
-Ollama and LM Studio cleanup URLs are intentionally restricted to local
-server-style hosts such as `localhost`, `127.0.0.1`, or
-`host.docker.internal`. Do not expose those local model servers publicly.
+Ollama and LM Studio cleanup URLs are intentionally restricted to loopback,
+Docker host aliases, or private-network IP ranges such as `10.x.x.x`,
+`172.16-31.x.x`, and `192.168.x.x`. Public URLs and arbitrary public hostnames
+are rejected.
 
 When enabled, active mobile jobs and review detail show **AI Cleanup** with the
 summary box. On mobile and unsubmitted review detail, **Record Audio** appears
@@ -502,8 +509,8 @@ AI cleanup requests require the local authenticated session and CSRF token. The
 server sends bounded summary text plus minimal job context to the selected
 provider, sets `store=false` for Gemini requests, and records only metadata such
 as provider, model, source, and text lengths in the audit log. Do not put
-Gemini or Groq keys, local-provider API keys, private cleanup instructions, or
-customer summary text in source control.
+Gemini or Groq keys, private-network provider API keys, private cleanup
+instructions, or customer summary text in source control.
 
 Provider setup and data-handling docs:
 

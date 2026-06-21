@@ -214,13 +214,13 @@ class Settings:
     # OLLAMA_CLEANUP_MODEL selects the locally installed Ollama model used for cleanup.
     ollama_cleanup_model: str
 
-    # OLLAMA_CLEANUP_API_BASE_URL points at a server-local Ollama API base URL.
+    # OLLAMA_CLEANUP_API_BASE_URL points at a loopback or private-network Ollama API base URL.
     ollama_cleanup_api_base_url: str
 
     # LM_STUDIO_CLEANUP_MODEL selects the loaded LM Studio model identifier used for cleanup.
     lm_studio_cleanup_model: str
 
-    # LM_STUDIO_CLEANUP_API_BASE_URL points at a server-local LM Studio OpenAI-compatible base URL.
+    # LM_STUDIO_CLEANUP_API_BASE_URL points at a loopback or private-network LM Studio OpenAI-compatible base URL.
     lm_studio_cleanup_api_base_url: str
 
     # LM_STUDIO_API_KEY is optional and only used if the local LM Studio server requires one.

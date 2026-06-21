@@ -153,7 +153,7 @@ Never commit or print:
 
 - `.env` values.
 - Autotask API username/key, secret, or integration code.
-- Gemini or Groq API keys, local-provider API keys, local model server URLs,
+- Gemini or Groq API keys, private-network provider API keys, model server URLs,
   and private cleanup instructions.
 - Session secrets.
 - Database passwords.
@@ -208,18 +208,19 @@ details.
 AI cleanup is a data-sharing feature. It must remain disabled unless
 `AI_CLEANUP_ENABLED=true` is configured with `AI_CLEANUP_PROVIDER=gemini`,
 `grok`, `ollama`, or `lm_studio`. Gemini and Groq require matching provider API
-keys. Ollama and LM Studio must use server-local base URLs such as `localhost`,
-`127.0.0.1`, or `host.docker.internal`.
+keys. Ollama and LM Studio must use loopback or private-network base URLs such
+as `localhost`, `127.0.0.1`, `host.docker.internal`, `10.x.x.x`,
+`172.16-31.x.x`, or `192.168.x.x`.
 
 Cleanup handling must:
 
 - Require authentication and CSRF.
-- Keep provider credentials, local provider URLs, and cleanup instructions
+- Keep provider credentials, private-network provider URLs, and cleanup instructions
   server-side in Docker or another approved secret store.
 - Send only bounded summary text and minimal job context to the selected
   provider.
 - Set `store=false` on Gemini generateContent requests.
-- Reject non-local Ollama and LM Studio base URLs.
+- Reject public Ollama and LM Studio base URLs.
 - Return cleaned text to the browser without submitting to Autotask.
 - Audit provider, model, source, status, and text lengths only.
 - Never write raw uncleaned summaries, cleaned summaries, API keys, or full
@@ -229,8 +230,9 @@ Gemini's free API tier may use submitted content and generated responses to
 improve Google products. GroqCloud does not retain inference customer data by
 default except for platform reliability or abuse-monitoring cases, and its
 Zero Data Retention setting should be enabled for the organization when
-available. Ollama and LM Studio keep inference local to the configured server
-only when their local API servers are not exposed beyond that server.
+available. Ollama and LM Studio keep inference inside the configured private
+network only when their API servers are not exposed beyond trusted LAN or
+loopback interfaces.
 
 ## Raw Audio And Streaming
 

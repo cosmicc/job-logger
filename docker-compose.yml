@@ -69,8 +69,9 @@ services:
       AUTOTASK_STATUS_FOLLOW_UP_ID: ${AUTOTASK_STATUS_FOLLOW_UP_ID:-}
       AUTOTASK_STATUS_COMPLETE_ID: ${AUTOTASK_STATUS_COMPLETE_ID:-}
     extra_hosts:
-      # Allows the app container to reach server-local Ollama or LM Studio
-      # processes through host.docker.internal without publishing app ports.
+      # Allows the app container to reach same-host Ollama or LM Studio
+      # processes through host.docker.internal. Private LAN model servers can
+      # be configured directly with their private IP base URLs.
       - "host.docker.internal:host-gateway"
     depends_on:
       db:

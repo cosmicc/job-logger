@@ -1,10 +1,10 @@
 """Provider-backed summary cleanup service.
 
-This module keeps AI cleanup as a server-side integration so API keys, local
-model URLs, and summary-cleanup instructions never reach the browser. The
-service sends only bounded work-summary text and minimal job context to the
-configured provider, then returns cleaned text for the UI to place back into the
-editable summary field.
+This module keeps AI cleanup as a server-side integration so API keys,
+private-network model URLs, and summary-cleanup instructions never reach the
+browser. The service sends only bounded work-summary text and minimal job
+context to the configured provider, then returns cleaned text for the UI to
+place back into the editable summary field.
 """
 
 from __future__ import annotations
@@ -25,12 +25,25 @@ OLLAMA_GENERATE_PATH = "/generate"
 MAX_CLEANED_SUMMARY_CHARS = 32000
 SUPPORTED_AI_CLEANUP_PROVIDERS = {"gemini", "grok", "ollama", "lm_studio"}
 SUPPORTED_AI_CLEANUP_PROVIDERS_DISPLAY = "gemini, grok, ollama, or lm_studio"
-LOCAL_AI_CLEANUP_HOSTNAMES = {
+PRIVATE_NETWORK_AI_CLEANUP_HOSTNAMES = {
     "localhost",
     "host.docker.internal",
     "gateway.docker.internal",
     "host.containers.internal",
 }
+PRIVATE_NETWORK_AI_CLEANUP_NETWORKS = tuple(
+    ipaddress.ip_network(network)
+    for network in (
+        "127.0.0.0/8",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "169.254.0.0/16",
+        "::1/128",
+        "fc00::/7",
+        "fe80::/10",
+    )
+)
 
 
 class AiCleanupError(RuntimeError):
@@ -119,34 +132,39 @@ def _safe_provider_error_message(response_payload: Any, provider_label: str) -> 
     return f"{provider_label} cleanup request failed."
 
 
-def _is_local_cleanup_hostname(hostname: str | None) -> bool:
-    """Return whether a local-provider hostname is limited to this server."""
+def _is_private_network_cleanup_hostname(hostname: str | None) -> bool:
+    """Return whether a configured local-model endpoint stays off the public Internet."""
 
     if hostname is None:
         return False
 
     normalized_hostname = hostname.strip().strip("[]").lower()
-    if normalized_hostname in LOCAL_AI_CLEANUP_HOSTNAMES:
+    if normalized_hostname in PRIVATE_NETWORK_AI_CLEANUP_HOSTNAMES:
         return True
 
     try:
-        return ipaddress.ip_address(normalized_hostname).is_loopback
+        ip_address = ipaddress.ip_address(normalized_hostname)
     except ValueError:
         return False
 
+    if ip_address.is_unspecified or ip_address.is_multicast:
+        return False
 
-def _validate_local_provider_base_url(provider_label: str, base_url: str) -> str:
-    """Return a normalized local provider base URL or reject non-local targets."""
+    return any(ip_address in private_network for private_network in PRIVATE_NETWORK_AI_CLEANUP_NETWORKS)
+
+
+def _validate_private_network_provider_base_url(provider_label: str, base_url: str) -> str:
+    """Return a normalized local-model base URL or reject public targets."""
 
     normalized_base_url = (base_url or "").strip().rstrip("/")
     parsed_url = urlparse(normalized_base_url)
     if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
-        raise AiCleanupError(f"{provider_label} cleanup requires a valid local HTTP base URL.")
+        raise AiCleanupError(f"{provider_label} cleanup requires a valid HTTP base URL.")
 
-    if not _is_local_cleanup_hostname(parsed_url.hostname):
+    if not _is_private_network_cleanup_hostname(parsed_url.hostname):
         raise AiCleanupError(
-            f"{provider_label} cleanup must use a local server URL such as localhost, "
-            "127.0.0.1, or host.docker.internal."
+            f"{provider_label} cleanup must use a loopback or private-network URL such as "
+            "localhost, 127.0.0.1, host.docker.internal, 10.x.x.x, 172.16-31.x.x, or 192.168.x.x."
         )
 
     return normalized_base_url
@@ -312,7 +330,7 @@ def _extract_groq_output_text(response_payload: dict[str, Any]) -> str:
 
 
 def _build_ollama_payload(cleanup_input: str, application_settings: Settings) -> dict[str, Any]:
-    """Build an Ollama generate payload for server-local text cleanup."""
+    """Build an Ollama generate payload for private-network text cleanup."""
 
     return {
         "model": application_settings.ollama_cleanup_model,
@@ -326,9 +344,9 @@ def _build_ollama_payload(cleanup_input: str, application_settings: Settings) ->
 
 
 def _create_ollama_response(request_payload: dict[str, Any], application_settings: Settings) -> dict[str, Any]:
-    """Call a server-local Ollama API and return a JSON object response."""
+    """Call a private-network Ollama API and return a JSON object response."""
 
-    base_url = _validate_local_provider_base_url("Ollama", application_settings.ollama_cleanup_api_base_url)
+    base_url = _validate_private_network_provider_base_url("Ollama", application_settings.ollama_cleanup_api_base_url)
     return _post_provider_json(
         provider_label="Ollama",
         url=f"{base_url}{OLLAMA_GENERATE_PATH}",
@@ -372,9 +390,9 @@ def _build_lm_studio_payload(cleanup_input: str, application_settings: Settings)
 
 
 def _create_lm_studio_response(request_payload: dict[str, Any], application_settings: Settings) -> dict[str, Any]:
-    """Call a server-local LM Studio API and return a JSON object response."""
+    """Call a private-network LM Studio API and return a JSON object response."""
 
-    base_url = _validate_local_provider_base_url("LM Studio", application_settings.lm_studio_cleanup_api_base_url)
+    base_url = _validate_private_network_provider_base_url("LM Studio", application_settings.lm_studio_cleanup_api_base_url)
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/json",

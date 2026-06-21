@@ -186,14 +186,83 @@ def test_lm_studio_cleanup_builds_openai_compatible_payload(monkeypatch: pytest.
     assert captured_payload["stream"] is False
 
 
-def test_local_ai_cleanup_rejects_non_local_provider_url(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Local providers must not accept arbitrary remote cleanup endpoints."""
+def test_ollama_cleanup_allows_private_network_base_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ollama cleanup may target a private LAN server reachable by the app."""
 
     monkeypatch.setenv("AI_CLEANUP_ENABLED", "true")
     monkeypatch.setenv("AI_CLEANUP_PROVIDER", "ollama")
-    monkeypatch.setenv("OLLAMA_CLEANUP_API_BASE_URL", "https://example.com/api")
+    monkeypatch.setenv("OLLAMA_CLEANUP_API_BASE_URL", "http://172.25.1.99:11234/api")
+    captured_request: dict[str, Any] = {}
 
-    with pytest.raises(AiCleanupError, match="local server URL"):
+    def fake_post_provider_json(**kwargs: Any) -> dict[str, Any]:
+        captured_request.update(kwargs)
+        return {"response": "Remote restarted the backup service and verified alerts."}
+
+    monkeypatch.setattr(ai_cleanup, "_post_provider_json", fake_post_provider_json)
+
+    cleanup_result = cleanup_summary_text(
+        summary_text="remote restarted backups checked alerts",
+        cleanup_context=AiCleanupContext(job_id="job-1", source="test", job_status="active"),
+        actor="admin",
+        application_settings=load_settings(),
+    )
+
+    assert cleanup_result.cleaned_text == "Remote restarted the backup service and verified alerts."
+    assert captured_request["provider_label"] == "Ollama"
+    assert captured_request["url"] == "http://172.25.1.99:11234/api/generate"
+
+
+def test_lm_studio_cleanup_allows_private_network_base_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LM Studio cleanup may target a private LAN OpenAI-compatible server."""
+
+    monkeypatch.setenv("AI_CLEANUP_ENABLED", "true")
+    monkeypatch.setenv("AI_CLEANUP_PROVIDER", "lm_studio")
+    monkeypatch.setenv("LM_STUDIO_CLEANUP_API_BASE_URL", "http://172.25.1.99:11234/v1")
+    monkeypatch.setenv("LM_STUDIO_API_KEY", "local-lm-studio-key")
+    captured_request: dict[str, Any] = {}
+
+    def fake_post_provider_json(**kwargs: Any) -> dict[str, Any]:
+        captured_request.update(kwargs)
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": "On-Site replaced the firewall and verified failover.",
+                    },
+                }
+            ],
+        }
+
+    monkeypatch.setattr(ai_cleanup, "_post_provider_json", fake_post_provider_json)
+
+    cleanup_result = cleanup_summary_text(
+        summary_text="onsite replaced firewall checked failover",
+        cleanup_context=AiCleanupContext(job_id="job-1", source="test", job_status="active"),
+        actor="admin",
+        application_settings=load_settings(),
+    )
+
+    assert cleanup_result.cleaned_text == "On-Site replaced the firewall and verified failover."
+    assert captured_request["provider_label"] == "LM Studio"
+    assert captured_request["url"] == "http://172.25.1.99:11234/v1/chat/completions"
+    assert captured_request["headers"]["Authorization"] == "Bearer local-lm-studio-key"
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://example.com/api",
+        "http://8.8.8.8:11434/api",
+    ],
+)
+def test_local_ai_cleanup_rejects_public_provider_url(monkeypatch: pytest.MonkeyPatch, base_url: str) -> None:
+    """Local-model providers must not accept arbitrary public cleanup endpoints."""
+
+    monkeypatch.setenv("AI_CLEANUP_ENABLED", "true")
+    monkeypatch.setenv("AI_CLEANUP_PROVIDER", "ollama")
+    monkeypatch.setenv("OLLAMA_CLEANUP_API_BASE_URL", base_url)
+
+    with pytest.raises(AiCleanupError, match="private-network URL"):
         cleanup_summary_text(
             summary_text="fixed printer",
             cleanup_context=AiCleanupContext(job_id="job-1", source="test", job_status="active"),

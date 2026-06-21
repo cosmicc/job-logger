@@ -118,12 +118,12 @@ must be explicit, configurable, documented, access-controlled, and auditable.
 AI summary cleanup sends job summary text to the configured provider only when
 `AI_CLEANUP_ENABLED=true` and `AI_CLEANUP_PROVIDER` is `gemini`, `grok`,
 `ollama`, or `lm_studio`. Treat summary text as customer/work data. The server
-must validate authentication and CSRF, bound input length, keep API keys, local
+must validate authentication and CSRF, bound input length, keep API keys,
 provider URLs, and cleanup instructions server-side in Docker or environment
 variables, set `store=false` on Gemini requests, constrain Ollama and LM Studio
-cleanup URLs to server-local hosts, and audit only metadata such as provider,
-model, source, and text lengths. Do not store raw cleanup prompts or full
-cleaned/uncleaned summaries in audit details.
+cleanup URLs to loopback or private-network endpoints, and audit only metadata
+such as provider, model, source, and text lengths. Do not store raw cleanup
+prompts or full cleaned/uncleaned summaries in audit details.
 
 ## Core Workflow
 
@@ -513,8 +513,9 @@ The application is a FastAPI project under `job_logger/`.
   resolution, challenge generation, passkey verification, public credential
   storage, credential counters, and safe passkey deletion.
 - `job_logger/services/ai_cleanup.py` owns server-side Gemini, Groq, Ollama,
-  and LM Studio summary cleanup, including request construction, local-provider
-  URL validation, safe response parsing, and provider error normalization.
+  and LM Studio summary cleanup, including request construction,
+  private-network provider URL validation, safe response parsing, and provider
+  error normalization.
 - `job_logger/services/transcription.py` owns speech-to-text provider behavior.
 - `job_logger/services/audit.py` records immutable audit events.
 - `job_logger/services/backups.py` creates and restores portable gzip JSON full
