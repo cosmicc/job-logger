@@ -273,6 +273,7 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
     assert "Successful logins" in debug_response.text
     assert "Login failures" in debug_response.text
     assert "admin" in debug_response.text
+    assert 'class="status-chip login-account-chip login-account-super-admin">Super admin</span>' in debug_response.text
     assert "bad-user" in debug_response.text
     assert "198.51.100.7" in debug_response.text
     assert "203.0.113.9, 10.0.0.2" in debug_response.text
@@ -394,6 +395,8 @@ def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient)
     stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
     assert ".login-attempt-window" in stylesheet
     assert "max-height: 430px;" in stylesheet
+    assert ".login-account-super-admin" in stylesheet
+    assert "background: var(--warning-soft);" in stylesheet
     assert ".login-details-button" in stylesheet
     assert ".login-attempt-extra" in stylesheet
     assert "position: absolute;" in stylesheet

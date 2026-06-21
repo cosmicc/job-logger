@@ -100,7 +100,9 @@ account kind, authentication method, user agent, request/proxy details, failure
 reason, and password-present/length for failures. Never write or display the raw
 submitted password. For login diagnostics, prefer the first `X-Forwarded-For`
 address as the displayed client IP when present, while retaining the direct
-socket peer and proxy headers as supporting metadata.
+socket peer and proxy headers as supporting metadata. The successful-login
+window may visually distinguish config super-admin account-kind chips from
+managed web-user chips, but must not expose extra sensitive metadata to do so.
 
 Prefer secure defaults. Cookies must be HTTP-only, secure when served over HTTPS,
 and SameSite-protected. Forms and state-changing requests must use CSRF

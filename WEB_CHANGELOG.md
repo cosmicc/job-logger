@@ -9,6 +9,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Added passkey sign-in for managed users, with password login still available.
 - App sessions can now require users to sign in again after the configured timeout.
 - Diagnostics can now log out all managed web users without logging out the super admin.
+- Diagnostics now highlights super admin successful logins with a yellow account chip.
 - Disabled users are signed out and see an account-disabled message when they try to log in.
 - The Home passkey setup card now appears only once after login, while Config always keeps passkey setup available.
 - Ticket source can now mark alert-created tickets as Remote when ticket text does not say Remote or On-Site.

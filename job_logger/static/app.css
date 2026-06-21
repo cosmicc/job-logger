@@ -2626,6 +2626,16 @@ td a {
   font-weight: 800;
 }
 
+.login-account-chip {
+  min-width: 82px;
+  justify-content: center;
+}
+
+.login-account-super-admin {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
 .login-user-agent-cell {
   max-width: 220px;
   overflow: hidden;

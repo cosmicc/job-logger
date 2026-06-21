@@ -133,8 +133,10 @@ password-present/length metadata for failures. They must never include the raw
 submitted password, session tokens, authentication headers, or Cloudflare
 Access JWTs. When `X-Forwarded-For` is present, the first forwarded address is
 the display `client_ip` for login diagnostics; retain the direct socket peer
-and other proxy headers as supporting metadata only. The bottom of `/debug` may
-show a sanitized newest-first tail of `${LOG_DIR}/app.log`; keep that bounded,
+and other proxy headers as supporting metadata only. The successful-login table
+may use a yellow account-kind chip for config super-admin rows so they are easy
+to distinguish from managed web users. The bottom of `/debug` may show a
+sanitized newest-first tail of `${LOG_DIR}/app.log`; keep that bounded,
 scrollable, and redacted.
 
 ## CSRF Rules

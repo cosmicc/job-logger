@@ -38,6 +38,8 @@ All notable changes to Job Logger are documented in this file.
 - Added a super-admin `/debug` successful-login card, pagination for successful
   and failed login cards, a successful-login JSONL download, and a newest-first
   app log tail card for quick operator diagnostics.
+- Changed the successful-login diagnostics table so config super-admin account
+  chips are yellow and easier to distinguish from managed web-user logins.
 - Added a super-admin-only **Log out web users** control on `/debug` that
   invalidates all managed web-user sessions while leaving the current config
   super-admin session intact.

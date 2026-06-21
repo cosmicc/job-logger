@@ -69,6 +69,7 @@ def test_changelog_parser_reads_current_release() -> None:
             "Added passkey sign-in for managed users, with password login still available.",
             "App sessions can now require users to sign in again after the configured timeout.",
             "Diagnostics can now log out all managed web users without logging out the super admin.",
+            "Diagnostics now highlights super admin successful logins with a yellow account chip.",
             "Disabled users are signed out and see an account-disabled message when they try to log in.",
             "The Home passkey setup card now appears only once after login, while Config always keeps passkey setup available.",
             "Ticket source can now mark alert-created tickets as Remote when ticket text does not say Remote or On-Site.",
@@ -112,6 +113,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Added passkey sign-in for managed users, with password login still available." in response.text
     assert "App sessions can now require users to sign in again after the configured timeout." in response.text
     assert "Diagnostics can now log out all managed web users without logging out the super admin." in response.text
+    assert "Diagnostics now highlights super admin successful logins with a yellow account chip." in response.text
     assert "Disabled users are signed out and see an account-disabled message when they try to log in." in response.text
     assert "The Home passkey setup card now appears only once after login" in response.text
     assert "Ticket source can now mark alert-created tickets as Remote" in response.text

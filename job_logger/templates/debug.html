@@ -69,9 +69,9 @@
                     <td class="login-username-cell">{{ success.username or "blank" }}</td>
                     <td>
                       {% if success.user_kind == "super_admin" %}
-                        <span class="status-chip status-waiting_parts">Super admin</span>
+                        <span class="status-chip login-account-chip login-account-super-admin">Super admin</span>
                       {% else %}
-                        <span class="status-chip status-submitted">Web user</span>
+                        <span class="status-chip login-account-chip status-submitted">Web user</span>
                       {% endif %}
                     </td>
                     <td>{{ success.authentication_method.replace("_", " ").title() }}</td>

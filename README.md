@@ -770,6 +770,8 @@ metadata, account kind, authentication method, failure reason, and
 password-present/length metadata for failures. When `X-Forwarded-For` is
 present, the first forwarded address is shown as the client IP so Cloudflare
 Tunnel deployments show the actual browser address instead of the tunnel peer.
+Successful-login rows use a yellow account chip for the config super admin and
+a green chip for managed web users.
 The raw submitted password is never stored or displayed. The `/debug/logs/login-failures` and
 `/debug/logs/login-successes` endpoints download the raw JSONL files for
 authenticated diagnostics.
