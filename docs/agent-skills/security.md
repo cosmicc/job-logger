@@ -61,7 +61,9 @@ Disabled managed web users must not use old signed sessions to change
 preferences. The `/config/password` route is managed-web-user-only, requires
 CSRF, requires two matching password entries, uses the managed-user complexity
 policy before hashing, and must audit only safe metadata such as user ID or
-username. Never log, audit, or flash the raw submitted password.
+username. The password card should show those requirements so users can fix
+validation failures before submitting. Never log, audit, or flash the raw
+submitted password.
 
 Deleting a managed web user with job history must preserve auditability by
 disabling the account instead of deleting the row. Hard deletion is allowed only
@@ -239,8 +241,11 @@ local audit history for the external time entry. The server must reject later
 local review save, ticket selection, local delete, accept/resend, and retry
 requests even if a crafted request bypasses the review UI. The allowed exception
 is the CSRF-protected **Edit Entry** route, which may update only job date,
-start time, end time, summary notes, and ticket status after it patches the
-existing Autotask `TimeEntries` row. A second CSRF-protected submitted action,
+start time, end time, summary notes, and ticket status for the same submitted
+job. It must patch the existing Autotask `TimeEntries` row instead of creating
+a new time entry. If the previous ticket status was Complete, the provider may
+temporarily move the ticket to In progress before the time-entry patch and then
+apply the selected final status. A second CSRF-protected submitted action,
 **Delete From Autotask**, may delete the external `TimeEntries` row and return
 the local job to review, but it must not delete the local job, audit events, or
 submission attempts.

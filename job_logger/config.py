@@ -231,9 +231,6 @@ class Settings:
     # AUTOTASK_TIME_ENTRY_TYPE defaults to ticket time entry type 2.
     autotask_time_entry_type: int
 
-    # AUTOTASK_IMPERSONATION_RESOURCE_ID optionally tells Autotask who is being impersonated.
-    autotask_impersonation_resource_id: int | None
-
     # AUTOTASK_STATUS_* values map local review statuses to tenant picklist IDs.
     autotask_status_in_progress_id: int | None
     autotask_status_waiting_customer_id: int | None
@@ -343,7 +340,6 @@ def load_settings() -> Settings:
         autotask_secret=os.getenv("AUTOTASK_SECRET") or None,
         autotask_api_integration_code=os.getenv("AUTOTASK_API_INTEGRATION_CODE") or None,
         autotask_time_entry_type=_get_integer("AUTOTASK_TIME_ENTRY_TYPE", 2),
-        autotask_impersonation_resource_id=_get_optional_integer("AUTOTASK_IMPERSONATION_RESOURCE_ID"),
         autotask_status_in_progress_id=_get_optional_integer("AUTOTASK_STATUS_IN_PROGRESS_ID"),
         autotask_status_waiting_customer_id=_get_optional_integer("AUTOTASK_STATUS_WAITING_CUSTOMER_ID"),
         autotask_status_waiting_parts_id=_get_optional_integer("AUTOTASK_STATUS_WAITING_PARTS_ID"),

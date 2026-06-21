@@ -20,7 +20,7 @@
   </head>
   <body class="theme-{{ current_theme|default('dark') }}">
     <header class="app-header">
-      <a class="brand" href="/mobile" aria-label="Job Logger home">
+      <a class="brand" href="/home" aria-label="Job Logger home">
         <span class="brand-mark" aria-hidden="true">JL</span>
         <span>Job Logger</span>
       </a>
@@ -30,7 +30,7 @@
         </div>
         <nav class="top-nav" aria-label="Primary navigation">
           {% if not current_is_super_admin %}
-            <a href="/mobile">Home</a>
+            <a href="/home">Home</a>
           {% endif %}
           {% if current_is_super_admin %}
             <a href="/users">Users</a>
@@ -45,7 +45,7 @@
         </nav>
         <nav class="mobile-nav-actions mobile-nav-left" aria-label="Mobile navigation">
           {% if not current_is_super_admin %}
-            <a class="icon-button mobile-nav-action" href="/mobile" title="Home" aria-label="Home" data-mobile-home-link>
+            <a class="icon-button mobile-nav-action" href="/home" title="Home" aria-label="Home" data-mobile-home-link>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M3 11 12 3l9 8"></path>
                 <path d="M5 10v10h14V10"></path>

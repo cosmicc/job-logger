@@ -823,17 +823,21 @@ a:focus-visible {
   margin: 0;
 }
 
-.service-call-option-button {
+.service-call-option-button,
+.ticket-option-button {
   display: grid;
   gap: 6px;
   width: 100%;
-  min-height: 62px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--text);
   padding: 9px 11px;
   text-align: left;
+}
+
+.service-call-option-button {
+  min-height: 62px;
   box-shadow: inset 5px 0 0 var(--border);
 }
 
@@ -842,7 +846,8 @@ a:focus-visible {
   background: var(--surface-strong);
 }
 
-.service-call-option-button.service-call-location-remote {
+.service-call-option-button.service-call-location-remote,
+.ticket-option-button.ticket-location-remote {
   border-color: rgba(45, 212, 191, 0.72);
   background:
     linear-gradient(90deg, rgba(45, 212, 191, 0.22), rgba(45, 212, 191, 0.1) 46%, var(--service-call-remote-tail)),
@@ -852,7 +857,8 @@ a:focus-visible {
     0 12px 28px rgba(45, 212, 191, 0.1);
 }
 
-.service-call-option-button.service-call-location-on_site {
+.service-call-option-button.service-call-location-on_site,
+.ticket-option-button.ticket-location-on_site {
   border-color: rgba(245, 158, 11, 0.74);
   background:
     linear-gradient(90deg, rgba(245, 158, 11, 0.24), rgba(245, 158, 11, 0.12) 46%, var(--service-call-onsite-tail)),
@@ -862,26 +868,30 @@ a:focus-visible {
     0 12px 28px rgba(245, 158, 11, 0.1);
 }
 
-.service-call-option-button.service-call-location-unknown {
+.service-call-option-button.service-call-location-unknown,
+.ticket-option-button.ticket-location-unknown {
   border-color: rgba(154, 168, 188, 0.34);
   background: var(--surface-strong);
 }
 
-.service-call-option-button.service-call-location-remote:hover {
+.service-call-option-button.service-call-location-remote:hover,
+.ticket-option-button.ticket-location-remote:hover {
   border-color: var(--accent);
   background:
     linear-gradient(90deg, rgba(45, 212, 191, 0.3), rgba(45, 212, 191, 0.14) 48%, var(--service-call-remote-tail-hover)),
     var(--surface-muted);
 }
 
-.service-call-option-button.service-call-location-on_site:hover {
+.service-call-option-button.service-call-location-on_site:hover,
+.ticket-option-button.ticket-location-on_site:hover {
   border-color: var(--warning);
   background:
     linear-gradient(90deg, rgba(245, 158, 11, 0.32), rgba(245, 158, 11, 0.15) 48%, var(--service-call-onsite-tail-hover)),
     var(--surface-muted);
 }
 
-.service-call-card-header {
+.service-call-card-header,
+.ticket-option-card-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -890,25 +900,35 @@ a:focus-visible {
 
 .service-call-client,
 .service-call-ticket,
-.service-call-time-range {
+.service-call-time-range,
+.ticket-option-number,
+.ticket-option-title,
+.ticket-option-meta {
   overflow-wrap: anywhere;
   font-size: 14px;
   font-weight: 750;
   line-height: 1.25;
 }
 
-.service-call-ticket {
+.service-call-ticket,
+.ticket-option-title {
   color: var(--text);
   font-weight: 650;
 }
 
-.service-call-time-range {
+.service-call-time-range,
+.ticket-option-meta {
   color: var(--text);
   font-size: 13px;
   font-weight: 800;
 }
 
-.service-call-location-badge {
+.ticket-option-meta {
+  color: var(--muted);
+}
+
+.service-call-location-badge,
+.ticket-location-badge {
   display: inline-flex;
   align-items: center;
   min-height: 22px;
@@ -924,13 +944,15 @@ a:focus-visible {
   white-space: nowrap;
 }
 
-.service-call-location-remote .service-call-location-badge {
+.service-call-location-remote .service-call-location-badge,
+.ticket-location-remote .ticket-location-badge {
   border-color: rgba(45, 212, 191, 0.42);
   background: rgba(45, 212, 191, 0.18);
   color: var(--accent);
 }
 
-.service-call-location-on_site .service-call-location-badge {
+.service-call-location-on_site .service-call-location-badge,
+.ticket-location-on_site .ticket-location-badge {
   border-color: rgba(245, 158, 11, 0.42);
   background: rgba(245, 158, 11, 0.2);
   color: var(--warning);
@@ -1277,10 +1299,22 @@ a:focus-visible {
 }
 
 .work-location-card,
+.ticket-status-card,
 .ticket-number-card,
 .ticket-title-card,
 .ticket-description-card {
   min-width: 0;
+}
+
+.ticket-status-card label {
+  display: grid;
+  gap: 6px;
+}
+
+.ticket-status-card select {
+  min-height: 38px;
+  padding: 7px 9px;
+  font-size: 14px;
 }
 
 .segmented-toggle {
@@ -1630,7 +1664,7 @@ a:focus-visible {
 
 .config-layout {
   display: grid;
-  grid-template-columns: minmax(360px, 0.78fr) minmax(280px, 0.44fr);
+  grid-template-columns: minmax(0, 760px);
   gap: 18px;
   align-items: start;
 }
@@ -2058,40 +2092,33 @@ td a {
   gap: 16px;
 }
 
+.password-requirements-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.password-requirements-card strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.password-requirements-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .config-password-button {
   justify-self: start;
-}
-
-.config-summary-list {
-  display: grid;
-  margin: 0;
-}
-
-.config-summary-list div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-}
-
-.config-summary-list div:last-child {
-  border-bottom: 0;
-}
-
-.config-summary-list dt {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 850;
-  text-transform: uppercase;
-}
-
-.config-summary-list dd {
-  margin: 0;
-  color: var(--text);
-  font-weight: 850;
-  text-align: right;
 }
 
 .config-save-button {
@@ -2216,22 +2243,6 @@ td a {
 .ticket-picker-results {
   display: grid;
   gap: 8px;
-}
-
-.ticket-option-button {
-  width: 100%;
-  min-height: 42px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--text);
-  padding: 9px 11px;
-  text-align: left;
-  font-weight: 700;
-}
-
-.ticket-option-button:hover {
-  background: var(--ticket-option-hover);
 }
 
 .action-row {

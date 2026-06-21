@@ -7,7 +7,7 @@
     class="service-call-start-panel"
     aria-labelledby="service-call-start-heading"
     data-service-call-panel
-    data-service-call-url="/mobile/service-calls"
+    data-service-call-url="/home/service-calls"
   >
     <div class="service-call-panel-header">
       <h3 id="service-call-start-heading">Service calls</h3>
@@ -199,6 +199,24 @@
                     </label>
                   </div>
                 </dd>
+              </div>
+              <div class="metric-card ticket-status-card">
+                <label>
+                  <span class="metric-label">Ticket status</span>
+                  <select
+                    name="ticket_status"
+                    form="active-ticket-form-{{ active_job.id }}"
+                    data-active-ticket-status-input
+                    aria-label="Ticket status"
+                  >
+                    {% set selected_ticket_status = active_job.ticket_status.value if active_job.ticket_status else "in_progress" %}
+                    {% for option_value, option_label in ticket_status_options %}
+                      <option value="{{ option_value }}" {% if selected_ticket_status == option_value %}selected{% endif %}>
+                        {{ option_label }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </label>
               </div>
               {% if not active_job.autotask_company_id %}
                 <div class="metric-card client-name-card">

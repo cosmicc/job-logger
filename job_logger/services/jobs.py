@@ -31,7 +31,7 @@ MAX_TICKET_DESCRIPTION_LENGTH = 8000
 ALLOWED_WORK_IN_PROGRESS_TIME_MINUTE_DELTA = {-15, 15}
 SUCCESSFUL_SUBMISSION_PROTECTED_MESSAGE = (
     "Submitted Autotask jobs cannot be deleted locally, resent, or have ticket identity changed. "
-    "Use Edit Entry for date, time, summary, or ticket status changes, or Delete From Autotask "
+    "Use Edit Entry for date, time, summary, or intentional ticket status changes, or Delete From Autotask "
     "to remove the external time entry."
 )
 RECORDABLE_JOB_STATUSES = {
@@ -42,6 +42,14 @@ RECORDABLE_JOB_STATUSES = {
 DESCRIPTION_RECORDING_UNAVAILABLE_MESSAGE = (
     "Audio descriptions can only be recorded before the job has been submitted to Autotask."
 )
+AUTOTASK_STATUS_LABEL_MAP = {
+    "inprogress": TicketStatus.IN_PROGRESS,
+    "waitingcustomer": TicketStatus.WAITING_CUSTOMER,
+    "waitingparts": TicketStatus.WAITING_PARTS,
+    "followup": TicketStatus.FOLLOW_UP,
+    "complete": TicketStatus.COMPLETE,
+    "completed": TicketStatus.COMPLETE,
+}
 
 
 @dataclass(frozen=True)
@@ -287,6 +295,31 @@ def normalize_ticket_number(ticket_number: str | None, *, required: bool) -> str
     return normalized_ticket_number
 
 
+def normalize_ticket_status(ticket_status: TicketStatus | str | None, *, required: bool = False) -> TicketStatus | None:
+    """Return a supported local ticket status or raise a workflow error."""
+
+    if isinstance(ticket_status, TicketStatus):
+        return ticket_status
+
+    normalized_ticket_status = str(ticket_status or "").strip()
+    if not normalized_ticket_status:
+        if required:
+            raise JobWorkflowError("Ticket status is required.")
+        return None
+
+    try:
+        return TicketStatus(normalized_ticket_status)
+    except ValueError as exc:
+        raise JobWorkflowError("Ticket status is invalid.") from exc
+
+
+def ticket_status_from_autotask_label(status_label: str | None) -> TicketStatus | None:
+    """Map a safe Autotask status label onto a supported local ticket status."""
+
+    normalized_status_label = re.sub(r"[^a-z0-9]+", "", (status_label or "").casefold())
+    return AUTOTASK_STATUS_LABEL_MAP.get(normalized_status_label)
+
+
 def normalize_ticket_title(ticket_title: str | None) -> str | None:
     """Return a bounded Autotask ticket title captured from ticket lookup."""
 
@@ -387,6 +420,7 @@ def start_job(
     client_name: str | None = None,
     autotask_company_id: int | str | None = None,
     work_location: WorkLocation | str | None = WorkLocation.REMOTE,
+    ticket_status: TicketStatus | str | None = None,
 ) -> Job:
     """Create a new active job while enforcing the two-job overlap limit."""
 
@@ -396,12 +430,14 @@ def start_job(
     normalized_client_name = normalize_client_name(client_name)
     normalized_autotask_company_id = normalize_autotask_company_id(autotask_company_id)
     normalized_work_location = normalize_work_location(work_location)
+    normalized_ticket_status = normalize_ticket_status(ticket_status)
     start_timestamp = now_utc()
     rounded_start_timestamp = round_start_for_technician(start_timestamp)
     job = Job(
         status=JobStatus.ACTIVE,
         web_user_id=web_user_id,
         ticket_number=normalized_ticket_number,
+        ticket_status=normalized_ticket_status,
         job_slot=job_slot,
         client_name=normalized_client_name,
         autotask_company_id=normalized_autotask_company_id,
@@ -424,6 +460,7 @@ def update_active_job_ticket_number(
     ticket_title: str | None = None,
     ticket_description: str | None = None,
     work_location: WorkLocation | str | None = None,
+    ticket_status: TicketStatus | str | None = None,
 ) -> Job:
     """Update the optional Autotask ticket number and client while a job is active."""
 
@@ -461,6 +498,9 @@ def update_active_job_ticket_number(
 
     if work_location is not None:
         job.work_location = normalize_work_location(work_location)
+
+    if ticket_status is not None:
+        job.ticket_status = normalize_ticket_status(ticket_status)
 
     return job
 
@@ -704,10 +744,9 @@ def validate_review_fields(
     ticket_title = normalize_ticket_title(form_values.get("ticket_title")) if ticket_number else None
     ticket_description = normalize_ticket_description(form_values.get("ticket_description")) if ticket_number else None
 
-    try:
-        ticket_status = TicketStatus(form_values.get("ticket_status", ""))
-    except ValueError as exc:
-        raise JobWorkflowError("Ticket status is invalid.") from exc
+    ticket_status = normalize_ticket_status(form_values.get("ticket_status"), required=True)
+    if ticket_status is None:
+        raise JobWorkflowError("Ticket status is required.")
 
     submitted_summary_notes = form_values.get("summary_notes", "").strip()
     if not submitted_summary_notes:
@@ -827,6 +866,8 @@ def update_submitted_job_autotask_entry(
     database_session: Session,
     job: Job,
     review_fields: ReviewFields,
+    *,
+    resource_id: int,
 ) -> Job:
     """Update the existing external Autotask time entry for a submitted job."""
 
@@ -844,10 +885,17 @@ def update_submitted_job_autotask_entry(
         "rounded_end_utc": job.rounded_end_utc,
         "local_work_date": job.local_work_date,
     }
+    ticket_status_changed = previous_values["ticket_status"] != review_fields.ticket_status
     _apply_submitted_entry_fields(job, review_fields)
 
     try:
-        submission_result = get_autotask_provider().update_time_entry(job, external_id)
+        submission_result = get_autotask_provider().update_time_entry(
+            job,
+            external_id,
+            resource_id=resource_id,
+            previous_ticket_status=previous_values["ticket_status"],
+            update_ticket_status=ticket_status_changed,
+        )
     except AutotaskSubmissionError as exc:
         submission_result = None
         for field_name, previous_value in previous_values.items():
@@ -891,7 +939,7 @@ def update_submitted_job_autotask_entry(
     return job
 
 
-def delete_submitted_job_autotask_entry(database_session: Session, job: Job) -> Job:
+def delete_submitted_job_autotask_entry(database_session: Session, job: Job, *, resource_id: int) -> Job:
     """Delete a submitted job's external time entry and return it to review."""
 
     ensure_job_is_successfully_submitted(job)
@@ -900,7 +948,7 @@ def delete_submitted_job_autotask_entry(database_session: Session, job: Job) -> 
         raise JobWorkflowError("This submitted job does not have an Autotask time entry ID to delete.")
 
     try:
-        submission_result = get_autotask_provider().delete_time_entry(job, external_id)
+        submission_result = get_autotask_provider().delete_time_entry(job, external_id, resource_id=resource_id)
     except AutotaskSubmissionError as exc:
         job.autotask_error = str(exc)
         job.autotask_provider = "configuration"
@@ -945,6 +993,7 @@ def apply_selected_ticket_from_lookup(
     ticket_number: str,
     ticket_title: str | None,
     ticket_description: str | None,
+    ticket_status: TicketStatus | str | None = None,
 ) -> Job:
     """Store a ticket selected from the server-side Autotask open-ticket lookup."""
 
@@ -956,6 +1005,8 @@ def apply_selected_ticket_from_lookup(
     job.ticket_number = normalized_ticket_number
     job.ticket_title = normalized_ticket_title
     job.ticket_description = normalized_ticket_description
+    if ticket_status is not None:
+        job.ticket_status = normalize_ticket_status(ticket_status)
     return job
 
 

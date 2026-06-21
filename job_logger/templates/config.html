@@ -75,6 +75,15 @@
           </div>
           <form method="post" action="/config/password" class="stack-form config-password-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <section class="password-requirements-card" aria-label="Password requirements">
+              <strong>Password requirements</strong>
+              <ul class="password-requirements-list">
+                <li>At least 8 characters</li>
+                <li>Lowercase and uppercase letters</li>
+                <li>At least one number</li>
+                <li>At least one symbol</li>
+              </ul>
+            </section>
             <div class="password-field-grid">
               <label>
                 <span>New password</span>
@@ -113,21 +122,6 @@
           </form>
         </section>
       </div>
-
-      <section class="table-panel config-summary-panel" aria-labelledby="config-summary-heading">
-        <div class="users-list-header">
-          <div>
-            <h2 id="config-summary-heading">Current settings</h2>
-            <p class="muted-text">Saved preferences are scoped to the signed-in account.</p>
-          </div>
-        </div>
-        <dl class="config-summary-list">
-          <div>
-            <dt>Account</dt>
-            <dd>{{ config_principal_label }}</dd>
-          </div>
-        </dl>
-      </section>
     </div>
   </section>
 

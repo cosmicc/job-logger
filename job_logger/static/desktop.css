@@ -23,11 +23,20 @@
 }
 
 .mobile-shell {
-  width: min(820px, calc(100% - 36px));
+  width: min(1180px, calc(100% - 48px));
+  max-width: none;
+}
+
+.active-jobs-stack {
+  gap: 24px;
+}
+
+.active-jobs-stack > .work-panel {
+  margin-top: 0;
 }
 
 .work-panel {
-  padding: 24px;
+  padding: 28px;
 }
 
 .metric-grid {
@@ -81,4 +90,114 @@
 .recording-control-stack .record-notes-button[aria-pressed="true"]:hover {
   background: #fbbf24 !important;
   color: var(--on-warning) !important;
+}
+
+@media (min-width: 960px) {
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) {
+    display: grid;
+    grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);
+    gap: 18px 28px;
+    align-items: start;
+  }
+
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) > .eyebrow-text,
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) > h1,
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) > .muted-text,
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) > .start-work-form {
+    grid-column: 1;
+  }
+
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) > h1 {
+    max-width: 12ch;
+    margin-bottom: 0;
+    font-size: clamp(34px, 4vw, 54px);
+    line-height: 1;
+  }
+
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) > .muted-text {
+    max-width: 36ch;
+    margin-bottom: 0;
+    font-size: 16px;
+  }
+
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) > .start-work-form {
+    align-self: end;
+    max-width: 320px;
+  }
+
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) > .service-call-start-panel {
+    grid-column: 2;
+    grid-row: 1 / span 5;
+    align-self: stretch;
+    margin-top: 0;
+  }
+
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-start-list {
+    justify-self: stretch;
+    max-width: none;
+  }
+
+  .work-panel[data-active-job-card] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.78fr);
+    gap: 14px 24px;
+    align-items: start;
+  }
+
+  .work-panel[data-active-job-card] > .eyebrow-text,
+  .work-panel[data-active-job-card] > h1 {
+    grid-column: 1 / -1;
+  }
+
+  .work-panel[data-active-job-card] > h1 {
+    margin-bottom: 0;
+  }
+
+  .work-panel[data-active-job-card] > .metric-grid,
+  .work-panel[data-active-job-card] > .ticket-number-form,
+  .work-panel[data-active-job-card] > .mobile-ticket-picker {
+    grid-column: 1;
+  }
+
+  .work-panel[data-active-job-card] > .metric-grid {
+    margin: 0;
+  }
+
+  .work-panel[data-active-job-card] > .description-box {
+    grid-column: 2;
+    grid-row: 3;
+    align-self: start;
+  }
+
+  .work-panel[data-active-job-card] > .button-grid {
+    grid-column: 2;
+    grid-row: 4;
+  }
+
+  .work-panel[data-active-job-card] > [data-active-save-status] {
+    grid-column: 2;
+    grid-row: 5;
+  }
+
+  .work-panel[data-active-job-card] .job-description {
+    min-height: 240px;
+  }
+
+  .work-panel[data-active-job-card] .recording-control-stack .record-notes-button {
+    min-height: 56px;
+  }
+
+  .work-panel[data-active-job-card] .button-grid {
+    margin-top: 0;
+  }
+
+  .work-panel[data-active-job-card] .work-finish-stack {
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 0.42fr);
+    align-items: stretch;
+  }
+
+  .work-panel[data-active-job-card] .work-finish-stack .end-work-button,
+  .work-panel[data-active-job-card] .work-finish-stack .danger-outline-button {
+    min-height: 56px;
+  }
 }

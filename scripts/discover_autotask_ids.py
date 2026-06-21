@@ -59,9 +59,6 @@ class AutotaskSettings:
     # api_integration_code is the Autotask API integration code header value.
     api_integration_code: str
 
-    # impersonation_resource_id is optional and only sent when configured.
-    impersonation_resource_id: str | None
-
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command-line options for the discovery helper."""
@@ -137,7 +134,6 @@ def load_autotask_settings(dotenv_path: Path) -> AutotaskSettings:
         username=str(get_setting(dotenv_values, "AUTOTASK_USERNAME")),
         secret=str(get_setting(dotenv_values, "AUTOTASK_SECRET")),
         api_integration_code=str(get_setting(dotenv_values, "AUTOTASK_API_INTEGRATION_CODE")),
-        impersonation_resource_id=get_setting(dotenv_values, "AUTOTASK_IMPERSONATION_RESOURCE_ID") or None,
     )
 
 
@@ -189,8 +185,6 @@ def build_headers(settings: AutotaskSettings) -> dict[str, str]:
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
-    if settings.impersonation_resource_id:
-        headers["ImpersonationResourceId"] = settings.impersonation_resource_id
 
     return headers
 

@@ -2,6 +2,29 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## v1.0.2 - Autotask workflow and desktop layout updates
+
+- Renamed the work-entry route from `/mobile` to `/home` so the URL no longer
+  implies a phone-only page. The old `/mobile` route and service-call endpoint
+  now redirect to `/home` for existing bookmarks.
+- Removed the global `AUTOTASK_IMPERSONATION_RESOURCE_ID` setting from Docker,
+  sample environment, application config, and the Autotask discovery helper.
+  User-scoped Autotask calls now derive `ImpersonationResourceId` from the
+  owning managed web user's Autotask resource ID.
+- Fixed submitted Autotask **Edit Entry** updates for jobs whose ticket was
+  already Complete by moving the ticket to In progress before the time-entry
+  patch and restoring the selected final status afterward.
+- Added automatic `New` to `In progress` ticket status updates when work starts
+  from a selected Autotask ticket or service call.
+- Added an editable ticket status field to the mobile Work in Progress page and
+  blocking status overlays while Autotask submission/update/delete tasks run.
+- Added Remote/On-Site labels and matching color treatment to open-ticket
+  choices so ticket lookup is visually consistent with service-call starts.
+- Moved managed-user password requirements into the `/config` password card and
+  removed the redundant Current settings card.
+- Improved the full browser `/home` home and Work in Progress layouts through
+  desktop-only CSS so phones keep the existing touch-first layout.
+
 ## v1.0.1 - Mobile shell navigation and close behavior
 
 - Added a managed-web-user-only Config gear icon to the phone-sized

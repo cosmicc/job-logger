@@ -14,9 +14,9 @@ Production startup requires:
 - `AUTOTASK_PROVIDER=autotask`.
 - Valid application authentication settings.
 
-The initial `/mobile` page and blank Start Work route must not run an Autotask
+The initial `/home` page and blank Start Work route must not run an Autotask
 contactability probe. The mobile screen should render from local state first,
-then service-call cards can load through `/mobile/service-calls` after the page
+then service-call cards can load through `/home/service-calls` after the page
 has loaded. Autotask is queried only when a workflow actually needs provider
 data, such as service-call loading, company search, open-ticket lookup,
 service-call start verification, or Autotask submission/update/delete actions.
@@ -31,7 +31,9 @@ configuration. The live provider gets `TimeEntries.roleID` from the selected
 ticket's `assignedResourceroleID` at submit time and omits
 `TimeEntries.billingCodeID` so Autotask inherits the selected ticket's Work Type
 on create. API credentials, ticket status IDs, time-entry type, and optional
-`AUTOTASK_IMPERSONATION_RESOURCE_ID` remain environment-backed settings.
+Autotask provider settings remain environment-backed. Do not add a global
+Autotask impersonation resource setting; user-scoped workflows derive
+`ImpersonationResourceId` from the owning managed web user's resource ID.
 The config super admin may use `/users` to query Autotask Resources by name
 while creating a managed web user, but that lookup must still go through the
 server-side provider and return only safe resource metadata. When the selected
@@ -66,7 +68,9 @@ Current provider responsibilities:
   a service call.
 - Query ticket status picklist metadata.
 - Query a ticket ID from a ticket number.
-- Update selected ticket status when configured.
+- Move a selected `New` ticket to `In progress` when work starts.
+- Update selected ticket status around submission and submitted-entry edits
+  when configured and required by the workflow.
 - Create `TimeEntries`.
 - Patch existing submitted `TimeEntries`.
 - Delete existing submitted `TimeEntries` when the local job must return to
@@ -93,7 +97,7 @@ The live check currently verifies:
 - Ticket query endpoint is reachable.
 
 If this check fails, show a clear diagnostic result, but do not wire this check
-into `/mobile` page rendering or blank Start Work. Keep the debug page on
+into `/home` page rendering or blank Start Work. Keep the debug page on
 `test_autotask_connectivity()` so operator-triggered diagnostics always run a
 fresh live check.
 
@@ -142,9 +146,12 @@ keyboard-activatable; that action first saves the active job's current client
 fields through `POST /jobs/{job_id}/ticket-number` with a JSON response, shows
 the spinner loading state, then loads open tickets from the server-verified
 lookup endpoint. The review open-ticket panel uses the same click-to-load
-pattern. After mobile or review selection succeeds, the UI hides the open-ticket
-list and updates visible ticket number/title/description fields from the
-verified JSON response rather than trusting the clicked browser option.
+pattern. Open-ticket options should include a display-only Remote, On-Site, or
+Not specified label inferred from safe ticket title/description text and expose
+the matching `.ticket-location-*` CSS class for the browser. After mobile or
+review selection succeeds, the UI hides the open-ticket list and updates visible
+ticket number/title/description fields from the verified JSON response rather
+than trusting the clicked browser option.
 
 ## Service Call Lookup
 
@@ -152,7 +159,7 @@ The mobile start panels can list selected-day Autotask service calls for the
 logged-in managed web user's Autotask resource ID. This is a read-only
 convenience path for starting a job from scheduled dispatch data, not a
 separate trust boundary. The browser may ask for another local date through
-`/mobile/service-calls?date=YYYY-MM-DD`; the resource ID still comes only from
+`/home/service-calls?date=YYYY-MM-DD`; the resource ID still comes only from
 the authenticated managed web user.
 
 Service-call lookup must stay inside `job_logger/services/autotask.py` because
@@ -172,7 +179,7 @@ resource before creating a job. Never accept ticket number, ticket title, ticket
 description, client name, company ID, or work-location values from hidden fields
 for this path.
 
-The `/mobile/service-calls` response may include a preformatted local
+The `/home/service-calls` response may include a preformatted local
 start/end time range for display, such as `4:00pm-5:00pm`. Treat that range as
 read-only card context; it must not be submitted back by the browser or used as
 the authorization source for starting a job.
@@ -200,11 +207,11 @@ to equal the user's stored resource ID, and update only locally stored
 non-secret metadata such as full name and email. Do not use returned email or
 display names for authorization.
 
-Remote/On-Site detection is intentionally simple and auditable: scan the
-service-call details for `remote`, `onsite`, `on-site`, or `on site`. If neither
-word is present, display `Not specified` and let the started job use the normal
-Remote default. If both words are present, the first match in the details text
-wins.
+Remote/On-Site detection is intentionally simple and auditable: scan
+service-call details or open-ticket title/description text for `remote`,
+`onsite`, `on-site`, or `on site`. If neither word is present, display
+`Not specified` and let the started job use the normal Remote default. If both
+words are present, the first match in the details text wins.
 
 The Autotask API user's security level must be able to read `ServiceCalls`,
 `ServiceCallTickets`, and `ServiceCallTicketResources` in addition to the
@@ -279,7 +286,6 @@ Required live Autotask values include:
 - The selected ticket's assigned role ID.
 - Time entry type.
 - Tenant-specific ticket status picklist IDs.
-- Impersonation resource ID when configured.
 
 Ticket `TimeEntries` creation must query the selected `Tickets` row by
 `ticketNumber` and use `assignedResourceroleID` for `TimeEntries.roleID`.
@@ -299,10 +305,11 @@ correct the prefix before submission or submitted-entry update. Save, accept,
 retry, and edit-entry handlers must parse that visible prefix back into
 `work_location` before building the final payload.
 
-`AUTOTASK_IMPERSONATION_RESOURCE_ID` should be blank by default. When blank, the
-provider omits `ImpersonationResourceId` and Autotask evaluates the API user's
-own permissions. When set, Companies/Tickets query permissions must work for the
-impersonated resource context too.
+User-scoped live calls must use the owning managed web user's Autotask resource
+ID for both local `resourceID` payloads and the Autotask
+`ImpersonationResourceId` header. Super-admin Resource lookup and debug
+connectivity checks do not have an owning managed user and must not use a
+global impersonation fallback.
 
 Submission must remain idempotent. A retry must not create duplicate time
 entries for the same accepted job.
@@ -313,7 +320,13 @@ selection, accept/resend, retry, or local **Delete time entry** actions for that
 job. Supported submitted-job mutations are limited to audited external-entry
 actions: **Edit Entry** validates one job date, start/end times, summary notes,
 and ticket status, then patches the existing Autotask `TimeEntries` row by its
-stored external ID. **Delete From Autotask** deletes `TimeEntries/{id}` and
+stored external ID. If the previously submitted ticket status is `Complete`,
+**Edit Entry** must first move the ticket to `In progress`, then patch
+`TimeEntries`, then move the ticket to the selected final status when needed.
+If the previous status was not `Complete`, update `Tickets.status` only for an
+intentional status change, and move a final `Complete` status after the
+`TimeEntries` patch. Failure must leave local state aligned with the last known
+successful Autotask state. **Delete From Autotask** deletes `TimeEntries/{id}` and
 returns the local job to review only after Autotask confirms the delete. If
 either action fails, keep local state aligned with the last known successful
 Autotask state and store only safe error details.

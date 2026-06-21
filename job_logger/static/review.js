@@ -14,6 +14,9 @@ const reviewAutosaveStatus = document.querySelector("[data-review-autosave-statu
 const aiCleanupButtons = document.querySelectorAll("[data-ai-cleanup-button]");
 const reviewRecordButtons = document.querySelectorAll("[data-review-record-button]");
 const confirmationForms = document.querySelectorAll("[data-confirm-message]");
+const reviewTaskForms = document.querySelectorAll("[data-review-task-form]");
+const reviewPageLoadingOverlay = document.querySelector("[data-review-page-loading]");
+const reviewPageLoadingMessage = document.querySelector("[data-review-page-loading-message]");
 
 let reviewAutosaveTimer = null;
 let lastReviewAutosaveSnapshot = "";
@@ -97,6 +100,17 @@ function setReviewAutosaveStatus(message, isError = false) {
 
   reviewAutosaveStatus.textContent = message;
   reviewAutosaveStatus.classList.toggle("error-text", isError);
+}
+
+function showReviewPageLoading(message) {
+  if (!reviewPageLoadingOverlay) {
+    return;
+  }
+
+  if (reviewPageLoadingMessage) {
+    reviewPageLoadingMessage.textContent = message || "Loading...";
+  }
+  reviewPageLoadingOverlay.classList.remove("is-hidden");
 }
 
 function setInlineLoadingStatus(statusElement, message, {isError = false} = {}) {
@@ -607,7 +621,27 @@ function handleConfirmedFormSubmit(event) {
   const confirmationMessage = formElement.dataset.confirmMessage || "";
   if (confirmationMessage && !window.confirm(confirmationMessage)) {
     event.preventDefault();
+    return;
   }
+
+  if (formElement.matches("[data-review-task-form]")) {
+    showReviewPageLoading(formElement.dataset.reviewLoadingMessage || "Working with Autotask...");
+  }
+}
+
+function handleReviewTaskFormSubmit(event) {
+  const formElement = event.target.closest("[data-review-task-form]");
+  if (!formElement || event.defaultPrevented || formElement.dataset.confirmMessage) {
+    return;
+  }
+
+  const submitter = event.submitter || document.activeElement;
+  const loadingMessage = submitter ? submitter.dataset.reviewLoadingMessage : "";
+  if (!loadingMessage) {
+    return;
+  }
+
+  showReviewPageLoading(loadingMessage);
 }
 
 function buildReviewAutosaveSnapshot() {
@@ -794,12 +828,32 @@ function bindReviewAutosave() {
   }
 }
 
-function buildTicketOptionText(ticketOption) {
+function createTicketOptionSpan(className, textContent) {
+  const spanElement = document.createElement("span");
+  spanElement.className = className;
+  spanElement.textContent = textContent;
+  return spanElement;
+}
+
+function renderTicketOptionButton(optionButton, ticketOption) {
   const ticketNumber = ticketOption.ticket_number || "No ticket number";
   const ticketTitle = ticketOption.title || "Untitled ticket";
   const ticketStatus = ticketOption.status_label || "Unknown status";
   const companyName = ticketOption.company_name || "Unknown company";
-  return `${ticketNumber} | ${ticketTitle} | ${ticketStatus} | ${companyName}`;
+  const locationLabel = ticketOption.work_location_label || "Not specified";
+  const locationClass = ticketOption.work_location_class || "ticket-location-unknown";
+  const cardHeader = document.createElement("span");
+  cardHeader.className = "ticket-option-card-header";
+  cardHeader.append(
+    createTicketOptionSpan("ticket-option-number", ticketNumber),
+    createTicketOptionSpan("ticket-location-badge", locationLabel),
+  );
+  optionButton.className = `ticket-option-button ${locationClass}`;
+  optionButton.replaceChildren(
+    cardHeader,
+    createTicketOptionSpan("ticket-option-title", ticketTitle),
+    createTicketOptionSpan("ticket-option-meta", `${ticketStatus} | ${companyName}`),
+  );
 }
 
 function setTicketLookupStatus(statusElement, message, {isError = false, isLoading = false} = {}) {
@@ -945,8 +999,7 @@ function bindTicketLookup() {
       for (const ticketOption of ticketOptions) {
         const optionButton = document.createElement("button");
         optionButton.type = "button";
-        optionButton.className = "ticket-option-button";
-        optionButton.textContent = buildTicketOptionText(ticketOption);
+        renderTicketOptionButton(optionButton, ticketOption);
         optionButton.addEventListener("click", async () => {
           optionButton.disabled = true;
           ticketPicker.classList.add("is-loading");
@@ -1064,4 +1117,8 @@ for (const reviewRecordButton of reviewRecordButtons) {
 
 if (confirmationForms.length > 0) {
   document.addEventListener("submit", handleConfirmedFormSubmit);
+}
+
+if (reviewTaskForms.length > 0) {
+  document.addEventListener("submit", handleReviewTaskFormSubmit);
 }

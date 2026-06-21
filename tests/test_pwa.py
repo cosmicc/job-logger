@@ -14,7 +14,7 @@ def test_manifest_exposes_standalone_mobile_app_metadata(client: TestClient) -> 
     assert response.headers["content-type"].startswith("application/manifest+json")
     manifest = response.json()
     assert manifest["name"] == "Job Logger"
-    assert manifest["start_url"] == "/mobile"
+    assert manifest["start_url"] == "/home"
     assert manifest["scope"] == "/"
     assert manifest["display"] == "standalone"
     assert manifest["theme_color"] == "#0b1220"

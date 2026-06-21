@@ -230,6 +230,16 @@ class AutotaskTicketOption:
     # company_name is included because client-name searches can match more than one company.
     company_name: str
 
+    # detected_work_location is inferred from safe ticket title/description text
+    # for the open-ticket picker only; it is not an authorization source.
+    detected_work_location: WorkLocation | None = None
+
+    # work_location_label is the human label displayed on open-ticket choices.
+    work_location_label: str = "Not specified"
+
+    # status_id is the Autotask ticket status picklist value when returned.
+    status_id: int | None = None
+
 
 @dataclass(frozen=True)
 class AutotaskTicketTimeEntryContext:
@@ -277,6 +287,10 @@ class AutotaskServiceCallOption:
     # ticket_description is bounded Autotask ticket context stored on the job after the click.
     ticket_description: str | None
 
+    # ticket_status_label is the current Autotask ticket status label from the
+    # server-verified ticket lookup.
+    ticket_status_label: str
+
     # client_name is the selected Autotask company name stored on the new active job.
     client_name: str
 
@@ -303,12 +317,20 @@ class BaseAutotaskProvider:
 
         raise NotImplementedError
 
-    def update_time_entry(self, job: Job, external_id: str) -> AutotaskSubmissionResult:
+    def update_time_entry(
+        self,
+        job: Job,
+        external_id: str,
+        *,
+        resource_id: int,
+        previous_ticket_status: TicketStatus | None = None,
+        update_ticket_status: bool = True,
+    ) -> AutotaskSubmissionResult:
         """Update an existing external time entry for a submitted job."""
 
         raise NotImplementedError
 
-    def delete_time_entry(self, job: Job, external_id: str) -> AutotaskSubmissionResult:
+    def delete_time_entry(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
         """Delete an existing external time entry for a submitted job."""
 
         raise NotImplementedError
@@ -318,13 +340,30 @@ class BaseAutotaskProvider:
 
         raise NotImplementedError
 
-    def list_open_tickets_for_client(self, client_name: str, autotask_company_id: int | None = None) -> list[AutotaskTicketOption]:
+    def list_open_tickets_for_client(
+        self,
+        client_name: str,
+        autotask_company_id: int | None = None,
+        *,
+        resource_id: int | None = None,
+    ) -> list[AutotaskTicketOption]:
         """Return open ticket options for the supplied client name."""
 
         raise NotImplementedError
 
-    def search_companies(self, query_text: str) -> list[AutotaskCompanyOption]:
+    def search_companies(self, query_text: str, *, resource_id: int | None = None) -> list[AutotaskCompanyOption]:
         """Return matching Autotask companies for an autocomplete query."""
+
+        raise NotImplementedError
+
+    def mark_ticket_in_progress_if_new(
+        self,
+        ticket_number: str,
+        *,
+        current_status_label: str | None,
+        resource_id: int,
+    ) -> bool:
+        """Move a newly selected ticket into progress when work starts."""
 
         raise NotImplementedError
 
@@ -398,7 +437,7 @@ def split_autotask_summary_notes(
 
 
 def detect_work_location_from_service_call_details(service_call_details: str | None) -> WorkLocation | None:
-    """Return Remote or On-Site when a service-call details field names one."""
+    """Return Remote or On-Site when service-call or ticket text names one."""
 
     detail_text = service_call_details or ""
     remote_match = REMOTE_SERVICE_CALL_PATTERN.search(detail_text)
@@ -413,7 +452,7 @@ def detect_work_location_from_service_call_details(service_call_details: str | N
 
 
 def work_location_label_for_detection(work_location: WorkLocation | None) -> str:
-    """Return the service-call list label for a detected work location."""
+    """Return the picker label for a detected work location."""
 
     if work_location is None:
         return "Not specified"
@@ -439,6 +478,13 @@ def _safe_optional_resource_text(raw_text: Any, max_length: int = MAX_RESOURCE_N
         return None
 
     return safe_text[:max_length]
+
+
+def _is_new_ticket_status_label(status_label: str | None) -> bool:
+    """Return whether an Autotask ticket status label represents New."""
+
+    normalized_status_label = re.sub(r"[^a-z0-9]+", "", (status_label or "").casefold())
+    return normalized_status_label == "new"
 
 
 def _resource_match_text(raw_text: Any) -> str:
@@ -555,12 +601,23 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             request_snapshot=snapshot,
         )
 
-    def update_time_entry(self, job: Job, external_id: str) -> AutotaskSubmissionResult:
+    def update_time_entry(
+        self,
+        job: Job,
+        external_id: str,
+        *,
+        resource_id: int,
+        previous_ticket_status: TicketStatus | None = None,
+        update_ticket_status: bool = True,
+    ) -> AutotaskSubmissionResult:
         """Return a deterministic success for submitted-entry update tests."""
 
         snapshot = build_safe_submission_snapshot(job)
         snapshot["operation"] = "update_time_entry"
         snapshot["external_id"] = external_id
+        snapshot["resourceID"] = resource_id
+        snapshot["previous_ticket_status"] = previous_ticket_status.value if previous_ticket_status else None
+        snapshot["ticketStatusUpdateAttempted"] = update_ticket_status
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,
@@ -569,7 +626,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             request_snapshot=snapshot,
         )
 
-    def delete_time_entry(self, job: Job, external_id: str) -> AutotaskSubmissionResult:
+    def delete_time_entry(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
         """Return a deterministic success for submitted-entry delete tests."""
 
         snapshot = {
@@ -577,6 +634,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             "job_id": job.id,
             "ticket_number": job.ticket_number,
             "external_id": external_id,
+            "resourceID": resource_id,
         }
         return AutotaskSubmissionResult(
             provider=self.provider_name,
@@ -597,7 +655,13 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             checked_operations=("mock provider",),
         )
 
-    def list_open_tickets_for_client(self, client_name: str, autotask_company_id: int | None = None) -> list[AutotaskTicketOption]:
+    def list_open_tickets_for_client(
+        self,
+        client_name: str,
+        autotask_company_id: int | None = None,
+        *,
+        resource_id: int | None = None,
+    ) -> list[AutotaskTicketOption]:
         """Return deterministic open ticket options for local review testing."""
 
         safe_client_name = client_name.strip()
@@ -611,6 +675,9 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 description=f"Mock ticket description for {safe_client_name}.",
                 status_label="In Progress",
                 company_name=safe_client_name,
+                detected_work_location=WorkLocation.REMOTE,
+                work_location_label=WORK_LOCATION_SUMMARY_PREFIXES[WorkLocation.REMOTE],
+                status_id=1,
             ),
             AutotaskTicketOption(
                 ticket_number="T20260616.0002",
@@ -618,10 +685,13 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 description=f"Mock follow-up description for {safe_client_name}.",
                 status_label="Follow Up",
                 company_name=safe_client_name,
+                detected_work_location=WorkLocation.ON_SITE,
+                work_location_label=WORK_LOCATION_SUMMARY_PREFIXES[WorkLocation.ON_SITE],
+                status_id=4,
             ),
         ]
 
-    def search_companies(self, query_text: str) -> list[AutotaskCompanyOption]:
+    def search_companies(self, query_text: str, *, resource_id: int | None = None) -> list[AutotaskCompanyOption]:
         """Return deterministic company options for local autocomplete testing."""
 
         safe_query_text = query_text.strip()
@@ -632,6 +702,17 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             AutotaskCompanyOption(company_id=1001, company_name=f"{safe_query_text} Services"),
             AutotaskCompanyOption(company_id=1002, company_name=f"{safe_query_text} Holdings"),
         ]
+
+    def mark_ticket_in_progress_if_new(
+        self,
+        ticket_number: str,
+        *,
+        current_status_label: str | None,
+        resource_id: int,
+    ) -> bool:
+        """Return whether a mock newly selected ticket moved to In progress."""
+
+        return _is_new_ticket_status_label(current_status_label)
 
     def search_resources(self, query_text: str) -> list[AutotaskResourceOption]:
         """Return deterministic resource options for local web-user setup."""
@@ -703,6 +784,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 ticket_number="T20260616.0001",
                 ticket_title="Mock open ticket for Scheduled Service Client",
                 ticket_description="Mock ticket description from scheduled service call.",
+                ticket_status_label="New",
                 client_name="Scheduled Service Client",
                 autotask_company_id=1001,
                 start_datetime_utc=first_start_utc,
@@ -718,6 +800,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 ticket_number="T20260616.0002",
                 ticket_title="Mock follow-up ticket for Scheduled Service Client",
                 ticket_description="Mock follow-up description from scheduled service call.",
+                ticket_status_label="In Progress",
                 client_name="Scheduled Service Client",
                 autotask_company_id=1001,
                 start_datetime_utc=second_start_utc,
@@ -750,7 +833,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if missing_values:
             raise AutotaskSubmissionError(f"Missing live Autotask settings: {', '.join(missing_values)}")
 
-    def _headers(self) -> dict[str, str]:
+    def _headers(self, impersonation_resource_id: int | None = None) -> dict[str, str]:
         """Return required Autotask REST API headers without logging them."""
 
         headers = {
@@ -760,27 +843,41 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
-        if self.application_settings.autotask_impersonation_resource_id is not None:
-            headers["ImpersonationResourceId"] = str(self.application_settings.autotask_impersonation_resource_id)
+        if impersonation_resource_id is not None:
+            if impersonation_resource_id <= 0:
+                raise AutotaskSubmissionError("A valid managed web-user Autotask resource ID is required for impersonated Autotask calls.")
+            headers["ImpersonationResourceId"] = str(impersonation_resource_id)
 
         return headers
 
-    def _client(self, timeout_seconds: float = 30.0) -> httpx.Client:
+    def _client(self, timeout_seconds: float = 30.0, impersonation_resource_id: int | None = None) -> httpx.Client:
         """Return a short-lived HTTP client for Autotask calls."""
 
         base_url = (self.application_settings.autotask_base_url or "").rstrip("/")
-        return httpx.Client(base_url=base_url, headers=self._headers(), timeout=timeout_seconds)
+        return httpx.Client(
+            base_url=base_url,
+            headers=self._headers(impersonation_resource_id=impersonation_resource_id),
+            timeout=timeout_seconds,
+        )
 
-    def _cache_namespace(self) -> str:
+    def _cache_namespace(self, impersonation_resource_id: int | None = None) -> str:
         """Return the non-secret namespace used for tenant-specific cache keys."""
 
-        return (self.application_settings.autotask_base_url or "").rstrip("/")
+        tenant_namespace = (self.application_settings.autotask_base_url or "").rstrip("/")
+        if impersonation_resource_id is None:
+            return tenant_namespace
+        return f"{tenant_namespace}|resource:{impersonation_resource_id}"
 
-    def _open_ticket_selection_cache_key(self, client_name: str, autotask_company_id: int | None) -> tuple[str, str, int | None]:
+    def _open_ticket_selection_cache_key(
+        self,
+        client_name: str,
+        autotask_company_id: int | None,
+        impersonation_resource_id: int | None,
+    ) -> tuple[str, str, int | None]:
         """Return the cache key for a recently displayed open-ticket list."""
 
         normalized_client_name = client_name.strip().casefold()
-        return (self._cache_namespace(), normalized_client_name, autotask_company_id)
+        return (self._cache_namespace(impersonation_resource_id), normalized_client_name, autotask_company_id)
 
     def _resource_search_cache_key(self, query_text: str) -> tuple[str, str]:
         """Return the cache key for resource directory lookup results."""
@@ -796,7 +893,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Return the cache key for a selected-day service-call start list."""
 
         return (
-            self._cache_namespace(),
+            self._cache_namespace(resource_id),
             resource_id,
             format_autotask_datetime(local_day_start_utc),
             format_autotask_datetime(local_day_end_utc),
@@ -1014,7 +1111,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         ticket_records_by_id: dict[int, dict[str, Any]] = {}
         for ticket_id_chunk in _chunked_autotask_ids(ticket_ids):
             query_payload = {
-                "IncludeFields": ["id", "ticketNumber", "title", "description", "companyID"],
+                "IncludeFields": ["id", "ticketNumber", "title", "description", "companyID", "status"],
                 "filter": [
                     {
                         "op": "in",
@@ -1036,13 +1133,19 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return ticket_records_by_id
 
-    def _query_companies_by_ids(self, client: httpx.Client, company_ids: list[int]) -> dict[int, dict[str, Any]]:
+    def _query_companies_by_ids(
+        self,
+        client: httpx.Client,
+        company_ids: list[int],
+        *,
+        impersonation_resource_id: int | None = None,
+    ) -> dict[int, dict[str, Any]]:
         """Return active Autotask company records keyed by company ID."""
 
         company_records_by_id: dict[int, dict[str, Any]] = {}
         missing_company_ids: list[int] = []
         for company_id in dict.fromkeys(company_ids):
-            cache_key = (self._cache_namespace(), company_id)
+            cache_key = (self._cache_namespace(impersonation_resource_id), company_id)
             cached_company = _get_cached_value(_COMPANY_ID_CACHE, cache_key)
             if isinstance(cached_company, dict):
                 company_records_by_id[company_id] = cached_company
@@ -1073,7 +1176,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 company_records_by_id[company_id] = company_record
                 _set_cached_value(
                     _COMPANY_ID_CACHE,
-                    (self._cache_namespace(), company_id),
+                    (self._cache_namespace(impersonation_resource_id), company_id),
                     company_record,
                     COMPANY_CACHE_TTL_SECONDS,
                 )
@@ -1088,6 +1191,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         service_call_ticket_resource_records: list[dict[str, Any]],
         ticket_records_by_id: dict[int, dict[str, Any]],
         company_records_by_id: dict[int, dict[str, Any]],
+        status_labels: dict[int, str],
     ) -> list[AutotaskServiceCallOption]:
         """Build mobile-safe service-call choices from related Autotask rows."""
 
@@ -1151,6 +1255,12 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 if not ticket_number:
                     continue
 
+                raw_status_id = ticket_record.get("status")
+                try:
+                    status_id = int(raw_status_id)
+                except (TypeError, ValueError):
+                    status_id = -1
+
                 company_id = (
                     _coerce_positive_autotask_id(service_call_record.get("companyID"))
                     or _coerce_positive_autotask_id(ticket_record.get("companyID"))
@@ -1176,6 +1286,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                         ticket_number=ticket_number,
                         ticket_title=_safe_service_call_text(ticket_record.get("title"), "Untitled ticket", 240),
                         ticket_description=ticket_description,
+                        ticket_status_label=status_labels.get(status_id, str(raw_status_id or "Unknown")),
                         client_name=client_name,
                         autotask_company_id=company_id,
                         start_datetime_utc=start_datetime_utc,
@@ -1401,11 +1512,17 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         _set_cached_value(_TICKET_STATUS_CACHE, cache_key, status_labels)
         return status_labels
 
-    def _query_companies_by_name(self, client: httpx.Client, client_name: str) -> list[dict[str, Any]]:
+    def _query_companies_by_name(
+        self,
+        client: httpx.Client,
+        client_name: str,
+        *,
+        impersonation_resource_id: int | None = None,
+    ) -> list[dict[str, Any]]:
         """Return active Autotask companies whose names contain the job client name."""
 
         normalized_query_text = client_name.strip().casefold()
-        cache_key = (self._cache_namespace(), normalized_query_text)
+        cache_key = (self._cache_namespace(impersonation_resource_id), normalized_query_text)
         cached_companies = _get_cached_value(_COMPANY_SEARCH_CACHE, cache_key)
         if isinstance(cached_companies, list) and cached_companies:
             return cached_companies[:MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP]
@@ -1438,16 +1555,22 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     continue
                 _set_cached_value(
                     _COMPANY_ID_CACHE,
-                    (self._cache_namespace(), active_company_id),
+                    (self._cache_namespace(impersonation_resource_id), active_company_id),
                     active_company,
                     COMPANY_CACHE_TTL_SECONDS,
                 )
         return active_companies[:MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP]
 
-    def _query_company_by_id(self, client: httpx.Client, company_id: int) -> dict[str, Any] | None:
+    def _query_company_by_id(
+        self,
+        client: httpx.Client,
+        company_id: int,
+        *,
+        impersonation_resource_id: int | None = None,
+    ) -> dict[str, Any] | None:
         """Return one active Autotask company by ID."""
 
-        cache_key = (self._cache_namespace(), company_id)
+        cache_key = (self._cache_namespace(impersonation_resource_id), company_id)
         cached_company = _get_cached_value(_COMPANY_ID_CACHE, cache_key)
         if isinstance(cached_company, dict):
             return cached_company
@@ -1649,39 +1772,61 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             except (TypeError, ValueError):
                 status_id = -1
 
+            ticket_title = str(ticket.get("title") or "Untitled ticket")[:240]
+            ticket_description = str(ticket.get("description") or "").strip()[:8000] or None
+            detected_work_location = detect_work_location_from_service_call_details(
+                "\n".join(text for text in (ticket_title, ticket_description) if text)
+            )
             ticket_options.append(
                 AutotaskTicketOption(
                     ticket_number=ticket_number,
-                    title=str(ticket.get("title") or "Untitled ticket")[:240],
-                    description=str(ticket.get("description") or "").strip()[:8000] or None,
+                    title=ticket_title,
+                    description=ticket_description,
                     status_label=status_labels.get(status_id, str(raw_status_id or "Unknown")),
                     company_name=company_name,
+                    detected_work_location=detected_work_location,
+                    work_location_label=work_location_label_for_detection(detected_work_location),
+                    status_id=status_id if status_id >= 0 else None,
                 )
             )
 
         return ticket_options
 
-    def list_open_tickets_for_client(self, client_name: str, autotask_company_id: int | None = None) -> list[AutotaskTicketOption]:
+    def list_open_tickets_for_client(
+        self,
+        client_name: str,
+        autotask_company_id: int | None = None,
+        *,
+        resource_id: int | None = None,
+    ) -> list[AutotaskTicketOption]:
         """Return open Autotask tickets for a selected company or client-name match."""
 
         safe_client_name = client_name.strip()
         if not safe_client_name:
             raise AutotaskSubmissionError("Client name is required before searching Autotask tickets.")
 
-        cache_key = self._open_ticket_selection_cache_key(safe_client_name, autotask_company_id)
+        cache_key = self._open_ticket_selection_cache_key(safe_client_name, autotask_company_id, resource_id)
         cached_ticket_options = _get_cached_value(_OPEN_TICKET_SELECTION_CACHE, cache_key)
         if isinstance(cached_ticket_options, list) and cached_ticket_options:
             return cached_ticket_options[:MAX_TICKET_LOOKUP_RESULTS]
 
         ticket_options: list[AutotaskTicketOption] = []
-        with self._client() as client:
+        with self._client(impersonation_resource_id=resource_id) as client:
             status_labels = self._query_ticket_status_labels(client)
             companies: list[dict[str, Any]]
             if autotask_company_id is not None:
-                selected_company = self._query_company_by_id(client, autotask_company_id)
+                selected_company = self._query_company_by_id(
+                    client,
+                    autotask_company_id,
+                    impersonation_resource_id=resource_id,
+                )
                 companies = [selected_company] if selected_company is not None else []
             else:
-                companies = self._query_companies_by_name(client, safe_client_name)
+                companies = self._query_companies_by_name(
+                    client,
+                    safe_client_name,
+                    impersonation_resource_id=resource_id,
+                )
 
             for company in companies:
                 if len(ticket_options) >= MAX_TICKET_LOOKUP_RESULTS:
@@ -1709,15 +1854,19 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return selected_ticket_options
 
-    def search_companies(self, query_text: str) -> list[AutotaskCompanyOption]:
+    def search_companies(self, query_text: str, *, resource_id: int | None = None) -> list[AutotaskCompanyOption]:
         """Return active Autotask companies matching a user-entered query."""
 
         safe_query_text = query_text.strip()
         if len(safe_query_text) < MIN_COMPANY_SEARCH_CHARACTERS:
             raise AutotaskSubmissionError("Type at least 3 characters before searching Autotask companies.")
 
-        with self._client() as client:
-            companies = self._query_companies_by_name(client, safe_query_text)
+        with self._client(impersonation_resource_id=resource_id) as client:
+            companies = self._query_companies_by_name(
+                client,
+                safe_query_text,
+                impersonation_resource_id=resource_id,
+            )
 
         return [
             AutotaskCompanyOption(
@@ -1776,7 +1925,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if isinstance(cached_service_call_options, list):
             return cached_service_call_options[:MAX_SERVICE_CALL_LOOKUP_RESULTS]
 
-        with self._client() as client:
+        with self._client(impersonation_resource_id=resource_id) as client:
             service_call_records = self._query_todays_service_calls(
                 client,
                 local_day_start_utc=local_day_start_utc,
@@ -1847,13 +1996,19 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 for ticket_record in ticket_records_by_id.values()
                 if (company_id := _coerce_positive_autotask_id(ticket_record.get("companyID"))) is not None
             )
-            company_records_by_id = self._query_companies_by_ids(client, company_ids)
+            company_records_by_id = self._query_companies_by_ids(
+                client,
+                company_ids,
+                impersonation_resource_id=resource_id,
+            )
+            status_labels = self._query_ticket_status_labels(client)
             service_call_options = self._build_service_call_options(
                 service_call_records=service_call_records,
                 service_call_ticket_records=service_call_ticket_records,
                 service_call_ticket_resource_records=service_call_ticket_resource_records,
                 ticket_records_by_id=ticket_records_by_id,
                 company_records_by_id=company_records_by_id,
+                status_labels=status_labels,
             )[:MAX_SERVICE_CALL_LOOKUP_RESULTS]
 
         _set_cached_value(
@@ -1946,6 +2101,36 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         response = client.patch("/Tickets", json={"id": ticket_id, "status": status_id})
         self._raise_for_safe_response(response, "Autotask ticket status update")
 
+    def _can_update_ticket_status(self, ticket_status: TicketStatus | None) -> bool:
+        """Return whether a local status has a configured Autotask picklist ID."""
+
+        return ticket_status is not None and self.application_settings.autotask_status_id_map.get(ticket_status.value) is not None
+
+    def mark_ticket_in_progress_if_new(
+        self,
+        ticket_number: str,
+        *,
+        current_status_label: str | None,
+        resource_id: int,
+    ) -> bool:
+        """Move a newly selected ticket to In progress using the owning managed user."""
+
+        if not _is_new_ticket_status_label(current_status_label):
+            return False
+
+        safe_ticket_number = ticket_number.strip()
+        if not safe_ticket_number:
+            raise AutotaskSubmissionError("Ticket number is required before updating ticket status.")
+
+        try:
+            with self._client(impersonation_resource_id=resource_id) as client:
+                ticket_id = self._query_ticket_id(client, safe_ticket_number)
+                self._update_ticket_status(client, ticket_id, TicketStatus.IN_PROGRESS)
+        except (httpx.HTTPError, AutotaskSubmissionError):
+            raise
+
+        return True
+
     def _time_entry_payload(
         self,
         job: Job,
@@ -2034,18 +2219,26 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         snapshot.update(
             {
                 "resourceID": resource_id,
+                "impersonationResourceID": resource_id,
+                "impersonationResourceIDSource": "managed_web_user.autotask_resource_id",
                 "roleIDSource": "ticket.assignedResourceroleID",
                 "billingCodeIDSource": "ticket inheritance",
                 "timeEntryType": self.application_settings.autotask_time_entry_type,
-                "impersonationResourceIDConfigured": self.application_settings.autotask_impersonation_resource_id is not None,
+                "ticketStatusPreUpdate": None,
+                "ticketStatusPostUpdate": None,
             }
         )
         try:
-            with self._client() as client:
+            with self._client(impersonation_resource_id=resource_id) as client:
                 ticket_context = self._query_ticket_time_entry_context(client, job.ticket_number)
                 snapshot["roleID"] = ticket_context.role_id
                 snapshot["ticketBillingCodeID"] = ticket_context.billing_code_id
-                self._update_ticket_status(client, ticket_context.ticket_id, job.ticket_status)
+                if job.ticket_status == TicketStatus.COMPLETE:
+                    snapshot["ticketStatusPreUpdate"] = TicketStatus.IN_PROGRESS.value
+                    self._update_ticket_status(client, ticket_context.ticket_id, TicketStatus.IN_PROGRESS)
+                elif self._can_update_ticket_status(job.ticket_status):
+                    snapshot["ticketStatusPreUpdate"] = job.ticket_status.value if job.ticket_status else None
+                    self._update_ticket_status(client, ticket_context.ticket_id, job.ticket_status)
                 external_id = self._create_time_entry(
                     client,
                     job,
@@ -2053,6 +2246,9 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     resource_id=resource_id,
                     role_id=ticket_context.role_id,
                 )
+                if job.ticket_status == TicketStatus.COMPLETE:
+                    snapshot["ticketStatusPostUpdate"] = TicketStatus.COMPLETE.value
+                    self._update_ticket_status(client, ticket_context.ticket_id, TicketStatus.COMPLETE)
         except (httpx.HTTPError, AutotaskSubmissionError) as exc:
             return AutotaskSubmissionResult(
                 provider=self.provider_name,
@@ -2070,25 +2266,56 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             request_snapshot=snapshot,
         )
 
-    def update_time_entry(self, job: Job, external_id: str) -> AutotaskSubmissionResult:
+    def update_time_entry(
+        self,
+        job: Job,
+        external_id: str,
+        *,
+        resource_id: int,
+        previous_ticket_status: TicketStatus | None = None,
+        update_ticket_status: bool = True,
+    ) -> AutotaskSubmissionResult:
         """Update an existing Autotask time entry from reviewed submitted fields."""
 
         if not job.ticket_number:
             raise AutotaskSubmissionError("Ticket number is required before Autotask time entry updates.")
 
+        should_update_ticket_status = update_ticket_status and self._can_update_ticket_status(job.ticket_status)
+        should_reopen_complete_ticket = previous_ticket_status == TicketStatus.COMPLETE
+        should_update_status_after_time_entry = should_reopen_complete_ticket and job.ticket_status != TicketStatus.IN_PROGRESS
+        if job.ticket_status == TicketStatus.COMPLETE:
+            should_update_status_after_time_entry = True
         snapshot = build_safe_submission_snapshot(job)
         snapshot.update(
             {
                 "operation": "update_time_entry",
                 "external_id": external_id,
-                "impersonationResourceIDConfigured": self.application_settings.autotask_impersonation_resource_id is not None,
+                "resourceID": resource_id,
+                "impersonationResourceID": resource_id,
+                "impersonationResourceIDSource": "managed_web_user.autotask_resource_id",
+                "previousTicketStatus": previous_ticket_status.value if previous_ticket_status else None,
+                "ticketStatusUpdateRequested": update_ticket_status,
+                "ticketStatusUpdateAttempted": should_update_ticket_status,
+                "ticketStatusPreUpdate": TicketStatus.IN_PROGRESS.value if should_reopen_complete_ticket else None,
+                "ticketStatusPostUpdate": (
+                    job.ticket_status.value if should_update_status_after_time_entry and job.ticket_status is not None else None
+                ),
             }
         )
         try:
-            with self._client() as client:
-                ticket_id = self._query_ticket_id(client, job.ticket_number)
-                self._update_ticket_status(client, ticket_id, job.ticket_status)
+            with self._client(impersonation_resource_id=resource_id) as client:
+                ticket_id: int | None = None
+                if should_reopen_complete_ticket or should_update_ticket_status:
+                    ticket_id = self._query_ticket_id(client, job.ticket_number)
+                if should_reopen_complete_ticket and ticket_id is not None:
+                    self._update_ticket_status(client, ticket_id, TicketStatus.IN_PROGRESS)
+                elif should_update_ticket_status and job.ticket_status != TicketStatus.COMPLETE and ticket_id is not None:
+                    self._update_ticket_status(client, ticket_id, job.ticket_status)
                 self._update_time_entry(client, job, external_id)
+                if should_update_status_after_time_entry and job.ticket_status is not None:
+                    if ticket_id is None:
+                        ticket_id = self._query_ticket_id(client, job.ticket_number)
+                    self._update_ticket_status(client, ticket_id, job.ticket_status)
         except (httpx.HTTPError, AutotaskSubmissionError) as exc:
             return AutotaskSubmissionResult(
                 provider=self.provider_name,
@@ -2106,7 +2333,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             request_snapshot=snapshot,
         )
 
-    def delete_time_entry(self, job: Job, external_id: str) -> AutotaskSubmissionResult:
+    def delete_time_entry(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
         """Delete an existing Autotask time entry from a submitted job."""
 
         snapshot = {
@@ -2114,10 +2341,12 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             "job_id": job.id,
             "ticket_number": job.ticket_number,
             "external_id": external_id,
-            "impersonationResourceIDConfigured": self.application_settings.autotask_impersonation_resource_id is not None,
+            "resourceID": resource_id,
+            "impersonationResourceID": resource_id,
+            "impersonationResourceIDSource": "managed_web_user.autotask_resource_id",
         }
         try:
-            with self._client() as client:
+            with self._client(impersonation_resource_id=resource_id) as client:
                 self._delete_time_entry(client, external_id)
         except (httpx.HTTPError, AutotaskSubmissionError) as exc:
             return AutotaskSubmissionResult(

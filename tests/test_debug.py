@@ -116,7 +116,7 @@ def test_debug_routes_are_super_admin_only(client: TestClient) -> None:
     """Managed web users must not see or access debug diagnostics."""
 
     login_as_web_user(client)
-    mobile_response = client.get("/mobile")
+    mobile_response = client.get("/home")
     assert mobile_response.status_code == 200
     assert 'href="/debug"' not in mobile_response.text
 
@@ -229,7 +229,7 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
 def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -> None:
     """Authenticated users should see submission attempts and connection diagnostics."""
 
-    start_page_response = authenticated_client.get("/mobile")
+    start_page_response = authenticated_client.get("/home")
     csrf_token = extract_csrf_token(start_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",

@@ -21,6 +21,7 @@ const activeTicketForms = document.querySelectorAll(".active-ticket-form");
 const companyInputs = document.querySelectorAll("[data-company-input]");
 const activeTicketPickers = document.querySelectorAll("[data-active-ticket-picker]");
 const workLocationInputs = document.querySelectorAll("[data-work-location-input]");
+const activeTicketStatusInputs = document.querySelectorAll("[data-active-ticket-status-input]");
 const serviceCallPanels = document.querySelectorAll("[data-service-call-panel]");
 const aiCleanupButtons = document.querySelectorAll("[data-ai-cleanup-button]");
 const roundedStopDisplays = document.querySelectorAll("[data-rounded-stop-display]");
@@ -311,6 +312,14 @@ function showMobilePageLoading(message) {
     mobilePageLoadingMessage.textContent = message || "Loading...";
   }
   mobilePageLoadingOverlay.classList.remove("is-hidden");
+}
+
+function hideMobilePageLoading() {
+  if (!mobilePageLoadingOverlay) {
+    return;
+  }
+
+  mobilePageLoadingOverlay.classList.add("is-hidden");
 }
 
 function markSubmitFormPending(formElement) {
@@ -1093,11 +1102,31 @@ function streamAudioChunk(activeJobId, audioChunk) {
   setRecordingProgressStatus(activeJobId, RECORDING_STATUS_RECORDING);
 }
 
-function buildTicketOptionText(ticketOption) {
+function createTicketOptionSpan(className, textContent) {
+  const spanElement = document.createElement("span");
+  spanElement.className = className;
+  spanElement.textContent = textContent;
+  return spanElement;
+}
+
+function renderTicketOptionButton(optionButton, ticketOption) {
   const ticketNumber = ticketOption.ticket_number || "No ticket number";
   const ticketTitle = ticketOption.title || "Untitled ticket";
   const ticketStatus = ticketOption.status_label || "Unknown status";
-  return `${ticketNumber} | ${ticketTitle} | ${ticketStatus}`;
+  const locationLabel = ticketOption.work_location_label || "Not specified";
+  const locationClass = ticketOption.work_location_class || "ticket-location-unknown";
+  const cardHeader = document.createElement("span");
+  cardHeader.className = "ticket-option-card-header";
+  cardHeader.append(
+    createTicketOptionSpan("ticket-option-number", ticketNumber),
+    createTicketOptionSpan("ticket-location-badge", locationLabel),
+  );
+  optionButton.className = `ticket-option-button ${locationClass}`;
+  optionButton.replaceChildren(
+    cardHeader,
+    createTicketOptionSpan("ticket-option-title", ticketTitle),
+    createTicketOptionSpan("ticket-option-meta", ticketStatus),
+  );
 }
 
 function setTicketLookupStatus(statusElement, message, {isError = false, isLoading = false} = {}) {
@@ -1235,7 +1264,7 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
   serviceCallForm.action = "/jobs/start/service-call";
   serviceCallForm.className = "service-call-start-form";
   serviceCallForm.dataset.pageLoadingForm = "";
-  serviceCallForm.dataset.loadingMessage = "Starting from service call...";
+  serviceCallForm.dataset.loadingMessage = "Starting work and updating Autotask ticket status...";
 
   const csrfInput = document.createElement("input");
   csrfInput.type = "hidden";
@@ -1378,6 +1407,7 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   const ticketTitleDisplay = activeJobCard.querySelector("[data-active-ticket-title-display]");
   const ticketDescriptionCard = activeJobCard.querySelector("[data-active-ticket-description-card]");
   const ticketDescriptionDisplay = activeJobCard.querySelector("[data-active-ticket-description-display]");
+  const ticketStatusInput = activeJobCard.querySelector("[data-active-ticket-status-input]");
 
   if (ticketNumberCard && ticketNumber) {
     ticketNumberCard.classList.remove("is-hidden");
@@ -1398,6 +1428,9 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   }
   if (ticketDescriptionDisplay) {
     ticketDescriptionDisplay.textContent = ticketDescription;
+  }
+  if (ticketStatusInput && selectedTicket.ticket_status) {
+    ticketStatusInput.value = selectedTicket.ticket_status;
   }
 }
 
@@ -1465,8 +1498,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
     for (const ticketOption of ticketOptions) {
       const optionButton = document.createElement("button");
       optionButton.type = "button";
-      optionButton.className = "ticket-option-button";
-      optionButton.textContent = buildTicketOptionText(ticketOption);
+      renderTicketOptionButton(optionButton, ticketOption);
       optionButton.addEventListener("click", async () => {
         const activeTicketForm = findActiveTicketForm(jobId);
         const ticketInput = activeTicketForm ? activeTicketForm.querySelector(".active-ticket-number") : null;
@@ -1479,7 +1511,8 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
         optionButton.disabled = true;
         ticketPicker.classList.add("is-loading");
         ticketPicker.setAttribute("aria-busy", "true");
-        setTicketLookupStatus(statusElement, "Saving selected ticket...", {isLoading: true});
+        showMobilePageLoading("Updating Autotask ticket status...");
+        setTicketLookupStatus(statusElement, "Updating Autotask ticket status...", {isLoading: true});
         resultsElement.replaceChildren();
         try {
           if (ticketSelectUrl) {
@@ -1494,6 +1527,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
             updateActiveTicketDisplay(jobId, selectedTicket);
             ticketPicker.hidden = true;
             ticketPicker.classList.add("is-hidden");
+            hideMobilePageLoading();
             return;
           }
 
@@ -1508,6 +1542,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
           submitFormWithCurrentFields(activeTicketForm);
         } catch (error) {
           activeTicketLookupLoaded.delete(ticketPicker);
+          hideMobilePageLoading();
           ticketPicker.classList.remove("is-loading");
           ticketPicker.removeAttribute("aria-busy");
           ticketPicker.hidden = false;
@@ -1723,6 +1758,13 @@ for (const workLocationInput of workLocationInputs) {
     }
 
     const activeTicketForm = document.getElementById(workLocationInput.getAttribute("form") || "");
+    queueActiveJobFormSave(activeTicketForm, true);
+  });
+}
+
+for (const activeTicketStatusInput of activeTicketStatusInputs) {
+  activeTicketStatusInput.addEventListener("change", () => {
+    const activeTicketForm = document.getElementById(activeTicketStatusInput.getAttribute("form") || "");
     queueActiveJobFormSave(activeTicketForm, true);
   });
 }

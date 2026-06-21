@@ -1,9 +1,9 @@
 {
-  "id": "/mobile",
+  "id": "/home",
   "name": "Job Logger",
   "short_name": "Job Logger",
   "description": "Quick work timer, notes capture, review, and Autotask submission.",
-  "start_url": "/mobile",
+  "start_url": "/home",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "browser"],
@@ -47,7 +47,7 @@
     {
       "name": "Work Entry",
       "short_name": "Work",
-      "url": "/mobile",
+      "url": "/home",
       "description": "Open the active work entry screen."
     },
     {

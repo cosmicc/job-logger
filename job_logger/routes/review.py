@@ -38,6 +38,7 @@ from job_logger.services.jobs import (
     list_review_jobs,
     purge_job,
     submit_job_to_autotask,
+    ticket_status_from_autotask_label,
     update_submitted_job_autotask_entry,
     validate_review_fields,
 )
@@ -135,6 +136,7 @@ def review_ticket_options(
         ticket_options = get_autotask_provider().list_open_tickets_for_client(
             job.client_name,
             job.autotask_company_id,
+            resource_id=web_user.autotask_resource_id,
         )
     except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
@@ -149,7 +151,10 @@ def review_ticket_options(
                     "title": ticket_option.title,
                     "description": ticket_option.description,
                     "status_label": ticket_option.status_label,
+                    "status_id": ticket_option.status_id,
                     "company_name": ticket_option.company_name,
+                    "work_location_label": ticket_option.work_location_label,
+                    "work_location_class": _ticket_option_location_class(ticket_option),
                 }
                 for ticket_option in ticket_options
             ],
@@ -189,6 +194,15 @@ def _find_matching_ticket_option(ticket_options: list[AutotaskTicketOption], tic
             return ticket_option
 
     return None
+
+
+def _ticket_option_location_class(ticket_option: AutotaskTicketOption) -> str:
+    """Return the CSS class used for open-ticket location treatment."""
+
+    if ticket_option.detected_work_location is None:
+        return "ticket-location-unknown"
+
+    return f"ticket-location-{ticket_option.detected_work_location.value}"
 
 
 def _review_save_payload(job: object) -> dict[str, object]:
@@ -380,7 +394,12 @@ async def edit_submitted_entry(
             _read_only_review_form_values(form_values, job),
             require_ticket_number=True,
         )
-        update_submitted_job_autotask_entry(database_session, job, review_fields)
+        update_submitted_job_autotask_entry(
+            database_session,
+            job,
+            review_fields,
+            resource_id=web_user.autotask_resource_id,
+        )
         record_audit_event(
             database_session,
             actor=actor,
@@ -420,7 +439,11 @@ async def delete_submitted_entry(
         job = get_job_or_raise(database_session, job_id)
         ensure_job_owned_by_web_user(job, web_user.id)
         original_external_id = job.autotask_external_id
-        delete_submitted_job_autotask_entry(database_session, job)
+        delete_submitted_job_autotask_entry(
+            database_session,
+            job,
+            resource_id=web_user.autotask_resource_id,
+        )
         record_audit_event(
             database_session,
             actor=actor,
@@ -546,16 +569,19 @@ async def select_review_ticket(
         ticket_options = get_autotask_provider().list_open_tickets_for_client(
             job.client_name,
             job.autotask_company_id,
+            resource_id=web_user.autotask_resource_id,
         )
         selected_ticket_option = _find_matching_ticket_option(ticket_options, submitted_ticket_number)
         if selected_ticket_option is None:
             raise JobWorkflowError("Selected ticket was not found in the open-ticket list for this client.")
 
+        selected_ticket_status = ticket_status_from_autotask_label(selected_ticket_option.status_label)
         apply_selected_ticket_from_lookup(
             job,
             selected_ticket_option.ticket_number,
             selected_ticket_option.title,
             selected_ticket_option.description,
+            ticket_status=selected_ticket_status,
         )
         record_audit_event(
             database_session,
@@ -567,6 +593,8 @@ async def select_review_ticket(
                 "ticket_number": job.ticket_number,
                 "ticket_title_present": bool(job.ticket_title),
                 "ticket_description_present": bool(job.ticket_description),
+                "ticket_status": job.ticket_status.value if job.ticket_status else None,
+                "autotask_ticket_status_label": selected_ticket_option.status_label,
                 "autotask_company_selected": job.autotask_company_id is not None,
             },
         )
@@ -580,6 +608,8 @@ async def select_review_ticket(
             "ticket_number": job.ticket_number,
             "ticket_title": job.ticket_title,
             "ticket_description": job.ticket_description,
+            "ticket_status": job.ticket_status.value if job.ticket_status else None,
+            "ticket_status_label": selected_ticket_option.status_label,
         }
     )
 

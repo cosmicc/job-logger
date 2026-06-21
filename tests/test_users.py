@@ -74,7 +74,7 @@ def test_super_admin_adds_first_web_user_and_claims_existing_jobs(super_admin_cl
         assert job.web_user_id == user.id
 
     login_as(super_admin_client, username="first-tech", password=first_user_password)
-    mobile_response = super_admin_client.get("/mobile")
+    mobile_response = super_admin_client.get("/home")
     assert mobile_response.status_code == 200
     assert "Start a work entry" in mobile_response.text
 
@@ -112,7 +112,7 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
 def test_super_admin_is_read_only_for_work_entries(super_admin_client: TestClient) -> None:
     """The config super admin can view but cannot create work entries."""
 
-    mobile_response = super_admin_client.get("/mobile")
+    mobile_response = super_admin_client.get("/home")
     csrf_token = extract_csrf_token(mobile_response.text)
     start_response = super_admin_client.post(
         "/jobs/start",
@@ -158,7 +158,7 @@ def test_users_page_disables_user_with_job_history(
 ) -> None:
     """Users with jobs are disabled instead of deleted so history remains linked."""
 
-    mobile_page = authenticated_client.get("/mobile")
+    mobile_page = authenticated_client.get("/home")
     csrf_token = extract_csrf_token(mobile_page.text)
     start_response = authenticated_client.post(
         "/jobs/start",

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from job_logger.config import settings
 from job_logger.database import get_database_session
-from job_logger.enums import JobStatus, WorkLocation
+from job_logger.enums import JobStatus, TicketStatus, WorkLocation
 from job_logger.security import (
     add_flash_message,
     is_super_admin_session,
@@ -53,6 +53,7 @@ from job_logger.services.jobs import (
     mark_job_transcription_failed,
     rounded_stop_for_active_job,
     start_job,
+    ticket_status_from_autotask_label,
     transcribe_active_job_audio,
     update_active_job_ticket_number,
     update_description_text,
@@ -100,6 +101,38 @@ def _service_call_start_work_location(service_call_option: AutotaskServiceCallOp
     """Return the work-location mode stored when a service call starts a job."""
 
     return service_call_option.detected_work_location or WorkLocation.REMOTE
+
+
+def _ticket_status_options() -> list[tuple[str, str]]:
+    """Return ticket status options for active mobile jobs."""
+
+    return [
+        (TicketStatus.IN_PROGRESS.value, "In progress"),
+        (TicketStatus.WAITING_CUSTOMER.value, "Waiting customer"),
+        (TicketStatus.WAITING_PARTS.value, "Waiting parts"),
+        (TicketStatus.FOLLOW_UP.value, "Follow up"),
+        (TicketStatus.COMPLETE.value, "Complete"),
+    ]
+
+
+def _status_for_started_autotask_ticket(
+    ticket_number: str,
+    status_label: str | None,
+    *,
+    resource_id: int,
+) -> tuple[TicketStatus | None, bool]:
+    """Return the local status after starting work on a selected Autotask ticket."""
+
+    provider = get_autotask_provider()
+    ticket_was_new = provider.mark_ticket_in_progress_if_new(
+        ticket_number,
+        current_status_label=status_label,
+        resource_id=resource_id,
+    )
+    if ticket_was_new:
+        return TicketStatus.IN_PROGRESS, True
+
+    return ticket_status_from_autotask_label(status_label), False
 
 
 def _current_enabled_web_user(request: Request, database_session: Session):
@@ -205,6 +238,7 @@ def _service_call_option_payload(service_call_option: AutotaskServiceCallOption)
         ),
         "work_location_label": service_call_option.work_location_label,
         "work_location_class": _service_call_location_class(service_call_option),
+        "ticket_status_label": service_call_option.ticket_status_label,
     }
 
 
@@ -563,17 +597,17 @@ async def _receive_audio_stream_chunks(
 
 @router.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
-    """Redirect the root URL to the mobile work logger."""
+    """Redirect the root URL to the home work logger."""
 
-    return RedirectResponse(url="/mobile", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
 
 
-@router.get("/mobile", response_class=HTMLResponse)
-def mobile_page(
+@router.get("/home", response_class=HTMLResponse)
+def home_page(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> Response:
-    """Render the mobile work logging page."""
+    """Render the authenticated home work logging page."""
 
     if not require_authenticated_username_or_redirect(request):
         return RedirectResponse(url="/login", status_code=303)
@@ -593,6 +627,7 @@ def mobile_page(
                 database_session=database_session,
                 active_jobs=[],
                 active_rounded_stop_times={},
+                ticket_status_options=_ticket_status_options(),
                 can_start_jobs=False,
                 start_block_reason="The config super admin can view jobs, but cannot start work because it has no Autotask resource ID.",
             ),
@@ -612,19 +647,20 @@ def mobile_page(
             database_session=database_session,
             active_jobs=active_jobs,
             active_rounded_stop_times=active_rounded_stop_times,
+            ticket_status_options=_ticket_status_options(),
             can_start_jobs=True,
             start_block_reason=None,
         ),
     )
 
 
-@router.get("/mobile/service-calls")
-def mobile_service_call_options(
+@router.get("/home/service-calls")
+def home_service_call_options(
     request: Request,
     service_call_date: str | None = Query(default=None, alias="date"),
     database_session: Session = Depends(get_database_session),
 ) -> JSONResponse:
-    """Return service-call start options for the already-rendered mobile page."""
+    """Return service-call start options for the already-rendered home page."""
 
     try:
         web_user = _current_enabled_web_user(request, database_session)
@@ -669,11 +705,29 @@ def mobile_service_call_options(
     )
 
 
+@router.get("/mobile", include_in_schema=False)
+def legacy_mobile_page_redirect() -> RedirectResponse:
+    """Redirect the old route name to the canonical home route."""
+
+    return RedirectResponse(url="/home", status_code=308)
+
+
+@router.get("/mobile/service-calls", include_in_schema=False)
+def legacy_mobile_service_call_redirect(request: Request) -> RedirectResponse:
+    """Redirect the old service-call endpoint to the canonical home endpoint."""
+
+    query_string = request.url.query
+    redirect_url = "/home/service-calls"
+    if query_string:
+        redirect_url = f"{redirect_url}?{query_string}"
+    return RedirectResponse(url=redirect_url, status_code=308)
+
+
 @router.get("/moble", include_in_schema=False)
 def mobile_typo_redirect() -> RedirectResponse:
-    """Redirect a common mobile URL typo to the real mobile work logger."""
+    """Redirect a common old home URL typo to the canonical home work logger."""
 
-    return RedirectResponse(url="/mobile", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
 
 
 @router.get("/autotask/companies")
@@ -685,11 +739,14 @@ def autotask_company_options(
     """Return safe Autotask company options for authenticated autocomplete."""
 
     try:
-        _current_enabled_web_user(request, database_session)
+        web_user = _current_enabled_web_user(request, database_session)
     except (HTTPException, WebUserError) as exc:
         return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=403)
     try:
-        company_options = get_autotask_provider().search_companies(query)
+        company_options = get_autotask_provider().search_companies(
+            query,
+            resource_id=web_user.autotask_resource_id,
+        )
     except AutotaskSubmissionError as exc:
         return JSONResponse({"detail": str(exc)}, status_code=400)
 
@@ -742,7 +799,7 @@ async def start_work(
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/mobile", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
 
 
 @router.post("/jobs/start/service-call")
@@ -761,17 +818,17 @@ async def start_work_from_service_call(
         service_call_ticket_id = int(str(raw_service_call_ticket_id or "").strip())
     except ValueError:
         add_flash_message(request, "Selected service call is invalid.", "error")
-        return RedirectResponse(url="/mobile", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     if service_call_ticket_id <= 0:
         add_flash_message(request, "Selected service call is invalid.", "error")
-        return RedirectResponse(url="/mobile", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     try:
         selected_service_call_date = _parse_service_call_local_date(str(form_data.get("service_call_date") or ""))
     except ValueError as exc:
         add_flash_message(request, str(exc), "error")
-        return RedirectResponse(url="/mobile", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     try:
         web_user = _current_enabled_web_user(request, database_session)
@@ -783,6 +840,11 @@ async def start_work_from_service_call(
         if selected_service_call is None:
             raise JobWorkflowError("Selected service call is not assigned to this resource for that date.")
 
+        ticket_status, ticket_status_changed_in_autotask = _status_for_started_autotask_ticket(
+            selected_service_call.ticket_number,
+            selected_service_call.ticket_status_label,
+            resource_id=web_user.autotask_resource_id,
+        )
         job = start_job(
             database_session,
             web_user_id=web_user.id,
@@ -790,12 +852,14 @@ async def start_work_from_service_call(
             client_name=selected_service_call.client_name,
             autotask_company_id=selected_service_call.autotask_company_id,
             work_location=_service_call_start_work_location(selected_service_call),
+            ticket_status=ticket_status,
         )
         apply_selected_ticket_from_lookup(
             job,
             selected_service_call.ticket_number,
             selected_service_call.ticket_title,
             selected_service_call.ticket_description,
+            ticket_status=ticket_status,
         )
         record_audit_event(
             database_session,
@@ -811,6 +875,9 @@ async def start_work_from_service_call(
                 "service_call_ticket_id": selected_service_call.service_call_ticket_id,
                 "service_call_date": selected_service_call_date.isoformat(),
                 "ticket_number": job.ticket_number,
+                "ticket_status": job.ticket_status.value if job.ticket_status else None,
+                "autotask_ticket_status_label": selected_service_call.ticket_status_label,
+                "autotask_ticket_status_changed_to_in_progress": ticket_status_changed_in_autotask,
                 "autotask_company_selected": job.autotask_company_id is not None,
                 "work_location": job.work_location.value,
                 "work_location_detected": selected_service_call.detected_work_location is not None,
@@ -822,7 +889,7 @@ async def start_work_from_service_call(
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/mobile", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
 
 
 @router.post("/jobs/{job_id}/ticket-number")
@@ -844,6 +911,8 @@ async def save_ticket_number(
     raw_summary_text = form_data.get("summary_notes")
     raw_work_location = form_data.get("work_location")
     submitted_work_location = str(raw_work_location) if raw_work_location is not None else None
+    raw_ticket_status = form_data.get("ticket_status")
+    submitted_ticket_status = str(raw_ticket_status) if raw_ticket_status is not None else None
 
     try:
         web_user = _current_enabled_web_user(request, database_session)
@@ -857,6 +926,7 @@ async def save_ticket_number(
             autotask_company_id=submitted_autotask_company_id,
             ticket_title=None,
             work_location=submitted_work_location,
+            ticket_status=submitted_ticket_status,
         )
         if raw_summary_text is not None:
             apply_manual_summary_to_job(database_session, job_id, str(raw_summary_text))
@@ -872,6 +942,7 @@ async def save_ticket_number(
                 "autotask_company_selected": job.autotask_company_id is not None,
                 "summary_present": bool(job.summary_notes),
                 "work_location": job.work_location.value,
+                "ticket_status": job.ticket_status.value if job.ticket_status else None,
             },
         )
         database_session.commit()
@@ -885,6 +956,7 @@ async def save_ticket_number(
                     "ticket_title": job.ticket_title,
                     "ticket_description": job.ticket_description,
                     "work_location": job.work_location.value,
+                    "ticket_status": job.ticket_status.value if job.ticket_status else None,
                 }
             )
         add_flash_message(request, "Active job changes saved.", "success")
@@ -894,7 +966,7 @@ async def save_ticket_number(
             return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/mobile", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
 
 
 @router.post("/jobs/{job_id}/ticket")
@@ -921,16 +993,23 @@ async def select_active_ticket(
         ticket_options = get_autotask_provider().list_open_tickets_for_client(
             job.client_name,
             job.autotask_company_id,
+            resource_id=web_user.autotask_resource_id,
         )
         selected_ticket_option = _find_matching_ticket_option(ticket_options, submitted_ticket_number)
         if selected_ticket_option is None:
             raise JobWorkflowError("Selected ticket was not found in the open-ticket list for this client.")
 
+        ticket_status, ticket_status_changed_in_autotask = _status_for_started_autotask_ticket(
+            selected_ticket_option.ticket_number,
+            selected_ticket_option.status_label,
+            resource_id=web_user.autotask_resource_id,
+        )
         apply_selected_ticket_from_lookup(
             job,
             selected_ticket_option.ticket_number,
             selected_ticket_option.title,
             selected_ticket_option.description,
+            ticket_status=ticket_status,
         )
         record_audit_event(
             database_session,
@@ -942,6 +1021,9 @@ async def select_active_ticket(
                 "ticket_number": job.ticket_number,
                 "ticket_title_present": bool(job.ticket_title),
                 "ticket_description_present": bool(job.ticket_description),
+                "ticket_status": job.ticket_status.value if job.ticket_status else None,
+                "autotask_ticket_status_label": selected_ticket_option.status_label,
+                "autotask_ticket_status_changed_to_in_progress": ticket_status_changed_in_autotask,
                 "autotask_company_selected": job.autotask_company_id is not None,
             },
         )
@@ -955,6 +1037,8 @@ async def select_active_ticket(
             "ticket_number": job.ticket_number,
             "ticket_title": job.ticket_title,
             "ticket_description": job.ticket_description,
+            "ticket_status": job.ticket_status.value if job.ticket_status else None,
+            "ticket_status_label": selected_ticket_option.status_label,
         }
     )
 
@@ -995,7 +1079,7 @@ async def delete_open_job(
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/mobile", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
 
 
 @router.post("/jobs/{job_id}/start-time/adjust")
@@ -1031,7 +1115,7 @@ async def adjust_start_time(
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/mobile", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
 
 
 @router.post("/jobs/{job_id}/stop-time/adjust")
@@ -1067,7 +1151,7 @@ async def adjust_stop_time(
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/mobile", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
 
 
 @router.post("/jobs/{job_id}/end")
@@ -1115,7 +1199,7 @@ async def end_work(
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/mobile", status_code=303)
+    return RedirectResponse(url="/home", status_code=303)
 
 
 @router.post("/jobs/{job_id}/description/text")

@@ -51,9 +51,10 @@ configuration is database-backed, defaults to the dark theme, saves immediately
 when an option changes, and currently supports `dark` or `light` visual themes
 for all authenticated mobile and web pages. The password-change section on
 `/config` is the exception: it requires two matching password entries and an
-explicit **Change password** submit button. The config super admin does not have
-user settings, does not see the Config menu item, cannot access `/config`, and
-always renders in dark mode.
+explicit **Change password** submit button, and the password card must show the
+managed-user password requirements. The config super admin does not have user
+settings, does not see the Config menu item, cannot access `/config`, and always
+renders in dark mode.
 
 Never rely on the mobile UI, browser state, or hidden form fields for security
 decisions. The server must validate authentication, authorization, CSRF tokens,
@@ -121,6 +122,12 @@ Recorded jobs follow this lifecycle:
    read-only. Its job date, start time, end time, summary notes, and ticket
    status can be changed only through the audited **Edit Entry** action, which
    updates the existing Autotask time entry instead of creating another entry.
+   If the previously submitted ticket status is Complete, **Edit Entry** must
+   temporarily move the ticket to In progress before patching `TimeEntries`,
+   then move the ticket to the selected final status when needed. If the
+   previous status was not Complete, the app patches `Tickets.status` only for
+   an intentional status change, and final Complete status is applied after the
+   time-entry patch.
    The audited **Delete From Autotask** action may delete the external time
    entry and move the local job back to review, but must not delete the local
    job record.
@@ -181,12 +188,14 @@ entries for the same accepted job.
 Autotask resource IDs are not global configuration. They belong to managed web
 users and are required before a user can start work. The app uses the logged-in
 or owning user's resource ID for service-call lookup and for
-`TimeEntries.resourceID` on create. Static Autotask role and billing-code IDs
-must not be configured. The live provider must query the selected ticket at
-submission time, use `Tickets.assignedResourceroleID` as `TimeEntries.roleID`,
-and omit `TimeEntries.billingCodeID` so Autotask inherits the selected ticket's
-Work Type on create. API credentials, ticket status IDs, time-entry type, and
-optional `AUTOTASK_IMPERSONATION_RESOURCE_ID` remain environment configuration.
+`TimeEntries.resourceID` on create. User-scoped Autotask calls also use that
+same resource ID as `ImpersonationResourceId`; do not add or restore a global
+`AUTOTASK_IMPERSONATION_RESOURCE_ID` setting. Static Autotask role and
+billing-code IDs must not be configured. The live provider must query the
+selected ticket at submission time, use `Tickets.assignedResourceroleID` as
+`TimeEntries.roleID`, and omit `TimeEntries.billingCodeID` so Autotask inherits
+the selected ticket's Work Type on create. API credentials, ticket status IDs,
+and time-entry type remain environment configuration.
 The super-admin `/users` page may query `/Resources/query` through the server
 to find matching Autotask Resources by `Last, First` name and fill the
 user-specific resource ID and optional email address. Per-row refresh on
@@ -234,6 +243,13 @@ Do not permanently store raw audio by default.
 
 The mobile interface must be optimized for quick use from a phone.
 
+The `/home` route renders the Home and Work in Progress workflow. Full browser
+rendering should use desktop-only CSS from `desktop.css` for a wider,
+scan-friendly layout. Keep full-browser layout changes out of `phone.css` so
+the installed mobile phone experience remains unchanged unless explicitly
+requested. Do not use route names to select the mobile or desktop page version;
+presentation must follow client/browser and media behavior.
+
 Managed web-user pages must respect the current user's saved theme preference.
 The default is the dark theme. Light theme support must cover mobile, review,
 user management, config, debug, and login surfaces through shared CSS variables
@@ -251,7 +267,7 @@ close on the right, and must not see the Config shortcut. The X close action
 must remain a best-effort app-shell close only: it should request a direct
 `window.close()` first and may fall back to
 `about:blank` when the browser keeps the page visible, but it must not log out,
-post forms, or navigate through app routes. Full-width `/mobile`, review,
+post forms, or navigate through app routes. Full-width `/home`, review,
 debug, and other non-mobile authenticated views still expose the explicit
 logout control.
 
@@ -413,7 +429,7 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/routes/auth.py` handles config super-admin login, managed web-user
   login, logout, and local authenticated sessions, including sanitized
   failed-login file logging.
-- `job_logger/routes/mobile.py` handles `/mobile`, active job start/end/save,
+- `job_logger/routes/mobile.py` handles `/home`, active job start/end/save,
   active rounded-start adjustment, WebSocket recording streams for active and
   unsubmitted review jobs, compatibility recording uploads, description text
   saves, and Autotask company autocomplete.
@@ -484,11 +500,12 @@ The normal workflow is:
 3. A managed web user may open `/config` to choose dark or light theme for
    their own login. Config changes save and apply immediately without a visible
    save action. The same page allows an explicit two-entry login password
-   change. The config super admin has no `/config` access and stays dark.
-4. A managed web user opens `/mobile`.
-5. The `/mobile` page renders from local application state without running an
+   change and shows password requirements in the password card. The config super
+   admin has no `/config` access and stays dark.
+4. A managed web user opens `/home`.
+5. The `/home` page renders from local application state without running an
    Autotask API contactability check. After the page has loaded, browser
-   JavaScript queries `/mobile/service-calls` to populate service-call start
+   JavaScript queries `/home/service-calls` to populate service-call start
    cards for the selected local date and that user's Autotask resource,
    including each call's local start/end time range. The mobile date navigator
    can move backward/forward by day or open a calendar picker, but service-call
@@ -501,8 +518,13 @@ The normal workflow is:
    for exact ticket lookup.
 8. User chooses an open Autotask ticket from the active-job ticket panel. If no
    tickets are loaded yet, the whole panel is the load control and shows a
-   spinner while Autotask data is being queried. Mobile ticket numbers are
-   populated from that selection instead of manual entry. Read-only ticket
+   spinner while Autotask data is being queried. Ticket options show detected
+   Remote/On-Site/Not specified labels from ticket title and description text,
+   with Remote and On-Site color treatment matching service-call cards. Mobile
+   ticket numbers are populated from that selection instead of manual entry. If
+   the selected Autotask ticket status is New, the server moves it to In
+   progress using the owning managed web user's resource context. The selected
+   ticket status is shown and editable on Work in Progress. Read-only ticket
    descriptions stay in short scrollable boxes on Work in Progress and review
    detail.
 9. User chooses whether the work is Remote or On-Site. The mode is stored on
@@ -530,6 +552,9 @@ The normal workflow is:
 16. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes
     updates against the existing Autotask time entry, or **Delete From Autotask**
     to remove the external time entry and return the local job to review.
+    **Edit Entry** reopens previously Complete tickets to In progress before
+    patching `TimeEntries`, then applies the selected final status after the
+    time-entry patch when needed.
     Ticket/client identity, local delete, accept/resend, and retry stay blocked
     while the job remains submitted.
 17. Submission attempts and important state changes are recorded for audit and
@@ -551,7 +576,7 @@ In production:
 - `APP_USERNAME`/`APP_PASSWORD` authenticate the config super admin only.
 - Each managed web user must be created on `/users` with an Autotask resource
   ID before that person can start work.
-- `/mobile` and blank Start Work do not run Autotask contactability probes.
+- `/home` and blank Start Work do not run Autotask contactability probes.
 - Service-call loading, company lookup, ticket lookup, and Autotask submission
   still call Autotask only when those specific workflows need provider data.
 - Super-admin resource lookup on `/users` calls Autotask Resources only through

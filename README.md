@@ -96,8 +96,9 @@ Autotask REST API references used by this app:
    the default, and changes save and apply immediately without a Save button.
    Light and dark themes apply to mobile and web pages for that login only.
    The same page includes an explicit **Change password** action with two
-   matching password fields; password changes are not autosaved. The config
-   super-admin account has no user settings and always uses dark mode.
+   matching password fields and the password requirements shown in the password
+   card; password changes are not autosaved. The config super-admin account has
+   no user settings and always uses dark mode.
 
 ## Cloudflare Tunnel
 
@@ -275,8 +276,9 @@ Check these items first:
   scripts/diagnose_tunnel.sh
   ```
 
-The mobile route is `/mobile`. The app also redirects `/moble` to `/mobile` to
-avoid a common typo after the tunnel is working.
+The work-entry home route is `/home`. The app also redirects `/mobile` and
+`/moble` to `/home` to preserve old bookmarks and avoid a common typo after the
+tunnel is working.
 
 ## Mobile App Mode
 
@@ -300,7 +302,7 @@ requiring an application version bump.
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.0.1`. Version history starts at `v1.0.0`.
+currently `v1.0.2`. Version history starts at `v1.0.0`.
 
 Authenticated pages show the current version discreetly in the shared header.
 Clicking that version opens `/changelog`, which displays the current version
@@ -483,7 +485,9 @@ tests or isolated development.
 Do not set a global `AUTOTASK_RESOURCE_ID`. Each managed web user has a required
 Autotask resource ID on `/users`; Job Logger uses that user-specific resource ID
 for service-call lookup and for `TimeEntries.resourceID` when that user
-submits work.
+submits work. User-scoped Autotask calls also use that same resource ID as the
+Autotask `ImpersonationResourceId` header, so Docker and `.env` files must not
+define a separate global impersonation resource.
 
 Do not set static role or billing-code IDs. When a reviewed job is submitted,
 Job Logger re-queries the selected ticket and uses that ticket's
@@ -512,6 +516,14 @@ production use so the full workflow can update the selected ticket status:
 - `AUTOTASK_STATUS_FOLLOW_UP_ID`
 - `AUTOTASK_STATUS_COMPLETE_ID`
 
+Changing a submitted job's ticket status uses the Autotask `Tickets` endpoint,
+not the `TimeEntries` endpoint. When starting work from a selected Autotask
+ticket, Job Logger moves a `New` ticket to `In progress`. If a submitted
+time-entry edit starts from a `Complete` ticket, Job Logger temporarily moves
+the ticket to `In progress`, patches the existing time entry, and moves the
+ticket to the selected final status. Other status changes are applied only when
+the reviewer changes the selected status.
+
 The mobile page can search Autotask companies while entering the client name.
 Selecting a company stores the display name and Autotask company ID with the job
 so open-ticket lookup can target the exact selected company instead of relying
@@ -528,7 +540,7 @@ from cache can still be queried from Autotask. Ticket status picklist labels and
 other Autotask lookup data remain on a 15-minute cache. Recently displayed
 open-ticket selection lists are cached server-side for two minutes so selecting
 a ticket that was just shown does not re-query Autotask on the critical tap
-path. The initial `/mobile` page and blank Start Work route do not run an
+path. The initial `/home` page and blank Start Work route do not run an
 Autotask contactability check. Live company and ticket queries request
 `MaxRecords=500` and follow Autotask
 pagination links so larger tenants are not limited to the first page of results.
@@ -544,12 +556,17 @@ that panel saves the current active-job client fields before loading open
 tickets. Saved clients do not auto-load tickets when the Work in Progress card
 renders; click the panel to load them. Both mobile and review ticket lookup show
 the spinner loading state while Autotask data is being fetched or a selected
-ticket is being saved.
+ticket is being saved. Open-ticket choices show the detected `Remote`,
+`On-Site`, or `Not specified` work-location label from the ticket title and
+description, and Remote/On-Site choices use the same color treatment as
+service-call cards.
 Selecting a returned ticket fills the mobile job's hidden ticket number, stores
 the selected ticket title for the review detail heading, stores the bounded
 ticket description for read-only context, and automatically saves the active-job
 changes or review ticket selection. The mobile Work in Progress card shows the
-selected ticket number, ticket name, and ticket description after selection.
+selected ticket number, ticket name, ticket status, and ticket description
+after selection. If Autotask reports the selected ticket as `New`, the server
+moves it to `In progress` as the owning managed web user when work starts.
 Long ticket descriptions stay inside a scrollable read-only box instead of
 expanding the mobile page indefinitely; phone-sized layouts cap that visible
 box at about 12 lines, and wider layouts cap it at about 25 lines. On the
@@ -562,7 +579,7 @@ When an active job slot is available, the mobile start panel also lists Autotask
 service calls assigned to the logged-in web user's Autotask resource ID for the
 selected local date. The mobile page renders first with a loading state and no
 synchronous Autotask calls. After the window load event, the browser fetches
-`/mobile/service-calls` so slow Autotask service-call lookups show progress
+`/home/service-calls` so slow Autotask service-call lookups show progress
 instead of delaying the whole start screen. The compact date navigator can move
 to the previous or next day, and tapping the displayed day opens a calendar
 picker. Current-week days are labeled by day name with today/yesterday/tomorrow
@@ -574,10 +591,12 @@ On-Site cards use stronger distinct accent colors and badges so scheduled call
 type is easy to scan without wasting mobile screen space.
 Tapping a service call starts an active job with the server-verified ticket
 number, ticket title, bounded ticket description, client name, company ID, and
-detected work-location mode. The browser submits only the service-call ticket
-association ID, selected date, and CSRF token; the server re-checks that date's
-resource-specific service-call list before creating the job. If service-call
-lookup fails because permissions are missing, the blank Start Work path remains
+detected work-location mode. If the service-call ticket is `New`, the server
+moves it to `In progress` before storing the active job. The browser submits
+only the service-call ticket association ID, selected date, and CSRF token; the
+server re-checks that date's resource-specific service-call list before
+creating the job. If service-call lookup fails because permissions are missing,
+the blank Start Work path remains
 available.
 
 Service-call lookup requires the Autotask API user to read `ServiceCalls`,
@@ -586,7 +605,10 @@ Companies and Tickets permissions already required by the app.
 
 The shared page data is styled through `app.css`, then viewport-specific
 `phone.css` or `desktop.css` loads automatically with media queries so phones
-and desktop browsers get appropriately sized layouts. Phone-sized authenticated
+and desktop browsers get appropriately sized layouts. In a full browser view,
+the `/home` Home screen lays out Start Work beside the service-call list, and
+Work in Progress puts job details beside notes and finish actions for easier
+scanning. Phone-sized authenticated
 layouts hide the brand mark and logout button, place left navigation icons on
 the left, center the version link, and put right-side actions on the right.
 Managed web users see Home and Review on the left, with Config and close on the
@@ -594,7 +616,7 @@ right. The config super admin sees Users, Review, and Diagnostics on the left,
 with close on the right. The X close action first requests the original direct
 app-shell close behavior. If the browser keeps the page visible, it falls back
 to `about:blank` instead of logging out or posting to another app route.
-Full-width `/mobile`, review, debug, and other non-mobile pages keep the
+Full-width `/home`, review, debug, and other non-mobile pages keep the
 explicit logout button. Mobile submit actions show a loading overlay once the
 tap is accepted so slow redirects or Autotask lookups do not look like ignored
 buttons.
@@ -605,6 +627,11 @@ After a job is successfully submitted to Autotask, ticket and client identity
 stay read-only. The selected review detail allows job date, start time, end
 time, summary notes, and ticket status edits through **Edit Entry**, which
 patches the existing `TimeEntries` row instead of creating a duplicate entry.
+If the previously submitted status was `Complete`, **Edit Entry** first moves
+the ticket to `In progress`, patches the existing time entry, and then moves the
+ticket to the selected final status when needed. If the previous status was not
+`Complete`, Job Logger updates `Tickets.status` only for an intentional status
+change, with final `Complete` status applied after the time-entry patch.
 The same submitted detail also has **Delete From Autotask**, which deletes the
 existing Autotask time entry and returns the local job to review without
 removing the local job record. If Autotask refuses the delete, the job remains
@@ -631,12 +658,11 @@ create, which avoids requiring the API resource to have Allocation Code edit
 permission for ticket time entries. Existing `AUTOTASK_ROLE_ID` and
 `AUTOTASK_BILLING_CODE_ID` values in older `.env` files are ignored by the app.
 
-Leave `AUTOTASK_IMPERSONATION_RESOURCE_ID` blank unless Autotask specifically
-requires impersonation for your tenant. When blank, Job Logger omits the
-`ImpersonationResourceId` header and uses the API user's own permissions. If the
-value is set, Autotask evaluates Companies/Tickets query permissions for the
-impersonated resource context, which can fail even when the API user itself has
-access.
+Do not configure a global Autotask impersonation resource. Job Logger derives
+`ImpersonationResourceId` from the logged-in or owning managed web user's saved
+Autotask resource ID for user-scoped company, ticket, service-call, submission,
+update, and delete workflows. Super-admin Resource setup and debug connectivity
+checks run without a managed-user impersonation context.
 
 The `/debug` page is available only to the config super admin. Managed web
 users do not see the Debug menu item, and direct `/debug/*` requests from those
@@ -687,7 +713,7 @@ result and the `/debug` failed-operation label when diagnosing Autotask HTTP
 500 or permission failures. Some Autotask permission denials are returned as
 HTTP 500 responses, so check the preflight detail before changing credentials.
 
-When Autotask rejects ticket status updates or `TimeEntries` creation, Job
+When Autotask rejects ticket status updates or `TimeEntries` creation/update, Job
 Logger surfaces bounded body-level error details when Autotask provides them.
 This usually identifies the specific missing permission, invalid role, billing
 code, resource, or required field more clearly than a generic HTTP 500 message.

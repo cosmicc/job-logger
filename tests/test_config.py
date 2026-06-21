@@ -23,9 +23,14 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert 'class="theme-option-grid theme-card-grid"' in config_response.text
     assert 'action="/config/password"' in config_response.text
     assert "Change password" in config_response.text
+    assert "Password requirements" in config_response.text
+    assert "At least 8 characters" in config_response.text
+    assert "Lowercase and uppercase letters" in config_response.text
+    assert "At least one number" in config_response.text
+    assert "At least one symbol" in config_response.text
     assert 'data-config-form' in config_response.text
     assert "Save config" not in config_response.text
-    assert "Current settings" in config_response.text
+    assert "Current settings" not in config_response.text
     assert 'class="config-current-pill"' not in config_response.text
     assert "data-config-current-theme" not in config_response.text
     assert "data-config-theme-summary" not in config_response.text
@@ -43,7 +48,7 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert save_response.json()["theme_color"] == "#f6f8fb"
 
     updated_config_response = authenticated_client.get("/config")
-    mobile_response = authenticated_client.get("/mobile")
+    mobile_response = authenticated_client.get("/home")
     assert 'class="theme-light"' in updated_config_response.text
     assert 'class="theme-light"' in mobile_response.text
     assert re.search(r'name="theme"[^>]+value="light"[^>]+checked', updated_config_response.text)
@@ -68,7 +73,7 @@ def test_super_admin_has_no_config_menu_or_theme_preferences(client: TestClient)
     assert 'data-mobile-config-link' not in users_response.text
     assert 'class="theme-dark"' in users_response.text
 
-    mobile_response = client.get("/mobile")
+    mobile_response = client.get("/home")
     assert 'data-mobile-config-link' not in mobile_response.text
 
     admin_config_response = client.get("/config")
@@ -152,4 +157,4 @@ def test_web_user_can_change_password_from_config(authenticated_client: TestClie
         assert new_password not in str(audit_event.details)
 
     login_as(authenticated_client, username="tech", password=new_password)
-    assert authenticated_client.get("/mobile").status_code == 200
+    assert authenticated_client.get("/home").status_code == 200

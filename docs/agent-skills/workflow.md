@@ -28,8 +28,15 @@ Important workflow service responsibilities include:
 
 ## Active Job Flow
 
-The mobile page is `/mobile`, implemented by `job_logger/routes/mobile.py` and
-`job_logger/templates/mobile.html`.
+The work-entry home page is `/home`, implemented by
+`job_logger/routes/mobile.py` and `job_logger/templates/mobile.html`.
+
+The same route is also the full-browser Home and Work in Progress surface.
+The selected mobile or desktop presentation must come from client/browser and
+media behavior, not from separate route names.
+Use `job_logger/static/desktop.css` for wider browser-only layout improvements
+and leave `job_logger/static/phone.css` unchanged unless the request explicitly
+targets the phone or installed mobile app.
 
 Phone-sized authenticated layouts hide the brand mark and logout form. The
 visible top bar should place the left navigation icons on the left, the version
@@ -56,7 +63,7 @@ Security and data-integrity requirements for start:
 
 - The user must be authenticated as an enabled managed web user.
 - CSRF must be valid.
-- The `/mobile` page must render from local database state without running an
+- The `/home` page must render from local database state without running an
   Autotask API contactability check.
 - Blank Start Work must not call Autotask before creating the local active job.
   Ticket and company data are attached later through explicit lookup flows.
@@ -79,6 +86,8 @@ Active jobs support these updates before completion:
 - Selected ticket title from Autotask open-ticket lookup.
 - Selected ticket description from Autotask open-ticket lookup, displayed as
   read-only context after a ticket is chosen.
+- Open-ticket option work-location label inferred from ticket title/description
+  text, displayed as Remote, On-Site, or Not specified in the picker.
 - Client name.
 - Selected Autotask company ID while the active job has not already locked an
   Autotask company.
@@ -109,7 +118,11 @@ saved client does not auto-load the picker on mobile page open; the user must
 click or press Enter/Space on the panel to start the lookup. After selection,
 the browser should immediately hide the open-ticket panel and show the selected
 ticket number, ticket title, and ticket description in Work in Progress without
-waiting for a page reload.
+waiting for a page reload. Mobile and review open-ticket choices should use the
+same Remote/On-Site color treatment as service-call start cards, with
+`.ticket-option-button` location classes and a visible location badge. This
+label is display metadata only; do not trust it to override the active job's
+stored work-location value.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
@@ -122,7 +135,7 @@ into `work_location` and keep stored local notes unprefixed.
 The mobile start panels show Autotask service calls for a selected local date
 when an active job slot is available. The page should render immediately with a
 **Loading service calls...** state and no synchronous Autotask calls. After the
-window `load` event, `job_logger/static/mobile.js` loads `/mobile/service-calls`
+window `load` event, `job_logger/static/mobile.js` loads `/home/service-calls`
 to fetch safe card data for the current selected date. The panel has compact
 previous/next day buttons with the displayed day between them; clicking that day
 opens the native calendar picker. Service-call options are provided by
@@ -138,7 +151,7 @@ call starts an active job with the associated ticket number, ticket title,
 bounded ticket description, client name, company ID, and detected work-location
 mode.
 
-The `/mobile/service-calls` endpoint is only for drawing already-verified
+The `/home/service-calls` endpoint is only for drawing already-verified
 candidate cards in the browser. `POST /jobs/start/service-call` must still
 re-read the provider list for the submitted local service-call date and verify
 the submitted service-call ticket association ID before creating a job. Mobile
@@ -329,7 +342,12 @@ accept/resend, retry, and local **Delete time entry** controls hidden or
 blocked. Date, start time, end time, summary notes, and ticket status can stay
 editable only when the submitted detail shows **Edit Entry**. That button must
 call the submitted-entry update route so the existing Autotask `TimeEntries`
-row is patched before local values are kept. The submitted detail can also show
+row is patched before local values are kept. If the previously submitted ticket
+status was Complete, the provider must move the ticket to In progress before
+patching `TimeEntries`, then apply the selected final status when needed. For
+other previous statuses, patch `Tickets.status` only for an intentional status
+change, and apply final Complete status after the time-entry patch. The
+submitted detail can also show
 **Delete From Autotask**, which deletes the external time entry and moves the
 local job back to review only after Autotask confirms the delete. This action
 must not delete the local job, audit events, or submission attempts.

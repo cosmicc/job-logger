@@ -3,6 +3,13 @@
 {% block title %}Review Jobs - Job Logger{% endblock %}
 
 {% block content %}
+  <div class="mobile-page-loading is-hidden" data-review-page-loading role="status" aria-live="assertive" aria-busy="true">
+    <div class="mobile-page-loading-card">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <span data-review-page-loading-message>Loading...</span>
+    </div>
+  </div>
+
   <section class="review-shell">
     <div class="review-header">
       <div>
@@ -74,6 +81,7 @@
           <form
             method="post"
             class="review-form {% if selected_job_submitted %}review-form-submitted{% endif %}"
+            data-review-task-form
             {% if selected_job_submitted and can_modify_selected_job %}
               action="/review/{{ selected_job.id }}/edit-entry"
             {% endif %}
@@ -107,7 +115,7 @@
                 <strong>Submitted Autotask entry</strong>
                 <span>
                   {% if can_modify_selected_job %}
-                    Date, start time, end time, summary notes, and ticket status can be updated with Edit Entry. Ticket and client identity stay read-only.
+                    Date, start time, end time, summary notes, and ticket status can be updated with Edit Entry.
                   {% else %}
                     This submitted Autotask entry is visible to the super admin but cannot be edited from that account.
                   {% endif %}
@@ -334,7 +342,12 @@
 
             {% if can_modify_selected_job and selected_job_submitted %}
               <div class="action-row">
-                <button class="primary-button" type="submit" formaction="/review/{{ selected_job.id }}/edit-entry">
+                <button
+                  class="primary-button"
+                  type="submit"
+                  formaction="/review/{{ selected_job.id }}/edit-entry"
+                  data-review-loading-message="Updating Autotask ticket and time entry..."
+                >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4z"></path>
                     <path d="M13.5 6.5l4 4"></path>
@@ -344,14 +357,24 @@
               </div>
             {% elif can_modify_selected_job %}
               <div class="action-row">
-                <button class="primary-button" type="submit" formaction="/review/{{ selected_job.id }}/accept">
+                <button
+                  class="primary-button"
+                  type="submit"
+                  formaction="/review/{{ selected_job.id }}/accept"
+                  data-review-loading-message="Submitting time entry to Autotask..."
+                >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M20 6L9 17l-5-5"></path>
                   </svg>
                   Accept and Submit
                 </button>
                 {% if selected_job.status.value == "submission_failed" %}
-                  <button class="primary-button" type="submit" formaction="/review/{{ selected_job.id }}/retry">
+                  <button
+                    class="primary-button"
+                    type="submit"
+                    formaction="/review/{{ selected_job.id }}/retry"
+                    data-review-loading-message="Retrying Autotask submission..."
+                  >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M21 12a9 9 0 1 1-3-6.7"></path>
                       <path d="M21 3v6h-6"></path>
@@ -368,6 +391,8 @@
               method="post"
               action="/review/{{ selected_job.id }}/delete-entry"
               class="submitted-entry-delete-form"
+              data-review-task-form
+              data-review-loading-message="Deleting Autotask time entry..."
               data-confirm-message="This will delete the existing Autotask time entry and return this job to review. Continue?"
             >
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

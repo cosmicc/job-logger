@@ -151,7 +151,7 @@ class FakeOpenTicketLookupClient:
                         {
                             "ticketNumber": "T20260616.0001",
                             "title": "Cached open ticket",
-                            "description": "Cached open ticket description.",
+                            "description": "Remote cached open ticket description.",
                             "status": 1,
                         },
                         {
@@ -255,7 +255,7 @@ class FakeServiceCallLookupClient:
             )
 
         if endpoint_path == "/Tickets/query":
-            assert json["IncludeFields"] == ["id", "ticketNumber", "title", "description", "companyID"]
+            assert json["IncludeFields"] == ["id", "ticketNumber", "title", "description", "companyID", "status"]
             assert json["filter"] == [{"op": "in", "field": "id", "value": [9001]}]
             return FakeAutotaskResponse(
                 {
@@ -266,6 +266,7 @@ class FakeServiceCallLookupClient:
                             "title": "Firewall replacement",
                             "description": "Replace firewall and verify VPN.",
                             "companyID": 1001,
+                            "status": 1,
                         }
                     ],
                     "pageDetails": {},
@@ -288,9 +289,18 @@ class FakeServiceCallLookupClient:
         raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
 
     def get(self, endpoint_path: str) -> FakeAutotaskResponse:
-        """Fail if the service-call workflow performs unexpected metadata GET calls."""
+        """Return ticket status metadata for service-call ticket labels."""
 
-        raise AssertionError(f"Unexpected fake Autotask GET endpoint: {endpoint_path}")
+        assert endpoint_path == "/Tickets/entityInformation/fields/status"
+        return FakeAutotaskResponse(
+            {
+                "picklistValues": [
+                    {"value": "1", "label": "In Progress"},
+                    {"value": "5", "label": "Complete"},
+                ]
+            }
+        )
+
 
 
 class FakeResourceLookupClient:
@@ -456,6 +466,79 @@ class FakeTimeEntryUpdateClient:
         return FakeAutotaskResponse({})
 
 
+class FakeSubmittedCompleteTimeEntryUpdateClient:
+    """Fake client for editing a submitted entry whose ticket starts Complete."""
+
+    def __init__(self) -> None:
+        """Initialize operation captures for sequencing assertions."""
+
+        self.operations: list[tuple[str, dict[str, Any] | None]] = []
+        self.patched_payload: dict[str, Any] | None = None
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return the ticket ID needed for status updates."""
+
+        assert endpoint_path == "/Tickets/query"
+        self.operations.append((endpoint_path, dict(json)))
+        return FakeAutotaskResponse(
+            {
+                "items": [{"id": 123456, "ticketNumber": "T20260616.0001"}],
+                "pageDetails": {},
+            }
+        )
+
+    def patch(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Capture ticket and time-entry patch order."""
+
+        self.operations.append((endpoint_path, dict(json)))
+        if endpoint_path == "/TimeEntries":
+            self.patched_payload = dict(json)
+        elif endpoint_path != "/Tickets":
+            raise AssertionError(f"Unexpected fake Autotask PATCH endpoint: {endpoint_path}")
+        return FakeAutotaskResponse({})
+
+
+class FakeCompleteSubmissionClient:
+    """Fake client for complete-status submission sequencing."""
+
+    def __init__(self) -> None:
+        """Initialize operation captures for create sequencing assertions."""
+
+        self.operations: list[tuple[str, dict[str, Any] | None]] = []
+        self.posted_payload: dict[str, Any] | None = None
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return ticket context or capture TimeEntries create payload."""
+
+        self.operations.append((endpoint_path, dict(json)))
+        if endpoint_path == "/Tickets/query":
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "id": 123456,
+                            "ticketNumber": "T20260616.0001",
+                            "assignedResourceroleID": 8,
+                            "billingCodeID": 24746620,
+                        }
+                    ],
+                    "pageDetails": {},
+                }
+            )
+        if endpoint_path == "/TimeEntries":
+            self.posted_payload = dict(json)
+            return FakeAutotaskResponse({"itemId": 987654})
+
+        raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
+
+    def patch(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Capture ticket status patch payloads."""
+
+        assert endpoint_path == "/Tickets"
+        self.operations.append((endpoint_path, dict(json)))
+        return FakeAutotaskResponse({})
+
+
 class FakeTimeEntryDeleteClient:
     """Fake Autotask client that captures the TimeEntries delete endpoint."""
 
@@ -470,6 +553,25 @@ class FakeTimeEntryDeleteClient:
 
         self.deleted_endpoint = endpoint_path
         return FakeAutotaskResponse({})
+
+
+class FakeAutotaskClientContext:
+    """Context manager that lets provider tests inject a fake Autotask client."""
+
+    def __init__(self, client: object) -> None:
+        """Store the fake client returned from ``with provider._client()``."""
+
+        self.client = client
+
+    def __enter__(self) -> object:
+        """Return the fake client for the provider operation."""
+
+        return self.client
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> bool:
+        """Do not suppress provider exceptions."""
+
+        return False
 
 
 class FakeConnectivityProvider:
@@ -578,11 +680,15 @@ def test_open_ticket_lookup_reuses_recent_server_verified_list(monkeypatch: pyte
     provider = _live_test_provider()
     fake_client = FakeOpenTicketLookupClient()
 
-    def fake_client_context(timeout_seconds: float = 30.0) -> FakeConnectivityContext:
+    def fake_client_context(
+        timeout_seconds: float = 30.0,
+        impersonation_resource_id: int | None = None,
+    ) -> FakeConnectivityContext:
         """Return one fake client while matching the provider client signature."""
 
         # timeout_seconds is accepted so the fake matches LiveAutotaskProvider._client.
         assert timeout_seconds == 30.0
+        assert impersonation_resource_id is None
         return FakeConnectivityContext(fake_client)
 
     monkeypatch.setattr(provider, "_client", fake_client_context)
@@ -592,6 +698,8 @@ def test_open_ticket_lookup_reuses_recent_server_verified_list(monkeypatch: pyte
     second_lookup = provider.list_open_tickets_for_client("Fast Client", autotask_company_id=1001)
 
     assert [ticket.ticket_number for ticket in first_lookup] == ["T20260616.0001"]
+    assert first_lookup[0].detected_work_location == WorkLocation.REMOTE
+    assert first_lookup[0].work_location_label == "Remote"
     assert second_lookup == first_lookup
     assert fake_client.company_query_count == 1
     assert fake_client.ticket_query_count == 1
@@ -605,11 +713,15 @@ def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypat
     provider = _live_test_provider()
     fake_client = FakeServiceCallLookupClient()
 
-    def fake_client_context(timeout_seconds: float = 30.0) -> FakeConnectivityContext:
+    def fake_client_context(
+        timeout_seconds: float = 30.0,
+        impersonation_resource_id: int | None = None,
+    ) -> FakeConnectivityContext:
         """Return one fake service-call client while matching the provider signature."""
 
         # timeout_seconds is accepted so the fake matches LiveAutotaskProvider._client.
         assert timeout_seconds == 30.0
+        assert impersonation_resource_id == 1
         return FakeConnectivityContext(fake_client)
 
     monkeypatch.setattr(provider, "_client", fake_client_context)
@@ -628,6 +740,7 @@ def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypat
     assert service_call_option.ticket_number == "T20260616.0007"
     assert service_call_option.ticket_title == "Firewall replacement"
     assert service_call_option.ticket_description == "Replace firewall and verify VPN."
+    assert service_call_option.ticket_status_label == "In Progress"
     assert service_call_option.client_name == "Acme Services"
     assert service_call_option.autotask_company_id == 1001
     assert service_call_option.start_datetime_utc == datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
@@ -649,11 +762,15 @@ def test_resource_lookup_uses_name_filters_and_cache(monkeypatch: pytest.MonkeyP
     provider = _live_test_provider()
     fake_client = FakeResourceLookupClient()
 
-    def fake_client_context(timeout_seconds: float = 30.0) -> FakeConnectivityContext:
+    def fake_client_context(
+        timeout_seconds: float = 30.0,
+        impersonation_resource_id: int | None = None,
+    ) -> FakeConnectivityContext:
         """Return one fake resource client while matching the provider signature."""
 
         # timeout_seconds is accepted so the fake matches LiveAutotaskProvider._client.
         assert timeout_seconds == 30.0
+        assert impersonation_resource_id is None
         return FakeConnectivityContext(fake_client)
 
     monkeypatch.setattr(provider, "_client", fake_client_context)
@@ -698,12 +815,12 @@ def test_debug_connectivity_check_runs_fresh_provider_check(monkeypatch: pytest.
     assert fake_provider.check_count == 2
 
 
-def test_blank_impersonation_resource_omits_autotask_header() -> None:
-    """Blank impersonation config should not send Autotask's impersonation header."""
+def test_autotask_impersonation_header_uses_per_call_resource_id() -> None:
+    """Autotask impersonation should come from the managed user resource ID."""
 
     provider = _live_test_provider()
-    assert provider.application_settings.autotask_impersonation_resource_id is None
     assert "ImpersonationResourceId" not in provider._headers()
+    assert provider._headers(impersonation_resource_id=42)["ImpersonationResourceId"] == "42"
 
 
 def test_connectivity_result_identifies_company_query_failure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -712,11 +829,15 @@ def test_connectivity_result_identifies_company_query_failure(monkeypatch: pytes
     provider = _live_test_provider()
     fake_client = FakeCompanyConnectivityFailureClient()
 
-    def fake_client_context(timeout_seconds: float = 10.0) -> FakeConnectivityContext:
+    def fake_client_context(
+        timeout_seconds: float = 10.0,
+        impersonation_resource_id: int | None = None,
+    ) -> FakeConnectivityContext:
         """Return the fake context manager while accepting the provider timeout."""
 
         # timeout_seconds is accepted so the fake matches LiveAutotaskProvider._client.
         assert timeout_seconds == 10.0
+        assert impersonation_resource_id is None
         return FakeConnectivityContext(fake_client)
 
     monkeypatch.setattr(provider, "_client", fake_client_context)
@@ -806,6 +927,59 @@ def test_time_entry_creation_uses_ticket_role_and_inherits_billing_code() -> Non
     assert "billingCodeID" not in fake_client.posted_payload
 
 
+def test_complete_submission_updates_ticket_status_after_time_entry_create(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Final Complete status should be applied after TimeEntries creation."""
+
+    provider = _live_test_provider()
+    fake_client = FakeCompleteSubmissionClient()
+    rounded_start_utc = datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="complete-submit-test",
+        status=JobStatus.READY_FOR_REVIEW,
+        ticket_number="T20260616.0001",
+        ticket_status=TicketStatus.COMPLETE,
+        summary_notes="Complete after submitted time.",
+        description_text="Complete after submitted time.",
+        raw_start_utc=rounded_start_utc,
+        raw_end_utc=rounded_start_utc + timedelta(minutes=30),
+        rounded_start_utc=rounded_start_utc,
+        rounded_end_utc=rounded_start_utc + timedelta(minutes=30),
+    )
+
+    def fake_client_context(
+        timeout_seconds: float = 30.0,
+        impersonation_resource_id: int | None = None,
+    ) -> FakeAutotaskClientContext:
+        """Return the fake client while asserting managed-user impersonation."""
+
+        assert timeout_seconds == 30.0
+        assert impersonation_resource_id == 1
+        return FakeAutotaskClientContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    result = provider.submit_job(job, resource_id=1)
+
+    assert result.succeeded is True
+    assert result.external_id == "987654"
+    assert result.request_snapshot["ticketStatusPreUpdate"] == "in_progress"
+    assert result.request_snapshot["ticketStatusPostUpdate"] == "complete"
+    assert fake_client.posted_payload is not None
+    assert fake_client.operations == [
+        (
+            "/Tickets/query",
+            {
+                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "billingCodeID"],
+                "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260616.0001"}],
+                "MaxRecords": 1,
+            },
+        ),
+        ("/Tickets", {"id": 123456, "status": 1}),
+        ("/TimeEntries", fake_client.posted_payload),
+        ("/Tickets", {"id": 123456, "status": 5}),
+    ]
+
+
 def test_time_entry_update_patches_existing_entry_fields_only() -> None:
     """Submitted entry edits must patch the existing TimeEntries row."""
 
@@ -837,6 +1011,69 @@ def test_time_entry_update_patches_existing_entry_fields_only() -> None:
     assert "resourceID" not in fake_client.patched_payload
     assert "roleID" not in fake_client.patched_payload
     assert "billingCodeID" not in fake_client.patched_payload
+
+
+def test_live_time_entry_update_reopens_complete_ticket_before_patch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Submitted-entry edits reopen Complete tickets before patching TimeEntries."""
+
+    provider = _live_test_provider()
+    fake_client = FakeSubmittedCompleteTimeEntryUpdateClient()
+    rounded_start_utc = datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="time-entry-update-without-ticket-status-test",
+        status=JobStatus.SUBMITTED,
+        ticket_number="T20260616.0001",
+        ticket_status=TicketStatus.COMPLETE,
+        summary_notes="Updated submitted notes without changing ticket status.",
+        description_text="Updated submitted notes without changing ticket status.",
+        raw_start_utc=rounded_start_utc,
+        raw_end_utc=rounded_start_utc + timedelta(minutes=45),
+        rounded_start_utc=rounded_start_utc,
+        rounded_end_utc=rounded_start_utc + timedelta(minutes=45),
+    )
+
+    def fake_client_context(
+        timeout_seconds: float = 30.0,
+        impersonation_resource_id: int | None = None,
+    ) -> FakeAutotaskClientContext:
+        """Return the fake client while asserting managed-user impersonation."""
+
+        assert timeout_seconds == 30.0
+        assert impersonation_resource_id == 1
+        return FakeAutotaskClientContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    result = provider.update_time_entry(
+        job,
+        external_id="987654",
+        resource_id=1,
+        previous_ticket_status=TicketStatus.COMPLETE,
+        update_ticket_status=False,
+    )
+
+    assert result.succeeded is True
+    assert result.safe_error is None
+    assert result.request_snapshot["ticketStatusUpdateRequested"] is False
+    assert result.request_snapshot["ticketStatusUpdateAttempted"] is False
+    assert result.request_snapshot["ticketStatusPreUpdate"] == "in_progress"
+    assert result.request_snapshot["ticketStatusPostUpdate"] == "complete"
+    assert fake_client.patched_payload is not None
+    assert fake_client.patched_payload["id"] == 987654
+    assert fake_client.patched_payload["summaryNotes"] == "Remote Updated submitted notes without changing ticket status."
+    assert fake_client.operations == [
+        (
+            "/Tickets/query",
+            {
+                "IncludeFields": ["id", "ticketNumber"],
+                "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260616.0001"}],
+                "MaxRecords": 1,
+            },
+        ),
+        ("/Tickets", {"id": 123456, "status": 1}),
+        ("/TimeEntries", fake_client.patched_payload),
+        ("/Tickets", {"id": 123456, "status": 5}),
+    ]
 
 
 def test_time_entry_delete_uses_existing_entry_endpoint() -> None:

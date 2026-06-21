@@ -15,7 +15,7 @@ from tests.conftest import extract_csrf_token
 def test_app_version_matches_current_release() -> None:
     """The source-controlled version should match the current release."""
 
-    assert APP_VERSION == "1.0.1"
+    assert APP_VERSION == "1.0.2"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -25,9 +25,11 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
+    assert "## v1.0.2 - Autotask workflow and desktop layout updates" in changelog_text
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
+    assert "## v1.0.2 - Autotask workflow and desktop layout updates" in web_changelog_text
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in web_changelog_text
     assert "## v1.0.0 - Initial release" in web_changelog_text
     assert "- Initial release." in web_changelog_text
@@ -57,13 +59,16 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="v1.0.1",
-        title="Mobile shell navigation and close behavior",
+        version="v1.0.2",
+        title="Autotask workflow and desktop layout updates",
         changes=(
-            "Mobile users now have version, Home, Review, Config, and close icons in the top bar.",
-            "The mobile close button exits the app screen without logging out.",
-            "The changelog page now shows short release notes for each version.",
-            "The mobile home page now starts directly with the work-entry card.",
+            "The work-entry page now uses `/home`; old `/mobile` links still redirect.",
+            "Edit Entry can update submitted time entries that were already marked Complete.",
+            "Starting work on a New ticket now moves it to In progress.",
+            "Work in Progress now shows an editable ticket status field.",
+            "Open-ticket choices now show Remote or On-Site with matching colors.",
+            "The Config password card now shows password requirements without a separate current-settings card.",
+            "The full browser Home and Work in Progress layouts are wider and easier to scan.",
         ),
     )
 
@@ -85,15 +90,25 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
+    assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
+    assert "Autotask workflow and desktop layout updates" in response.text
+    assert "Edit Entry can update submitted time entries that were already marked Complete." in response.text
+    assert "Starting work on a New ticket now moves it to In progress." in response.text
+    assert "Work in Progress now shows an editable ticket status field." in response.text
+    assert "Open-ticket choices now show Remote or On-Site with matching colors." in response.text
+    assert "The Config password card now shows password requirements without a separate current-settings card." in response.text
+    assert "The full browser Home and Work in Progress layouts are wider and easier to scan." in response.text
     assert "Mobile shell navigation and close behavior" in response.text
     assert "Mobile users now have version, Home, Review, Config, and close icons in the top bar." in response.text
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
+    assert response.text.index("Autotask workflow and desktop layout updates") < response.text.index("Mobile shell navigation and close behavior")
     assert response.text.index("Mobile shell navigation and close behavior") < response.text.index("Initial release")
-    assert '<span class="release-version">v1.0.1</span>' not in response.text
+    assert '<span class="release-version">v1.0.2</span>' not in response.text
+    assert '<span class="release-version">v1.0.1</span>' in response.text
     assert '<span class="release-version">v1.0.0</span>' in response.text
     assert 'class="changelog-entry is-current"' not in response.text
     assert 'class="secondary-link-button" href="/review"' not in response.text
@@ -103,7 +118,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         assert entry.version in response.text
         for change in entry.changes:
             assert change.replace("'", "&#39;") in response.text
-    assert 'href="/changelog"' in authenticated_client.get("/mobile").text
+    assert 'href="/changelog"' in authenticated_client.get("/home").text
 
 
 def test_changelog_title_uses_bold_page_heading_style() -> None:
@@ -140,4 +155,4 @@ def test_super_admin_can_view_changelog_in_dark_theme(super_admin_client: TestCl
 
     assert response.status_code == 200
     assert 'class="theme-dark"' in response.text
-    assert "v1.0.1" in response.text
+    assert "v1.0.2" in response.text

@@ -32,7 +32,7 @@ def login_page(request: Request) -> Response:
     """Render the local app login page."""
 
     if current_username(request):
-        redirect_url = "/users" if current_user_kind(request) == SUPER_ADMIN_SESSION_KIND else "/mobile"
+        redirect_url = "/users" if current_user_kind(request) == SUPER_ADMIN_SESSION_KIND else "/home"
         return RedirectResponse(url=redirect_url, status_code=303)
 
     return templates.TemplateResponse(request, "login.html", template_context(request))
@@ -75,7 +75,7 @@ async def login(
         )
         database_session.commit()
         add_flash_message(request, "Signed in.", "success")
-        return RedirectResponse(url="/mobile", status_code=303)
+        return RedirectResponse(url="/home", status_code=303)
 
     record_audit_event(
         database_session,
