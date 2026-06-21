@@ -190,10 +190,33 @@ Ending work requires:
 - Existing active job.
 - Mandatory client name.
 - Valid selected company ID if one is submitted.
+- Current Work in Progress work-location mode.
+- Current Work in Progress ticket status.
 - Current summary notes carried from the mobile textarea.
 
-After ending, the job moves to review. Do not submit time to Autotask directly
-from mobile end-work. Submission happens only after review acceptance or retry.
+After ending, the default workflow moves the job to review. When the owning
+managed web user has enabled **Submit from Work in Progress** on `/config`,
+the same end-work route changes the active finish button to **Submit to
+Autotask** and submits the completed job through `submit_job_to_autotask()`
+after `end_job()` has assigned rounded stop time and local work date.
+
+Direct Work in Progress submission rules:
+
+- The preference is per-user, database-backed, and default off.
+- The route must still validate ownership, CSRF, active status, client,
+  selected company ID, work location, ticket status, and summary text.
+- The browser may copy hidden work-location and ticket-status values from the
+  active form for normal UX, but the server must validate those values again.
+- `submit_job_to_autotask()` remains the only submission service. Do not create
+  a separate mobile-only Autotask path.
+- Direct submission must require ticket number, ticket status, rounded end time,
+  and non-empty summary notes before any Autotask call is attempted.
+- Missing local submission fields should roll back the transaction so the job
+  stays active and can be fixed in Work in Progress.
+- Provider-level Autotask failures should use the existing submission-failed
+  review state and safe error handling so the job can be retried from Review.
+- Successfully direct-submitted jobs still appear in Review, but only for the
+  submitted-entry **Edit Entry** and **Delete From Autotask** actions.
 
 ## Speech-To-Text Flow
 
@@ -300,6 +323,8 @@ Review supports:
 - Saving active jobs without an end date/time.
 - Accepting or retrying submission only when the ticket number and required
   submission fields are present.
+- Editing or deleting already submitted entries that may have been created by
+  Review acceptance or by direct Work in Progress submission.
 - Looking up open Autotask tickets for the stored selected company ID or client
   name.
 

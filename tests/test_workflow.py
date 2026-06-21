@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from starlette.websockets import WebSocketDisconnect
 
 from job_logger import database
@@ -87,6 +88,20 @@ def create_submitted_mock_job(authenticated_client: TestClient, *, summary_notes
     assert accept_response.status_code == 303
 
     return active_job_id, review_csrf_token
+
+
+def enable_submit_from_work_in_progress(authenticated_client: TestClient) -> None:
+    """Enable direct Work in Progress Autotask submission through `/config`."""
+
+    config_response = authenticated_client.get("/config")
+    csrf_token = extract_csrf_token(config_response.text)
+    save_response = authenticated_client.post(
+        "/config",
+        headers={"Accept": "application/json", "X-CSRF-Token": csrf_token},
+        data={"csrf_token": csrf_token, "submit_from_work_in_progress": "true"},
+    )
+    assert save_response.status_code == 200
+    assert save_response.json()["submit_from_work_in_progress"] is True
 
 
 def test_login_rejects_missing_csrf(client: TestClient) -> None:
@@ -183,6 +198,145 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         attempts = database_session.query(SubmissionAttempt).filter_by(job_id=active_job_id).all()
         assert len(attempts) == 1
         assert attempts[0].succeeded is True
+
+
+def test_work_in_progress_can_submit_directly_to_autotask(authenticated_client: TestClient) -> None:
+    """The opt-in workflow should submit from Work in Progress without review acceptance."""
+
+    enable_submit_from_work_in_progress(authenticated_client)
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    active_page_response = authenticated_client.get("/home")
+    assert "Submit to Autotask" in active_page_response.text
+    assert 'data-loading-message="Submitting to Autotask..."' in active_page_response.text
+
+    text_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/description/text",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": "Completed direct submit work."},
+    )
+    assert text_response.status_code == 200
+    save_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Direct Submit Client",
+            "autotask_company_id": "1001",
+        },
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
+    select_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0001"},
+    )
+    assert select_ticket_response.status_code == 200
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Direct Submit Client",
+            "autotask_company_id": "1001",
+            "work_location": "on_site",
+            "ticket_status": "complete",
+            "summary_notes": "Completed direct submit work.",
+        },
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+    assert end_response.headers["location"] == "/home"
+
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, active_job_id)
+        assert job is not None
+        assert job.status == JobStatus.SUBMITTED
+        assert job.summary_notes == "Completed direct submit work."
+        assert job.work_location == WorkLocation.ON_SITE
+        assert job.ticket_status == TicketStatus.COMPLETE
+        assert job.autotask_external_id == f"mock-time-entry-{active_job_id}"
+        assert job.autotask_error is None
+
+        attempts = database_session.query(SubmissionAttempt).filter_by(job_id=active_job_id).all()
+        assert len(attempts) == 1
+        assert attempts[0].succeeded is True
+        assert attempts[0].request_snapshot["ticket_status"] == "complete"
+        assert attempts[0].request_snapshot["work_location"] == "on_site"
+
+        direct_submit_event = database_session.scalar(
+            select(AuditEvent).where(
+                AuditEvent.job_id == active_job_id,
+                AuditEvent.action == "job.autotask.direct_submit",
+            )
+        )
+        assert direct_submit_event is not None
+        assert direct_submit_event.details["succeeded"] is True
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    assert review_page_response.status_code == 200
+    assert f'action="/review/{active_job_id}/edit-entry"' in review_page_response.text
+    assert f'action="/review/{active_job_id}/delete-entry"' in review_page_response.text
+    assert f'formaction="/review/{active_job_id}/accept"' not in review_page_response.text
+
+
+def test_direct_work_in_progress_submit_requires_autotask_fields(authenticated_client: TestClient) -> None:
+    """Direct submit should keep the job active when required Autotask fields are missing."""
+
+    enable_submit_from_work_in_progress(authenticated_client)
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    text_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/description/text",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": "Direct submit should require a ticket."},
+    )
+    assert text_response.status_code == 200
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Missing Ticket Client",
+            "ticket_status": "in_progress",
+            "summary_notes": "Direct submit should require a ticket.",
+        },
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+    assert end_response.headers["location"] == "/home"
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
+        assert active_job.status == JobStatus.ACTIVE
+        assert active_job.rounded_end_utc is None
+        assert active_job.autotask_external_id is None
+        assert database_session.query(SubmissionAttempt).filter_by(job_id=active_job_id).count() == 0
 
 
 def test_active_job_ai_cleanup_returns_replacement_text(

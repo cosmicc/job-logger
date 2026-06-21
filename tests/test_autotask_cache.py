@@ -680,15 +680,11 @@ def test_open_ticket_lookup_reuses_recent_server_verified_list(monkeypatch: pyte
     provider = _live_test_provider()
     fake_client = FakeOpenTicketLookupClient()
 
-    def fake_client_context(
-        timeout_seconds: float = 30.0,
-        impersonation_resource_id: int | None = None,
-    ) -> FakeConnectivityContext:
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeConnectivityContext:
         """Return one fake client while matching the provider client signature."""
 
         # timeout_seconds is accepted so the fake matches LiveAutotaskProvider._client.
         assert timeout_seconds == 30.0
-        assert impersonation_resource_id is None
         return FakeConnectivityContext(fake_client)
 
     monkeypatch.setattr(provider, "_client", fake_client_context)
@@ -713,15 +709,11 @@ def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypat
     provider = _live_test_provider()
     fake_client = FakeServiceCallLookupClient()
 
-    def fake_client_context(
-        timeout_seconds: float = 30.0,
-        impersonation_resource_id: int | None = None,
-    ) -> FakeConnectivityContext:
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeConnectivityContext:
         """Return one fake service-call client while matching the provider signature."""
 
         # timeout_seconds is accepted so the fake matches LiveAutotaskProvider._client.
         assert timeout_seconds == 30.0
-        assert impersonation_resource_id == 1
         return FakeConnectivityContext(fake_client)
 
     monkeypatch.setattr(provider, "_client", fake_client_context)
@@ -762,15 +754,11 @@ def test_resource_lookup_uses_name_filters_and_cache(monkeypatch: pytest.MonkeyP
     provider = _live_test_provider()
     fake_client = FakeResourceLookupClient()
 
-    def fake_client_context(
-        timeout_seconds: float = 30.0,
-        impersonation_resource_id: int | None = None,
-    ) -> FakeConnectivityContext:
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeConnectivityContext:
         """Return one fake resource client while matching the provider signature."""
 
         # timeout_seconds is accepted so the fake matches LiveAutotaskProvider._client.
         assert timeout_seconds == 30.0
-        assert impersonation_resource_id is None
         return FakeConnectivityContext(fake_client)
 
     monkeypatch.setattr(provider, "_client", fake_client_context)
@@ -815,12 +803,11 @@ def test_debug_connectivity_check_runs_fresh_provider_check(monkeypatch: pytest.
     assert fake_provider.check_count == 2
 
 
-def test_autotask_impersonation_header_uses_per_call_resource_id() -> None:
-    """Autotask impersonation should come from the managed user resource ID."""
+def test_autotask_headers_do_not_send_impersonation_resource_id() -> None:
+    """Autotask calls should not use the optional impersonation header."""
 
     provider = _live_test_provider()
     assert "ImpersonationResourceId" not in provider._headers()
-    assert provider._headers(impersonation_resource_id=42)["ImpersonationResourceId"] == "42"
 
 
 def test_connectivity_result_identifies_company_query_failure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -829,15 +816,11 @@ def test_connectivity_result_identifies_company_query_failure(monkeypatch: pytes
     provider = _live_test_provider()
     fake_client = FakeCompanyConnectivityFailureClient()
 
-    def fake_client_context(
-        timeout_seconds: float = 10.0,
-        impersonation_resource_id: int | None = None,
-    ) -> FakeConnectivityContext:
+    def fake_client_context(timeout_seconds: float = 10.0) -> FakeConnectivityContext:
         """Return the fake context manager while accepting the provider timeout."""
 
         # timeout_seconds is accepted so the fake matches LiveAutotaskProvider._client.
         assert timeout_seconds == 10.0
-        assert impersonation_resource_id is None
         return FakeConnectivityContext(fake_client)
 
     monkeypatch.setattr(provider, "_client", fake_client_context)
@@ -946,14 +929,10 @@ def test_complete_submission_updates_ticket_status_after_time_entry_create(monke
         rounded_end_utc=rounded_start_utc + timedelta(minutes=30),
     )
 
-    def fake_client_context(
-        timeout_seconds: float = 30.0,
-        impersonation_resource_id: int | None = None,
-    ) -> FakeAutotaskClientContext:
-        """Return the fake client while asserting managed-user impersonation."""
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeAutotaskClientContext:
+        """Return the fake client while matching the provider client signature."""
 
         assert timeout_seconds == 30.0
-        assert impersonation_resource_id == 1
         return FakeAutotaskClientContext(fake_client)
 
     monkeypatch.setattr(provider, "_client", fake_client_context)
@@ -1032,14 +1011,10 @@ def test_live_time_entry_update_reopens_complete_ticket_before_patch(monkeypatch
         rounded_end_utc=rounded_start_utc + timedelta(minutes=45),
     )
 
-    def fake_client_context(
-        timeout_seconds: float = 30.0,
-        impersonation_resource_id: int | None = None,
-    ) -> FakeAutotaskClientContext:
-        """Return the fake client while asserting managed-user impersonation."""
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeAutotaskClientContext:
+        """Return the fake client while matching the provider client signature."""
 
         assert timeout_seconds == 30.0
-        assert impersonation_resource_id == 1
         return FakeAutotaskClientContext(fake_client)
 
     monkeypatch.setattr(provider, "_client", fake_client_context)

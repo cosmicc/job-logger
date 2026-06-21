@@ -1,8 +1,8 @@
 # Job Logger
 
 Job Logger is a security-focused Dockerized Python web application for quickly
-recording work time from a phone, reviewing the recorded jobs from a desktop,
-and submitting accepted jobs to Autotask.
+recording work time from a phone, reviewing or directly submitting recorded
+jobs, and sending accepted work to Autotask.
 
 ## Architecture
 
@@ -92,13 +92,17 @@ Autotask REST API references used by this app:
    user you create takes ownership of any existing unowned jobs from earlier
    single-user installs.
 
-8. Managed web users can open `/config` to choose their visual theme. Dark is
-   the default, and changes save and apply immediately without a Save button.
-   Light and dark themes apply to mobile and web pages for that login only.
-   The same page includes an explicit **Change password** action with two
-   matching password fields and the password requirements shown in the password
-   card; password changes are not autosaved. The config super-admin account has
-   no user settings and always uses dark mode.
+8. Managed web users can open `/config` to choose their visual theme and work
+   completion behavior. Dark is the default, and changes save and apply
+   immediately without a Save button. Light and dark themes apply to mobile and
+   web pages for that login only. The **Submit from Work in Progress** workflow
+   option is off by default; when enabled, ending work submits the time entry to
+   Autotask immediately instead of requiring Review first. The same page
+   includes an explicit **Change password** action with two matching password
+   fields and the password requirements shown in the password card; password
+   changes are not autosaved. Managed users can also add passkeys after signing
+   in normally once. The config super-admin account has no user settings and
+   always uses dark mode.
 
 ## Cloudflare Tunnel
 
@@ -126,7 +130,11 @@ tunnel connector all come up with one `docker compose up -d --build` command.
 6. Leave `CLOUDFLARE_ACCESS_REQUIRED=false` when using only the app's
    `APP_USERNAME` and `APP_PASSWORD` login. Set it to `true` only after
    Cloudflare Access is configured and verified for the public hostname.
-7. Start the full stack:
+7. Set `WEBAUTHN_ORIGIN` to the public HTTPS origin that phones see in the
+   browser, such as `https://logger.example.com`, before using passkeys through
+   Cloudflare Tunnel. Set `WEBAUTHN_RP_ID` to the same hostname if the app
+   cannot reliably derive the public host from forwarded headers.
+8. Start the full stack:
 
    ```bash
    docker compose up -d --build
@@ -298,11 +306,41 @@ Static CSS and JavaScript links include a content-derived version value so
 browser and installed-app shells fetch changed assets after deploy without
 requiring an application version bump.
 
+## Authentication And Passkeys
+
+Local app sessions expire after `APP_SESSION_TIMEOUT_HOURS`, defaulting to
+`12`. The value is measured in hours and is used for both the signed session
+cookie lifetime and server-side login timestamp checks. After it expires, users
+must sign in again.
+
+The config super-admin account still signs in with `APP_USERNAME` and
+`APP_PASSWORD` only. Managed web users can sign in with their username/password
+or with a registered passkey. A passkey can be added from `/config` after a
+normal password login, and the `/home` page prompts managed users without a
+passkey to set one up. Job Logger stores only the public credential ID, public
+key, signature counter, and device metadata. The phone, browser, or passkey
+provider keeps the private key and performs the fingerprint, Face ID, PIN,
+pattern, or other local unlock prompt.
+
+Passkey login is intentionally a fallback-friendly option. If the browser does
+not support passkeys, the device cancels, or signature verification fails, the
+normal username/password login form remains available.
+
+Set these passkey variables for production when needed:
+
+- `WEBAUTHN_RP_NAME`, the label shown by the browser, defaults to `Job Logger`.
+- `WEBAUTHN_RP_ID`, optional relying-party domain override, such as
+  `logger.example.com`.
+- `WEBAUTHN_ORIGIN`, optional expected browser origin, such as
+  `https://logger.example.com`. Set this for Cloudflare Tunnel deployments
+  where the public browser origin is HTTPS but the local nginx-to-app hop is
+  HTTP.
+
 ## Application Version And Changelog
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.0.2`. Version history starts at `v1.0.0`.
+currently `v1.1.0`. Version history starts at `v1.0.0`.
 
 Authenticated pages show the current version discreetly in the shared header.
 Clicking that version opens `/changelog`, which displays the current version
@@ -485,9 +523,9 @@ tests or isolated development.
 Do not set a global `AUTOTASK_RESOURCE_ID`. Each managed web user has a required
 Autotask resource ID on `/users`; Job Logger uses that user-specific resource ID
 for service-call lookup and for `TimeEntries.resourceID` when that user
-submits work. User-scoped Autotask calls also use that same resource ID as the
-Autotask `ImpersonationResourceId` header, so Docker and `.env` files must not
-define a separate global impersonation resource.
+submits work. Job Logger does not send Autotask's optional
+`ImpersonationResourceId` header, so Docker and `.env` files must not define a
+global impersonation resource.
 
 Do not set static role or billing-code IDs. When a reviewed job is submitted,
 Job Logger re-queries the selected ticket and uses that ticket's
@@ -523,6 +561,17 @@ time-entry edit starts from a `Complete` ticket, Job Logger temporarily moves
 the ticket to `In progress`, patches the existing time entry, and moves the
 ticket to the selected final status. Other status changes are applied only when
 the reviewer changes the selected status.
+
+Managed web users can enable **Submit from Work in Progress** on `/config`.
+This option is off by default so existing accounts keep the review-first
+workflow. When enabled, the active Work in Progress finish button changes to
+**Submit to Autotask** and uses the same idempotent Autotask submission service
+as Review acceptance. Direct submission still requires the selected ticket
+number, ticket status, rounded end time, client, and summary notes. If those
+local fields are missing, the job stays active so the technician can correct
+it. If Autotask itself rejects the submission, the job moves to the failed
+submission review state with the safe error message and can be retried from
+Review.
 
 The mobile page can search Autotask companies while entering the client name.
 Selecting a company stores the display name and Autotask company ID with the job
@@ -658,11 +707,11 @@ create, which avoids requiring the API resource to have Allocation Code edit
 permission for ticket time entries. Existing `AUTOTASK_ROLE_ID` and
 `AUTOTASK_BILLING_CODE_ID` values in older `.env` files are ignored by the app.
 
-Do not configure a global Autotask impersonation resource. Job Logger derives
-`ImpersonationResourceId` from the logged-in or owning managed web user's saved
-Autotask resource ID for user-scoped company, ticket, service-call, submission,
-update, and delete workflows. Super-admin Resource setup and debug connectivity
-checks run without a managed-user impersonation context.
+Do not configure a global Autotask impersonation resource. Job Logger uses the
+logged-in or owning managed web user's saved Autotask resource ID in
+user-scoped payloads and service-call filters, but live calls do not send the
+optional Autotask `ImpersonationResourceId` header. Super-admin Resource setup
+and debug connectivity checks run without a managed-user context.
 
 The `/debug` page is available only to the config super admin. Managed web
 users do not see the Debug menu item, and direct `/debug/*` requests from those
@@ -685,20 +734,34 @@ whether a password was supplied with its length. The raw submitted password is
 never stored or displayed. The `/debug/logs/login-failures` endpoint downloads
 the raw JSONL file for authenticated diagnostics.
 
-The `/debug` page also includes **Download Full Backup** and **Restore Full
-Backup** controls. Backups download as sensitive `.json.gz` files containing
-all Job Logger database tables, including managed web-user password hashes and
-email metadata, jobs, submission attempts, and audit events. Store backup files
-somewhere private because they contain account, customer, ticket, and
-work-summary history.
+The app also creates automatic full-database backups every hour when
+`AUTOMATIC_BACKUPS_ENABLED=true`, which is the default. Docker Compose stores
+them in `${AUTOMATIC_BACKUP_DIR:-/data/logs/backups}`, backed by the same
+host-mounted `${HOST_LOG_DIR:-/var/log/job-logger}` runtime directory. Retention
+keeps the newest 6 hourly backups plus one daily backup for today and one for
+each of the prior 2 days; expired automatic backups are purged after each
+successful automatic backup.
+
+The `/debug` page also includes **Automatic database backups**, **Download Full
+Backup**, and **Restore Full Backup** controls. Backups are sensitive `.json.gz`
+files containing all Job Logger database tables, including managed web-user
+password hashes and email metadata, jobs, submission attempts, and audit events.
+Store backup files somewhere private because they contain account, customer,
+ticket, and work-summary history.
 
 To restore, upload a Job Logger full-backup file on `/debug` and type
 `RESTORE`. Restore validates the archive format, required tables, and columns
 before deleting current app rows. A successful restore replaces the current app
 database contents with the backup contents, then records a new restore audit
-event. The default restore upload cap is 250 MB: `MAX_BACKUP_RESTORE_BYTES`
-controls app-side validation and `NGINX_RESTORE_MAX_BODY_SIZE` controls the
-matching nginx body limit for `/debug/restore`.
+event. Backups from v1.0.2 that predate the **Submit from Work in Progress**
+preference restore with that new option defaulted off. The default restore
+upload cap is 250 MB: `MAX_BACKUP_RESTORE_BYTES` controls app-side validation
+and `NGINX_RESTORE_MAX_BODY_SIZE` controls the matching nginx body limit for
+`/debug/restore`.
+
+To restore an automatic backup, use the per-backup restore row on `/debug` and
+type `RESTORE` beside the selected file. The same validation, replacement, and
+post-restore audit behavior used by uploaded full-backup restores applies.
 
 The Docker Compose database uses the named `postgres_data` volume mounted at
 `/var/lib/postgresql/data` inside the PostgreSQL container. That volume persists

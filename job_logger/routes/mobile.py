@@ -53,10 +53,17 @@ from job_logger.services.jobs import (
     mark_job_transcription_failed,
     rounded_stop_for_active_job,
     start_job,
+    submit_job_to_autotask,
     ticket_status_from_autotask_label,
     transcribe_active_job_audio,
     update_active_job_ticket_number,
     update_description_text,
+)
+from job_logger.services.passkeys import passkey_credential_count_for_user
+from job_logger.services.preferences import (
+    get_submit_from_work_in_progress_for_principal,
+    get_submit_from_work_in_progress_for_session,
+    preference_principal_from_session,
 )
 from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
 from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
@@ -628,6 +635,7 @@ def home_page(
                 active_jobs=[],
                 active_rounded_stop_times={},
                 ticket_status_options=_ticket_status_options(),
+                submit_from_work_in_progress_enabled=False,
                 can_start_jobs=False,
                 start_block_reason="The config super admin can view jobs, but cannot start work because it has no Autotask resource ID.",
             ),
@@ -638,6 +646,12 @@ def home_page(
         active_job.id: active_job.rounded_end_utc or rounded_stop_for_active_job(active_job)
         for active_job in active_jobs
     }
+    principal = preference_principal_from_session(request.session)
+    submit_from_work_in_progress_enabled = get_submit_from_work_in_progress_for_principal(
+        database_session,
+        principal.key if principal else None,
+    )
+    show_passkey_setup_prompt = passkey_credential_count_for_user(database_session, web_user.id) == 0
 
     return templates.TemplateResponse(
         request,
@@ -648,6 +662,8 @@ def home_page(
             active_jobs=active_jobs,
             active_rounded_stop_times=active_rounded_stop_times,
             ticket_status_options=_ticket_status_options(),
+            submit_from_work_in_progress_enabled=submit_from_work_in_progress_enabled,
+            show_passkey_setup_prompt=show_passkey_setup_prompt,
             can_start_jobs=True,
             start_block_reason=None,
         ),
@@ -1160,7 +1176,7 @@ async def end_work(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> RedirectResponse:
-    """End an active work job and send it to review."""
+    """End an active work job, optionally submitting it directly to Autotask."""
 
     actor = require_authenticated_username(request)
     form_data = await request.form()
@@ -1170,11 +1186,24 @@ async def end_work(
     raw_autotask_company_id = form_data.get("autotask_company_id")
     submitted_autotask_company_id = str(raw_autotask_company_id) if raw_autotask_company_id is not None else None
     summary_notes = str(form_data.get("summary_notes", ""))
+    raw_work_location = form_data.get("work_location")
+    submitted_work_location = str(raw_work_location) if raw_work_location is not None else None
+    raw_ticket_status = form_data.get("ticket_status")
+    submitted_ticket_status = str(raw_ticket_status) if raw_ticket_status is not None else None
 
     try:
         web_user = _current_enabled_web_user(request, database_session)
         existing_job = get_job_or_raise(database_session, job_id)
         ensure_job_owned_by_web_user(existing_job, web_user.id)
+        update_active_job_ticket_number(
+            database_session,
+            job_id,
+            ticket_number=None,
+            client_name=submitted_client_name,
+            autotask_company_id=submitted_autotask_company_id,
+            work_location=submitted_work_location,
+            ticket_status=submitted_ticket_status,
+        )
         job = end_job(
             database_session,
             job_id,
@@ -1182,6 +1211,9 @@ async def end_work(
             autotask_company_id=submitted_autotask_company_id,
         )
         apply_manual_summary_to_job(database_session, job_id=job.id, summary_text=summary_notes)
+        submit_from_work_in_progress = get_submit_from_work_in_progress_for_session(database_session, request.session)
+        if submit_from_work_in_progress:
+            submit_job_to_autotask(database_session, job, resource_id=web_user.autotask_resource_id)
         record_audit_event(
             database_session,
             actor=actor,
@@ -1191,10 +1223,31 @@ async def end_work(
             details={
                 "client_name_present": bool(job.client_name),
                 "autotask_company_selected": job.autotask_company_id is not None,
+                "submit_from_work_in_progress": submit_from_work_in_progress,
+                "status": job.status.value,
             },
         )
+        if submit_from_work_in_progress:
+            record_audit_event(
+                database_session,
+                actor=actor,
+                action="job.autotask.direct_submit",
+                job_id=job.id,
+                request=request,
+                details={
+                    "status": job.status.value,
+                    "autotask_provider": job.autotask_provider,
+                    "succeeded": job.autotask_error is None,
+                },
+            )
         database_session.commit()
-        add_flash_message(request, "Work ended and moved to review.", "success")
+        if submit_from_work_in_progress:
+            if job.autotask_error:
+                add_flash_message(request, f"Autotask submission failed: {job.autotask_error}", "error")
+            else:
+                add_flash_message(request, "Work ended and submitted to Autotask.", "success")
+        else:
+            add_flash_message(request, "Work ended and moved to review.", "success")
     except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")

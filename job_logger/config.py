@@ -62,6 +62,15 @@ def _get_float(environment_variable_name: str, default_value: float) -> float:
     return float(raw_value)
 
 
+def _get_positive_float(environment_variable_name: str, default_value: float) -> float:
+    """Return a positive float setting, failing fast for unsafe values."""
+
+    value = _get_float(environment_variable_name, default_value)
+    if value <= 0:
+        raise ValueError(f"{environment_variable_name} must be greater than zero.")
+    return value
+
+
 def _get_optional_integer(environment_variable_name: str) -> int | None:
     """Return an optional integer used by tenant-specific Autotask IDs."""
 
@@ -122,6 +131,9 @@ class Settings:
     # APP_SESSION_COOKIE_SECURE should be true when served through HTTPS/Cloudflare.
     session_cookie_secure: bool
 
+    # APP_SESSION_TIMEOUT_HOURS controls how long a local login remains valid.
+    session_timeout_hours: float
+
     # APP_ALLOWED_HOSTS limits accepted Host headers when configured.
     allowed_hosts: list[str]
 
@@ -136,6 +148,12 @@ class Settings:
 
     # MAX_BACKUP_RESTORE_BYTES bounds full-data restore uploads on /debug.
     max_backup_restore_bytes: int
+
+    # AUTOMATIC_BACKUPS_ENABLED controls the hourly full-database backup task.
+    automatic_backups_enabled: bool
+
+    # AUTOMATIC_BACKUP_DIR stores host-mounted hourly and daily backup files.
+    automatic_backup_dir: str
 
     # FASTER_WHISPER_MODEL is a local model size, Hugging Face model name, or local model path.
     faster_whisper_model: str
@@ -238,6 +256,15 @@ class Settings:
     autotask_status_follow_up_id: int | None
     autotask_status_complete_id: int | None
 
+    # WEBAUTHN_RP_NAME is the browser-facing passkey relying-party label.
+    webauthn_rp_name: str
+
+    # WEBAUTHN_RP_ID optionally pins the passkey relying-party domain.
+    webauthn_rp_id: str | None
+
+    # WEBAUTHN_ORIGIN optionally pins the expected browser origin for passkeys.
+    webauthn_origin: str | None
+
     @property
     def is_production(self) -> bool:
         """Return whether production safety checks should be enforced."""
@@ -261,6 +288,12 @@ class Settings:
             status_mapping["complete"] = self.autotask_status_complete_id
         return status_mapping
 
+    @property
+    def session_timeout_seconds(self) -> int:
+        """Return the configured session timeout as whole seconds."""
+
+        return max(int(self.session_timeout_hours * 60 * 60), 1)
+
 
 def load_settings() -> Settings:
     """Load application settings from the current process environment."""
@@ -281,11 +314,17 @@ def load_settings() -> Settings:
         ),
         login_failure_debug_rows=_get_integer("LOGIN_FAILURE_DEBUG_ROWS", 200),
         session_cookie_secure=_get_boolean("APP_SESSION_COOKIE_SECURE", False),
+        session_timeout_hours=_get_positive_float("APP_SESSION_TIMEOUT_HOURS", 12.0),
         allowed_hosts=_get_csv("APP_ALLOWED_HOSTS", "localhost,127.0.0.1,app"),
         cloudflare_access_required=_get_boolean("CLOUDFLARE_ACCESS_REQUIRED", False),
         transcription_provider=os.getenv("TRANSCRIPTION_PROVIDER", "mock").strip().lower(),
         max_audio_upload_bytes=_get_integer("MAX_AUDIO_UPLOAD_BYTES", 10 * 1024 * 1024),
         max_backup_restore_bytes=_get_integer("MAX_BACKUP_RESTORE_BYTES", 250 * 1024 * 1024),
+        automatic_backups_enabled=_get_boolean("AUTOMATIC_BACKUPS_ENABLED", True),
+        automatic_backup_dir=os.getenv(
+            "AUTOMATIC_BACKUP_DIR",
+            f"{os.getenv('LOG_DIR', 'logs').rstrip('/')}/backups",
+        ),
         faster_whisper_model=os.getenv("FASTER_WHISPER_MODEL", "base.en"),
         faster_whisper_device=os.getenv("FASTER_WHISPER_DEVICE", "cpu"),
         faster_whisper_compute_type=os.getenv("FASTER_WHISPER_COMPUTE_TYPE", "int8"),
@@ -345,6 +384,9 @@ def load_settings() -> Settings:
         autotask_status_waiting_parts_id=_get_optional_integer("AUTOTASK_STATUS_WAITING_PARTS_ID"),
         autotask_status_follow_up_id=_get_optional_integer("AUTOTASK_STATUS_FOLLOW_UP_ID"),
         autotask_status_complete_id=_get_optional_integer("AUTOTASK_STATUS_COMPLETE_ID"),
+        webauthn_rp_name=os.getenv("WEBAUTHN_RP_NAME", "Job Logger").strip() or "Job Logger",
+        webauthn_rp_id=(os.getenv("WEBAUTHN_RP_ID") or "").strip() or None,
+        webauthn_origin=(os.getenv("WEBAUTHN_ORIGIN") or "").strip().rstrip("/") or None,
     )
 
 

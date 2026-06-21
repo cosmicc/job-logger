@@ -13,8 +13,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from job_logger import database
-from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
-from job_logger.models import AuditEvent, Job, SubmissionAttempt
+from job_logger.enums import JobStatus, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
+from job_logger.models import AuditEvent, Job, SubmissionAttempt, UserPreference, WebAuthnCredential
+from job_logger.services.backups import (
+    automatic_backup_filename,
+    create_automatic_backup,
+    list_automatic_backup_files,
+)
 from job_logger.services.jobs import get_active_job
 from job_logger.time_utils import format_local_display
 from job_logger.version import APP_VERSION
@@ -126,6 +131,7 @@ def test_debug_routes_are_super_admin_only(client: TestClient) -> None:
         ("POST", "/debug/autotask/test"),
         ("POST", "/debug/backup"),
         ("POST", "/debug/restore"),
+        ("POST", "/debug/automatic-backups/restore"),
     )
     for method, path in forbidden_routes:
         response = client.request(method, path, follow_redirects=False)
@@ -307,7 +313,8 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert APP_VERSION in debug_response.text
     assert debug_response.text.index("Login failures") < debug_response.text.index("Autotask submission attempts")
     assert debug_response.text.index("Autotask submission attempts") < debug_response.text.index("Autotask configuration snapshot")
-    assert debug_response.text.index("Autotask configuration snapshot") < debug_response.text.index("Full data backup")
+    assert debug_response.text.index("Autotask configuration snapshot") < debug_response.text.index("Automatic database backups")
+    assert debug_response.text.index("Automatic database backups") < debug_response.text.index("Full data backup")
     assert '<section class="table-panel"' not in debug_response.text.split('id="full-backup"', 1)[1]
     assert '<table class="debug-submission-table">' in debug_response.text
     assert "<th>User</th>" in debug_response.text
@@ -336,6 +343,94 @@ def test_debug_route_tests_autotask_api(super_admin_client: TestClient) -> None:
     assert debug_result_response.status_code == 200
     assert "Last Autotask API test" in debug_result_response.text
     assert "Mock Autotask provider is available" in debug_result_response.text
+
+
+def test_automatic_backup_retention_keeps_hourly_and_recent_daily_backups(
+    client: TestClient,
+    tmp_path: Path,
+) -> None:
+    """Automatic backups should retain recent hourly files and three daily snapshots."""
+
+    _seed_full_backup_data()
+    backup_times = (
+        datetime(2026, 6, 17, 16, 0, tzinfo=UTC),
+        datetime(2026, 6, 18, 16, 0, tzinfo=UTC),
+        datetime(2026, 6, 19, 16, 0, tzinfo=UTC),
+        datetime(2026, 6, 20, 10, 0, tzinfo=UTC),
+        datetime(2026, 6, 20, 11, 0, tzinfo=UTC),
+        datetime(2026, 6, 20, 12, 0, tzinfo=UTC),
+        datetime(2026, 6, 20, 13, 0, tzinfo=UTC),
+        datetime(2026, 6, 20, 14, 0, tzinfo=UTC),
+        datetime(2026, 6, 20, 15, 0, tzinfo=UTC),
+        datetime(2026, 6, 20, 16, 0, tzinfo=UTC),
+    )
+
+    with database.SessionLocal() as database_session:
+        for backup_time in backup_times:
+            create_automatic_backup(database_session, tmp_path, now=backup_time)
+
+    available_backups = list_automatic_backup_files(tmp_path)
+    available_names = {backup_file.filename for backup_file in available_backups}
+    expected_names = {
+        automatic_backup_filename(datetime(2026, 6, 18, 16, 0, tzinfo=UTC)),
+        automatic_backup_filename(datetime(2026, 6, 19, 16, 0, tzinfo=UTC)),
+        automatic_backup_filename(datetime(2026, 6, 20, 11, 0, tzinfo=UTC)),
+        automatic_backup_filename(datetime(2026, 6, 20, 12, 0, tzinfo=UTC)),
+        automatic_backup_filename(datetime(2026, 6, 20, 13, 0, tzinfo=UTC)),
+        automatic_backup_filename(datetime(2026, 6, 20, 14, 0, tzinfo=UTC)),
+        automatic_backup_filename(datetime(2026, 6, 20, 15, 0, tzinfo=UTC)),
+        automatic_backup_filename(datetime(2026, 6, 20, 16, 0, tzinfo=UTC)),
+    }
+
+    assert available_names == expected_names
+    assert automatic_backup_filename(datetime(2026, 6, 17, 16, 0, tzinfo=UTC)) not in available_names
+    assert automatic_backup_filename(datetime(2026, 6, 20, 10, 0, tzinfo=UTC)) not in available_names
+    assert [backup_file.created_at_utc for backup_file in available_backups] == sorted(
+        [backup_file.created_at_utc for backup_file in available_backups],
+        reverse=True,
+    )
+
+
+def test_debug_lists_and_restores_automatic_backups(super_admin_client: TestClient) -> None:
+    """The super-admin debug page should restore retained automatic backup files."""
+
+    automatic_backup_dir = Path(os.environ["AUTOMATIC_BACKUP_DIR"])
+    original_job_id = _seed_full_backup_data()
+    backup_time = datetime(2026, 6, 20, 16, 0, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        backup_result = create_automatic_backup(database_session, automatic_backup_dir, now=backup_time)
+
+    debug_page_response = super_admin_client.get("/debug")
+    assert debug_page_response.status_code == 200
+    assert "Automatic database backups" in debug_page_response.text
+    assert backup_result.backup_file.filename in debug_page_response.text
+    assert '/debug/automatic-backups/restore' in debug_page_response.text
+    csrf_token = extract_csrf_token(debug_page_response.text)
+
+    temporary_job_id = _add_temporary_job()
+    restore_response = super_admin_client.post(
+        "/debug/automatic-backups/restore",
+        data={
+            "csrf_token": csrf_token,
+            "filename": backup_result.backup_file.filename,
+            "confirmation": "RESTORE",
+        },
+        follow_redirects=False,
+    )
+
+    assert restore_response.status_code == 303
+    assert restore_response.headers["location"] == "/debug#automatic-backups"
+
+    restored_page_response = super_admin_client.get("/debug")
+    assert restored_page_response.status_code == 200
+    assert "Automatic backup restore completed." in restored_page_response.text
+    with database.SessionLocal() as database_session:
+        assert database_session.scalar(select(func.count(Job.id))) == 1
+        assert database_session.get(Job, original_job_id) is not None
+        assert database_session.get(Job, temporary_job_id) is None
+        actions = list(database_session.scalars(select(AuditEvent.action).order_by(AuditEvent.created_at_utc)))
+        assert "backup.seeded" in actions
+        assert "debug.automatic_backup.restored" in actions
 
 
 def test_debug_full_backup_download_and_restore_round_trip(super_admin_client: TestClient) -> None:
@@ -396,6 +491,101 @@ def test_debug_full_backup_download_and_restore_round_trip(super_admin_client: T
         assert "backup.seeded" in actions
         assert "debug.full_backup.restored" in actions
         assert "debug.full_backup.downloaded" not in actions
+
+
+def test_debug_restore_defaults_direct_submit_for_legacy_preference_backups(
+    super_admin_client: TestClient,
+) -> None:
+    """Restore v1.0.2 preference rows by defaulting the v1.1.0 workflow option off."""
+
+    with database.SessionLocal() as database_session:
+        database_session.add(
+            UserPreference(
+                principal_key="web_user:legacy-direct-submit-test",
+                theme=ThemeMode.LIGHT,
+                submit_from_work_in_progress=True,
+            )
+        )
+        database_session.commit()
+
+    debug_page_response = super_admin_client.get("/debug")
+    csrf_token = extract_csrf_token(debug_page_response.text)
+    backup_response = super_admin_client.post(
+        "/debug/backup",
+        data={"csrf_token": csrf_token},
+    )
+    payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
+    for row in payload["tables"]["user_preferences"]:
+        row.pop("submit_from_work_in_progress", None)
+    payload["schema"]["user_preferences"].remove("submit_from_work_in_progress")
+    legacy_backup_content = gzip.compress(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+        mtime=0,
+    )
+
+    restore_page_response = super_admin_client.get("/debug")
+    restore_csrf_token = extract_csrf_token(restore_page_response.text)
+    restore_response = super_admin_client.post(
+        "/debug/restore",
+        data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
+        files={
+            "backup_file": (
+                "job-logger-v1.0.2-full-backup.json.gz",
+                legacy_backup_content,
+                "application/gzip",
+            )
+        },
+        follow_redirects=False,
+    )
+
+    assert restore_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        restored_preference = database_session.scalar(
+            select(UserPreference).where(UserPreference.principal_key == "web_user:legacy-direct-submit-test")
+        )
+        assert restored_preference is not None
+        assert restored_preference.theme == ThemeMode.LIGHT
+        assert restored_preference.submit_from_work_in_progress is False
+
+
+def test_debug_restore_defaults_missing_passkey_table_to_empty(
+    super_admin_client: TestClient,
+) -> None:
+    """Restore backups that predate passkey support with no registered passkeys."""
+
+    _seed_full_backup_data()
+    debug_page_response = super_admin_client.get("/debug")
+    csrf_token = extract_csrf_token(debug_page_response.text)
+    backup_response = super_admin_client.post(
+        "/debug/backup",
+        data={"csrf_token": csrf_token},
+    )
+    payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
+    payload["tables"].pop("webauthn_credentials", None)
+    payload["schema"].pop("webauthn_credentials", None)
+    legacy_backup_content = gzip.compress(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+        mtime=0,
+    )
+
+    restore_page_response = super_admin_client.get("/debug")
+    restore_csrf_token = extract_csrf_token(restore_page_response.text)
+    restore_response = super_admin_client.post(
+        "/debug/restore",
+        data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
+        files={
+            "backup_file": (
+                "job-logger-pre-passkey-full-backup.json.gz",
+                legacy_backup_content,
+                "application/gzip",
+            )
+        },
+        follow_redirects=False,
+    )
+
+    assert restore_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        assert database_session.scalar(select(func.count(WebAuthnCredential.id))) == 0
 
 
 def test_debug_restore_requires_confirmation(super_admin_client: TestClient) -> None:

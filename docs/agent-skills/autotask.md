@@ -32,8 +32,9 @@ ticket's `assignedResourceroleID` at submit time and omits
 `TimeEntries.billingCodeID` so Autotask inherits the selected ticket's Work Type
 on create. API credentials, ticket status IDs, time-entry type, and optional
 Autotask provider settings remain environment-backed. Do not add a global
-Autotask impersonation resource setting; user-scoped workflows derive
-`ImpersonationResourceId` from the owning managed web user's resource ID.
+Autotask impersonation resource setting; user-scoped workflows use the owning
+managed web user's resource ID in payloads and filters but do not send
+Autotask's optional `ImpersonationResourceId` header.
 The config super admin may use `/users` to query Autotask Resources by name
 while creating a managed web user, but that lookup must still go through the
 server-side provider and return only safe resource metadata. When the selected
@@ -268,7 +269,10 @@ validates a clicked ticket against it before persisting the ticket number.
 
 ## Submission Rules
 
-Time entry submission happens only after review acceptance or retry.
+Time entry submission happens after review acceptance or retry by default. A
+managed web user can opt in to **Submit from Work in Progress** on `/config`;
+when enabled, ending an active job submits through the same service immediately
+after local end-work validation succeeds.
 
 Required local fields before submission:
 
@@ -279,6 +283,12 @@ Required local fields before submission:
 - End time.
 - Summary notes.
 - Work location mode, which defaults to Remote.
+
+Direct Work in Progress submission must not bypass these requirements. If a
+required local field is missing, the end-work transaction should roll back and
+leave the job active. If the Autotask provider returns a safe failure, the job
+should use the existing failed-submission review state so the user can retry
+from Review.
 
 Required live Autotask values include:
 
@@ -306,13 +316,18 @@ retry, and edit-entry handlers must parse that visible prefix back into
 `work_location` before building the final payload.
 
 User-scoped live calls must use the owning managed web user's Autotask resource
-ID for both local `resourceID` payloads and the Autotask
-`ImpersonationResourceId` header. Super-admin Resource lookup and debug
-connectivity checks do not have an owning managed user and must not use a
-global impersonation fallback.
+ID for local `resourceID` payloads and resource filters. They must not send the
+optional Autotask `ImpersonationResourceId` header. Super-admin Resource lookup
+and debug connectivity checks do not have an owning managed user and must not
+use a global impersonation fallback.
 
 Submission must remain idempotent. A retry must not create duplicate time
 entries for the same accepted job.
+
+Both Review acceptance and direct Work in Progress submission must call
+`submit_job_to_autotask()` so idempotency keys, submission attempts, safe error
+handling, ticket status updates, role lookup, and summary construction remain
+centralized.
 
 After a provider reports successful submission, ticket identity and destructive
 workflow actions remain protected. Do not allow later review save, ticket

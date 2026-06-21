@@ -20,7 +20,15 @@ from job_logger.models import Job, SubmissionAttempt, WebUser
 from job_logger.security import add_flash_message, require_super_admin, validate_csrf_token
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
-from job_logger.services.backups import BACKUP_MEDIA_TYPE, BackupValidationError, create_full_backup, restore_full_backup
+from job_logger.services.backups import (
+    BACKUP_MEDIA_TYPE,
+    AutomaticBackupFile,
+    BackupValidationError,
+    create_full_backup,
+    list_automatic_backup_files,
+    read_automatic_backup_content,
+    restore_full_backup,
+)
 from job_logger.services.login_failures import read_recent_login_failures
 from job_logger.time_utils import format_local_display
 from job_logger.ui import template_context, templates
@@ -66,6 +74,15 @@ class DebugSubmissionAttempt:
 
     # created_at_display is the user-facing America/Detroit timestamp.
     created_at_display: str
+
+
+@dataclass(frozen=True)
+class DebugAutomaticBackup:
+    """Automatic backup metadata rendered on the debug page."""
+
+    filename: str
+    created_at_display: str
+    size_display: str
 
 
 def _safe_autotask_config() -> dict[str, object]:
@@ -132,6 +149,26 @@ def _backup_upload_max_mb() -> int:
     return settings.max_backup_restore_bytes // (1024 * 1024)
 
 
+def _format_file_size(size_bytes: int) -> str:
+    """Return a compact human-readable file size for backup listings."""
+
+    if size_bytes >= 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    if size_bytes >= 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    return f"{size_bytes} B"
+
+
+def _serialize_automatic_backup(backup_file: AutomaticBackupFile) -> DebugAutomaticBackup:
+    """Return display-safe metadata for one automatic backup file."""
+
+    return DebugAutomaticBackup(
+        filename=backup_file.filename,
+        created_at_display=format_local_display(backup_file.created_at_utc),
+        size_display=_format_file_size(backup_file.size_bytes),
+    )
+
+
 def _redirect_anonymous_or_raise(exc: HTTPException) -> RedirectResponse:
     """Redirect anonymous users to login while preserving super-admin-only 403s."""
 
@@ -178,6 +215,12 @@ def debug_page(request: Request, database_session: Session = Depends(get_databas
             login_failure_debug_rows=settings.login_failure_debug_rows,
             login_failures=read_recent_login_failures(),
             submission_attempts=debug_submission_attempts,
+            automatic_backups=[
+                _serialize_automatic_backup(backup_file)
+                for backup_file in list_automatic_backup_files(settings.automatic_backup_dir)
+            ],
+            automatic_backups_enabled=settings.automatic_backups_enabled,
+            automatic_backup_dir=settings.automatic_backup_dir,
             backup_upload_max_mb=_backup_upload_max_mb(),
         ),
     )
@@ -310,6 +353,63 @@ async def restore_full_backup_form(
         "success",
     )
     return RedirectResponse(url="/debug#full-backup", status_code=303)
+
+
+@router.post("/automatic-backups/restore")
+async def restore_automatic_backup_form(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Restore a retained automatic backup selected from the debug page."""
+
+    try:
+        actor = require_super_admin(request)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
+
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+
+    backup_filename = str(form_data.get("filename", "")).strip()
+    if str(form_data.get("confirmation", "")).strip() != "RESTORE":
+        add_flash_message(request, "Type RESTORE to confirm automatic backup restore.", "error")
+        return RedirectResponse(url="/debug#automatic-backups", status_code=303)
+
+    try:
+        content = read_automatic_backup_content(
+            settings.automatic_backup_dir,
+            backup_filename,
+            max_bytes=settings.max_backup_restore_bytes,
+        )
+        summary = restore_full_backup(database_session, content)
+    except BackupValidationError as exc:
+        logger.warning("Rejected automatic backup restore filename=%s error=%s", backup_filename, exc)
+        add_flash_message(request, str(exc), "error")
+        return RedirectResponse(url="/debug#automatic-backups", status_code=303)
+    except Exception:
+        logger.exception("Automatic Job Logger restore failed unexpectedly filename=%s", backup_filename)
+        add_flash_message(request, "Restore failed. Check the app log before trying again.", "error")
+        return RedirectResponse(url="/debug#automatic-backups", status_code=303)
+
+    record_audit_event(
+        database_session,
+        actor=actor,
+        action="debug.automatic_backup.restored",
+        request=request,
+        details={
+            "filename": backup_filename,
+            "table_count": len(summary.table_counts),
+            "total_rows": summary.total_rows,
+            "table_counts": summary.table_counts,
+        },
+    )
+    database_session.commit()
+    add_flash_message(
+        request,
+        f"Automatic backup restore completed. Restored {summary.total_rows} rows across {len(summary.table_counts)} tables.",
+        "success",
+    )
+    return RedirectResponse(url="/debug#automatic-backups", status_code=303)
 
 
 @router.post("/autotask/test")

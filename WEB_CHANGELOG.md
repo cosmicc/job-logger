@@ -2,6 +2,14 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## v1.1.0 - Direct submission, backups, and passkeys
+
+- Added a Config option to submit time entries directly from Work in Progress.
+- Review is still available afterward for submitted-entry edits and Autotask deletion.
+- Added automatic database backups with restore controls on the super-admin debug page.
+- Added passkey sign-in for managed users, with password login still available.
+- Added a Docker setting for local app session timeout in hours.
+
 ## v1.0.2 - Autotask workflow and desktop layout updates
 
 - The work-entry page now uses `/home`; old `/mobile` links still redirect.

@@ -377,6 +377,21 @@ svg {
   padding: 28px;
 }
 
+.passkey-login-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.passkey-status {
+  min-height: 22px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 750;
+}
+
 h1,
 h2,
 h3,
@@ -523,6 +538,104 @@ small {
 .theme-choice-card:has(input:focus-visible) {
   outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
+}
+
+.toggle-setting-card {
+  display: flex;
+  min-height: 92px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.toggle-setting-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.toggle-setting-copy strong {
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.toggle-setting-copy small {
+  max-width: 640px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.setting-toggle {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 auto;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.setting-toggle input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.setting-toggle-track {
+  display: inline-flex;
+  width: 54px;
+  height: 30px;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid rgba(154, 168, 188, 0.34);
+  border-radius: 999px;
+  background: var(--control-track);
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.setting-toggle-knob {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--muted);
+  box-shadow: 0 2px 7px rgba(3, 7, 18, 0.28);
+  transition:
+    transform 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.setting-toggle input:checked + .setting-toggle-track {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.setting-toggle input:checked + .setting-toggle-track .setting-toggle-knob {
+  background: var(--on-accent);
+  transform: translateX(24px);
+}
+
+.setting-toggle input:focus-visible + .setting-toggle-track {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.setting-toggle-state {
+  min-width: 24px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
 }
 
 .review-readonly-fieldset {
@@ -2121,6 +2234,37 @@ td a {
   justify-self: start;
 }
 
+.passkey-config-panel {
+  gap: 16px;
+}
+
+.passkey-list {
+  display: grid;
+  gap: 12px;
+}
+
+.passkey-list-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.passkey-list-item p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.passkey-home-prompt h2 {
+  margin-bottom: 7px;
+  font-size: 24px;
+}
+
 .config-save-button {
   justify-self: start;
 }
@@ -2357,6 +2501,33 @@ td a {
 }
 
 .backup-restore-form .danger-button {
+  width: auto;
+}
+
+.automatic-backup-table-wrap {
+  margin-top: 14px;
+}
+
+.automatic-backup-table .backup-file-name {
+  max-width: 320px;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.automatic-backup-restore-form {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  min-width: 220px;
+}
+
+.automatic-backup-restore-form input {
+  min-width: 0;
+}
+
+.automatic-backup-restore-form .danger-button {
   width: auto;
 }
 
@@ -2657,6 +2828,7 @@ td a {
   .metric-grid,
   .ticket-number-form,
   .form-grid,
+  .automatic-backup-restore-form,
   .backup-restore-form,
   .user-edit-grid,
   .add-user-fields-grid,
@@ -2670,6 +2842,10 @@ td a {
     width: 100%;
   }
 
+  .passkey-list-item {
+    grid-template-columns: 1fr;
+  }
+
   .users-page-actions .secondary-link-button,
   .user-edit-actions button,
   .config-save-button,
@@ -2678,6 +2854,14 @@ td a {
   }
 
   .backup-restore-form .danger-button {
+    width: 100%;
+  }
+
+  .automatic-backup-restore-form {
+    min-width: 0;
+  }
+
+  .automatic-backup-restore-form .danger-button {
     width: 100%;
   }
 

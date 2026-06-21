@@ -20,7 +20,8 @@ choices for security decisions. The server remains authoritative.
 
 ## Authentication And Sessions
 
-Authentication routes live in `job_logger/routes/auth.py`.
+Authentication routes live in `job_logger/routes/auth.py`. Managed-user
+passkey routes live in `job_logger/routes/passkeys.py`.
 
 `APP_USERNAME` and `APP_PASSWORD` authenticate only the config super admin. That
 account can manage `/users`, view all review jobs, use diagnostics, and run
@@ -33,6 +34,30 @@ must be blocked from new logins and from old signed sessions. Managed-user
 passwords must be at least 8 characters and include lowercase, uppercase,
 number, and symbol characters. Enforce that rule server-side before hashing;
 browser validation is only a usability aid.
+
+Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`.
+`job_logger/session_timeout.py` enforces the server-side timestamp check, and
+Starlette session cookies use the same configured lifetime. Every successful
+password or passkey login must stamp the session with the authentication time
+and method so stale signed cookies cannot remain valid past the configured
+timeout.
+
+Managed web-user passkeys are optional login credentials. The config super
+admin must not register or use passkeys. Passkey registration is available only
+after a normal managed-user login from `/config`; login remains available from
+the password page through a separate passkey button. Failed, canceled, or
+unsupported passkey authentication must leave the username/password form usable.
+
+The app stores only WebAuthn public credential material: credential ID, public
+key, signature counter, safe device metadata, creation time, and last-used time.
+The private key and local unlock method remain on the user's phone, browser, or
+passkey provider and must never be requested, logged, backed up separately, or
+shown in diagnostics. Registration and authentication must use one-time session
+challenges, require CSRF on browser fetches, require user verification, verify
+the expected relying-party ID and origin, update signature counters after
+successful assertions, and block disabled managed users. Passkey audit events
+must contain only safe metadata such as user ID, username, credential row ID,
+credential ID prefix, and failure reason.
 
 The `/debug` page and all `/debug/*` actions are config-super-admin-only.
 Normal managed web users must not see a Debug navigation item, and direct
@@ -55,15 +80,18 @@ Config menu item or phone-sized Config icon, must receive 403 on direct
 navigation may show Users, Review, and Diagnostics icons; those links do not
 grant any capability beyond the server-side authorization checks on the target
 routes. Phone-sized managed-user navigation may show Home, Review, and Config,
-but must not show Debug. Theme preferences are not secrets, but autosaving them
-is still a state-changing action that must require authentication and CSRF.
-Disabled managed web users must not use old signed sessions to change
-preferences. The `/config/password` route is managed-web-user-only, requires
-CSRF, requires two matching password entries, uses the managed-user complexity
-policy before hashing, and must audit only safe metadata such as user ID or
-username. The password card should show those requirements so users can fix
-validation failures before submitting. Never log, audit, or flash the raw
-submitted password.
+but must not show Debug. Theme and workflow preferences are not secrets, but
+autosaving them is still a state-changing action that must require
+authentication and CSRF. The workflow preference **Submit from Work in
+Progress** must default off and must never allow the browser to bypass
+server-side job ownership, workflow status, ticket, time, summary, or Autotask
+submission validation. Disabled managed web users must not use old signed
+sessions to change preferences. The `/config/password` route is
+managed-web-user-only, requires CSRF, requires two matching password entries,
+uses the managed-user complexity policy before hashing, and must audit only
+safe metadata such as user ID or username. The password card should show those
+requirements so users can fix validation failures before submitting. Never log,
+audit, or flash the raw submitted password.
 
 Deleting a managed web user with job history must preserve auditability by
 disabling the account instead of deleting the row. Hard deletion is allowed only
@@ -72,6 +100,7 @@ when no jobs reference that user.
 Application setup in `job_logger/main.py` configures:
 
 - Signed server-side session cookie behavior through Starlette sessions.
+- Server-side session timeout checks through `SessionTimeoutMiddleware`.
 - Trusted host filtering when configured.
 - Optional Cloudflare Access header enforcement.
 - Security headers and Content Security Policy.
@@ -135,11 +164,13 @@ Audit-worthy actions include:
   Autotask Resource metadata refresh actions.
 - Per-user configuration updates.
 - Managed web-user password changes.
+- Managed web-user passkey registration, deletion, and login success/failure.
 - Job start.
 - Job active edit save.
 - Active job delete.
 - Rounded start adjustment.
 - Job end.
+- Direct Work in Progress Autotask submission decision and outcome.
 - Description text save.
 - Audio transcription.
 - Manual review save.
@@ -147,7 +178,7 @@ Audit-worthy actions include:
 - Accept/retry.
 - Autotask submission attempts and outcomes.
 - Debug Autotask API tests.
-- Full backup downloads and full restores.
+- Full backup downloads, automatic backup creation, and full restores.
 - Delete time entry or other destructive cleanup.
 
 Do not include secrets, raw headers, raw audio, or excessive user text in audit
@@ -221,9 +252,9 @@ The initial mobile page and blank Start Work route must not run Autotask
 contactability checks. This keeps the mobile screen responsive and lets the
 operator begin local work even if provider data is slow. Server-side validation
 still applies when a workflow actually uses Autotask data, including service
-call starts, company lookup, ticket selection, submission, submitted-entry edit,
-and submitted-entry delete. The debug API test must remain a fresh live
-diagnostic check.
+call starts, company lookup, ticket selection, direct Work in Progress
+submission, review submission, submitted-entry edit, and submitted-entry delete.
+The debug API test must remain a fresh live diagnostic check.
 
 Autotask ticket descriptions are remote provider data shown as read-only job
 context. Store only the bounded description returned by the server-side verified
@@ -239,16 +270,17 @@ stores any ticket/client details.
 Successfully submitted Autotask jobs keep protected ticket/client identity and
 local audit history for the external time entry. The server must reject later
 local review save, ticket selection, local delete, accept/resend, and retry
-requests even if a crafted request bypasses the review UI. The allowed exception
-is the CSRF-protected **Edit Entry** route, which may update only job date,
-start time, end time, summary notes, and ticket status for the same submitted
-job. It must patch the existing Autotask `TimeEntries` row instead of creating
-a new time entry. If the previous ticket status was Complete, the provider may
-temporarily move the ticket to In progress before the time-entry patch and then
-apply the selected final status. A second CSRF-protected submitted action,
-**Delete From Autotask**, may delete the external `TimeEntries` row and return
-the local job to review, but it must not delete the local job, audit events, or
-submission attempts.
+requests even if a crafted request bypasses the review UI. This applies whether
+the external entry was created from Review acceptance or direct Work in Progress
+submission. The allowed exception is the CSRF-protected **Edit Entry** route,
+which may update only job date, start time, end time, summary notes, and ticket
+status for the same submitted job. It must patch the existing Autotask
+`TimeEntries` row instead of creating a new time entry. If the previous ticket
+status was Complete, the provider may temporarily move the ticket to In progress
+before the time-entry patch and then apply the selected final status. A second
+CSRF-protected submitted action, **Delete From Autotask**, may delete the
+external `TimeEntries` row and return the local job to review, but it must not
+delete the local job, audit events, or submission attempts.
 
 ## Database And Deletion Safety
 
@@ -270,11 +302,21 @@ export/import path. They must remain super-admin-only and CSRF-protected. Backup
 files contain all Job Logger database rows, including managed web-user password
 hashes and customer/work history, and should be treated as sensitive. Restore
 must validate backup format, version, required tables, and expected columns
-before deleting current rows, must use the application backup service instead of
-ad hoc shell commands, and must record a post-restore audit event after the
-backup data has been restored. Failed confirmation, oversized upload, malformed
-JSON, wrong format, or schema mismatch must leave current database rows
-untouched.
+before deleting current rows, must use the application backup service instead
+of ad hoc shell commands, and must record a post-restore audit event after the
+backup data has been restored. Narrow backward-compatible defaults are allowed
+for newly added safe columns, such as defaulting
+`user_preferences.submit_from_work_in_progress` to false when restoring v1.0.2
+backups. Failed confirmation, oversized upload, malformed JSON, wrong format,
+or unsupported schema mismatch must leave current database rows untouched.
+
+Automatic backups use the same full-backup content format and restore path.
+The scheduler writes hourly files under `AUTOMATIC_BACKUP_DIR`, defaulting to a
+host-mounted runtime backup directory in Docker. Keep the backup directory
+private: files must be written through owner-only temporary files when possible,
+directory listings must be super-admin-only, selected restore filenames must be
+strictly validated instead of trusting form paths, and retention must purge
+expired automatic backups after successful backup creation.
 
 ## Docker And Runtime Safety
 
@@ -300,6 +342,7 @@ Cloudflare Tunnel tokens and app secrets must remain outside source control.
 Security-sensitive changes usually need tests in:
 
 - `tests/test_security.py`.
+- `tests/test_passkeys.py`.
 - `tests/test_workflow.py`.
 - `tests/test_debug.py`.
 - `tests/test_changelog.py` when version or release-history display changes.

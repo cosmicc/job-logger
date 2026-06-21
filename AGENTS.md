@@ -46,15 +46,32 @@ Disabled web users must be blocked from new logins and from using old signed
 sessions. Deleting a web user with job history must preserve history by
 disabling the account instead of removing the row.
 
+Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`,
+measured in hours. The configured value controls both the signed session cookie
+lifetime and the server-side authenticated-at timestamp check. Expired sessions
+must be cleared and forced through login again.
+
+Managed web users may register WebAuthn passkeys after a normal password login.
+Passkeys are user-owned public credentials, not super-admin credentials. The app
+stores only the public credential ID, public key, signature counter, and safe
+device metadata; the private key and local unlock method stay on the user's
+device or passkey provider. Passkey registration and login must use one-time
+session challenges, require CSRF on browser fetches, require user verification,
+verify the configured relying-party ID and origin, update signature counters on
+successful login, block disabled users, audit only safe metadata, and keep
+password login available as fallback.
+
 Managed web users may change per-login configuration on `/config`. Per-user
 configuration is database-backed, defaults to the dark theme, saves immediately
-when an option changes, and currently supports `dark` or `light` visual themes
-for all authenticated mobile and web pages. The password-change section on
-`/config` is the exception: it requires two matching password entries and an
-explicit **Change password** submit button, and the password card must show the
-managed-user password requirements. The config super admin does not have user
-settings, does not see the Config menu item, cannot access `/config`, and always
-renders in dark mode.
+when an option changes, and supports `dark` or `light` visual themes for all
+authenticated mobile and web pages. It also supports the default-off **Submit
+from Work in Progress** option. When enabled, ending an active job submits the
+time entry directly to Autotask instead of stopping in Review first. The
+password-change section on `/config` is the exception: it requires two matching
+password entries and an explicit **Change password** submit button, and the
+password card must show the managed-user password requirements. The config
+super admin does not have user settings, does not see the Config menu item,
+cannot access `/config`, and always renders in dark mode.
 
 Never rely on the mobile UI, browser state, or hidden form fields for security
 decisions. The server must validate authentication, authorization, CSRF tokens,
@@ -80,8 +97,9 @@ protection.
 
 The application must maintain immutable audit events for important actions,
 including job start, job end, description recording, transcription updates,
-manual edits, review decisions, Autotask submission attempts, Autotask submission
-success, Autotask submission failure, and authentication-sensitive events.
+manual edits, review decisions, direct Work in Progress Autotask submission,
+Autotask submission attempts, Autotask submission success, Autotask submission
+failure, and authentication-sensitive events.
 
 Raw audio must not be stored by default. If audio retention is ever added, it
 must be explicit, configurable, documented, access-controlled, and auditable.
@@ -112,12 +130,15 @@ Recorded jobs follow this lifecycle:
 1. A draft job is created when work starts.
 2. The draft job is owned by the logged-in managed web user.
 3. The active job is ended by the user.
-4. The job becomes available for that user to review. The config super admin
-   may view all jobs but cannot mutate them.
+4. With the default workflow setting, the job becomes available for that user
+   to review. If the owning user enabled **Submit from Work in Progress**, the
+   server validates the same required submission fields and submits the job
+   directly to Autotask during end-work instead. The config super admin may view
+   all jobs but cannot mutate them.
 5. The review page allows time, status, and notes to be edited before
    acceptance while keeping the selected Autotask client and ticket read-only.
-6. An accepted job creates an Autotask time entry using the owning user's
-   Autotask resource ID.
+6. An accepted review job, or a directly submitted Work in Progress job, creates
+   an Autotask time entry using the owning user's Autotask resource ID.
 7. A successfully submitted Autotask job keeps ticket and client identity
    read-only. Its job date, start time, end time, summary notes, and ticket
    status can be changed only through the audited **Edit Entry** action, which
@@ -163,7 +184,10 @@ Daylight Saving Time edge cases must be considered when converting local times.
 
 ## Autotask Integration
 
-Autotask time entries are created only after a job is reviewed and accepted.
+Autotask time entries are created after review acceptance by default. A managed
+web user can opt in to direct Work in Progress submission on `/config`, which
+creates the Autotask time entry during end-work after the same local submission
+requirements pass.
 
 The required Autotask time-entry fields for this application are:
 
@@ -188,9 +212,9 @@ entries for the same accepted job.
 Autotask resource IDs are not global configuration. They belong to managed web
 users and are required before a user can start work. The app uses the logged-in
 or owning user's resource ID for service-call lookup and for
-`TimeEntries.resourceID` on create. User-scoped Autotask calls also use that
-same resource ID as `ImpersonationResourceId`; do not add or restore a global
-`AUTOTASK_IMPERSONATION_RESOURCE_ID` setting. Static Autotask role and
+`TimeEntries.resourceID` on create. User-scoped Autotask calls must not send
+Autotask's optional `ImpersonationResourceId` header; do not add or restore a
+global `AUTOTASK_IMPERSONATION_RESOURCE_ID` setting. Static Autotask role and
 billing-code IDs must not be configured. The live provider must query the
 selected ticket at submission time, use `Tickets.assignedResourceroleID` as
 `TimeEntries.roleID`, and omit `TimeEntries.billingCodeID` so Autotask inherits
@@ -232,7 +256,7 @@ security control.
 AI summary cleanup is separate from speech-to-text. It sends the current
 editable summary text to the configured server-side cleanup provider and
 replaces the summary textarea with the returned cleaned text. It must not
-submit to Autotask or bypass review.
+submit to Autotask or bypass the configured finish/review workflow.
 
 The review page must allow the transcribed description to be edited or
 re-recorded before the job is accepted and submitted to Autotask.
@@ -408,6 +432,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/version.py` owns the source-controlled application version shown
   in authenticated headers, `/changelog`, and diagnostics. Advance it only
   when requested and keep it aligned with `pyproject.toml`.
+- `job_logger/session_timeout.py` clears expired local authenticated sessions
+  according to the configured `APP_SESSION_TIMEOUT_HOURS` value.
 - `job_logger/config.py` loads every runtime setting from environment variables.
   Production must use `AUTOTASK_PROVIDER=autotask`; Autotask resource IDs are
   stored on managed web users, not in config.
@@ -429,6 +455,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/routes/auth.py` handles config super-admin login, managed web-user
   login, logout, and local authenticated sessions, including sanitized
   failed-login file logging.
+- `job_logger/routes/passkeys.py` handles managed-user passkey registration,
+  deletion, and passkey login challenge/verification routes.
 - `job_logger/routes/mobile.py` handles `/home`, active job start/end/save,
   active rounded-start adjustment, WebSocket recording streams for active and
   unsubmitted review jobs, compatibility recording uploads, description text
@@ -462,13 +490,17 @@ The application is a FastAPI project under `job_logger/`.
   legacy job claiming, and delete-or-disable rules.
 - `job_logger/services/preferences.py` owns per-authenticated-user
   configuration validation and persistence.
+- `job_logger/services/passkeys.py` owns WebAuthn relying-party/origin
+  resolution, challenge generation, passkey verification, public credential
+  storage, credential counters, and safe passkey deletion.
 - `job_logger/services/ai_cleanup.py` owns server-side Gemini, Groq, Ollama,
   and LM Studio summary cleanup, including request construction, local-provider
   URL validation, safe response parsing, and provider error normalization.
 - `job_logger/services/transcription.py` owns speech-to-text provider behavior.
 - `job_logger/services/audit.py` records immutable audit events.
 - `job_logger/services/backups.py` creates and restores portable gzip JSON full
-  database backups for authenticated diagnostics.
+  database backups, writes hourly automatic backup files, and enforces automatic
+  backup retention.
 - `job_logger/services/login_failures.py` writes and reads the host-mounted
   sanitized failed-login JSONL log in `LOG_DIR`, defaulting to
   `job-logger-login-failures.log` inside Docker's `/data/logs` mount.
@@ -498,10 +530,11 @@ The normal workflow is:
    first managed web user claims any existing unowned jobs from earlier
    single-user installs.
 3. A managed web user may open `/config` to choose dark or light theme for
-   their own login. Config changes save and apply immediately without a visible
-   save action. The same page allows an explicit two-entry login password
-   change and shows password requirements in the password card. The config super
-   admin has no `/config` access and stays dark.
+   their own login, enable the default-off **Submit from Work in Progress**
+   option, change their password, and add or delete passkeys. Config changes
+   save and apply immediately without a visible save action, except password
+   and passkey actions which are explicit. The password card shows password
+   requirements. The config super admin has no `/config` access and stays dark.
 4. A managed web user opens `/home`.
 5. The `/home` page renders from local application state without running an
    Autotask API contactability check. After the page has loaded, browser
@@ -543,10 +576,18 @@ The normal workflow is:
    during cleanup. The returned text replaces the summary textarea and remains
    subject to normal save/review behavior.
 12. User can save active job edits before ending work.
-13. User ends work with a mandatory client name. The job moves to review.
+13. User ends work with a mandatory client name. With the default workflow, the
+    job moves to review. If **Submit from Work in Progress** is enabled, the
+    end-work action submits to Autotask immediately after validating ticket
+    number, ticket status, rounded end time, client, and summary notes. Missing
+    local submission fields leave the job active so the user can fix them;
+    Autotask provider failures move the job to the failed-submission review
+    state with the safe error message.
 14. User reviews the job from `/review`, edits time/status/notes if needed,
     optionally records more audio notes before Autotask submission, and keeps
-    the selected client/ticket identity read-only.
+    the selected client/ticket identity read-only. Directly submitted jobs still
+    appear in Review for submitted-entry **Edit Entry** and **Delete From
+    Autotask** actions.
 15. Accept/retry submits a reviewed job to Autotask idempotently with the
     owning managed web user's resource ID.
 16. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes
@@ -559,7 +600,10 @@ The normal workflow is:
     while the job remains submitted.
 17. Submission attempts and important state changes are recorded for audit and
     diagnostics.
-18. Authenticated users may open `/changelog` from the discreet header version
+18. Managed users without a passkey see a Home prompt to add one. Later passkey
+    login uses `/login/passkey/options` and `/login/passkey/verify`; failed or
+    canceled passkey login must leave the normal password form available.
+19. Authenticated users may open `/changelog` from the discreet header version
     link to view the current source-controlled version and prior concise release
     notes parsed from `WEB_CHANGELOG.md`. The current-version panel must show
     that version's simple change list, not only the release title.

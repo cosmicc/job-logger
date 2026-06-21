@@ -101,6 +101,13 @@ class WebUser(Base):
     # jobs links work history to the web user whose Autotask resource was used.
     jobs: Mapped[list[Job]] = relationship("Job", back_populates="web_user")
 
+    # webauthn_credentials stores passkeys registered by this managed web user.
+    webauthn_credentials: Mapped[list[WebAuthnCredential]] = relationship(
+        "WebAuthnCredential",
+        back_populates="web_user",
+        cascade="all, delete-orphan",
+    )
+
     __table_args__ = (
         Index("ix_web_users_disabled", "disabled"),
     )
@@ -125,6 +132,17 @@ class UserPreference(Base):
     # theme stores the preferred visual theme for every authenticated page.
     theme: Mapped[ThemeMode] = enum_column(ThemeMode, 16, "Preferred visual theme.")
 
+    # submit_from_work_in_progress lets a technician end and submit an active
+    # job in one step. It defaults off so existing review-first behavior is
+    # preserved for every current and newly created account.
+    submit_from_work_in_progress: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Whether ending work submits directly to Autotask instead of stopping in review.",
+    )
+
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -132,6 +150,64 @@ class UserPreference(Base):
         onupdate=utc_now,
         nullable=False,
     )
+
+
+class WebAuthnCredential(Base):
+    """A passkey public credential registered to one managed web user."""
+
+    __tablename__ = "webauthn_credentials"
+
+    # id is an internal UUID for management actions. The browser credential ID
+    # remains separate because it is opaque authenticator data.
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string, comment="Stable passkey row UUID.")
+
+    # web_user_id links the passkey to the managed web-user account it can log in.
+    web_user_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("web_users.id", ondelete="CASCADE"),
+        nullable=False,
+        comment="Managed web-user UUID that owns this passkey.",
+    )
+
+    # credential_id is the URL-safe base64 WebAuthn credential ID. It is unique
+    # so authentication can find the owning account without a submitted username.
+    credential_id: Mapped[str] = mapped_column(
+        String(1024),
+        nullable=False,
+        unique=True,
+        comment="Base64url-encoded WebAuthn credential ID.",
+    )
+
+    # credential_public_key is the COSE public key returned by WebAuthn
+    # registration. It verifies future signatures and is not a secret.
+    credential_public_key: Mapped[str] = mapped_column(Text, nullable=False, comment="Base64url-encoded public key.")
+
+    # sign_count is updated after successful assertions to detect cloned
+    # authenticators when the device reports a monotonically increasing counter.
+    sign_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0", comment="Latest authenticator signature counter.")
+
+    aaguid: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="Authenticator AAGUID returned at registration.")
+    credential_type: Mapped[str] = mapped_column(String(40), nullable=False, default="public-key", server_default="public-key")
+    device_type: Mapped[str | None] = mapped_column(String(40), nullable=True, comment="WebAuthn credential device type.")
+    backed_up: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Whether the passkey is backed up by the provider.",
+    )
+    transports: Mapped[list[str] | None] = mapped_column(JSON, nullable=True, comment="Browser-reported authenticator transports.")
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="Browser user agent that registered the passkey.")
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    last_used_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    web_user: Mapped[WebUser] = relationship("WebUser", back_populates="webauthn_credentials")
+
+    __table_args__ = (
+        Index("ix_webauthn_credentials_web_user_created_at", "web_user_id", "created_at_utc"),
+        Index("ix_webauthn_credentials_credential_id", "credential_id"),
+    )
+
 
 class Job(Base):
     """A locally recorded work session awaiting review and Autotask submission."""

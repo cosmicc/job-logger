@@ -19,12 +19,14 @@ from job_logger.security import (
     validate_csrf_token,
 )
 from job_logger.services.audit import record_audit_event
+from job_logger.services.passkeys import list_passkey_credentials_for_user
 from job_logger.services.preferences import (
     THEME_META_COLORS,
     UserPreferenceError,
+    get_submit_from_work_in_progress_for_principal,
     get_theme_for_principal,
     preference_principal_from_session,
-    save_theme_for_principal,
+    save_preferences_for_principal,
 )
 from job_logger.services.users import WebUserError, change_web_user_password, get_enabled_web_user_by_id_or_raise
 from job_logger.ui import template_context, templates
@@ -73,6 +75,8 @@ def config_page(request: Request, database_session: Session = Depends(get_databa
         raise
 
     current_theme = get_theme_for_principal(database_session, principal.key)
+    submit_from_work_in_progress = get_submit_from_work_in_progress_for_principal(database_session, principal.key)
+    current_web_user = _current_config_web_user(request, database_session)
     return templates.TemplateResponse(
         request,
         "config.html",
@@ -85,6 +89,8 @@ def config_page(request: Request, database_session: Session = Depends(get_databa
                 (ThemeMode.DARK.value, "Dark"),
                 (ThemeMode.LIGHT.value, "Light"),
             ],
+            submit_from_work_in_progress=submit_from_work_in_progress,
+            passkey_credentials=list_passkey_credentials_for_user(database_session, current_web_user.id),
         ),
     )
 
@@ -102,17 +108,28 @@ async def save_config(
         principal = _current_web_user_preference_principal(request, database_session)
         form_data = await request.form()
         validate_csrf_token(request, str(form_data.get("csrf_token", "")))
-        user_preference = save_theme_for_principal(
+        submitted_theme = str(form_data.get("theme", "")) if "theme" in form_data else None
+        submitted_submit_from_work_in_progress = (
+            str(form_data.get("submit_from_work_in_progress", ""))
+            if "submit_from_work_in_progress" in form_data
+            else None
+        )
+        user_preference = save_preferences_for_principal(
             database_session,
             principal_key=principal.key,
-            theme=str(form_data.get("theme", "")),
+            theme=submitted_theme,
+            submit_from_work_in_progress=submitted_submit_from_work_in_progress,
         )
         record_audit_event(
             database_session,
             actor=actor,
             action="user.config.updated",
             request=request,
-            details={"principal_key": principal.key, "theme": user_preference.theme.value},
+            details={
+                "principal_key": principal.key,
+                "theme": user_preference.theme.value,
+                "submit_from_work_in_progress": user_preference.submit_from_work_in_progress,
+            },
         )
         database_session.commit()
         if wants_json:
@@ -120,6 +137,7 @@ async def save_config(
                 {
                     "theme": user_preference.theme.value,
                     "theme_color": THEME_META_COLORS[user_preference.theme],
+                    "submit_from_work_in_progress": user_preference.submit_from_work_in_progress,
                     "message": "Configuration updated.",
                 }
             )

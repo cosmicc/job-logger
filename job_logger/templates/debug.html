@@ -272,6 +272,76 @@
       </div>
     </section>
 
+    <section id="automatic-backups" class="table-panel" aria-label="Automatic database backups">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <div>
+            <h2>Automatic database backups</h2>
+            <p class="muted-text">
+              Runs hourly and keeps the newest 6 hourly backups plus one daily backup for today and the prior 2 days.
+            </p>
+          </div>
+          <span class="status-chip {% if automatic_backups_enabled %}status-submitted{% else %}status-submission_failed{% endif %}">
+            {% if automatic_backups_enabled %}Enabled{% else %}Disabled{% endif %}
+          </span>
+        </div>
+
+        <dl class="debug-list compact-debug-list backup-details">
+          <div>
+            <dt>Backup directory</dt>
+            <dd>{{ automatic_backup_dir }}</dd>
+          </div>
+          <div>
+            <dt>Restore confirmation</dt>
+            <dd>Type RESTORE next to the selected backup before restoring.</dd>
+          </div>
+        </dl>
+
+        {% if automatic_backups %}
+          <div class="debug-table-wrap automatic-backup-table-wrap">
+            <table class="debug-submission-table automatic-backup-table">
+              <thead>
+                <tr>
+                  <th>Created</th>
+                  <th>File</th>
+                  <th>Size</th>
+                  <th>Restore</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for backup in automatic_backups %}
+                  <tr>
+                    <td>{{ backup.created_at_display }}</td>
+                    <td class="backup-file-name">{{ backup.filename }}</td>
+                    <td>{{ backup.size_display }}</td>
+                    <td>
+                      <form method="post" action="/debug/automatic-backups/restore" class="automatic-backup-restore-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="filename" value="{{ backup.filename }}">
+                        <label class="sr-only" for="restore-confirmation-{{ loop.index }}">Confirmation</label>
+                        <input
+                          id="restore-confirmation-{{ loop.index }}"
+                          type="text"
+                          name="confirmation"
+                          pattern="RESTORE"
+                          placeholder="RESTORE"
+                          autocomplete="off"
+                          required
+                        >
+                        <button class="secondary-button danger-button" type="submit">Restore</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="muted-text">No automatic backups are available yet.</p>
+        {% endif %}
+      </div>
+    </section>
+
     <section id="full-backup" class="table-panel" aria-label="Full data backup and restore">
       <div class="debug-panel-body">
         <div class="review-header">

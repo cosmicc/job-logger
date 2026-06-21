@@ -28,6 +28,14 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert "Lowercase and uppercase letters" in config_response.text
     assert "At least one number" in config_response.text
     assert "At least one symbol" in config_response.text
+    assert "Passkeys" in config_response.text
+    assert "Add passkey" in config_response.text
+    assert "No passkeys have been added" in config_response.text
+    assert "Submit from Work in Progress" in config_response.text
+    assert "submits the time entry to Autotask immediately" in config_response.text
+    assert "data-direct-submit-option" in config_response.text
+    assert "data-direct-submit-state" in config_response.text
+    assert "Off" in config_response.text
     assert 'data-config-form' in config_response.text
     assert "Save config" not in config_response.text
     assert "Current settings" not in config_response.text
@@ -46,17 +54,30 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert save_response.status_code == 200
     assert save_response.json()["theme"] == "light"
     assert save_response.json()["theme_color"] == "#f6f8fb"
+    assert save_response.json()["submit_from_work_in_progress"] is False
+
+    workflow_response = authenticated_client.post(
+        "/config",
+        headers={"Accept": "application/json", "X-CSRF-Token": csrf_token},
+        data={"csrf_token": csrf_token, "submit_from_work_in_progress": "true"},
+        follow_redirects=False,
+    )
+    assert workflow_response.status_code == 200
+    assert workflow_response.json()["theme"] == "light"
+    assert workflow_response.json()["submit_from_work_in_progress"] is True
 
     updated_config_response = authenticated_client.get("/config")
     mobile_response = authenticated_client.get("/home")
     assert 'class="theme-light"' in updated_config_response.text
     assert 'class="theme-light"' in mobile_response.text
     assert re.search(r'name="theme"[^>]+value="light"[^>]+checked', updated_config_response.text)
+    assert "On" in updated_config_response.text
 
     with database.SessionLocal() as database_session:
         preference = database_session.scalar(select(UserPreference).where(UserPreference.principal_key.like("web_user:%")))
         assert preference is not None
         assert preference.theme == ThemeMode.LIGHT
+        assert preference.submit_from_work_in_progress is True
 
 
 def test_super_admin_has_no_config_menu_or_theme_preferences(client: TestClient) -> None:
@@ -98,6 +119,19 @@ def test_super_admin_has_no_config_menu_or_theme_preferences(client: TestClient)
         follow_redirects=False,
     )
     assert password_response.status_code == 403
+    passkey_options_response = client.post(
+        "/config/passkeys/options",
+        headers={"Accept": "application/json", "X-CSRF-Token": csrf_token},
+        json={},
+        follow_redirects=False,
+    )
+    assert passkey_options_response.status_code == 403
+    passkey_delete_response = client.post(
+        "/config/passkeys/not-a-passkey/delete",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert passkey_delete_response.status_code == 403
     assert 'class="theme-dark"' in client.get("/users").text
 
     login_as_web_user(client)

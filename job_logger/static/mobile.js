@@ -138,8 +138,12 @@ function readActiveJobClientFields(jobId) {
 function syncEndJobClientFields(endJobForm) {
   const jobId = toSafeMapString(endJobForm.dataset.jobId);
   const clientFields = readActiveJobClientFields(jobId);
+  const activeTicketForm = findActiveTicketForm(jobId);
+  const activeFormData = activeTicketForm ? new FormData(activeTicketForm) : null;
   const endClientNameField = endJobForm.querySelector(".end-client-name");
   const endAutotaskCompanyIdField = endJobForm.querySelector(".end-autotask-company-id");
+  const endWorkLocationField = endJobForm.querySelector(".end-work-location");
+  const endTicketStatusField = endJobForm.querySelector(".end-ticket-status");
 
   if (endClientNameField) {
     endClientNameField.value = clientFields.clientName;
@@ -147,6 +151,14 @@ function syncEndJobClientFields(endJobForm) {
 
   if (endAutotaskCompanyIdField) {
     endAutotaskCompanyIdField.value = clientFields.autotaskCompanyId;
+  }
+
+  if (endWorkLocationField && activeFormData) {
+    endWorkLocationField.value = toSafeMapString(activeFormData.get("work_location") || endWorkLocationField.value);
+  }
+
+  if (endTicketStatusField && activeFormData) {
+    endTicketStatusField.value = toSafeMapString(activeFormData.get("ticket_status") || endTicketStatusField.value);
   }
 }
 

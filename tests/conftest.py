@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 from collections.abc import Generator
 from pathlib import Path
 
@@ -19,10 +20,16 @@ os.environ["LOGIN_FAILURE_LOG_PATH"] = "/tmp/job-logger-test-login-failures.log"
 os.environ["LOGIN_FAILURE_DEBUG_ROWS"] = "20"
 os.environ["APP_ALLOWED_HOSTS"] = "testserver,localhost,127.0.0.1"
 os.environ["APP_SESSION_COOKIE_SECURE"] = "false"
+os.environ["APP_SESSION_TIMEOUT_HOURS"] = "12"
 os.environ["CLOUDFLARE_ACCESS_REQUIRED"] = "false"
+os.environ["WEBAUTHN_RP_NAME"] = "Job Logger Test"
+os.environ["WEBAUTHN_RP_ID"] = "testserver"
+os.environ["WEBAUTHN_ORIGIN"] = "http://testserver"
 os.environ["DATABASE_URL"] = "sqlite+pysqlite://"
 os.environ["TRANSCRIPTION_PROVIDER"] = "mock"
 os.environ["AUTOTASK_PROVIDER"] = "mock"
+os.environ["AUTOMATIC_BACKUPS_ENABLED"] = "false"
+os.environ["AUTOMATIC_BACKUP_DIR"] = "/tmp/job-logger-test-automatic-backups"
 
 from job_logger import database  # noqa: E402
 from job_logger.database import Base  # noqa: E402
@@ -72,7 +79,9 @@ def client() -> Generator[TestClient, None, None]:
     """Return a TestClient backed by a fresh in-memory database."""
 
     login_failure_log_path = Path(os.environ["LOGIN_FAILURE_LOG_PATH"])
+    automatic_backup_dir = Path(os.environ["AUTOMATIC_BACKUP_DIR"])
     login_failure_log_path.unlink(missing_ok=True)
+    shutil.rmtree(automatic_backup_dir, ignore_errors=True)
     database.configure_database("sqlite+pysqlite://")
     Base.metadata.create_all(database.engine)
     with database.SessionLocal() as database_session:
@@ -89,6 +98,7 @@ def client() -> Generator[TestClient, None, None]:
         yield test_client
     Base.metadata.drop_all(database.engine)
     login_failure_log_path.unlink(missing_ok=True)
+    shutil.rmtree(automatic_backup_dir, ignore_errors=True)
 
 
 @pytest.fixture()

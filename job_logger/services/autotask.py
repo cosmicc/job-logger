@@ -833,51 +833,41 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if missing_values:
             raise AutotaskSubmissionError(f"Missing live Autotask settings: {', '.join(missing_values)}")
 
-    def _headers(self, impersonation_resource_id: int | None = None) -> dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         """Return required Autotask REST API headers without logging them."""
 
-        headers = {
+        return {
             "ApiIntegrationCode": self.application_settings.autotask_api_integration_code or "",
             "UserName": self.application_settings.autotask_username or "",
             "Secret": self.application_settings.autotask_secret or "",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
-        if impersonation_resource_id is not None:
-            if impersonation_resource_id <= 0:
-                raise AutotaskSubmissionError("A valid managed web-user Autotask resource ID is required for impersonated Autotask calls.")
-            headers["ImpersonationResourceId"] = str(impersonation_resource_id)
 
-        return headers
-
-    def _client(self, timeout_seconds: float = 30.0, impersonation_resource_id: int | None = None) -> httpx.Client:
+    def _client(self, timeout_seconds: float = 30.0) -> httpx.Client:
         """Return a short-lived HTTP client for Autotask calls."""
 
         base_url = (self.application_settings.autotask_base_url or "").rstrip("/")
         return httpx.Client(
             base_url=base_url,
-            headers=self._headers(impersonation_resource_id=impersonation_resource_id),
+            headers=self._headers(),
             timeout=timeout_seconds,
         )
 
-    def _cache_namespace(self, impersonation_resource_id: int | None = None) -> str:
+    def _cache_namespace(self) -> str:
         """Return the non-secret namespace used for tenant-specific cache keys."""
 
-        tenant_namespace = (self.application_settings.autotask_base_url or "").rstrip("/")
-        if impersonation_resource_id is None:
-            return tenant_namespace
-        return f"{tenant_namespace}|resource:{impersonation_resource_id}"
+        return (self.application_settings.autotask_base_url or "").rstrip("/")
 
     def _open_ticket_selection_cache_key(
         self,
         client_name: str,
         autotask_company_id: int | None,
-        impersonation_resource_id: int | None,
     ) -> tuple[str, str, int | None]:
         """Return the cache key for a recently displayed open-ticket list."""
 
         normalized_client_name = client_name.strip().casefold()
-        return (self._cache_namespace(impersonation_resource_id), normalized_client_name, autotask_company_id)
+        return (self._cache_namespace(), normalized_client_name, autotask_company_id)
 
     def _resource_search_cache_key(self, query_text: str) -> tuple[str, str]:
         """Return the cache key for resource directory lookup results."""
@@ -893,7 +883,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Return the cache key for a selected-day service-call start list."""
 
         return (
-            self._cache_namespace(resource_id),
+            self._cache_namespace(),
             resource_id,
             format_autotask_datetime(local_day_start_utc),
             format_autotask_datetime(local_day_end_utc),
@@ -1137,15 +1127,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         self,
         client: httpx.Client,
         company_ids: list[int],
-        *,
-        impersonation_resource_id: int | None = None,
     ) -> dict[int, dict[str, Any]]:
         """Return active Autotask company records keyed by company ID."""
 
         company_records_by_id: dict[int, dict[str, Any]] = {}
         missing_company_ids: list[int] = []
         for company_id in dict.fromkeys(company_ids):
-            cache_key = (self._cache_namespace(impersonation_resource_id), company_id)
+            cache_key = (self._cache_namespace(), company_id)
             cached_company = _get_cached_value(_COMPANY_ID_CACHE, cache_key)
             if isinstance(cached_company, dict):
                 company_records_by_id[company_id] = cached_company
@@ -1176,7 +1164,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 company_records_by_id[company_id] = company_record
                 _set_cached_value(
                     _COMPANY_ID_CACHE,
-                    (self._cache_namespace(impersonation_resource_id), company_id),
+                    (self._cache_namespace(), company_id),
                     company_record,
                     COMPANY_CACHE_TTL_SECONDS,
                 )
@@ -1516,13 +1504,11 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         self,
         client: httpx.Client,
         client_name: str,
-        *,
-        impersonation_resource_id: int | None = None,
     ) -> list[dict[str, Any]]:
         """Return active Autotask companies whose names contain the job client name."""
 
         normalized_query_text = client_name.strip().casefold()
-        cache_key = (self._cache_namespace(impersonation_resource_id), normalized_query_text)
+        cache_key = (self._cache_namespace(), normalized_query_text)
         cached_companies = _get_cached_value(_COMPANY_SEARCH_CACHE, cache_key)
         if isinstance(cached_companies, list) and cached_companies:
             return cached_companies[:MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP]
@@ -1555,7 +1541,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     continue
                 _set_cached_value(
                     _COMPANY_ID_CACHE,
-                    (self._cache_namespace(impersonation_resource_id), active_company_id),
+                    (self._cache_namespace(), active_company_id),
                     active_company,
                     COMPANY_CACHE_TTL_SECONDS,
                 )
@@ -1565,12 +1551,10 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         self,
         client: httpx.Client,
         company_id: int,
-        *,
-        impersonation_resource_id: int | None = None,
     ) -> dict[str, Any] | None:
         """Return one active Autotask company by ID."""
 
-        cache_key = (self._cache_namespace(impersonation_resource_id), company_id)
+        cache_key = (self._cache_namespace(), company_id)
         cached_company = _get_cached_value(_COMPANY_ID_CACHE, cache_key)
         if isinstance(cached_company, dict):
             return cached_company
@@ -1805,27 +1789,25 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if not safe_client_name:
             raise AutotaskSubmissionError("Client name is required before searching Autotask tickets.")
 
-        cache_key = self._open_ticket_selection_cache_key(safe_client_name, autotask_company_id, resource_id)
+        cache_key = self._open_ticket_selection_cache_key(safe_client_name, autotask_company_id)
         cached_ticket_options = _get_cached_value(_OPEN_TICKET_SELECTION_CACHE, cache_key)
         if isinstance(cached_ticket_options, list) and cached_ticket_options:
             return cached_ticket_options[:MAX_TICKET_LOOKUP_RESULTS]
 
         ticket_options: list[AutotaskTicketOption] = []
-        with self._client(impersonation_resource_id=resource_id) as client:
+        with self._client() as client:
             status_labels = self._query_ticket_status_labels(client)
             companies: list[dict[str, Any]]
             if autotask_company_id is not None:
                 selected_company = self._query_company_by_id(
                     client,
                     autotask_company_id,
-                    impersonation_resource_id=resource_id,
                 )
                 companies = [selected_company] if selected_company is not None else []
             else:
                 companies = self._query_companies_by_name(
                     client,
                     safe_client_name,
-                    impersonation_resource_id=resource_id,
                 )
 
             for company in companies:
@@ -1861,11 +1843,10 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if len(safe_query_text) < MIN_COMPANY_SEARCH_CHARACTERS:
             raise AutotaskSubmissionError("Type at least 3 characters before searching Autotask companies.")
 
-        with self._client(impersonation_resource_id=resource_id) as client:
+        with self._client() as client:
             companies = self._query_companies_by_name(
                 client,
                 safe_query_text,
-                impersonation_resource_id=resource_id,
             )
 
         return [
@@ -1925,7 +1906,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if isinstance(cached_service_call_options, list):
             return cached_service_call_options[:MAX_SERVICE_CALL_LOOKUP_RESULTS]
 
-        with self._client(impersonation_resource_id=resource_id) as client:
+        with self._client() as client:
             service_call_records = self._query_todays_service_calls(
                 client,
                 local_day_start_utc=local_day_start_utc,
@@ -1999,7 +1980,6 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             company_records_by_id = self._query_companies_by_ids(
                 client,
                 company_ids,
-                impersonation_resource_id=resource_id,
             )
             status_labels = self._query_ticket_status_labels(client)
             service_call_options = self._build_service_call_options(
@@ -2123,7 +2103,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             raise AutotaskSubmissionError("Ticket number is required before updating ticket status.")
 
         try:
-            with self._client(impersonation_resource_id=resource_id) as client:
+            with self._client() as client:
                 ticket_id = self._query_ticket_id(client, safe_ticket_number)
                 self._update_ticket_status(client, ticket_id, TicketStatus.IN_PROGRESS)
         except (httpx.HTTPError, AutotaskSubmissionError):
@@ -2219,8 +2199,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         snapshot.update(
             {
                 "resourceID": resource_id,
-                "impersonationResourceID": resource_id,
-                "impersonationResourceIDSource": "managed_web_user.autotask_resource_id",
+                "resourceIDSource": "managed_web_user.autotask_resource_id",
                 "roleIDSource": "ticket.assignedResourceroleID",
                 "billingCodeIDSource": "ticket inheritance",
                 "timeEntryType": self.application_settings.autotask_time_entry_type,
@@ -2229,7 +2208,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             }
         )
         try:
-            with self._client(impersonation_resource_id=resource_id) as client:
+            with self._client() as client:
                 ticket_context = self._query_ticket_time_entry_context(client, job.ticket_number)
                 snapshot["roleID"] = ticket_context.role_id
                 snapshot["ticketBillingCodeID"] = ticket_context.billing_code_id
@@ -2291,8 +2270,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 "operation": "update_time_entry",
                 "external_id": external_id,
                 "resourceID": resource_id,
-                "impersonationResourceID": resource_id,
-                "impersonationResourceIDSource": "managed_web_user.autotask_resource_id",
+                "resourceIDSource": "managed_web_user.autotask_resource_id",
                 "previousTicketStatus": previous_ticket_status.value if previous_ticket_status else None,
                 "ticketStatusUpdateRequested": update_ticket_status,
                 "ticketStatusUpdateAttempted": should_update_ticket_status,
@@ -2303,7 +2281,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             }
         )
         try:
-            with self._client(impersonation_resource_id=resource_id) as client:
+            with self._client() as client:
                 ticket_id: int | None = None
                 if should_reopen_complete_ticket or should_update_ticket_status:
                     ticket_id = self._query_ticket_id(client, job.ticket_number)
@@ -2342,11 +2320,10 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             "ticket_number": job.ticket_number,
             "external_id": external_id,
             "resourceID": resource_id,
-            "impersonationResourceID": resource_id,
-            "impersonationResourceIDSource": "managed_web_user.autotask_resource_id",
+            "resourceIDSource": "managed_web_user.autotask_resource_id",
         }
         try:
-            with self._client(impersonation_resource_id=resource_id) as client:
+            with self._client() as client:
                 self._delete_time_entry(client, external_id)
         except (httpx.HTTPError, AutotaskSubmissionError) as exc:
             return AutotaskSubmissionResult(

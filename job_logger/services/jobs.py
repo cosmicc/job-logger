@@ -196,6 +196,19 @@ def ensure_job_can_record_description(job: Job) -> None:
         raise JobWorkflowError(DESCRIPTION_RECORDING_UNAVAILABLE_MESSAGE)
 
 
+def ensure_job_ready_for_autotask_submission(job: Job) -> None:
+    """Require every local field needed before any Autotask submission attempt."""
+
+    if not job.ticket_number:
+        raise JobWorkflowError("Ticket number is required before Autotask submission.")
+    if job.ticket_status is None:
+        raise JobWorkflowError("Ticket status is required before Autotask submission.")
+    if job.rounded_end_utc is None:
+        raise JobWorkflowError("End time is required before Autotask submission.")
+    if not (job.summary_notes or job.description_text or "").strip():
+        raise JobWorkflowError("Summary notes are required before Autotask submission.")
+
+
 def list_active_jobs(database_session: Session) -> list[Job]:
     """Return all active jobs in slot/date order."""
 
@@ -1053,11 +1066,12 @@ def reset_ticket_data(database_session: Session) -> dict[str, int]:
 
 
 def submit_job_to_autotask(database_session: Session, job: Job, *, resource_id: int) -> Job:
-    """Submit a reviewed job to the configured Autotask provider."""
+    """Submit a locally completed job to the configured Autotask provider."""
 
     if job.status == JobStatus.ACTIVE:
         raise JobWorkflowError("Active jobs cannot be submitted.")
     ensure_job_is_not_locked_after_successful_submission(job)
+    ensure_job_ready_for_autotask_submission(job)
 
     try:
         submission_result = get_autotask_provider().submit_job(job, resource_id=resource_id)

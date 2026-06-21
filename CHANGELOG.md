@@ -2,6 +2,30 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## v1.1.0 - Direct submission, backups, and passkeys
+
+- Added a default-off per-user **Submit from Work in Progress** setting on
+  `/config`. When enabled, ending an active job submits the time entry directly
+  to Autotask instead of requiring Review first.
+- Kept Review available for submitted-entry edits and **Delete From Autotask**
+  after direct submission, with the same idempotent Autotask submission service,
+  audit events, CSRF checks, ownership checks, and local validation used by
+  review acceptance.
+- Added a database migration for the new user preference. Existing users keep
+  the review-first workflow until they turn the setting on.
+- Added automatic hourly full-database backups under the configured runtime
+  backup directory, with retention for the newest 6 hourly backups plus one
+  daily backup for today and each of the prior 2 days.
+- Added a super-admin-only automatic backup section on `/debug` that lists
+  retained backups and supports typed-confirmation restore from each file.
+- Added `APP_SESSION_TIMEOUT_HOURS` so Docker deployments can control how many
+  hours a local app login remains valid before the user must sign in again.
+- Added managed-user WebAuthn/passkey support. Users can add a passkey after a
+  normal password login, then use the device's normal unlock method for later
+  sign-ins while password login remains available as the fallback.
+- Added `WEBAUTHN_RP_NAME`, `WEBAUTHN_RP_ID`, and `WEBAUTHN_ORIGIN`
+  configuration for passkey relying-party and origin validation.
+
 ## v1.0.2 - Autotask workflow and desktop layout updates
 
 - Renamed the work-entry route from `/mobile` to `/home` so the URL no longer
@@ -9,8 +33,8 @@ All notable changes to Job Logger are documented in this file.
   now redirect to `/home` for existing bookmarks.
 - Removed the global `AUTOTASK_IMPERSONATION_RESOURCE_ID` setting from Docker,
   sample environment, application config, and the Autotask discovery helper.
-  User-scoped Autotask calls now derive `ImpersonationResourceId` from the
-  owning managed web user's Autotask resource ID.
+  User-scoped Autotask workflows use the owning managed web user's Autotask
+  resource ID in payloads and resource filters.
 - Fixed submitted Autotask **Edit Entry** updates for jobs whose ticket was
   already Complete by moving the ticket to In progress before the time-entry
   patch and restoring the selected final status afterward.

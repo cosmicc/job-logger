@@ -5,6 +5,7 @@ from __future__ import annotations
 import hmac
 import secrets
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException, Request, status
@@ -15,10 +16,14 @@ from job_logger.config import Settings, settings
 SESSION_USERNAME_KEY = "authenticated_username"
 SESSION_USER_KIND_KEY = "authenticated_user_kind"
 SESSION_WEB_USER_ID_KEY = "authenticated_web_user_id"
+SESSION_AUTHENTICATED_AT_UTC_KEY = "authenticated_at_utc"
+SESSION_AUTH_METHOD_KEY = "authenticated_method"
 SESSION_CSRF_TOKEN_KEY = "csrf_token"
 SESSION_FLASH_KEY = "flash_messages"
 SUPER_ADMIN_SESSION_KIND = "super_admin"
 WEB_USER_SESSION_KIND = "web_user"
+PASSWORD_AUTH_METHOD = "password"
+PASSKEY_AUTH_METHOD = "passkey"
 
 # Sensitive audit keys are redacted before being written to logs or JSON snapshots.
 SENSITIVE_KEY_FRAGMENTS = ("password", "secret", "token", "key", "authorization", "cookie")
@@ -46,16 +51,26 @@ def login_session(request: Request, username: str) -> None:
     request.session.clear()
     request.session[SESSION_USERNAME_KEY] = username
     request.session[SESSION_USER_KIND_KEY] = SUPER_ADMIN_SESSION_KIND
+    request.session[SESSION_AUTHENTICATED_AT_UTC_KEY] = datetime.now(UTC).isoformat()
+    request.session[SESSION_AUTH_METHOD_KEY] = PASSWORD_AUTH_METHOD
     request.session[SESSION_CSRF_TOKEN_KEY] = secrets.token_urlsafe(32)
 
 
-def login_web_user_session(request: Request, *, username: str, web_user_id: str) -> None:
+def login_web_user_session(
+    request: Request,
+    *,
+    username: str,
+    web_user_id: str,
+    authentication_method: str = PASSWORD_AUTH_METHOD,
+) -> None:
     """Create an authenticated managed web-user session."""
 
     request.session.clear()
     request.session[SESSION_USERNAME_KEY] = username
     request.session[SESSION_USER_KIND_KEY] = WEB_USER_SESSION_KIND
     request.session[SESSION_WEB_USER_ID_KEY] = web_user_id
+    request.session[SESSION_AUTHENTICATED_AT_UTC_KEY] = datetime.now(UTC).isoformat()
+    request.session[SESSION_AUTH_METHOD_KEY] = authentication_method
     request.session[SESSION_CSRF_TOKEN_KEY] = secrets.token_urlsafe(32)
 
 
@@ -102,6 +117,56 @@ def current_web_user_id_from_session(session: Mapping[str, Any]) -> str | None:
         return user_id
 
     return None
+
+
+def current_authentication_method_from_session(session: Mapping[str, Any]) -> str | None:
+    """Return the method used to create the current login session."""
+
+    authentication_method = session.get(SESSION_AUTH_METHOD_KEY)
+    if authentication_method in {PASSWORD_AUTH_METHOD, PASSKEY_AUTH_METHOD}:
+        return str(authentication_method)
+    return None
+
+
+def authenticated_session_is_expired(
+    session: Mapping[str, Any],
+    application_settings: Settings = settings,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Return whether authenticated session state has exceeded its max age."""
+
+    if current_username_from_session(session) is None:
+        return False
+
+    raw_authenticated_at = session.get(SESSION_AUTHENTICATED_AT_UTC_KEY)
+    if not isinstance(raw_authenticated_at, str) or not raw_authenticated_at:
+        return True
+
+    try:
+        authenticated_at = datetime.fromisoformat(raw_authenticated_at.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+
+    if authenticated_at.tzinfo is None:
+        authenticated_at = authenticated_at.replace(tzinfo=UTC)
+
+    current_time = now or datetime.now(UTC)
+    return (current_time.astimezone(UTC) - authenticated_at.astimezone(UTC)).total_seconds() > application_settings.session_timeout_seconds
+
+
+def expire_authenticated_session_if_needed(
+    request: Request,
+    application_settings: Settings = settings,
+) -> bool:
+    """Clear expired authenticated session state and leave a login-page notice."""
+
+    if not authenticated_session_is_expired(request.session, application_settings):
+        return False
+
+    request.session.clear()
+    add_flash_message(request, "Session expired. Sign in again.", "error")
+    return True
 
 
 def current_username(request: Request) -> str | None:
