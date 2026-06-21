@@ -18,6 +18,7 @@ from job_logger.services.autotask import (
     _OPEN_TICKET_SELECTION_CACHE,
     _RESOURCE_SEARCH_CACHE,
     _SERVICE_CALL_SELECTION_CACHE,
+    _TICKET_SOURCE_CACHE,
     _TICKET_STATUS_CACHE,
     AutotaskConnectivityResult,
     AutotaskSubmissionError,
@@ -125,6 +126,9 @@ class FakeOpenTicketLookupClient:
         # status_lookup_count counts ticket status picklist metadata requests.
         self.status_lookup_count = 0
 
+        # source_lookup_count counts ticket source picklist metadata requests.
+        self.source_lookup_count = 0
+
     def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
         """Return company or ticket query responses based on the requested endpoint."""
 
@@ -140,7 +144,15 @@ class FakeOpenTicketLookupClient:
 
         if endpoint_path == "/Tickets/query":
             assert json["MaxRecords"] == 25
-            assert json["IncludeFields"] == ["id", "ticketNumber", "title", "description", "status", "completedDate"]
+            assert json["IncludeFields"] == [
+                "id",
+                "ticketNumber",
+                "title",
+                "description",
+                "status",
+                "completedDate",
+                "source",
+            ]
             assert {"op": "eq", "field": "companyID", "value": 1001} in json["filter"]
             assert {"op": "notExist", "field": "completedDate"} in json["filter"]
             assert {"op": "noteq", "field": "status", "value": 5} in json["filter"]
@@ -151,8 +163,9 @@ class FakeOpenTicketLookupClient:
                         {
                             "ticketNumber": "T20260616.0001",
                             "title": "Cached open ticket",
-                            "description": "Remote cached open ticket description.",
+                            "description": "Cached open ticket description.",
                             "status": 1,
+                            "source": 11,
                         },
                         {
                             "ticketNumber": "T20260616.0002",
@@ -167,18 +180,30 @@ class FakeOpenTicketLookupClient:
         raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
 
     def get(self, endpoint_path: str) -> FakeAutotaskResponse:
-        """Return ticket status picklist values for open-ticket filtering."""
+        """Return ticket metadata picklist values for open-ticket filtering."""
 
-        self.status_lookup_count += 1
-        assert endpoint_path == "/Tickets/entityInformation/fields/status"
-        return FakeAutotaskResponse(
-            {
-                "picklistValues": [
-                    {"value": "1", "label": "In Progress"},
-                    {"value": "5", "label": "Complete"},
-                ]
-            }
-        )
+        if endpoint_path == "/Tickets/entityInformation/fields/status":
+            self.status_lookup_count += 1
+            return FakeAutotaskResponse(
+                {
+                    "picklistValues": [
+                        {"value": "1", "label": "In Progress"},
+                        {"value": "5", "label": "Complete"},
+                    ]
+                }
+            )
+
+        if endpoint_path == "/Tickets/entityInformation/fields/source":
+            self.source_lookup_count += 1
+            return FakeAutotaskResponse(
+                {
+                    "picklistValues": [
+                        {"value": "11", "label": "RMM Alert"},
+                    ]
+                }
+            )
+
+        raise AssertionError(f"Unexpected fake Autotask GET endpoint: {endpoint_path}")
 
 
 class FakeServiceCallLookupClient:
@@ -189,6 +214,12 @@ class FakeServiceCallLookupClient:
 
         # post_requests stores each fake Autotask query for later assertions.
         self.post_requests: list[tuple[str, dict[str, Any]]] = []
+
+        # status_lookup_count counts ticket status picklist metadata requests.
+        self.status_lookup_count = 0
+
+        # source_lookup_count counts ticket source picklist metadata requests.
+        self.source_lookup_count = 0
 
     def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
         """Return related service-call, ticket, resource, and company records."""
@@ -213,7 +244,7 @@ class FakeServiceCallLookupClient:
                     "items": [
                         {
                             "id": 7001,
-                            "description": "Onsite firewall replacement",
+                            "description": "Firewall replacement",
                             "startDateTime": "2026-06-16T13:00:00Z",
                             "endDateTime": "2026-06-16T14:00:00Z",
                             "companyID": 1001,
@@ -255,7 +286,7 @@ class FakeServiceCallLookupClient:
             )
 
         if endpoint_path == "/Tickets/query":
-            assert json["IncludeFields"] == ["id", "ticketNumber", "title", "description", "companyID", "status"]
+            assert json["IncludeFields"] == ["id", "ticketNumber", "title", "description", "companyID", "status", "source"]
             assert json["filter"] == [{"op": "in", "field": "id", "value": [9001]}]
             return FakeAutotaskResponse(
                 {
@@ -267,6 +298,7 @@ class FakeServiceCallLookupClient:
                             "description": "Replace firewall and verify VPN.",
                             "companyID": 1001,
                             "status": 1,
+                            "source": "Datto Alert",
                         }
                     ],
                     "pageDetails": {},
@@ -289,19 +321,29 @@ class FakeServiceCallLookupClient:
         raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
 
     def get(self, endpoint_path: str) -> FakeAutotaskResponse:
-        """Return ticket status metadata for service-call ticket labels."""
+        """Return ticket metadata picklist values for service-call ticket labels."""
 
-        assert endpoint_path == "/Tickets/entityInformation/fields/status"
-        return FakeAutotaskResponse(
-            {
-                "picklistValues": [
-                    {"value": "1", "label": "In Progress"},
-                    {"value": "5", "label": "Complete"},
-                ]
-            }
-        )
+        if endpoint_path == "/Tickets/entityInformation/fields/status":
+            self.status_lookup_count += 1
+            return FakeAutotaskResponse(
+                {
+                    "picklistValues": [
+                        {"value": "1", "label": "In Progress"},
+                        {"value": "5", "label": "Complete"},
+                    ]
+                }
+            )
 
-
+        if endpoint_path == "/Tickets/entityInformation/fields/source":
+            self.source_lookup_count += 1
+            return FakeAutotaskResponse(
+                {
+                    "picklistValues": [
+                        {"value": "12", "label": "Datto Alert"},
+                    ]
+                }
+            )
+        raise AssertionError(f"Unexpected fake Autotask GET endpoint: {endpoint_path}")
 
 class FakeResourceLookupClient:
     """Fake Autotask client that exposes Resources/query for user setup."""
@@ -622,6 +664,7 @@ def _clear_autotask_lookup_caches() -> None:
     _COMPANY_SEARCH_CACHE.clear()
     _COMPANY_ID_CACHE.clear()
     _TICKET_STATUS_CACHE.clear()
+    _TICKET_SOURCE_CACHE.clear()
     _OPEN_TICKET_SELECTION_CACHE.clear()
     _RESOURCE_SEARCH_CACHE.clear()
     _SERVICE_CALL_SELECTION_CACHE.clear()
@@ -700,6 +743,7 @@ def test_open_ticket_lookup_reuses_recent_server_verified_list(monkeypatch: pyte
     assert fake_client.company_query_count == 1
     assert fake_client.ticket_query_count == 1
     assert fake_client.status_lookup_count == 1
+    assert fake_client.source_lookup_count == 1
 
 
 def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -726,9 +770,9 @@ def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypat
     service_call_option = first_lookup[0]
     assert service_call_option.service_call_id == 7001
     assert service_call_option.service_call_ticket_id == 8001
-    assert service_call_option.service_call_name == "Onsite firewall replacement"
-    assert service_call_option.work_location_label == "On-Site"
-    assert service_call_option.detected_work_location == WorkLocation.ON_SITE
+    assert service_call_option.service_call_name == "Firewall replacement"
+    assert service_call_option.work_location_label == "Remote"
+    assert service_call_option.detected_work_location == WorkLocation.REMOTE
     assert service_call_option.ticket_number == "T20260616.0007"
     assert service_call_option.ticket_title == "Firewall replacement"
     assert service_call_option.ticket_description == "Replace firewall and verify VPN."
@@ -738,6 +782,8 @@ def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypat
     assert service_call_option.start_datetime_utc == datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
     assert service_call_option.end_datetime_utc == datetime(2026, 6, 16, 14, 0, tzinfo=UTC)
     assert second_lookup == first_lookup
+    assert fake_client.status_lookup_count == 1
+    assert fake_client.source_lookup_count == 1
     assert [endpoint_path for endpoint_path, _payload in fake_client.post_requests] == [
         "/ServiceCalls/query",
         "/ServiceCallTickets/query",

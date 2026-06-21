@@ -128,6 +128,7 @@ def test_debug_routes_are_super_admin_only(client: TestClient) -> None:
     forbidden_routes = (
         ("GET", "/debug"),
         ("GET", "/debug/logs/login-failures"),
+        ("GET", "/debug/logs/login-successes"),
         ("POST", "/debug/autotask/test"),
         ("POST", "/debug/backup"),
         ("POST", "/debug/restore"),
@@ -211,10 +212,20 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
         follow_redirects=False,
     )
     assert success_response.status_code == 303
+    success_log_path = Path(os.environ["LOGIN_SUCCESS_LOG_PATH"])
+    success_log_text = success_log_path.read_text(encoding="utf-8")
+    success_payload = json.loads(success_log_text.strip())
+    assert success_payload["event"] == "web_login_succeeded"
+    assert success_payload["username"] == "admin"
+    assert success_payload["user_kind"] == "super_admin"
+    assert success_payload["authentication_method"] == "password"
+    assert "test-password" not in success_log_text
 
     debug_response = client.get("/debug")
     assert debug_response.status_code == 200
+    assert "Successful logins" in debug_response.text
     assert "Login failures" in debug_response.text
+    assert "admin" in debug_response.text
     assert "bad-user" in debug_response.text
     assert "198.51.100.7" in debug_response.text
     assert "203.0.113.9, 10.0.0.2" in debug_response.text
@@ -222,6 +233,7 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
     assert "Invalid Credentials" in debug_response.text
     assert ">12<" in debug_response.text
     assert os.environ["LOGIN_FAILURE_LOG_PATH"] in debug_response.text
+    assert os.environ["LOGIN_SUCCESS_LOG_PATH"] in debug_response.text
     assert failed_password not in debug_response.text
 
     download_response = client.get("/debug/logs/login-failures")
@@ -230,6 +242,101 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
     assert "job-logger-login-failures.log" in download_response.headers["content-disposition"]
     assert download_response.headers["cache-control"] == "no-store"
     assert failed_password not in download_response.text
+
+    success_download_response = client.get("/debug/logs/login-successes")
+    assert success_download_response.status_code == 200
+    assert "web_login_succeeded" in success_download_response.text
+    assert "job-logger-login-successes.log" in success_download_response.headers["content-disposition"]
+    assert success_download_response.headers["cache-control"] == "no-store"
+
+
+def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient) -> None:
+    """Diagnostics should page login tables and show newest sanitized app log lines."""
+
+    login_failure_log_path = Path(os.environ["LOGIN_FAILURE_LOG_PATH"])
+    login_success_log_path = Path(os.environ["LOGIN_SUCCESS_LOG_PATH"])
+    created_at = datetime(2026, 6, 21, 12, 0, tzinfo=UTC)
+
+    failure_payloads = [
+        {
+            "event": "web_login_failed",
+            "created_at_utc": created_at.isoformat(),
+            "client_ip": f"198.51.100.{index}",
+            "direct_client_ip": "testclient",
+            "x_real_ip": "",
+            "x_forwarded_for": "",
+            "forwarded_proto": "https",
+            "host": "testserver",
+            "username": f"failure-{index}",
+            "username_length": len(f"failure-{index}"),
+            "username_truncated": False,
+            "password_supplied": True,
+            "password_length": 8,
+            "user_agent": "Pagination Test",
+            "method": "POST",
+            "path": "/login",
+            "next_url": "",
+            "reason": "invalid_credentials",
+            "failed_count": 0,
+            "max_attempts": 0,
+            "lockout_applied": False,
+            "lockout_remaining_seconds": 0,
+        }
+        for index in range(12)
+    ]
+    success_payloads = [
+        {
+            "event": "web_login_succeeded",
+            "created_at_utc": created_at.isoformat(),
+            "client_ip": f"203.0.113.{index}",
+            "direct_client_ip": "testclient",
+            "x_real_ip": "",
+            "x_forwarded_for": "",
+            "forwarded_proto": "https",
+            "host": "testserver",
+            "username": f"success-{index}",
+            "user_kind": "web_user",
+            "web_user_id": f"user-{index}",
+            "authentication_method": "passkey" if index % 2 else "password",
+            "user_agent": "Pagination Test",
+            "method": "POST",
+            "path": "/login",
+        }
+        for index in range(12)
+    ]
+    login_failure_log_path.write_text(
+        "".join(f"{json.dumps(payload, sort_keys=True)}\n" for payload in failure_payloads),
+        encoding="utf-8",
+    )
+    login_success_log_path.write_text(
+        "".join(f"{json.dumps(payload, sort_keys=True)}\n" for payload in success_payloads),
+        encoding="utf-8",
+    )
+
+    log_dir = Path(os.environ["LOG_DIR"])
+    log_dir.mkdir(parents=True, exist_ok=True)
+    app_log_path = log_dir / "app.log"
+    app_log_path.write_text(
+        "".join(
+            f"line-{index} password=raw-secret-{index}\n"
+            for index in range(105)
+        ),
+        encoding="utf-8",
+    )
+
+    debug_response = super_admin_client.get("/debug?success_page=2&failure_page=2")
+    assert debug_response.status_code == 200
+    assert "Page 2 of 2" in debug_response.text
+    assert "failure-1" in debug_response.text
+    assert "failure-0" in debug_response.text
+    assert "success-1" in debug_response.text
+    assert "success-0" in debug_response.text
+    assert "failure-11" not in debug_response.text
+    assert "success-11" not in debug_response.text
+    assert debug_response.text.index("line-104") < debug_response.text.index("line-103")
+    assert "line-4 " not in debug_response.text
+    assert "password=***" in debug_response.text
+    assert "raw-secret" not in debug_response.text
 
 
 def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -> None:
@@ -311,11 +418,12 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert "Autotask debug" in debug_response.text
     assert "Application version" in debug_response.text
     assert APP_VERSION in debug_response.text
+    assert debug_response.text.index("Successful logins") < debug_response.text.index("Login failures")
     assert debug_response.text.index("Login failures") < debug_response.text.index("Autotask submission attempts")
     assert debug_response.text.index("Autotask submission attempts") < debug_response.text.index("Autotask configuration snapshot")
     assert debug_response.text.index("Autotask configuration snapshot") < debug_response.text.index("Automatic database backups")
     assert debug_response.text.index("Automatic database backups") < debug_response.text.index("Full data backup")
-    assert '<section class="table-panel"' not in debug_response.text.split('id="full-backup"', 1)[1]
+    assert debug_response.text.index("Full data backup") < debug_response.text.index("App log tail")
     assert '<table class="debug-submission-table">' in debug_response.text
     assert "<th>User</th>" in debug_response.text
     assert "Test Technician" in debug_response.text

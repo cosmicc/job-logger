@@ -20,6 +20,7 @@ SESSION_AUTHENTICATED_AT_UTC_KEY = "authenticated_at_utc"
 SESSION_AUTH_METHOD_KEY = "authenticated_method"
 SESSION_CSRF_TOKEN_KEY = "csrf_token"
 SESSION_FLASH_KEY = "flash_messages"
+SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY = "show_passkey_setup_prompt"
 SUPER_ADMIN_SESSION_KIND = "super_admin"
 WEB_USER_SESSION_KIND = "web_user"
 PASSWORD_AUTH_METHOD = "password"
@@ -71,6 +72,7 @@ def login_web_user_session(
     request.session[SESSION_WEB_USER_ID_KEY] = web_user_id
     request.session[SESSION_AUTHENTICATED_AT_UTC_KEY] = datetime.now(UTC).isoformat()
     request.session[SESSION_AUTH_METHOD_KEY] = authentication_method
+    request.session[SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY] = True
     request.session[SESSION_CSRF_TOKEN_KEY] = secrets.token_urlsafe(32)
 
 

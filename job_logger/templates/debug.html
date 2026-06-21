@@ -19,19 +19,123 @@
       </form>
     </div>
 
-    <section class="table-panel" aria-label="Recent failed login attempts">
+    <section id="login-successes" class="table-panel login-attempt-panel" aria-label="Recent successful login attempts">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <h2>Successful logins</h2>
+          <p class="muted-text">
+            Newest records first, {{ login_successes.total_records }} retained, {{ login_attempt_page_size }} per page.
+            Source: {{ login_success_log_path }}
+          </p>
+          <a class="secondary-link-button" href="/debug/logs/login-successes">Download log</a>
+        </div>
+
+        {% if login_successes.records %}
+          <div class="table-wrap login-attempt-window">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date/time</th>
+                  <th>Client IP</th>
+                  <th>Username</th>
+                  <th>Account</th>
+                  <th>Method</th>
+                  <th>Web client</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for success in login_successes.records %}
+                  <tr>
+                    <td>{{ success.created_at_display }}</td>
+                    <td>{{ success.client_ip }}</td>
+                    <td>{{ success.username or "blank" }}</td>
+                    <td>
+                      {% if success.user_kind == "super_admin" %}
+                        <span class="status-chip status-waiting_parts">Super admin</span>
+                      {% else %}
+                        <span class="status-chip status-submitted">Web user</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ success.authentication_method.replace("_", " ").title() }}</td>
+                    <td class="truncate-cell" title="{{ success.user_agent }}">{{ success.user_agent or "unknown" }}</td>
+                    <td>
+                      <details class="debug-requests login-attempt-details">
+                        <summary>View</summary>
+                        <dl class="debug-list compact-debug-list">
+                          <div>
+                            <dt>UTC</dt>
+                            <dd>{{ success.created_at_utc or "unknown" }}</dd>
+                          </div>
+                          <div>
+                            <dt>Request</dt>
+                            <dd>{{ success.method }} {{ success.path }}</dd>
+                          </div>
+                          <div>
+                            <dt>Direct client</dt>
+                            <dd>{{ success.direct_client_ip or "unknown" }}</dd>
+                          </div>
+                          <div>
+                            <dt>X-Real-IP</dt>
+                            <dd>{{ success.x_real_ip or "not provided" }}</dd>
+                          </div>
+                          <div>
+                            <dt>X-Forwarded-For</dt>
+                            <dd>{{ success.x_forwarded_for or "not provided" }}</dd>
+                          </div>
+                          <div>
+                            <dt>Forwarded proto</dt>
+                            <dd>{{ success.forwarded_proto or "not provided" }}</dd>
+                          </div>
+                          <div>
+                            <dt>Host</dt>
+                            <dd>{{ success.host or "unknown" }}</dd>
+                          </div>
+                          <div>
+                            <dt>Web user ID</dt>
+                            <dd>{{ success.web_user_id or "not applicable" }}</dd>
+                          </div>
+                        </dl>
+                      </details>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <nav class="debug-pagination" aria-label="Successful login pages">
+            {% if login_successes.previous_page %}
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.previous_page }}&failure_page={{ login_failures.page }}#login-successes">Previous</a>
+            {% else %}
+              <span class="secondary-link-button disabled-link">Previous</span>
+            {% endif %}
+            <span class="muted-text">Page {{ login_successes.page }} of {{ login_successes.total_pages }}</span>
+            {% if login_successes.next_page %}
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.next_page }}&failure_page={{ login_failures.page }}#login-successes">Next</a>
+            {% else %}
+              <span class="secondary-link-button disabled-link">Next</span>
+            {% endif %}
+          </nav>
+        {% else %}
+          <p class="muted-text">No successful application login attempts have been logged yet.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section id="login-failures" class="table-panel login-attempt-panel" aria-label="Recent failed login attempts">
       <div class="debug-panel-body">
         <div class="review-header">
           <h2>Login failures</h2>
           <p class="muted-text">
-            Newest records first, max {{ login_failure_debug_rows }}.
+            Newest records first, {{ login_failures.total_records }} retained, {{ login_attempt_page_size }} per page.
             Source: {{ login_failure_log_path }}
           </p>
           <a class="secondary-link-button" href="/debug/logs/login-failures">Download log</a>
         </div>
 
-        {% if login_failures %}
-          <div class="table-wrap login-failure-window">
+        {% if login_failures.records %}
+          <div class="table-wrap login-attempt-window">
             <table>
               <thead>
                 <tr>
@@ -46,7 +150,7 @@
                 </tr>
               </thead>
               <tbody>
-                {% for failure in login_failures %}
+                {% for failure in login_failures.records %}
                   <tr>
                     <td>{{ failure.created_at_display }}</td>
                     <td>{{ failure.client_ip }}</td>
@@ -69,7 +173,7 @@
                       {% endif %}
                     </td>
                     <td>
-                      <details class="debug-requests login-failure-details">
+                      <details class="debug-requests login-attempt-details">
                         <summary>View</summary>
                         <dl class="debug-list compact-debug-list">
                           <div>
@@ -120,6 +224,20 @@
               </tbody>
             </table>
           </div>
+
+          <nav class="debug-pagination" aria-label="Failed login pages">
+            {% if login_failures.previous_page %}
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.previous_page }}#login-failures">Previous</a>
+            {% else %}
+              <span class="secondary-link-button disabled-link">Previous</span>
+            {% endif %}
+            <span class="muted-text">Page {{ login_failures.page }} of {{ login_failures.total_pages }}</span>
+            {% if login_failures.next_page %}
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.next_page }}#login-failures">Next</a>
+            {% else %}
+              <span class="secondary-link-button disabled-link">Next</span>
+            {% endif %}
+          </nav>
         {% else %}
           <p class="muted-text">No failed application login attempts have been logged yet.</p>
         {% endif %}
@@ -395,6 +513,25 @@
             <dd>Jobs, submission attempts, and audit events are replaced with the uploaded backup contents.</dd>
           </div>
         </dl>
+      </div>
+    </section>
+
+    <section id="app-log-tail" class="table-panel" aria-label="Application log tail">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <h2>App log tail</h2>
+          <p class="muted-text">
+            Newest lines first, last {{ app_log_tail_lines }} lines.
+            Source: {{ app_log_path }}
+          </p>
+        </div>
+
+        {% if app_log_lines %}
+          <pre class="debug-code app-log-tail">{% for log_line in app_log_lines %}{{ log_line }}
+{% endfor %}</pre>
+        {% else %}
+          <p class="muted-text">No app log lines are available yet.</p>
+        {% endif %}
       </div>
     </section>
   </section>

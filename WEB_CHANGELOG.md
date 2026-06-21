@@ -2,13 +2,14 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## v1.1.0 - Direct submission, backups, and passkeys
+## v1.1.0 - Direct submission and passkeys
 
 - Added a Config option to submit time entries directly from Work in Progress.
 - Review is still available afterward for submitted-entry edits and Autotask deletion.
-- Added automatic database backups with restore controls on the super-admin debug page.
 - Added passkey sign-in for managed users, with password login still available.
-- Added a Docker setting for local app session timeout in hours.
+- App sessions can now require users to sign in again after the configured timeout.
+- The Home passkey setup card now appears only once after login, while Config always keeps passkey setup available.
+- Ticket source can now mark alert-created tickets as Remote when ticket text does not say Remote or On-Site.
 
 ## v1.0.2 - Autotask workflow and desktop layout updates
 

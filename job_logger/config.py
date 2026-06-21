@@ -125,6 +125,10 @@ class Settings:
     # It should live in a host-mounted log directory for Docker deployments.
     login_failure_log_path: str
 
+    # LOGIN_SUCCESS_LOG_PATH is a JSONL file for successful app-login attempts.
+    # It should live in a host-mounted log directory for Docker deployments.
+    login_success_log_path: str
+
     # LOGIN_FAILURE_DEBUG_ROWS limits failed-login rows shown on /debug.
     login_failure_debug_rows: int
 
@@ -311,6 +315,10 @@ def load_settings() -> Settings:
         login_failure_log_path=os.getenv(
             "LOGIN_FAILURE_LOG_PATH",
             f"{os.getenv('LOG_DIR', 'logs').rstrip('/')}/job-logger-login-failures.log",
+        ),
+        login_success_log_path=os.getenv(
+            "LOGIN_SUCCESS_LOG_PATH",
+            f"{os.getenv('LOG_DIR', 'logs').rstrip('/')}/job-logger-login-successes.log",
         ),
         login_failure_debug_rows=_get_integer("LOGIN_FAILURE_DEBUG_ROWS", 200),
         session_cookie_secure=_get_boolean("APP_SESSION_COOKIE_SECURE", False),

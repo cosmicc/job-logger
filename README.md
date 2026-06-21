@@ -133,8 +133,10 @@ tunnel connector all come up with one `docker compose up -d --build` command.
    Cloudflare Access is configured and verified for the public hostname.
 7. Set `WEBAUTHN_ORIGIN` to the public HTTPS origin that phones see in the
    browser, such as `https://logger.example.com`, before using passkeys through
-   Cloudflare Tunnel. Set `WEBAUTHN_RP_ID` to the same hostname if the app
-   cannot reliably derive the public host from forwarded headers.
+   Cloudflare Tunnel. The bundled nginx origin also preserves Cloudflare's
+   forwarded HTTPS scheme for WebAuthn, but this explicit setting is the safest
+   production pin. Set `WEBAUTHN_RP_ID` to the same hostname if the app cannot
+   reliably derive the public host from forwarded headers.
 8. Start the full stack:
 
    ```bash
@@ -319,11 +321,12 @@ must sign in again.
 The config super-admin account still signs in with `APP_USERNAME` and
 `APP_PASSWORD` only. Managed web users can sign in with their username/password
 or with a registered passkey. A passkey can be added from `/config` after a
-normal password login, and the `/home` page prompts managed users without a
-passkey to set one up. Job Logger stores only the public credential ID, public
-key, signature counter, and device metadata. The phone, browser, or passkey
-provider keeps the private key and performs the fingerprint, Face ID, PIN,
-pattern, or other local unlock prompt.
+normal password login. The `/home` page prompts managed users without a passkey
+only once after each successful login, while `/config` always keeps passkey
+setup available. Job Logger stores only the public credential ID, public key,
+signature counter, and device metadata. The phone, browser, or passkey provider
+keeps the private key and performs the fingerprint, Face ID, PIN, pattern, or
+other local unlock prompt.
 
 Passkey login is intentionally a fallback-friendly option. If the browser does
 not support passkeys, the device cancels, or signature verification fails, the
@@ -335,9 +338,9 @@ Set these passkey variables for production when needed:
 - `WEBAUTHN_RP_ID`, optional relying-party domain override, such as
   `logger.example.com`.
 - `WEBAUTHN_ORIGIN`, optional expected browser origin, such as
-  `https://logger.example.com`. Set this for Cloudflare Tunnel deployments
-  where the public browser origin is HTTPS but the local nginx-to-app hop is
-  HTTP.
+  `https://logger.example.com`. Set this for Cloudflare Tunnel deployments as
+  an explicit production pin; nginx also preserves the forwarded HTTPS scheme
+  so the app can derive the correct origin when this is unset.
 
 ## Application Version And Changelog
 
@@ -725,17 +728,24 @@ workflow configuration and the live Companies/Tickets API calls used by the
 app. The debug button is manual and always runs a fresh live check. It is not
 used by the initial mobile page or blank Start Work route.
 
-The same `/debug` page also shows a recent failed-login window. Failed local
-app login attempts are appended as JSON Lines to
-`/data/logs/job-logger-login-failures.log` inside the app container. Docker
-Compose bind-mounts that directory from `${HOST_LOG_DIR:-/var/log/job-logger}`,
-so the default host-readable file is
-`/var/log/job-logger/job-logger-login-failures.log`. The log and debug page
-include the attempt timestamp, client IP and proxy header details, submitted
-username and length, user agent, request path, host/proxy metadata, reason, and
-whether a password was supplied with its length. The raw submitted password is
-never stored or displayed. The `/debug/logs/login-failures` endpoint downloads
-the raw JSONL file for authenticated diagnostics.
+The same `/debug` page also shows compact, paginated successful-login and
+failed-login windows. Failed local app login attempts are appended as JSON Lines
+to `/data/logs/job-logger-login-failures.log`, and successful attempts are
+appended to `/data/logs/job-logger-login-successes.log` inside the app
+container. Docker Compose bind-mounts that directory from
+`${HOST_LOG_DIR:-/var/log/job-logger}`, so the default host-readable files are
+under `/var/log/job-logger/`. The logs and debug page include timestamp, client
+IP and proxy header details, username, user agent, request path, host/proxy
+metadata, account kind, authentication method, failure reason, and
+password-present/length metadata for failures. The raw submitted password is
+never stored or displayed. The `/debug/logs/login-failures` and
+`/debug/logs/login-successes` endpoints download the raw JSONL files for
+authenticated diagnostics.
+
+At the bottom of `/debug`, the **App log tail** card shows the newest lines
+first from `${LOG_DIR}/app.log`, normally
+`/var/log/job-logger/app.log` on the Docker host. The card is intended for quick
+operator triage; use the host log files for longer history.
 
 The app also creates automatic full-database backups every hour when
 `AUTOMATIC_BACKUPS_ENABLED=true`, which is the default. Docker Compose stores

@@ -17,6 +17,7 @@ from job_logger.config import settings
 from job_logger.database import get_database_session
 from job_logger.enums import JobStatus, TicketStatus, WorkLocation
 from job_logger.security import (
+    SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY,
     add_flash_message,
     is_super_admin_session,
     logout_session,
@@ -651,7 +652,10 @@ def home_page(
         database_session,
         principal.key if principal else None,
     )
-    show_passkey_setup_prompt = passkey_credential_count_for_user(database_session, web_user.id) == 0
+    show_passkey_setup_prompt = (
+        bool(request.session.pop(SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY, False))
+        and passkey_credential_count_for_user(database_session, web_user.id) == 0
+    )
 
     return templates.TemplateResponse(
         request,

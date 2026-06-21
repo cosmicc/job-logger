@@ -36,6 +36,7 @@ MIN_COMPANY_SEARCH_CHARACTERS = 3
 MIN_RESOURCE_SEARCH_CHARACTERS = 2
 REMOTE_SERVICE_CALL_PATTERN = re.compile(r"\bremote\b", re.IGNORECASE)
 ON_SITE_SERVICE_CALL_PATTERN = re.compile(r"\bon[\s-]?site\b", re.IGNORECASE)
+REMOTE_TICKET_SOURCE_LABELS = {"rmm alert", "datto alert", "bcdr alert", "email alert"}
 RESOURCE_MATCH_TEXT_PATTERN = re.compile(r"[^a-z0-9]+")
 SUMMARY_WORK_LOCATION_PREFIX_PATTERN = re.compile(
     r"^\s*(?P<prefix>on[\s-]?site|remote)\b(?:\s*[:\-]\s*|\s+|$)(?P<summary>.*)\Z",
@@ -94,6 +95,9 @@ _RESOURCE_SEARCH_CACHE: dict[tuple[str, str], _AutotaskCacheEntry] = {}
 
 # _TICKET_STATUS_CACHE stores ticket status picklist labels keyed by tenant URL.
 _TICKET_STATUS_CACHE: dict[str, _AutotaskCacheEntry] = {}
+
+# _TICKET_SOURCE_CACHE stores ticket source picklist labels keyed by tenant URL.
+_TICKET_SOURCE_CACHE: dict[str, _AutotaskCacheEntry] = {}
 
 # _OPEN_TICKET_SELECTION_CACHE stores recently displayed open-ticket options
 # keyed by tenant URL, selected client text, and selected Autotask company ID.
@@ -231,7 +235,7 @@ class AutotaskTicketOption:
     company_name: str
 
     # detected_work_location is inferred from safe ticket title/description text
-    # for the open-ticket picker only; it is not an authorization source.
+    # and then ticket source as a fallback; it is not an authorization source.
     detected_work_location: WorkLocation | None = None
 
     # work_location_label is the human label displayed on open-ticket choices.
@@ -272,7 +276,8 @@ class AutotaskServiceCallOption:
     # service_call_details stores bounded read-only context used for keyword detection.
     service_call_details: str | None
 
-    # detected_work_location is set only when Remote or On-Site is found in the service-call details.
+    # detected_work_location is set from service-call details, falling back to
+    # remote-only ticket source labels when details do not name a work mode.
     detected_work_location: WorkLocation | None
 
     # work_location_label is the user-facing result of the service-call details keyword scan.
@@ -451,6 +456,32 @@ def detect_work_location_from_service_call_details(service_call_details: str | N
     return WorkLocation.ON_SITE if on_site_match.start() < remote_match.start() else WorkLocation.REMOTE
 
 
+def detect_work_location_from_ticket_source(ticket_source_label: str | None) -> WorkLocation | None:
+    """Return a remote work-location signal for source labels that always mean remote work."""
+
+    if not ticket_source_label:
+        return None
+
+    normalized_source_label = " ".join(ticket_source_label.strip().casefold().split())
+    if normalized_source_label in REMOTE_TICKET_SOURCE_LABELS:
+        return WorkLocation.REMOTE
+
+    return None
+
+
+def detect_work_location_from_text_or_ticket_source(
+    detection_text: str | None,
+    ticket_source_label: str | None,
+) -> WorkLocation | None:
+    """Detect work location from text first, then from the ticket source fallback."""
+
+    detected_work_location = detect_work_location_from_service_call_details(detection_text)
+    if detected_work_location is not None:
+        return detected_work_location
+
+    return detect_work_location_from_ticket_source(ticket_source_label)
+
+
 def work_location_label_for_detection(work_location: WorkLocation | None) -> str:
     """Return the picker label for a detected work location."""
 
@@ -468,6 +499,26 @@ def _safe_service_call_text(raw_text: Any, fallback_text: str, max_length: int) 
         safe_text = fallback_text
 
     return safe_text[:max_length]
+
+
+def _ticket_source_label(ticket_record: dict[str, Any], source_labels: dict[int, str]) -> str | None:
+    """Return the display label for a ticket source field value."""
+
+    raw_source = ticket_record.get("source")
+    if raw_source is None:
+        return None
+
+    try:
+        source_id = int(raw_source)
+    except (TypeError, ValueError):
+        source_label = str(raw_source).strip()
+        return source_label or None
+
+    source_label = source_labels.get(source_id)
+    if source_label:
+        return source_label
+
+    return None
 
 
 def _safe_optional_resource_text(raw_text: Any, max_length: int = MAX_RESOURCE_NAME_LENGTH) -> str | None:
@@ -1101,7 +1152,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         ticket_records_by_id: dict[int, dict[str, Any]] = {}
         for ticket_id_chunk in _chunked_autotask_ids(ticket_ids):
             query_payload = {
-                "IncludeFields": ["id", "ticketNumber", "title", "description", "companyID", "status"],
+                "IncludeFields": ["id", "ticketNumber", "title", "description", "companyID", "status", "source"],
                 "filter": [
                     {
                         "op": "in",
@@ -1180,6 +1231,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         ticket_records_by_id: dict[int, dict[str, Any]],
         company_records_by_id: dict[int, dict[str, Any]],
         status_labels: dict[int, str],
+        source_labels: dict[int, str],
     ) -> list[AutotaskServiceCallOption]:
         """Build mobile-safe service-call choices from related Autotask rows."""
 
@@ -1225,7 +1277,6 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 f"Service call {service_call_id}",
                 MAX_SERVICE_CALL_NAME_LENGTH,
             )
-            detected_work_location = detect_work_location_from_service_call_details(service_call_details)
             start_datetime_utc = _parse_autotask_datetime(service_call_record.get("startDateTime"))
             end_datetime_utc = _parse_autotask_datetime(service_call_record.get("endDateTime"))
 
@@ -1263,6 +1314,10 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     120,
                 )
                 ticket_description = _safe_service_call_text(ticket_record.get("description"), "", 8000) or None
+                detected_work_location = detect_work_location_from_text_or_ticket_source(
+                    service_call_details,
+                    _ticket_source_label(ticket_record, source_labels),
+                )
                 service_call_options.append(
                     AutotaskServiceCallOption(
                         service_call_id=service_call_id,
@@ -1448,57 +1503,92 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             checked_operations=tuple(checked_operations),
         )
 
-    def _query_ticket_status_labels(self, client: httpx.Client) -> dict[int, str]:
-        """Return Autotask Tickets.status picklist values as ID-to-label mappings."""
+    def _query_ticket_picklist_labels(
+        self,
+        client: httpx.Client,
+        *,
+        field_name: str,
+        cache_store: dict[str, _AutotaskCacheEntry],
+        action_description: str,
+    ) -> dict[int, str]:
+        """Return one Autotask Tickets picklist field as ID-to-label mappings."""
 
         cache_key = self._cache_namespace()
-        cached_status_labels = _get_cached_value(_TICKET_STATUS_CACHE, cache_key)
-        if isinstance(cached_status_labels, dict):
-            return cached_status_labels
+        cached_picklist_labels = _get_cached_value(cache_store, cache_key)
+        if isinstance(cached_picklist_labels, dict):
+            return cached_picklist_labels
 
-        response = client.get("/Tickets/entityInformation/fields/status")
+        response = client.get(f"/Tickets/entityInformation/fields/{field_name}")
         if response.status_code == 404:
             response = client.get("/Tickets/entityInformation/fields")
-        self._raise_for_safe_response(response, "Autotask ticket status metadata query")
+        self._raise_for_safe_response(response, action_description)
 
         response_payload = response.json()
-        status_field: dict[str, Any] | None = None
+        picklist_field: dict[str, Any] | None = None
         if isinstance(response_payload, dict) and "picklistValues" in response_payload:
-            status_field = response_payload
+            picklist_field = response_payload
         else:
             fields = response_payload.get("fields") if isinstance(response_payload, dict) else response_payload
             if isinstance(fields, list):
                 for field_record in fields:
-                    if isinstance(field_record, dict) and field_record.get("name") == "status":
-                        status_field = field_record
+                    if isinstance(field_record, dict) and field_record.get("name") == field_name:
+                        picklist_field = field_record
                         break
 
-        if status_field is None:
-            _set_cached_value(_TICKET_STATUS_CACHE, cache_key, {})
+        if picklist_field is None:
+            _set_cached_value(cache_store, cache_key, {})
             return {}
 
-        picklist_values = status_field.get("picklistValues") or status_field.get("PicklistValues") or []
-        status_labels: dict[int, str] = {}
+        picklist_values = picklist_field.get("picklistValues") or picklist_field.get("PicklistValues") or []
+        picklist_labels: dict[int, str] = {}
         if not isinstance(picklist_values, list):
-            _set_cached_value(_TICKET_STATUS_CACHE, cache_key, status_labels)
-            return status_labels
+            _set_cached_value(cache_store, cache_key, picklist_labels)
+            return picklist_labels
 
         for picklist_value in picklist_values:
             if not isinstance(picklist_value, dict):
                 continue
 
-            raw_status_id = picklist_value.get("value") or picklist_value.get("id")
-            status_label = picklist_value.get("label") or picklist_value.get("name")
-            if raw_status_id is None or status_label is None:
+            raw_picklist_id = picklist_value.get("value") or picklist_value.get("id")
+            picklist_label = picklist_value.get("label") or picklist_value.get("name")
+            if raw_picklist_id is None or picklist_label is None:
                 continue
 
             try:
-                status_labels[int(raw_status_id)] = str(status_label)
+                picklist_labels[int(raw_picklist_id)] = str(picklist_label)
             except (TypeError, ValueError):
                 continue
 
-        _set_cached_value(_TICKET_STATUS_CACHE, cache_key, status_labels)
-        return status_labels
+        _set_cached_value(cache_store, cache_key, picklist_labels)
+        return picklist_labels
+
+    def _query_ticket_status_labels(self, client: httpx.Client) -> dict[int, str]:
+        """Return Autotask Tickets.status picklist values as ID-to-label mappings."""
+
+        return self._query_ticket_picklist_labels(
+            client,
+            field_name="status",
+            cache_store=_TICKET_STATUS_CACHE,
+            action_description="Autotask ticket status metadata query",
+        )
+
+    def _query_ticket_source_labels(self, client: httpx.Client) -> dict[int, str]:
+        """Return Autotask Tickets.source picklist values as ID-to-label mappings."""
+
+        return self._query_ticket_picklist_labels(
+            client,
+            field_name="source",
+            cache_store=_TICKET_SOURCE_CACHE,
+            action_description="Autotask ticket source metadata query",
+        )
+
+    def _query_ticket_source_labels_without_blocking_lookup(self, client: httpx.Client) -> dict[int, str]:
+        """Return source labels when available without breaking ticket lookup."""
+
+        try:
+            return self._query_ticket_source_labels(client)
+        except AutotaskSubmissionError:
+            return {}
 
     def _query_companies_by_name(
         self,
@@ -1701,7 +1791,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             )
 
         query_payload = {
-            "IncludeFields": ["id", "ticketNumber", "title", "description", "status", "completedDate"],
+            "IncludeFields": ["id", "ticketNumber", "title", "description", "status", "completedDate", "source"],
             "filter": ticket_filters,
         }
         return self._query_paginated_items(
@@ -1738,6 +1828,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         company_id: int,
         company_name: str,
         status_labels: dict[int, str],
+        source_labels: dict[int, str],
     ) -> list[AutotaskTicketOption]:
         """Return safe open-ticket options for one Autotask company."""
 
@@ -1758,8 +1849,9 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
             ticket_title = str(ticket.get("title") or "Untitled ticket")[:240]
             ticket_description = str(ticket.get("description") or "").strip()[:8000] or None
-            detected_work_location = detect_work_location_from_service_call_details(
-                "\n".join(text for text in (ticket_title, ticket_description) if text)
+            detected_work_location = detect_work_location_from_text_or_ticket_source(
+                "\n".join(text for text in (ticket_title, ticket_description) if text),
+                _ticket_source_label(ticket, source_labels),
             )
             ticket_options.append(
                 AutotaskTicketOption(
@@ -1797,6 +1889,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         ticket_options: list[AutotaskTicketOption] = []
         with self._client() as client:
             status_labels = self._query_ticket_status_labels(client)
+            source_labels = self._query_ticket_source_labels_without_blocking_lookup(client)
             companies: list[dict[str, Any]]
             if autotask_company_id is not None:
                 selected_company = self._query_company_by_id(
@@ -1822,6 +1915,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                         company_id=company_id,
                         company_name=company_name,
                         status_labels=status_labels,
+                        source_labels=source_labels,
                     )
                 )
 
@@ -1982,6 +2076,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 company_ids,
             )
             status_labels = self._query_ticket_status_labels(client)
+            source_labels = self._query_ticket_source_labels_without_blocking_lookup(client)
             service_call_options = self._build_service_call_options(
                 service_call_records=service_call_records,
                 service_call_ticket_records=service_call_ticket_records,
@@ -1989,6 +2084,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 ticket_records_by_id=ticket_records_by_id,
                 company_records_by_id=company_records_by_id,
                 status_labels=status_labels,
+                source_labels=source_labels,
             )[:MAX_SERVICE_CALL_LOOKUP_RESULTS]
 
         _set_cached_value(

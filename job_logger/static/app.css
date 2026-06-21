@@ -2539,13 +2539,36 @@ td a {
   margin-top: 18px;
 }
 
-.login-failure-window {
-  max-height: 460px;
+.login-attempt-panel {
+  min-height: 560px;
+}
+
+.login-attempt-window {
+  max-height: 360px;
   overflow: auto;
 }
 
-.login-failure-details {
+.login-attempt-details {
   margin-top: 0;
+}
+
+.debug-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.disabled-link {
+  cursor: not-allowed;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.app-log-tail {
+  max-height: 440px;
+  white-space: pre-wrap;
 }
 
 .compact-debug-list {

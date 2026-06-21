@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
@@ -29,13 +30,16 @@ from job_logger.services.backups import (
     read_automatic_backup_content,
     restore_full_backup,
 )
-from job_logger.services.login_failures import read_recent_login_failures
+from job_logger.services.login_failures import read_login_failures_page, read_login_successes_page
 from job_logger.time_utils import format_local_display
 from job_logger.ui import template_context, templates
 from job_logger.version import APP_VERSION
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/debug", tags=["debug"])
+LOGIN_ATTEMPT_PAGE_SIZE = 10
+APP_LOG_TAIL_LINES = 100
+MAX_APP_LOG_LINE_CHARS = 2000
 
 
 @dataclass(frozen=True)
@@ -169,6 +173,30 @@ def _serialize_automatic_backup(backup_file: AutomaticBackupFile) -> DebugAutoma
     )
 
 
+def _read_app_log_tail(log_dir: str, *, line_count: int = APP_LOG_TAIL_LINES) -> list[str]:
+    """Return newest-first sanitized app log lines for the debug page."""
+
+    app_log_path = Path(log_dir) / "app.log"
+    if line_count <= 0 or not app_log_path.exists():
+        return []
+
+    recent_lines: deque[str] = deque(maxlen=line_count)
+    try:
+        with app_log_path.open("r", encoding="utf-8", errors="replace") as app_log_file:
+            for raw_line in app_log_file:
+                stripped_line = raw_line.rstrip("\n")
+                if stripped_line:
+                    recent_lines.append(stripped_line)
+    except OSError as exc:
+        logger.warning("Failed to read app log tail at %s: %s", app_log_path, exc)
+        return []
+
+    return [
+        redact_sensitive_text(log_line)[:MAX_APP_LOG_LINE_CHARS]
+        for log_line in reversed(recent_lines)
+    ]
+
+
 def _redirect_anonymous_or_raise(exc: HTTPException) -> RedirectResponse:
     """Redirect anonymous users to login while preserving super-admin-only 403s."""
 
@@ -179,7 +207,12 @@ def _redirect_anonymous_or_raise(exc: HTTPException) -> RedirectResponse:
 
 
 @router.get("", response_class=HTMLResponse)
-def debug_page(request: Request, database_session: Session = Depends(get_database_session)) -> Response:
+def debug_page(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+    success_page: int = Query(1, ge=1),
+    failure_page: int = Query(1, ge=1),
+) -> Response:
     """Render authenticated diagnostics, submission attempts, and login failures."""
 
     try:
@@ -211,9 +244,12 @@ def debug_page(request: Request, database_session: Session = Depends(get_databas
             app_version=APP_VERSION,
             autotask_settings=_safe_autotask_config(),
             autotask_connectivity=request.session.get("autotask_connectivity_result"),
+            login_success_log_path=settings.login_success_log_path,
             login_failure_log_path=settings.login_failure_log_path,
             login_failure_debug_rows=settings.login_failure_debug_rows,
-            login_failures=read_recent_login_failures(),
+            login_attempt_page_size=LOGIN_ATTEMPT_PAGE_SIZE,
+            login_successes=read_login_successes_page(page=success_page, page_size=LOGIN_ATTEMPT_PAGE_SIZE),
+            login_failures=read_login_failures_page(page=failure_page, page_size=LOGIN_ATTEMPT_PAGE_SIZE),
             submission_attempts=debug_submission_attempts,
             automatic_backups=[
                 _serialize_automatic_backup(backup_file)
@@ -222,6 +258,9 @@ def debug_page(request: Request, database_session: Session = Depends(get_databas
             automatic_backups_enabled=settings.automatic_backups_enabled,
             automatic_backup_dir=settings.automatic_backup_dir,
             backup_upload_max_mb=_backup_upload_max_mb(),
+            app_log_path=str(Path(settings.log_dir) / "app.log"),
+            app_log_lines=_read_app_log_tail(settings.log_dir),
+            app_log_tail_lines=APP_LOG_TAIL_LINES,
         ),
     )
 
@@ -244,6 +283,29 @@ def download_login_failure_log(request: Request) -> Response:
         media_type="application/jsonl; charset=utf-8",
         headers={
             "Content-Disposition": 'attachment; filename="job-logger-login-failures.log"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@router.get("/logs/login-successes")
+def download_login_success_log(request: Request) -> Response:
+    """Download the raw successful-login JSONL log for authenticated diagnostics."""
+
+    try:
+        require_super_admin(request)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
+
+    log_path = Path(settings.login_success_log_path)
+    if not log_path.exists():
+        raise HTTPException(status_code=404, detail="Login success log not found")
+
+    return Response(
+        content=redact_sensitive_text(log_path.read_text(encoding="utf-8", errors="replace")),
+        media_type="application/jsonl; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="job-logger-login-successes.log"',
             "Cache-Control": "no-store",
         },
     )

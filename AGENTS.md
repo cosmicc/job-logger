@@ -60,6 +60,9 @@ session challenges, require CSRF on browser fetches, require user verification,
 verify the configured relying-party ID and origin, update signature counters on
 successful login, block disabled users, audit only safe metadata, and keep
 password login available as fallback.
+`/config` is the persistent passkey management surface. `/home` may show an
+Add Passkey card only once after each successful login, and only while that
+managed user has no registered passkeys.
 
 Managed web users may change per-login configuration on `/config`. Per-user
 configuration is database-backed, defaults to the dark theme, saves immediately
@@ -85,11 +88,12 @@ another approved secret store.
 
 Do not log secrets, session tokens, raw authentication headers, Cloudflare Access
 JWTs, Autotask API credentials, transcription provider credentials, raw audio,
-or other sensitive values. Failed app-login attempts may be written to the
-host-mounted JSONL login-failure log and shown on `/debug`, but only with
-sanitized metadata such as timestamp, client IP, submitted username, user agent,
-request/proxy details, and password-present/length. Never write or display the
-raw submitted password.
+or other sensitive values. Successful and failed app-login attempts may be
+written to host-mounted JSONL login-attempt logs and shown on `/debug`, but only
+with sanitized metadata such as timestamp, client IP, submitted username,
+account kind, authentication method, user agent, request/proxy details, failure
+reason, and password-present/length for failures. Never write or display the raw
+submitted password.
 
 Prefer secure defaults. Cookies must be HTTP-only, secure when served over HTTPS,
 and SameSite-protected. Forms and state-changing requests must use CSRF
@@ -473,8 +477,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/routes/changelog.py` handles authenticated `/changelog` release
   history for the discreet version link shown in the shared app header.
 - `job_logger/routes/debug.py` handles the super-admin diagnostic page, the
-  sanitized failed-login window, full backup/restore actions, and the Autotask
-  API connectivity test.
+  sanitized successful/failed login windows, app log tail, full backup/restore
+  actions, and the Autotask API connectivity test.
 - `job_logger/routes/health.py` exposes private container health endpoints.
 - `job_logger/routes/pwa.py` serves the web app manifest and root-scoped
   service worker for installed mobile app behavior. The service worker must not
@@ -502,8 +506,9 @@ The application is a FastAPI project under `job_logger/`.
   database backups, writes hourly automatic backup files, and enforces automatic
   backup retention.
 - `job_logger/services/login_failures.py` writes and reads the host-mounted
-  sanitized failed-login JSONL log in `LOG_DIR`, defaulting to
-  `job-logger-login-failures.log` inside Docker's `/data/logs` mount.
+  sanitized successful/failed login JSONL logs in `LOG_DIR`, defaulting to
+  `job-logger-login-successes.log` and `job-logger-login-failures.log` inside
+  Docker's `/data/logs` mount.
 - `job_logger/templates/` contains Jinja pages for mobile, review, users,
   config, changelog, debug, and authentication views.
 - `job_logger/static/` contains browser-side JavaScript, CSS, PWA metadata, and
@@ -553,13 +558,15 @@ The normal workflow is:
    tickets are loaded yet, the whole panel is the load control and shows a
    spinner while Autotask data is being queried. Ticket options show detected
    Remote/On-Site/Not specified labels from ticket title and description text,
-   with Remote and On-Site color treatment matching service-call cards. Mobile
-   ticket numbers are populated from that selection instead of manual entry. If
-   the selected Autotask ticket status is New, the server moves it to In
-   progress using the owning managed web user's resource context. The selected
-   ticket status is shown and editable on Work in Progress. Read-only ticket
-   descriptions stay in short scrollable boxes on Work in Progress and review
-   detail.
+   falling back to remote-only Autotask ticket sources such as `RMM Alert`,
+   `Datto Alert`, `BCDR Alert`, and `Email Alert` when text detection has no
+   result. Remote and On-Site color treatment matches service-call cards.
+   Mobile ticket numbers are populated from that selection instead of manual
+   entry. If the selected Autotask ticket status is New, the server moves it to
+   In progress using the owning managed web user's resource context. The
+   selected ticket status is shown and editable on Work in Progress. Read-only
+   ticket descriptions stay in short scrollable boxes on Work in Progress and
+   review detail.
 9. User chooses whether the work is Remote or On-Site. The mode is stored on
    the job and appears as the leading prefix in the review summary textarea so
    it can be corrected before Autotask submission.
@@ -600,7 +607,8 @@ The normal workflow is:
     while the job remains submitted.
 17. Submission attempts and important state changes are recorded for audit and
     diagnostics.
-18. Managed users without a passkey see a Home prompt to add one. Later passkey
+18. Managed users without a passkey see a Home prompt to add one once after a
+    successful login. `/config` always shows passkey management. Later passkey
     login uses `/login/passkey/options` and `/login/passkey/verify`; failed or
     canceled passkey login must leave the normal password form available.
 19. Authenticated users may open `/changelog` from the discreet header version

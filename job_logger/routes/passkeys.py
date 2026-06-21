@@ -22,7 +22,7 @@ from job_logger.security import (
     validate_csrf_token,
 )
 from job_logger.services.audit import record_audit_event
-from job_logger.services.login_failures import log_failed_login_attempt
+from job_logger.services.login_failures import log_failed_login_attempt, log_successful_login_attempt
 from job_logger.services.passkeys import (
     PasskeyError,
     begin_passkey_authentication,
@@ -197,6 +197,13 @@ async def passkey_login_verify(
         login_web_user_session(
             request,
             username=web_user.username,
+            web_user_id=web_user.id,
+            authentication_method=PASSKEY_AUTH_METHOD,
+        )
+        log_successful_login_attempt(
+            request,
+            username=web_user.username,
+            user_kind="web_user",
             web_user_id=web_user.id,
             authentication_method=PASSKEY_AUTH_METHOD,
         )

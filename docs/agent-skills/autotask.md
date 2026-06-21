@@ -128,14 +128,15 @@ Ticket lookup should prefer the stored Autotask company ID. If no company ID is
 stored, it can fall back to client-name matching.
 
 Ticket options returned to the browser include safe ticket number, title,
-bounded description, status label, and company name. Review ticket selection uses
-`POST /review/{job_id}/ticket`; the route uses the server-verified open-ticket
-list that was just loaded when the short-lived selection cache is available,
-falls back to re-querying Autotask when that cache is expired or absent,
-verifies the submitted ticket number is valid for the job's stored
-client/company, then persists the ticket number, title, and bounded description
-as local job metadata. The review detail heading and ticket-description card can
-then show the chosen ticket context without repeatedly querying Autotask.
+bounded description, status label, company name, and display-only work-location
+detection. Review ticket selection uses `POST /review/{job_id}/ticket`; the
+route uses the server-verified open-ticket list that was just loaded when the
+short-lived selection cache is available, falls back to re-querying Autotask
+when that cache is expired or absent, verifies the submitted ticket number is
+valid for the job's stored client/company, then persists the ticket number,
+title, and bounded description as local job metadata. The review detail heading
+and ticket-description card can then show the chosen ticket context without
+repeatedly querying Autotask.
 
 On mobile, ticket numbers are populated from the open-ticket picker instead of
 manual entry. The ticket choice posts to `POST /jobs/{job_id}/ticket`; that
@@ -148,11 +149,12 @@ fields through `POST /jobs/{job_id}/ticket-number` with a JSON response, shows
 the spinner loading state, then loads open tickets from the server-verified
 lookup endpoint. The review open-ticket panel uses the same click-to-load
 pattern. Open-ticket options should include a display-only Remote, On-Site, or
-Not specified label inferred from safe ticket title/description text and expose
-the matching `.ticket-location-*` CSS class for the browser. After mobile or
-review selection succeeds, the UI hides the open-ticket list and updates visible
-ticket number/title/description fields from the verified JSON response rather
-than trusting the clicked browser option.
+Not specified label inferred from safe ticket title/description text, falling
+back to remote-only ticket source labels when text has no result, and expose the
+matching `.ticket-location-*` CSS class for the browser. After mobile or review
+selection succeeds, the UI hides the open-ticket list and updates visible ticket
+number/title/description fields from the verified JSON response rather than
+trusting the clicked browser option.
 
 ## Service Call Lookup
 
@@ -170,7 +172,7 @@ it needs several related Autotask entities:
 - `ServiceCallTickets` to identify tickets associated with each service call.
 - `ServiceCallTicketResources` to verify the user's resource is assigned to
   that specific service-call ticket row.
-- `Tickets` for ticket number, title, and bounded description.
+- `Tickets` for ticket number, title, bounded description, status, and source.
 - `Companies` for the client name stored with the new active job.
 
 The browser must submit only `service_call_ticket_id`, `service_call_date`, and
@@ -210,9 +212,13 @@ display names for authorization.
 
 Remote/On-Site detection is intentionally simple and auditable: scan
 service-call details or open-ticket title/description text for `remote`,
-`onsite`, `on-site`, or `on site`. If neither word is present, display
-`Not specified` and let the started job use the normal Remote default. If both
-words are present, the first match in the details text wins.
+`onsite`, `on-site`, or `on site`. If both words are present, the first match in
+the details text wins. If text detection has no result, fall back to
+`Tickets.source`: `RMM Alert`, `Datto Alert`, `BCDR Alert`, and `Email Alert`
+always mean Remote. Source fallback must support both direct source labels and
+numeric picklist IDs resolved from `Tickets.source` field metadata. If neither
+text nor source identifies a work mode, display `Not specified` and let the
+started job use the normal Remote default.
 
 The Autotask API user's security level must be able to read `ServiceCalls`,
 `ServiceCallTickets`, and `ServiceCallTicketResources` in addition to the

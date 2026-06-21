@@ -1,4 +1,4 @@
-"""Host-accessible failed-login logging helpers."""
+"""Host-accessible login-attempt logging helpers."""
 
 from __future__ import annotations
 
@@ -49,6 +49,40 @@ class LoginFailureRecord:
     max_attempts: int
     lockout_applied: bool
     lockout_remaining_seconds: int
+
+
+@dataclass(frozen=True)
+class LoginSuccessRecord:
+    """One sanitized successful-login record parsed from the JSONL log file."""
+
+    created_at_utc: str
+    created_at_display: str
+    client_ip: str
+    direct_client_ip: str
+    x_real_ip: str
+    x_forwarded_for: str
+    forwarded_proto: str
+    host: str
+    username: str
+    user_kind: str
+    web_user_id: str
+    authentication_method: str
+    user_agent: str
+    method: str
+    path: str
+
+
+@dataclass(frozen=True)
+class LoginRecordPage:
+    """One bounded diagnostics page of login records."""
+
+    records: list[LoginFailureRecord] | list[LoginSuccessRecord]
+    page: int
+    page_size: int
+    total_records: int
+    total_pages: int
+    previous_page: int | None
+    next_page: int | None
 
 
 def _bounded_text(value: object, max_length: int = MAX_TEXT_FIELD_CHARS) -> str:
@@ -113,8 +147,8 @@ def _payload_integer(payload: dict[str, Any], key: str) -> int:
         return 0
 
 
-def _record_from_payload(payload: dict[str, Any]) -> LoginFailureRecord | None:
-    """Convert one JSON payload from disk into a display-safe record."""
+def _created_at_display_from_payload(payload: dict[str, Any]) -> tuple[str, str]:
+    """Return raw UTC and local display timestamps from a log payload."""
 
     created_at_utc = str(payload.get("created_at_utc", ""))
     created_at_display = created_at_utc
@@ -123,6 +157,13 @@ def _record_from_payload(payload: dict[str, Any]) -> LoginFailureRecord | None:
         created_at_display = format_local_display(parsed_created_at)
     except (TypeError, ValueError):
         pass
+    return created_at_utc, created_at_display
+
+
+def _record_from_payload(payload: dict[str, Any]) -> LoginFailureRecord | None:
+    """Convert one JSON payload from disk into a display-safe record."""
+
+    created_at_utc, created_at_display = _created_at_display_from_payload(payload)
 
     return LoginFailureRecord(
         created_at_utc=created_at_utc,
@@ -150,6 +191,60 @@ def _record_from_payload(payload: dict[str, Any]) -> LoginFailureRecord | None:
     )
 
 
+def _success_record_from_payload(payload: dict[str, Any]) -> LoginSuccessRecord | None:
+    """Convert one successful-login JSON payload into a display-safe record."""
+
+    created_at_utc, created_at_display = _created_at_display_from_payload(payload)
+    return LoginSuccessRecord(
+        created_at_utc=created_at_utc,
+        created_at_display=created_at_display,
+        client_ip=_bounded_text(str(payload.get("client_ip", "unknown")), MAX_CLIENT_IP_LOG_CHARS),
+        direct_client_ip=_bounded_text(str(payload.get("direct_client_ip", "")), MAX_CLIENT_IP_LOG_CHARS),
+        x_real_ip=_bounded_text(str(payload.get("x_real_ip", "")), MAX_CLIENT_IP_LOG_CHARS),
+        x_forwarded_for=_bounded_text(str(payload.get("x_forwarded_for", ""))),
+        forwarded_proto=_bounded_text(str(payload.get("forwarded_proto", "")), 64),
+        host=redact_sensitive_text(_bounded_text(str(payload.get("host", "")))),
+        username=redact_sensitive_text(_bounded_text(str(payload.get("username", "")), MAX_USERNAME_LOG_CHARS)),
+        user_kind=_bounded_text(str(payload.get("user_kind", "unknown")), 64),
+        web_user_id=_bounded_text(str(payload.get("web_user_id", "")), 64),
+        authentication_method=_bounded_text(str(payload.get("authentication_method", "password")), 64),
+        user_agent=redact_sensitive_text(_bounded_text(str(payload.get("user_agent", "")), MAX_USER_AGENT_LOG_CHARS)),
+        method=_bounded_text(str(payload.get("method", "")), 24),
+        path=_bounded_text(str(payload.get("path", ""))),
+    )
+
+
+def _base_request_payload(request: Request, *, event: str, username: str) -> dict[str, Any]:
+    """Return common sanitized request metadata for login attempt logs."""
+
+    return {
+        "event": event,
+        "created_at_utc": datetime.now(UTC).isoformat(),
+        "client_ip": client_ip_from_request(request),
+        "direct_client_ip": _direct_client_ip_from_request(request),
+        "x_real_ip": _request_header(request, "x-real-ip"),
+        "x_forwarded_for": _request_header(request, "x-forwarded-for"),
+        "forwarded_proto": _request_header(request, "x-forwarded-proto"),
+        "host": _request_header(request, "host"),
+        "username": _bounded_text(username, MAX_USERNAME_LOG_CHARS),
+        "user_agent": _user_agent_from_request(request),
+        "method": _bounded_text(request.method, 24),
+        "path": _bounded_text(request.url.path),
+    }
+
+
+def _append_jsonl_payload(log_path: Path, payload: dict[str, Any], *, log_description: str) -> None:
+    """Append one sanitized JSONL payload, creating the log directory if needed."""
+
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as login_log_file:
+            login_log_file.write(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+            login_log_file.write("\n")
+    except OSError as exc:
+        LOGGER.warning("Failed to write %s at %s: %s", log_description, log_path, exc)
+
+
 def log_failed_login_attempt(
     request: Request,
     *,
@@ -166,24 +261,12 @@ def log_failed_login_attempt(
     """
 
     log_path = Path(application_settings.login_failure_log_path)
-    bounded_username = _bounded_text(submitted_username, MAX_USERNAME_LOG_CHARS)
     payload = {
-        "event": "web_login_failed",
-        "created_at_utc": datetime.now(UTC).isoformat(),
-        "client_ip": client_ip_from_request(request),
-        "direct_client_ip": _direct_client_ip_from_request(request),
-        "x_real_ip": _request_header(request, "x-real-ip"),
-        "x_forwarded_for": _request_header(request, "x-forwarded-for"),
-        "forwarded_proto": _request_header(request, "x-forwarded-proto"),
-        "host": _request_header(request, "host"),
-        "username": bounded_username,
+        **_base_request_payload(request, event="web_login_failed", username=submitted_username),
         "username_length": len(submitted_username),
         "username_truncated": len(submitted_username) > MAX_USERNAME_LOG_CHARS,
         "password_supplied": bool(submitted_password),
         "password_length": len(submitted_password),
-        "user_agent": _user_agent_from_request(request),
-        "method": _bounded_text(request.method, 24),
-        "path": _bounded_text(request.url.path),
         "next_url": "",
         "reason": _bounded_text(reason, 64),
         # Job Logger currently records failed login attempts but does not apply
@@ -194,14 +277,82 @@ def log_failed_login_attempt(
         "lockout_applied": False,
         "lockout_remaining_seconds": 0,
     }
+    _append_jsonl_payload(log_path, payload, log_description="login failure log")
 
+
+def log_successful_login_attempt(
+    request: Request,
+    *,
+    username: str,
+    user_kind: str,
+    web_user_id: str | None = None,
+    authentication_method: str = "password",
+    application_settings: Settings = settings,
+) -> None:
+    """Append one successful-login attempt to the host-mounted JSONL log file."""
+
+    log_path = Path(application_settings.login_success_log_path)
+    payload = {
+        **_base_request_payload(request, event="web_login_succeeded", username=username),
+        "user_kind": _bounded_text(user_kind, 64),
+        "web_user_id": _bounded_text(web_user_id or "", 64),
+        "authentication_method": _bounded_text(authentication_method, 64),
+    }
+    _append_jsonl_payload(log_path, payload, log_description="login success log")
+
+
+def _read_recent_payloads(log_path: Path, row_limit: int) -> list[dict[str, Any]]:
+    """Return newest JSON objects from a JSONL file."""
+
+    bounded_limit = max(0, row_limit)
+    if bounded_limit == 0 or not log_path.exists():
+        return []
+
+    recent_lines: deque[str] = deque(maxlen=bounded_limit)
     try:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        with log_path.open("a", encoding="utf-8") as login_failure_log_file:
-            login_failure_log_file.write(json.dumps(payload, sort_keys=True, separators=(",", ":")))
-            login_failure_log_file.write("\n")
+        with log_path.open("r", encoding="utf-8") as login_log_file:
+            for line in login_log_file:
+                stripped_line = line.strip()
+                if stripped_line:
+                    recent_lines.append(stripped_line)
     except OSError as exc:
-        LOGGER.warning("Failed to write login failure log at %s: %s", log_path, exc)
+        LOGGER.warning("Failed to read login log at %s: %s", log_path, exc)
+        return []
+
+    payloads: list[dict[str, Any]] = []
+    for raw_line in reversed(recent_lines):
+        try:
+            payload = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            payloads.append(payload)
+    return payloads
+
+
+def _paginate_login_records(
+    records: list[LoginFailureRecord] | list[LoginSuccessRecord],
+    *,
+    page: int,
+    page_size: int,
+) -> LoginRecordPage:
+    """Return one bounded page object for diagnostics login tables."""
+
+    bounded_page_size = max(1, min(page_size, 100))
+    total_records = len(records)
+    total_pages = max(1, (total_records + bounded_page_size - 1) // bounded_page_size)
+    bounded_page = max(1, min(page, total_pages))
+    start_index = (bounded_page - 1) * bounded_page_size
+    page_records = records[start_index : start_index + bounded_page_size]
+    return LoginRecordPage(
+        records=page_records,
+        page=bounded_page,
+        page_size=bounded_page_size,
+        total_records=total_records,
+        total_pages=total_pages,
+        previous_page=bounded_page - 1 if bounded_page > 1 else None,
+        next_page=bounded_page + 1 if bounded_page < total_pages else None,
+    )
 
 
 def read_recent_login_failures(
@@ -213,29 +364,56 @@ def read_recent_login_failures(
 
     log_path = Path(application_settings.login_failure_log_path)
     row_limit = limit if limit is not None else application_settings.login_failure_debug_rows
-    bounded_limit = max(0, row_limit)
-    if bounded_limit == 0 or not log_path.exists():
-        return []
-
-    recent_lines: deque[str] = deque(maxlen=bounded_limit)
-    try:
-        with log_path.open("r", encoding="utf-8") as login_failure_log_file:
-            for line in login_failure_log_file:
-                stripped_line = line.strip()
-                if stripped_line:
-                    recent_lines.append(stripped_line)
-    except OSError as exc:
-        LOGGER.warning("Failed to read login failure log at %s: %s", log_path, exc)
-        return []
-
     records: list[LoginFailureRecord] = []
-    for raw_line in reversed(recent_lines):
-        try:
-            payload = json.loads(raw_line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(payload, dict):
-            record = _record_from_payload(payload)
-            if record is not None:
-                records.append(record)
+    for payload in _read_recent_payloads(log_path, row_limit):
+        record = _record_from_payload(payload)
+        if record is not None:
+            records.append(record)
     return records
+
+
+def read_recent_login_successes(
+    *,
+    application_settings: Settings = settings,
+    limit: int | None = None,
+) -> list[LoginSuccessRecord]:
+    """Return newest successful-login records parsed from the configured JSONL file."""
+
+    log_path = Path(application_settings.login_success_log_path)
+    row_limit = limit if limit is not None else application_settings.login_failure_debug_rows
+    records: list[LoginSuccessRecord] = []
+    for payload in _read_recent_payloads(log_path, row_limit):
+        record = _success_record_from_payload(payload)
+        if record is not None:
+            records.append(record)
+    return records
+
+
+def read_login_failures_page(
+    *,
+    application_settings: Settings = settings,
+    page: int = 1,
+    page_size: int = 10,
+) -> LoginRecordPage:
+    """Return one diagnostics page of newest failed-login records."""
+
+    return _paginate_login_records(
+        read_recent_login_failures(application_settings=application_settings),
+        page=page,
+        page_size=page_size,
+    )
+
+
+def read_login_successes_page(
+    *,
+    application_settings: Settings = settings,
+    page: int = 1,
+    page_size: int = 10,
+) -> LoginRecordPage:
+    """Return one diagnostics page of newest successful-login records."""
+
+    return _paginate_login_records(
+        read_recent_login_successes(application_settings=application_settings),
+        page=page,
+        page_size=page_size,
+    )

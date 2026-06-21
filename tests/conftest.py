@@ -17,6 +17,7 @@ os.environ["APP_USERNAME"] = "admin"
 os.environ["APP_PASSWORD"] = "test-password"
 os.environ["LOG_DIR"] = "/tmp/job-logger-test-logs"
 os.environ["LOGIN_FAILURE_LOG_PATH"] = "/tmp/job-logger-test-login-failures.log"
+os.environ["LOGIN_SUCCESS_LOG_PATH"] = "/tmp/job-logger-test-login-successes.log"
 os.environ["LOGIN_FAILURE_DEBUG_ROWS"] = "20"
 os.environ["APP_ALLOWED_HOSTS"] = "testserver,localhost,127.0.0.1"
 os.environ["APP_SESSION_COOKIE_SECURE"] = "false"
@@ -79,8 +80,11 @@ def client() -> Generator[TestClient, None, None]:
     """Return a TestClient backed by a fresh in-memory database."""
 
     login_failure_log_path = Path(os.environ["LOGIN_FAILURE_LOG_PATH"])
+    login_success_log_path = Path(os.environ["LOGIN_SUCCESS_LOG_PATH"])
     automatic_backup_dir = Path(os.environ["AUTOMATIC_BACKUP_DIR"])
     login_failure_log_path.unlink(missing_ok=True)
+    login_success_log_path.unlink(missing_ok=True)
+    shutil.rmtree(Path(os.environ["LOG_DIR"]), ignore_errors=True)
     shutil.rmtree(automatic_backup_dir, ignore_errors=True)
     database.configure_database("sqlite+pysqlite://")
     Base.metadata.create_all(database.engine)
@@ -98,6 +102,8 @@ def client() -> Generator[TestClient, None, None]:
         yield test_client
     Base.metadata.drop_all(database.engine)
     login_failure_log_path.unlink(missing_ok=True)
+    login_success_log_path.unlink(missing_ok=True)
+    shutil.rmtree(Path(os.environ["LOG_DIR"]), ignore_errors=True)
     shutil.rmtree(automatic_backup_dir, ignore_errors=True)
 
 

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
@@ -146,6 +149,7 @@ def test_config_can_register_and_delete_passkey(client: TestClient, monkeypatch)
 
     config_response = client.get("/config")
     assert "Passkeys" in config_response.text
+    assert "data-passkey-register-button" in config_response.text
     assert "Synced passkey" in config_response.text
     assert "Backed up" in config_response.text
     assert f"/config/passkeys/{credential.id}/delete" in config_response.text
@@ -166,8 +170,8 @@ def test_config_can_register_and_delete_passkey(client: TestClient, monkeypatch)
         assert "auth.passkey.deleted" in actions
 
 
-def test_home_prompts_for_passkey_until_one_is_registered(client: TestClient, monkeypatch) -> None:
-    """Password login should ask managed users without passkeys to add one."""
+def test_home_prompts_for_passkey_once_per_login_until_one_is_registered(client: TestClient, monkeypatch) -> None:
+    """Password login should ask once per login when the user has no passkeys."""
 
     login_as_web_user(client)
     home_response = client.get("/home")
@@ -175,9 +179,21 @@ def test_home_prompts_for_passkey_until_one_is_registered(client: TestClient, mo
     assert "Set up faster sign-in" in home_response.text
     assert "data-passkey-register-button" in home_response.text
 
+    repeated_home_response = client.get("/home")
+    assert "Set up faster sign-in" not in repeated_home_response.text
+    assert "data-passkey-register-button" not in repeated_home_response.text
+
+    login_as_web_user(client)
+    next_login_home_response = client.get("/home")
+    assert "Set up faster sign-in" in next_login_home_response.text
+
     _register_mock_passkey(client, monkeypatch, credential_id=b"credential-two")
     updated_home_response = client.get("/home")
     assert "Set up faster sign-in" not in updated_home_response.text
+
+    login_as_web_user(client)
+    later_login_home_response = client.get("/home")
+    assert "Set up faster sign-in" not in later_login_home_response.text
 
 
 def test_passkey_login_creates_managed_user_session(client: TestClient, monkeypatch) -> None:
@@ -213,6 +229,10 @@ def test_passkey_login_creates_managed_user_session(client: TestClient, monkeypa
     assert verify_response.status_code == 200
     assert verify_response.json()["redirect_url"] == "/home"
     assert client.get("/home").status_code == 200
+    success_log_lines = Path(os.environ["LOGIN_SUCCESS_LOG_PATH"]).read_text(encoding="utf-8").strip().splitlines()
+    success_log_payload = json.loads(success_log_lines[-1])
+    assert success_log_payload["username"] == "tech"
+    assert success_log_payload["authentication_method"] == "passkey"
     with database.SessionLocal() as database_session:
         updated_credential = database_session.get(WebAuthnCredential, credential.id)
         assert updated_credential is not None

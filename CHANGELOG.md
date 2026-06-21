@@ -25,6 +25,19 @@ All notable changes to Job Logger are documented in this file.
   sign-ins while password login remains available as the fallback.
 - Added `WEBAUTHN_RP_NAME`, `WEBAUTHN_RP_ID`, and `WEBAUTHN_ORIGIN`
   configuration for passkey relying-party and origin validation.
+- Changed the `/home` passkey setup card to appear only once after each
+  successful managed-user login when that user has not set up a passkey, while
+  keeping passkey setup always available on `/config`.
+- Fixed passkey registration through Cloudflare/nginx by preserving the
+  forwarded HTTPS scheme for WebAuthn origin derivation and logging safe
+  origin/RP diagnostics when verification fails.
+- Added remote work-location fallback from Autotask `Tickets.source` when
+  ticket or service-call description detection has no Remote/On-Site result;
+  `RMM Alert`, `Datto Alert`, `BCDR Alert`, and `Email Alert` are treated as
+  Remote.
+- Added a super-admin `/debug` successful-login card, pagination for successful
+  and failed login cards, a successful-login JSONL download, and a newest-first
+  app log tail card for quick operator diagnostics.
 - Fixed the new v1.1.0 migration identifiers so PostgreSQL can store them in
   Alembic's `version_num` column during Docker startup migrations.
 - Clarified Cloudflare Tunnel setup to prefer the Compose-managed loopback

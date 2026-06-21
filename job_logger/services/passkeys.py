@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
@@ -24,8 +25,10 @@ from webauthn.helpers.structs import (
 )
 
 from job_logger.config import Settings, settings
+from job_logger.logging_config import redact_sensitive_text
 from job_logger.models import WebAuthnCredential, WebUser, utc_now
 
+LOGGER = logging.getLogger(__name__)
 SESSION_PASSKEY_REGISTRATION_CHALLENGE_KEY = "passkey_registration_challenge"
 SESSION_PASSKEY_REGISTRATION_USER_ID_KEY = "passkey_registration_user_id"
 SESSION_PASSKEY_AUTHENTICATION_CHALLENGE_KEY = "passkey_authentication_challenge"
@@ -36,6 +39,12 @@ MAX_USER_AGENT_LENGTH = 255
 
 class PasskeyError(RuntimeError):
     """Raised when a passkey operation cannot be completed safely."""
+
+    def __init__(self, message: str, *, reason: str = "passkey_error") -> None:
+        """Store a safe operator-facing reason without exposing credential data."""
+
+        super().__init__(message)
+        self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -55,6 +64,12 @@ def _bounded_user_agent(request: Request) -> str | None:
     return user_agent[:MAX_USER_AGENT_LENGTH]
 
 
+def _safe_request_header(request: Request, header_name: str, max_length: int = 255) -> str:
+    """Return a bounded request header value for passkey diagnostics."""
+
+    return redact_sensitive_text(str(request.headers.get(header_name, "")))[:max_length]
+
+
 def _request_host(request: Request) -> str:
     """Return the hostname used for the current request."""
 
@@ -66,6 +81,12 @@ def _request_host(request: Request) -> str:
         return host_header
 
     raise PasskeyError("Passkey setup needs a valid request host.")
+
+
+def _is_local_development_host(hostname: str) -> bool:
+    """Return whether HTTP is a reasonable WebAuthn origin for this host."""
+
+    return hostname in {"localhost", "127.0.0.1", "::1", "testserver"}
 
 
 def webauthn_rp_id_for_request(request: Request, application_settings: Settings = settings) -> str:
@@ -86,6 +107,60 @@ def webauthn_origin_for_request(request: Request, application_settings: Settings
         return f"{parsed_origin.scheme}://{parsed_origin.netloc}"
 
     return f"{request.url.scheme}://{request.url.netloc}"
+
+
+def _passkey_verification_error(
+    *,
+    exc: WebAuthnException,
+    request: Request,
+    application_settings: Settings,
+    operation: str,
+    default_message: str,
+    default_reason: str,
+) -> PasskeyError:
+    """Return a safe passkey error while logging bounded origin diagnostics."""
+
+    expected_origin = ""
+    rp_id = ""
+    try:
+        expected_origin = webauthn_origin_for_request(request, application_settings)
+        rp_id = webauthn_rp_id_for_request(request, application_settings)
+    except PasskeyError:
+        pass
+
+    request_host = _request_host(request)
+    LOGGER.warning(
+        "Passkey %s verification failed: exception=%s expected_origin=%s rp_id=%s host=%s request_scheme=%s forwarded_proto=%s forwarded_host=%s",
+        operation,
+        type(exc).__name__,
+        redact_sensitive_text(expected_origin)[:255],
+        redact_sensitive_text(rp_id)[:255],
+        redact_sensitive_text(request_host)[:255],
+        redact_sensitive_text(request.url.scheme)[:32],
+        _safe_request_header(request, "x-forwarded-proto", 64),
+        _safe_request_header(request, "x-forwarded-host", 255),
+    )
+
+    if (
+        not application_settings.webauthn_origin
+        and expected_origin.startswith("http://")
+        and not _is_local_development_host(request_host)
+    ):
+        if operation == "authentication":
+            return PasskeyError(
+                "Passkey login failed because the app expected an HTTP origin. "
+                "Use your password this time, then restart the nginx/app containers so forwarded HTTPS headers are applied "
+                "or set WEBAUTHN_ORIGIN to the public HTTPS URL.",
+                reason="origin_scheme_mismatch",
+            )
+        return PasskeyError(
+            "Passkey setup failed because the app expected an HTTP origin. "
+            "Restart the nginx/app containers so forwarded HTTPS headers are applied, "
+            "or set WEBAUTHN_ORIGIN to the public HTTPS URL.",
+            reason="origin_scheme_mismatch",
+        )
+
+    return PasskeyError(default_message, reason=default_reason)
 
 
 def _credential_descriptors(credentials: list[WebAuthnCredential]) -> list[PublicKeyCredentialDescriptor]:
@@ -224,7 +299,14 @@ def finish_passkey_registration(
             require_user_verification=True,
         )
     except WebAuthnException as exc:
-        raise PasskeyError("Passkey setup failed. Try again.") from exc
+        raise _passkey_verification_error(
+            exc=exc,
+            request=request,
+            application_settings=application_settings,
+            operation="registration",
+            default_message="Passkey setup failed. Try again.",
+            default_reason="registration_verification_failed",
+        ) from exc
 
     credential_id = bytes_to_base64url(verified_registration.credential_id)
     existing_credential = database_session.scalar(
@@ -314,7 +396,14 @@ def finish_passkey_authentication(
             require_user_verification=True,
         )
     except WebAuthnException as exc:
-        raise PasskeyError("Passkey login failed. Use your password instead.") from exc
+        raise _passkey_verification_error(
+            exc=exc,
+            request=request,
+            application_settings=application_settings,
+            operation="authentication",
+            default_message="Passkey login failed. Use your password instead.",
+            default_reason="authentication_verification_failed",
+        ) from exc
 
     credential.sign_count = verified_authentication.new_sign_count
     credential.device_type = str(verified_authentication.credential_device_type.value)

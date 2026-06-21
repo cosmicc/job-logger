@@ -30,7 +30,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
-    assert "## v1.1.0 - Direct submission, backups, and passkeys" in web_changelog_text
+    assert "## v1.1.0 - Direct submission and passkeys" in web_changelog_text
     assert "## v1.0.2 - Autotask workflow and desktop layout updates" in web_changelog_text
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in web_changelog_text
     assert "## v1.0.0 - Initial release" in web_changelog_text
@@ -62,13 +62,14 @@ def test_changelog_parser_reads_current_release() -> None:
 
     assert current_entry == ChangelogEntry(
         version="v1.1.0",
-        title="Direct submission, backups, and passkeys",
+        title="Direct submission and passkeys",
         changes=(
             "Added a Config option to submit time entries directly from Work in Progress.",
             "Review is still available afterward for submitted-entry edits and Autotask deletion.",
-            "Added automatic database backups with restore controls on the super-admin debug page.",
             "Added passkey sign-in for managed users, with password login still available.",
-            "Added a Docker setting for local app session timeout in hours.",
+            "App sessions can now require users to sign in again after the configured timeout.",
+            "The Home passkey setup card now appears only once after login, while Config always keeps passkey setup available.",
+            "Ticket source can now mark alert-created tickets as Remote when ticket text does not say Remote or On-Site.",
         ),
     )
 
@@ -94,12 +95,15 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
-    assert "Direct submission, backups, and passkeys" in response.text
+    assert "Direct submission and passkeys" in response.text
     assert "Added a Config option to submit time entries directly from Work in Progress." in response.text
     assert "Review is still available afterward for submitted-entry edits and Autotask deletion." in response.text
-    assert "Added automatic database backups with restore controls on the super-admin debug page." in response.text
     assert "Added passkey sign-in for managed users, with password login still available." in response.text
-    assert "Added a Docker setting for local app session timeout in hours." in response.text
+    assert "App sessions can now require users to sign in again after the configured timeout." in response.text
+    assert "The Home passkey setup card now appears only once after login" in response.text
+    assert "Ticket source can now mark alert-created tickets as Remote" in response.text
+    assert "automatic database backups" not in response.text
+    assert "debug page" not in response.text
     assert "Autotask workflow and desktop layout updates" in response.text
     assert "Edit Entry can update submitted time entries that were already marked Complete." in response.text
     assert "Starting work on a New ticket now moves it to In progress." in response.text
@@ -112,7 +116,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
-    assert response.text.index("Direct submission, backups, and passkeys") < response.text.index("Autotask workflow and desktop layout updates")
+    assert response.text.index("Direct submission and passkeys") < response.text.index("Autotask workflow and desktop layout updates")
     assert response.text.index("Autotask workflow and desktop layout updates") < response.text.index("Mobile shell navigation and close behavior")
     assert response.text.index("Mobile shell navigation and close behavior") < response.text.index("Initial release")
     assert '<span class="release-version">v1.1.0</span>' not in response.text

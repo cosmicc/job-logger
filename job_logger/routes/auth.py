@@ -20,7 +20,7 @@ from job_logger.security import (
     verify_password,
 )
 from job_logger.services.audit import record_audit_event
-from job_logger.services.login_failures import log_failed_login_attempt
+from job_logger.services.login_failures import log_failed_login_attempt, log_successful_login_attempt
 from job_logger.services.users import authenticate_web_user
 from job_logger.ui import template_context, templates
 
@@ -52,6 +52,12 @@ async def login(
     submitted_password = str(form_data.get("password", ""))
     if authenticate_username(submitted_username) and verify_password(submitted_password):
         login_session(request, submitted_username)
+        log_successful_login_attempt(
+            request,
+            username=submitted_username,
+            user_kind="super_admin",
+            authentication_method="password",
+        )
         record_audit_event(
             database_session,
             actor=submitted_username,
@@ -66,6 +72,13 @@ async def login(
     web_user = authenticate_web_user(database_session, submitted_username, submitted_password)
     if web_user is not None:
         login_web_user_session(request, username=web_user.username, web_user_id=web_user.id)
+        log_successful_login_attempt(
+            request,
+            username=web_user.username,
+            user_kind="web_user",
+            web_user_id=web_user.id,
+            authentication_method="password",
+        )
         record_audit_event(
             database_session,
             actor=web_user.username,

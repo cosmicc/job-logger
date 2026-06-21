@@ -41,3 +41,14 @@ def test_nginx_restore_upload_limit_is_scoped_to_restore_endpoint() -> None:
     assert "client_max_body_size ${NGINX_RESTORE_MAX_BODY_SIZE};" in restore_block
     assert "proxy_pass http://${APP_UPSTREAM_HOST}:8000/debug/restore;" in restore_block
     assert template_text.count("NGINX_RESTORE_MAX_BODY_SIZE") == 1
+
+
+def test_nginx_preserves_forwarded_https_scheme_for_app_origin() -> None:
+    """Cloudflare's public HTTPS scheme should reach FastAPI for passkey verification."""
+
+    template_text = NGINX_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "map $http_x_forwarded_proto $job_logger_forwarded_proto" in template_text
+    assert '"" $scheme;' in template_text
+    assert "proxy_set_header X-Forwarded-Proto $job_logger_forwarded_proto;" in template_text
+    assert "proxy_set_header X-Forwarded-Proto $scheme;" not in template_text

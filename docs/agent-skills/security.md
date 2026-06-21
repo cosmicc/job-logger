@@ -47,6 +47,9 @@ admin must not register or use passkeys. Passkey registration is available only
 after a normal managed-user login from `/config`; login remains available from
 the password page through a separate passkey button. Failed, canceled, or
 unsupported passkey authentication must leave the username/password form usable.
+The `/home` Add Passkey card is only a one-time post-login prompt for managed
+users without a passkey; `/config` must always keep the Add Passkey action
+available.
 
 The app stores only WebAuthn public credential material: credential ID, public
 key, signature counter, safe device metadata, creation time, and last-used time.
@@ -107,15 +110,18 @@ Application setup in `job_logger/main.py` configures:
 
 Production must not use default secrets or missing passwords.
 
-Failed local app login attempts are recorded in the configured JSONL file,
-defaulting to `${LOG_DIR}/job-logger-login-failures.log`. Docker Compose sets
+Successful and failed local app login attempts are recorded in configured JSONL
+files, defaulting to `${LOG_DIR}/job-logger-login-successes.log` and
+`${LOG_DIR}/job-logger-login-failures.log`. Docker Compose sets
 `LOG_DIR=/data/logs` and bind-mounts `HOST_LOG_DIR=/var/log/job-logger` there
-so operators can read log files from the Docker host. The failed-login log and
-`/debug` failed-login window may show timestamp, client IP details, submitted
-username, username length/truncation, user agent, request path, host/proxy
-metadata, reason, and password-present/length metadata. They must never include
-the raw submitted password, session tokens, authentication headers, or
-Cloudflare Access JWTs.
+so operators can read log files from the Docker host. The login logs and
+`/debug` login windows may show timestamp, client IP details, submitted
+username, account kind, authentication method, username length/truncation for
+failures, user agent, request path, host/proxy metadata, reason, and
+password-present/length metadata for failures. They must never include the raw
+submitted password, session tokens, authentication headers, or Cloudflare
+Access JWTs. The bottom of `/debug` may show a sanitized newest-first tail of
+`${LOG_DIR}/app.log`; keep that bounded and redacted.
 
 ## CSRF Rules
 
