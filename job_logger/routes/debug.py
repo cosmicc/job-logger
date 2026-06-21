@@ -31,6 +31,7 @@ from job_logger.services.backups import (
     restore_full_backup,
 )
 from job_logger.services.login_failures import read_login_failures_page, read_login_successes_page
+from job_logger.services.session_control import invalidate_all_web_user_sessions
 from job_logger.time_utils import format_local_display
 from job_logger.ui import template_context, templates
 from job_logger.version import APP_VERSION
@@ -510,3 +511,38 @@ async def test_autotask_api(
         add_flash_message(request, f"Autotask API is down and needs fixing. {connectivity_result.summary}", "error")
 
     return RedirectResponse(url="/debug", status_code=303)
+
+
+@router.post("/sessions/logout-web-users")
+async def logout_all_web_users(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Force every managed web user to authenticate again."""
+
+    try:
+        actor = require_super_admin(request)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
+
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+
+    result = invalidate_all_web_user_sessions(database_session)
+    record_audit_event(
+        database_session,
+        actor=actor,
+        action="debug.web_user_sessions.invalidated",
+        request=request,
+        details={
+            "affected_user_count": result.affected_user_count,
+            "invalidated_at_utc": result.invalidated_at_utc.isoformat(),
+        },
+    )
+    database_session.commit()
+    add_flash_message(
+        request,
+        f"Signed out {result.affected_user_count} web users. They must sign in again.",
+        "success",
+    )
+    return RedirectResponse(url="/debug#session-controls", status_code=303)

@@ -68,12 +68,15 @@ def test_changelog_parser_reads_current_release() -> None:
             "Review is still available afterward for submitted-entry edits and Autotask deletion.",
             "Added passkey sign-in for managed users, with password login still available.",
             "App sessions can now require users to sign in again after the configured timeout.",
+            "Diagnostics can now log out all managed web users without logging out the super admin.",
+            "Disabled users are signed out and see an account-disabled message when they try to log in.",
             "The Home passkey setup card now appears only once after login, while Config always keeps passkey setup available.",
             "Ticket source can now mark alert-created tickets as Remote when ticket text does not say Remote or On-Site.",
             "Review detail now shows the active Work in Progress rounded stop time before the job is ended.",
             "Review open-ticket choices now match Work in Progress ticket card details and colors.",
             "Selecting service calls or open tickets now keeps Autotask read-only until submission and defaults the local status to In progress.",
             "Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay.",
+            "Mobile Summary notes boxes now start taller while still allowing manual resize.",
         ),
     )
 
@@ -104,12 +107,15 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Review is still available afterward for submitted-entry edits and Autotask deletion." in response.text
     assert "Added passkey sign-in for managed users, with password login still available." in response.text
     assert "App sessions can now require users to sign in again after the configured timeout." in response.text
+    assert "Diagnostics can now log out all managed web users without logging out the super admin." in response.text
+    assert "Disabled users are signed out and see an account-disabled message when they try to log in." in response.text
     assert "The Home passkey setup card now appears only once after login" in response.text
     assert "Ticket source can now mark alert-created tickets as Remote" in response.text
     assert "Review detail now shows the active Work in Progress rounded stop time" in response.text
     assert "Review open-ticket choices now match Work in Progress ticket card details and colors." in response.text
     assert "Selecting service calls or open tickets now keeps Autotask read-only until submission" in response.text
     assert "Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay." in response.text
+    assert "Mobile Summary notes boxes now start taller while still allowing manual resize." in response.text
     assert "automatic database backups" not in response.text
     assert "debug page" not in response.text
     assert "Autotask workflow and desktop layout updates" in response.text

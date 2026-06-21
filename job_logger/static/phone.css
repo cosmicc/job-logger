@@ -91,6 +91,11 @@
   margin-top: 0;
 }
 
+.mobile-shell .description-box .job-description,
+.review-shell textarea[data-review-summary-textarea] {
+  min-height: 180px;
+}
+
 .work-panel,
 .edit-panel,
 .login-panel,

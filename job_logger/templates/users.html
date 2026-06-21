@@ -122,14 +122,14 @@
                           <form
                             method="post"
                             action="/users/{{ row.user.id }}/delete"
-                            data-confirm-message="{% if row.job_count %}Disable this user? Job history will be preserved.{% else %}Delete this user?{% endif %}"
+                            data-confirm-message="Disable this user? They will be signed out and blocked from login."
                           >
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button
                               class="danger-outline-button user-action-icon-button"
                               type="submit"
-                              title="{% if row.job_count %}Disable user{% else %}Delete user{% endif %}"
-                              aria-label="{% if row.job_count %}Disable {{ row.user.full_name }}{% else %}Delete {{ row.user.full_name }}{% endif %}"
+                              title="Disable user"
+                              aria-label="Disable {{ row.user.full_name }}"
                             >
                               <svg viewBox="0 0 24 24" aria-hidden="true">
                                 <path d="M18 6 6 18"></path>

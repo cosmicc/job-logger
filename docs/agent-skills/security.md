@@ -41,6 +41,11 @@ Starlette session cookies use the same configured lifetime. Every successful
 password or passkey login must stamp the session with the authentication time
 and method so stale signed cookies cannot remain valid past the configured
 timeout.
+Managed web-user sessions can also be invalidated by a per-user UTC cutoff in
+the `web_users` row. `job_logger/services/session_control.py` owns that cutoff
+logic. Disabling one user or using the Diagnostics **Log out web users** action
+must clear old managed-user cookies on the next request without signing out the
+config super admin.
 
 Managed web-user passkeys are optional login credentials. The config super
 admin must not register or use passkeys. Passkey registration is available only
@@ -66,6 +71,9 @@ The `/debug` page and all `/debug/*` actions are config-super-admin-only.
 Normal managed web users must not see a Debug navigation item, and direct
 requests from managed web-user sessions must receive 403 instead of being
 treated as anonymous login redirects.
+The Diagnostics **Log out web users** action is CSRF-protected, audited, and
+must invalidate only managed web-user sessions. It must not clear the current
+config super-admin session.
 
 The `/users/autotask-resources` lookup endpoint is super-admin-only and must
 return only safe Autotask Resource metadata. Browser code can use it from
@@ -96,9 +104,10 @@ safe metadata such as user ID or username. The password card should show those
 requirements so users can fix validation failures before submitting. Never log,
 audit, or flash the raw submitted password.
 
-Deleting a managed web user with job history must preserve auditability by
-disabling the account instead of deleting the row. Hard deletion is allowed only
-when no jobs reference that user.
+Deleting a managed web user from `/users` must disable the account, invalidate
+that user's existing signed sessions, and preserve the row. Keeping the row lets
+the login screen explain that the account is disabled after the correct
+password is submitted instead of treating the username as unknown.
 
 Application setup in `job_logger/main.py` configures:
 
@@ -169,11 +178,12 @@ Important actions must record audit events through `job_logger/services/audit.py
 Audit-worthy actions include:
 
 - Authentication-sensitive events.
-- Managed web-user add, edit, enable, disable, delete/delete-as-disable, and
+- Managed web-user add, edit, enable, disable, delete-as-disable, and
   Autotask Resource metadata refresh actions.
 - Per-user configuration updates.
 - Managed web-user password changes.
 - Managed web-user passkey registration, deletion, and login success/failure.
+- Managed web-user session invalidation from Diagnostics.
 - Job start.
 - Job active edit save.
 - Active job delete.

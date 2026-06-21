@@ -130,6 +130,24 @@ def current_authentication_method_from_session(session: Mapping[str, Any]) -> st
     return None
 
 
+def authenticated_at_utc_from_session(session: Mapping[str, Any]) -> datetime | None:
+    """Return the UTC login timestamp stored in an authenticated session."""
+
+    raw_authenticated_at = session.get(SESSION_AUTHENTICATED_AT_UTC_KEY)
+    if not isinstance(raw_authenticated_at, str) or not raw_authenticated_at:
+        return None
+
+    try:
+        authenticated_at = datetime.fromisoformat(raw_authenticated_at.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+    if authenticated_at.tzinfo is None:
+        return authenticated_at.replace(tzinfo=UTC)
+
+    return authenticated_at.astimezone(UTC)
+
+
 def authenticated_session_is_expired(
     session: Mapping[str, Any],
     application_settings: Settings = settings,
@@ -141,20 +159,12 @@ def authenticated_session_is_expired(
     if current_username_from_session(session) is None:
         return False
 
-    raw_authenticated_at = session.get(SESSION_AUTHENTICATED_AT_UTC_KEY)
-    if not isinstance(raw_authenticated_at, str) or not raw_authenticated_at:
+    authenticated_at = authenticated_at_utc_from_session(session)
+    if authenticated_at is None:
         return True
-
-    try:
-        authenticated_at = datetime.fromisoformat(raw_authenticated_at.replace("Z", "+00:00"))
-    except ValueError:
-        return True
-
-    if authenticated_at.tzinfo is None:
-        authenticated_at = authenticated_at.replace(tzinfo=UTC)
 
     current_time = now or datetime.now(UTC)
-    return (current_time.astimezone(UTC) - authenticated_at.astimezone(UTC)).total_seconds() > application_settings.session_timeout_seconds
+    return (current_time.astimezone(UTC) - authenticated_at).total_seconds() > application_settings.session_timeout_seconds
 
 
 def expire_authenticated_session_if_needed(

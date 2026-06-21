@@ -79,10 +79,12 @@ Autotask REST API references used by this app:
 7. Sign in with the config super-admin account, open `/users`, and create at
    least one web user with full name, username, password, and Autotask resource
    ID. The users page shows managed accounts in a table with per-row edit,
-   refresh, enable/disable, and delete controls as compact icons, including any
-   email address captured from Autotask Resource lookup. The refresh icon
-   re-queries Autotask Resources and updates the stored local name/email metadata
-   when the returned resource still matches that user's saved resource ID. The
+   refresh, enable/disable, and disable controls as compact icons, including any
+   email address captured from Autotask Resource lookup. The disable action signs
+   out that user's existing sessions on their next request and blocks future
+   login. The refresh icon re-queries Autotask Resources and updates the stored
+   local name/email metadata when the returned resource still matches that user's
+   saved resource ID. The
    add-user form suggests a username from the name, such as `jblow` for
    `Joe Blow`, and add/edit forms can search Autotask Resources so you can
    select the matching `Last, First` resource and fill its ID. When Autotask
@@ -317,6 +319,10 @@ Local app sessions expire after `APP_SESSION_TIMEOUT_HOURS`, defaulting to
 `12`. The value is measured in hours and is used for both the signed session
 cookie lifetime and server-side login timestamp checks. After it expires, users
 must sign in again.
+The config super admin can also use Diagnostics to log out all managed web
+users without ending the current super-admin session. Disabled managed web-user
+accounts are signed out on their next request and, after the correct password is
+submitted, the login screen says the account is disabled.
 
 The config super-admin account still signs in with `APP_USERNAME` and
 `APP_PASSWORD` only. Managed web users can sign in with their username/password
@@ -727,11 +733,13 @@ and debug connectivity checks run without a managed-user context.
 The `/debug` page is available only to the config super admin. Managed web
 users do not see the Debug menu item, and direct `/debug/*` requests from those
 sessions return 403. It shows the source-controlled application version and
-includes a **Test Autotask API** button. All authenticated pages also include a
-discreet version link to `/changelog`. The debug check verifies required
-workflow configuration and the live Companies/Tickets API calls used by the
-app. The debug button is manual and always runs a fresh live check. It is not
-used by the initial mobile page or blank Start Work route.
+includes **Test Autotask API** and **Log out web users** buttons. The logout
+button forces all managed web users to sign in again while leaving the config
+super admin signed in. All authenticated pages also include a discreet version
+link to `/changelog`. The debug Autotask check verifies required workflow
+configuration and the live Companies/Tickets API calls used by the app. The
+debug button is manual and always runs a fresh live check. It is not used by the
+initial mobile page or blank Start Work route.
 
 The same `/debug` page also shows compact, paginated successful-login and
 failed-login windows. Failed local app login attempts are appended as JSON Lines
@@ -775,9 +783,11 @@ To restore, upload a Job Logger full-backup file on `/debug` and type
 before deleting current app rows. A successful restore replaces the current app
 database contents with the backup contents, then records a new restore audit
 event. Backups from v1.0.2 that predate the **Submit from Work in Progress**
-preference restore with that new option defaulted off. The default restore
-upload cap is 250 MB: `MAX_BACKUP_RESTORE_BYTES` controls app-side validation
-and `NGINX_RESTORE_MAX_BODY_SIZE` controls the matching nginx body limit for
+preference restore with that new option defaulted off. Backups that predate the
+managed-user session invalidation column restore with no users forced out by
+that missing column. The default restore upload cap is 250 MB:
+`MAX_BACKUP_RESTORE_BYTES` controls app-side validation and
+`NGINX_RESTORE_MAX_BODY_SIZE` controls the matching nginx body limit for
 `/debug/restore`.
 
 To restore an automatic backup, use the per-backup restore row on `/debug` and

@@ -89,6 +89,15 @@ class WebUser(Base):
         comment="Whether this user is blocked from logging in.",
     )
 
+    # sessions_invalidated_at_utc forces existing signed sessions for this user
+    # to log in again without storing session tokens server-side. New logins
+    # after this timestamp remain valid until timeout or the next invalidation.
+    sessions_invalidated_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="UTC cutoff after which existing signed web-user sessions must be renewed.",
+    )
+
     # created_at_utc and updated_at_utc support account-management audit review.
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(

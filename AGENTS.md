@@ -34,7 +34,7 @@ Managed web users must have a full name, unique username, password hash, and
 Autotask resource ID. They may also store the email address returned by the
 selected Autotask Resource lookup. The `/users` page presents managed accounts
 in a table with visible stored email metadata and icon-only row actions for
-refresh, edit, enable/disable, and delete/delete-as-disable. The refresh action
+refresh, edit, enable/disable, and delete-as-disable. The refresh action
 re-queries Autotask Resources, requires the returned resource ID to match the
 stored ID, and updates only safe local name/email metadata. The add form may
 suggest usernames from full names, such as `jblow` for `Joe Blow`, and add/edit
@@ -43,13 +43,18 @@ Store only salted password verifiers, never raw managed user passwords.
 Managed-user passwords must be at least 8 characters and include lowercase,
 uppercase, number, and symbol characters.
 Disabled web users must be blocked from new logins and from using old signed
-sessions. Deleting a web user with job history must preserve history by
-disabling the account instead of removing the row.
+sessions. Deleting a web user from `/users` disables the account, invalidates
+that user's signed sessions, preserves the row for audit/login-state clarity,
+and lets the login screen explain that the account is disabled after the
+correct password is submitted.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`,
 measured in hours. The configured value controls both the signed session cookie
 lifetime and the server-side authenticated-at timestamp check. Expired sessions
 must be cleared and forced through login again.
+The super-admin Diagnostics page may also invalidate all managed web-user
+sessions with a CSRF-protected button. That action must not sign out the config
+super admin because the super admin is not a managed web user.
 
 Managed web users may register WebAuthn passkeys after a normal password login.
 Passkeys are user-owned public credentials, not super-admin credentials. The app
@@ -272,6 +277,8 @@ Do not permanently store raw audio by default.
 ## Web Interface Requirements
 
 The mobile interface must be optimized for quick use from a phone.
+Mobile summary notes textareas should default to a taller note-taking area than
+the shared desktop textarea baseline while remaining vertically resizable.
 
 The `/home` route renders the Home and Work in Progress workflow. Full browser
 rendering should use desktop-only CSS from `desktop.css` for a wider,
@@ -439,13 +446,15 @@ The application is a FastAPI project under `job_logger/`.
   in authenticated headers, `/changelog`, and diagnostics. Advance it only
   when requested and keep it aligned with `pyproject.toml`.
 - `job_logger/session_timeout.py` clears expired local authenticated sessions
-  according to the configured `APP_SESSION_TIMEOUT_HOURS` value.
+  according to the configured `APP_SESSION_TIMEOUT_HOURS` value and rejects
+  managed web-user sessions that were disabled or administratively invalidated.
 - `job_logger/config.py` loads every runtime setting from environment variables.
   Production must use `AUTOTASK_PROVIDER=autotask`; Autotask resource IDs are
   stored on managed web users, not in config.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.
 - `job_logger/models.py` defines persistent tables for managed web users,
-  per-user preferences, jobs, audit events, and Autotask submission attempts.
+  managed-user session invalidation cutoffs, per-user preferences, jobs, audit
+  events, and Autotask submission attempts.
 - `job_logger/enums.py` defines workflow, transcription, and ticket-status
   enums used by routes, services, templates, and migrations.
 - `job_logger/time_utils.py` centralizes UTC/local conversion and 15-minute
@@ -471,8 +480,9 @@ The application is a FastAPI project under `job_logger/`.
   updating or deleting existing submitted Autotask entries, ticket lookup for a
   selected job, and explicit local **Delete time entry** cleanup.
 - `job_logger/routes/users.py` handles the super-admin managed web-user page,
-  including add/edit/enable/disable/delete-or-disable behavior, Autotask
-  Resource lookup, and per-row Resource metadata refresh.
+  including add/edit/enable/disable/delete-as-disable behavior, Autotask
+  Resource lookup, per-row Resource metadata refresh, and session invalidation
+  when accounts are disabled.
 - `job_logger/routes/configuration.py` handles authenticated managed-web-user
   configuration such as immediate light/dark theme selection and explicit
   managed-user password changes.
@@ -480,7 +490,8 @@ The application is a FastAPI project under `job_logger/`.
   history for the discreet version link shown in the shared app header.
 - `job_logger/routes/debug.py` handles the super-admin diagnostic page, the
   sanitized successful/failed login windows, app log tail, full backup/restore
-  actions, and the Autotask API connectivity test.
+  actions, managed web-user session invalidation, and the Autotask API
+  connectivity test.
 - `job_logger/routes/health.py` exposes private container health endpoints.
 - `job_logger/routes/pwa.py` serves the web app manifest and root-scoped
   service worker for installed mobile app behavior. The service worker must not
@@ -493,7 +504,9 @@ The application is a FastAPI project under `job_logger/`.
   existing-entry updates, and existing-entry deletes.
 - `job_logger/services/users.py` owns managed web-user validation, optional
   Autotask Resource email storage, password hashing and changes, first-user
-  legacy job claiming, and delete-or-disable rules.
+  legacy job claiming, and delete-as-disable rules.
+- `job_logger/services/session_control.py` owns server-side managed web-user
+  session invalidation cutoffs used by diagnostics and user disable actions.
 - `job_logger/services/preferences.py` owns per-authenticated-user
   configuration validation and persistence.
 - `job_logger/services/passkeys.py` owns WebAuthn relying-party/origin
@@ -529,13 +542,15 @@ The normal workflow is:
    app login.
 2. The config super admin opens `/users` to create and edit managed web users.
    The page lists users in a desktop table and mobile card layout with icon-only
-   row actions for refresh, edit, enable/disable, and delete/delete-as-disable.
+   row actions for refresh, edit, enable/disable, and delete-as-disable.
    The add form suggests a username from the full name, and add/edit forms can
    query Autotask Resources to select the matching resource ID and capture the
    returned email address. Per-row refresh re-queries Autotask Resources and
-   updates stored local name/email metadata only for the saved resource ID. The
-   first managed web user claims any existing unowned jobs from earlier
-   single-user installs.
+   updates stored local name/email metadata only for the saved resource ID.
+   Delete actions always disable the selected account, sign out its existing
+   sessions on the next request, and preserve the row so future login attempts
+   can show the disabled-account message. The first managed web user claims any
+   existing unowned jobs from earlier single-user installs.
 3. A managed web user may open `/config` to choose dark or light theme for
    their own login, enable the default-off **Submit from Work in Progress**
    option, change their password, and add or delete passkeys. Config changes
@@ -644,6 +659,9 @@ In production:
   selects a resource that includes one. Per-row refresh uses the same provider
   and updates only safe local metadata after matching the saved resource ID.
 - The `/debug` page provides the supported manual **Test Autotask API** action.
+- The `/debug` page provides a super-admin-only **Log out web users** action
+  that invalidates all managed web-user sessions without ending the current
+  super-admin session.
 - Mock Autotask mode is only for tests and isolated development.
 
 ## Documentation Maintenance Rules For Agents

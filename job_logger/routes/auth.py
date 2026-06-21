@@ -21,7 +21,7 @@ from job_logger.security import (
 )
 from job_logger.services.audit import record_audit_event
 from job_logger.services.login_failures import log_failed_login_attempt, log_successful_login_attempt
-from job_logger.services.users import authenticate_web_user
+from job_logger.services.users import authenticate_web_user_with_status
 from job_logger.ui import template_context, templates
 
 router = APIRouter(tags=["auth"])
@@ -69,7 +69,12 @@ async def login(
         add_flash_message(request, "Signed in.", "success")
         return RedirectResponse(url="/users", status_code=303)
 
-    web_user = authenticate_web_user(database_session, submitted_username, submitted_password)
+    web_user_authentication = authenticate_web_user_with_status(
+        database_session,
+        submitted_username,
+        submitted_password,
+    )
+    web_user = web_user_authentication.user
     if web_user is not None:
         login_web_user_session(request, username=web_user.username, web_user_id=web_user.id)
         log_successful_login_attempt(
@@ -90,12 +95,36 @@ async def login(
         add_flash_message(request, "Signed in.", "success")
         return RedirectResponse(url="/home", status_code=303)
 
+    if web_user_authentication.disabled_user is not None:
+        disabled_user = web_user_authentication.disabled_user
+        record_audit_event(
+            database_session,
+            actor=disabled_user.username,
+            action="auth.login.failed",
+            request=request,
+            details={
+                "username": disabled_user.username,
+                "user_kind": "web_user",
+                "web_user_id": disabled_user.id,
+                "reason": "account_disabled",
+            },
+        )
+        log_failed_login_attempt(
+            request,
+            submitted_username=submitted_username,
+            submitted_password=submitted_password,
+            reason="account_disabled",
+        )
+        database_session.commit()
+        add_flash_message(request, "This user account is disabled. Contact the administrator.", "error")
+        return RedirectResponse(url="/login", status_code=303)
+
     record_audit_event(
         database_session,
         actor=submitted_username or "unknown",
         action="auth.login.failed",
         request=request,
-        details={"username": submitted_username},
+        details={"username": submitted_username, "reason": "invalid_credentials"},
     )
     log_failed_login_attempt(
         request,

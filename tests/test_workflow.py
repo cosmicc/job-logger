@@ -823,6 +823,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".mobile-nav-right {\n  grid-column: 3;" in phone_stylesheet
     assert ".mobile-close-action {\n  display: inline-grid;" in phone_stylesheet
     assert ".logout-form {\n  display: none;" in phone_stylesheet
+    assert ".mobile-shell .description-box .job-description,\n.review-shell textarea[data-review-summary-textarea]" in phone_stylesheet
+    assert "min-height: 180px;" in phone_stylesheet
     assert ".active-jobs-stack > .work-panel:not([data-active-job-card])" in desktop_stylesheet
     assert ".work-panel[data-active-job-card]" in desktop_stylesheet
     assert "grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);" in desktop_stylesheet

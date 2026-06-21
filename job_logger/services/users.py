@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from job_logger.config import Settings, settings
 from job_logger.models import Job, WebUser
+from job_logger.services.session_control import invalidate_web_user_sessions
 
 PASSWORD_HASH_ALGORITHM = "pbkdf2_sha256"
 PASSWORD_HASH_ITERATIONS = 600_000
@@ -52,14 +53,29 @@ class WebUserCreateResult:
 class WebUserDeleteResult:
     """Result returned after a delete request."""
 
-    # deleted is true only when the database row was removed.
+    # deleted is retained for callers that distinguish legacy hard deletes.
+    # Current delete requests disable users so future login attempts can show a
+    # disabled-account message instead of looking like unknown usernames.
     deleted: bool
 
-    # disabled is true when history forced the safer disabled-account outcome.
+    # disabled is true when the account row was preserved and blocked.
     disabled: bool
 
-    # related_job_count records why the account could not be hard-deleted.
+    # related_job_count records how much work history remains linked.
     related_job_count: int
+
+
+@dataclass(frozen=True)
+class WebUserAuthenticationResult:
+    """Result returned after checking managed-user login credentials."""
+
+    # user is populated only when credentials belong to an enabled account.
+    user: WebUser | None
+
+    # disabled_user is populated only after the submitted password verifies for
+    # a disabled account. Wrong passwords still look like generic failures so
+    # login does not reveal account existence.
+    disabled_user: WebUser | None = None
 
 
 def username_normalized(username: str) -> str:
@@ -260,12 +276,24 @@ def find_web_user_by_username(database_session: Session, username: str) -> WebUs
 def authenticate_web_user(database_session: Session, username: str, password: str) -> WebUser | None:
     """Return an enabled web user when the submitted credentials are valid."""
 
+    return authenticate_web_user_with_status(database_session, username, password).user
+
+
+def authenticate_web_user_with_status(
+    database_session: Session,
+    username: str,
+    password: str,
+) -> WebUserAuthenticationResult:
+    """Return enabled users or a verified disabled-user state for login UI."""
+
     user = find_web_user_by_username(database_session, username)
-    if user is None or user.disabled:
-        return None
+    if user is None:
+        return WebUserAuthenticationResult(user=None)
     if not verify_web_user_password(password, user.password_hash):
-        return None
-    return user
+        return WebUserAuthenticationResult(user=None)
+    if user.disabled:
+        return WebUserAuthenticationResult(user=None, disabled_user=user)
+    return WebUserAuthenticationResult(user=user)
 
 
 def _ensure_username_is_available(
@@ -348,6 +376,7 @@ def update_web_user(
 ) -> WebUser:
     """Update editable managed-user fields, including optional password reset."""
 
+    was_disabled = user.disabled
     normalized_username = normalize_username(username)
     _ensure_username_is_available(database_session, normalized_username, existing_user_id=user.id)
     user.full_name = normalize_full_name(full_name)
@@ -358,6 +387,8 @@ def update_web_user(
     user.autotask_resource_id = normalize_autotask_resource_id(autotask_resource_id)
     user.email = normalize_optional_email(email)
     user.disabled = disabled
+    if disabled and not was_disabled:
+        invalidate_web_user_sessions(user)
     return user
 
 
@@ -391,12 +422,9 @@ def change_web_user_password(
 
 
 def delete_or_disable_web_user(database_session: Session, user: WebUser) -> WebUserDeleteResult:
-    """Delete an unused user, or disable it when job history must be retained."""
+    """Disable a managed user and invalidate any existing signed sessions."""
 
     related_job_count = _job_count_for_user(database_session, user)
-    if related_job_count > 0:
-        user.disabled = True
-        return WebUserDeleteResult(deleted=False, disabled=True, related_job_count=related_job_count)
-
-    database_session.delete(user)
-    return WebUserDeleteResult(deleted=True, disabled=False, related_job_count=0)
+    user.disabled = True
+    invalidate_web_user_sessions(user)
+    return WebUserDeleteResult(deleted=False, disabled=True, related_job_count=related_job_count)

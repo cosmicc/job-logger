@@ -38,6 +38,13 @@ All notable changes to Job Logger are documented in this file.
 - Added a super-admin `/debug` successful-login card, pagination for successful
   and failed login cards, a successful-login JSONL download, and a newest-first
   app log tail card for quick operator diagnostics.
+- Added a super-admin-only **Log out web users** control on `/debug` that
+  invalidates all managed web-user sessions while leaving the current config
+  super-admin session intact.
+- Changed managed-user delete actions to disable the account, invalidate that
+  user's existing signed sessions, and preserve the account row so the login
+  screen can report that the account is disabled after the correct password is
+  submitted.
 - Fixed review detail for active jobs so the end-time field shows the current
   Work in Progress rounded stop preview while review saves continue to ignore
   that displayed end time until the job is actually ended.
@@ -50,6 +57,8 @@ All notable changes to Job Logger are documented in this file.
 - Removed the full-page loading overlay from Work in Progress rounded start and
   rounded stop `-15` and `+15` adjustments so small time changes apply without
   the Autotask-style status overlay.
+- Increased the default height of mobile Summary notes textareas while keeping
+  them vertically resizable.
 - Changed the web changelog current-version panel so the current release title
   uses the same heading style as older release titles.
 - Improved the super-admin diagnostics login tables with shorter 10-row

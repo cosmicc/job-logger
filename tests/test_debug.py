@@ -14,7 +14,7 @@ from sqlalchemy import func, select
 
 from job_logger import database
 from job_logger.enums import JobStatus, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
-from job_logger.models import AuditEvent, Job, SubmissionAttempt, UserPreference, WebAuthnCredential
+from job_logger.models import AuditEvent, Job, SubmissionAttempt, UserPreference, WebAuthnCredential, WebUser
 from job_logger.services.backups import (
     automatic_backup_filename,
     create_automatic_backup,
@@ -130,6 +130,7 @@ def test_debug_routes_are_super_admin_only(client: TestClient) -> None:
         ("GET", "/debug/logs/login-failures"),
         ("GET", "/debug/logs/login-successes"),
         ("POST", "/debug/autotask/test"),
+        ("POST", "/debug/sessions/logout-web-users"),
         ("POST", "/debug/backup"),
         ("POST", "/debug/restore"),
         ("POST", "/debug/automatic-backups/restore"),
@@ -145,6 +146,52 @@ def test_debug_routes_are_super_admin_only(client: TestClient) -> None:
     debug_response = client.get("/debug")
     assert debug_response.status_code == 200
     assert 'class="secondary-link-button" href="/review"' not in debug_response.text
+
+
+def test_debug_can_force_managed_web_users_to_sign_in_again(client: TestClient) -> None:
+    """The diagnostics page should invalidate only managed web-user sessions."""
+
+    login_as_web_user(client)
+    assert client.get("/home").status_code == 200
+
+    with TestClient(client.app) as admin_client:
+        login_as_super_admin(admin_client)
+        debug_response = admin_client.get("/debug")
+        assert debug_response.status_code == 200
+        assert "Session controls" in debug_response.text
+        assert "Log out web users" in debug_response.text
+        csrf_token = extract_csrf_token(debug_response.text)
+        logout_response = admin_client.post(
+            "/debug/sessions/logout-web-users",
+            data={"csrf_token": csrf_token},
+            follow_redirects=False,
+        )
+        assert logout_response.status_code == 303
+        assert logout_response.headers["location"] == "/debug#session-controls"
+
+        admin_still_signed_in_response = admin_client.get("/debug")
+        assert admin_still_signed_in_response.status_code == 200
+        assert "Signed out 1 web users. They must sign in again." in admin_still_signed_in_response.text
+
+    web_home_response = client.get("/home", follow_redirects=False)
+    assert web_home_response.status_code == 303
+    assert web_home_response.headers["location"] == "/login"
+
+    login_response = client.get("/login")
+    assert "Your session was signed out by an administrator. Sign in again." in login_response.text
+
+    login_as_web_user(client)
+    assert client.get("/home").status_code == 200
+
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        assert user.sessions_invalidated_at_utc is not None
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "debug.web_user_sessions.invalidated")
+        )
+        assert audit_event is not None
+        assert audit_event.details["affected_user_count"] == 1
 
 
 def test_openapi_schema_route_is_disabled(client: TestClient) -> None:
@@ -433,6 +480,7 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert "Autotask debug" in debug_response.text
     assert "Application version" in debug_response.text
     assert APP_VERSION in debug_response.text
+    assert debug_response.text.index("Session controls") < debug_response.text.index("Successful logins")
     assert debug_response.text.index("Successful logins") < debug_response.text.index("Login failures")
     assert debug_response.text.index("Login failures") < debug_response.text.index("Autotask submission attempts")
     assert debug_response.text.index("Autotask submission attempts") < debug_response.text.index("Autotask configuration snapshot")
@@ -669,6 +717,55 @@ def test_debug_restore_defaults_direct_submit_for_legacy_preference_backups(
         assert restored_preference is not None
         assert restored_preference.theme == ThemeMode.LIGHT
         assert restored_preference.submit_from_work_in_progress is False
+
+
+def test_debug_restore_defaults_missing_web_session_invalidation_column(
+    super_admin_client: TestClient,
+) -> None:
+    """Restore backups that predate managed-user session invalidation cutoffs."""
+
+    invalidation_time = datetime(2026, 6, 21, 13, 30, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user.sessions_invalidated_at_utc = invalidation_time
+        database_session.commit()
+
+    debug_page_response = super_admin_client.get("/debug")
+    csrf_token = extract_csrf_token(debug_page_response.text)
+    backup_response = super_admin_client.post(
+        "/debug/backup",
+        data={"csrf_token": csrf_token},
+    )
+    payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
+    for row in payload["tables"]["web_users"]:
+        row.pop("sessions_invalidated_at_utc", None)
+    payload["schema"]["web_users"].remove("sessions_invalidated_at_utc")
+    legacy_backup_content = gzip.compress(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+        mtime=0,
+    )
+
+    restore_page_response = super_admin_client.get("/debug")
+    restore_csrf_token = extract_csrf_token(restore_page_response.text)
+    restore_response = super_admin_client.post(
+        "/debug/restore",
+        data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
+        files={
+            "backup_file": (
+                "job-logger-pre-session-invalidation-full-backup.json.gz",
+                legacy_backup_content,
+                "application/gzip",
+            )
+        },
+        follow_redirects=False,
+    )
+
+    assert restore_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        restored_user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert restored_user is not None
+        assert restored_user.sessions_invalidated_at_utc is None
 
 
 def test_debug_restore_defaults_missing_passkey_table_to_empty(

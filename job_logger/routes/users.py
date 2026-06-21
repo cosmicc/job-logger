@@ -270,7 +270,7 @@ async def delete_user(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> RedirectResponse:
-    """Delete an unused user, or disable it when history must be preserved."""
+    """Disable a managed user and force any active session to log in again."""
 
     try:
         actor = require_super_admin(request)
@@ -281,7 +281,7 @@ async def delete_user(
         record_audit_event(
             database_session,
             actor=actor,
-            action="user.web.deleted" if result.deleted else "user.web.disabled_for_history",
+            action="user.web.deleted" if result.deleted else "user.web.disabled",
             request=request,
             details={
                 "web_user_id": user_id,
@@ -294,10 +294,16 @@ async def delete_user(
         database_session.commit()
         if result.deleted:
             add_flash_message(request, "User deleted.", "success")
+        elif result.related_job_count:
+            add_flash_message(
+                request,
+                f"User disabled and signed out. {result.related_job_count} linked jobs were preserved.",
+                "success",
+            )
         else:
             add_flash_message(
                 request,
-                f"User has {result.related_job_count} jobs, so the account was disabled instead of deleted.",
+                "User disabled and signed out.",
                 "success",
             )
     except (HTTPException, WebUserError) as exc:

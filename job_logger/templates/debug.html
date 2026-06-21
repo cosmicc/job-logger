@@ -19,6 +19,23 @@
       </form>
     </div>
 
+    <section id="session-controls" class="table-panel" aria-label="Session controls">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <div>
+            <h2>Session controls</h2>
+            <p class="muted-text">
+              Force all managed web users to sign in again. The config super admin stays signed in.
+            </p>
+          </div>
+          <form method="post" action="/debug/sessions/logout-web-users" class="debug-test-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="secondary-button danger-button" type="submit">Log out web users</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
     <section id="login-successes" class="table-panel login-attempt-panel" aria-label="Recent successful login attempts">
       <div class="debug-panel-body">
         <div class="review-header">

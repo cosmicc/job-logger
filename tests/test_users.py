@@ -12,7 +12,7 @@ from job_logger.enums import JobStatus, TranscriptionStatus, WorkLocation
 from job_logger.models import AuditEvent, Job, WebUser
 from job_logger.services.users import WebUserError, hash_password, suggested_username_from_full_name
 from job_logger.ui import static_asset_version
-from tests.conftest import extract_csrf_token, login_as, login_as_super_admin, login_as_web_user
+from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as, login_as_super_admin, login_as_web_user
 
 
 def _seed_unowned_job() -> str:
@@ -99,6 +99,7 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert 'data-user-edit-panel' in users_page.text
     assert 'title="Edit user"' in users_page.text
     assert 'title="Refresh Autotask resource"' in users_page.text
+    assert 'title="Disable user"' in users_page.text
     assert 'class="danger-outline-button user-action-icon-button"' in users_page.text
     assert 'class="secondary-link-button" href="/review"' not in users_page.text
     assert ">Edit<" not in users_page.text
@@ -125,8 +126,8 @@ def test_super_admin_is_read_only_for_work_entries(super_admin_client: TestClien
         assert database_session.scalar(select(Job)) is None
 
 
-def test_users_page_deletes_unused_user(super_admin_client: TestClient) -> None:
-    """Users with no jobs can be deleted from the manager."""
+def test_users_page_disables_unused_user(super_admin_client: TestClient) -> None:
+    """Delete actions should disable users so future login attempts are explainable."""
 
     with database.SessionLocal() as database_session:
         user = WebUser(
@@ -150,7 +151,73 @@ def test_users_page_deletes_unused_user(super_admin_client: TestClient) -> None:
 
     assert delete_response.status_code == 303
     with database.SessionLocal() as database_session:
-        assert database_session.get(WebUser, user_id) is None
+        user = database_session.get(WebUser, user_id)
+        assert user is not None
+        assert user.disabled is True
+        assert user.sessions_invalidated_at_utc is not None
+
+
+def test_deleted_user_session_is_cleared_and_login_shows_disabled(client: TestClient) -> None:
+    """A disabled-by-delete web user should be signed out and blocked on login."""
+
+    login_as_web_user(client)
+    assert client.get("/home").status_code == 200
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user_id = user.id
+
+    with TestClient(client.app) as admin_client:
+        login_as_super_admin(admin_client)
+        users_page = admin_client.get("/users")
+        admin_csrf_token = extract_csrf_token(users_page.text)
+        delete_response = admin_client.post(
+            f"/users/{user_id}/delete",
+            data={"csrf_token": admin_csrf_token},
+            follow_redirects=False,
+        )
+        assert delete_response.status_code == 303
+        result_page = admin_client.get("/users")
+        assert "User disabled and signed out." in result_page.text
+        assert 'title="Enable user"' in result_page.text
+
+    old_session_response = client.get("/home", follow_redirects=False)
+    assert old_session_response.status_code == 303
+    assert old_session_response.headers["location"] == "/login"
+
+    login_page = client.get("/login")
+    assert "This user account is disabled. Contact the administrator." in login_page.text
+    csrf_token = extract_csrf_token(login_page.text)
+    invalid_password_response = client.post(
+        "/login",
+        data={"csrf_token": csrf_token, "username": "tech", "password": "wrong-password"},
+        follow_redirects=False,
+    )
+    assert invalid_password_response.status_code == 303
+
+    invalid_login_page = client.get("/login")
+    assert "Invalid username or password." in invalid_login_page.text
+    csrf_token = extract_csrf_token(invalid_login_page.text)
+    disabled_login_response = client.post(
+        "/login",
+        data={"csrf_token": csrf_token, "username": "tech", "password": TEST_WEB_USER_PASSWORD},
+        follow_redirects=False,
+    )
+    assert disabled_login_response.status_code == 303
+    assert disabled_login_response.headers["location"] == "/login"
+
+    disabled_login_page = client.get("/login")
+    assert "This user account is disabled. Contact the administrator." in disabled_login_page.text
+    with database.SessionLocal() as database_session:
+        user = database_session.get(WebUser, user_id)
+        assert user is not None
+        assert user.disabled is True
+        assert user.sessions_invalidated_at_utc is not None
+        audit_events = list(database_session.scalars(select(AuditEvent).where(AuditEvent.action == "auth.login.failed")))
+        assert any(
+            event.details.get("reason") == "account_disabled" and event.details.get("web_user_id") == user_id
+            for event in audit_events
+        )
 
 
 def test_users_page_disables_user_with_job_history(

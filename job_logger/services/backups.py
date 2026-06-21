@@ -44,6 +44,11 @@ AUTOMATIC_HOURLY_BACKUPS_TO_KEEP = 6
 AUTOMATIC_DAILY_BACKUP_DAYS_TO_KEEP = 3
 _BACKUP_RESTORE_LOCK = threading.RLock()
 _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
+    "web_users": {
+        # v1.1.0 added per-user session invalidation. Older full backups should
+        # restore without forcing users out immediately.
+        "sessions_invalidated_at_utc": None,
+    },
     "user_preferences": {
         # v1.1.0 added this preference as default-off. Older full backups should
         # restore into the safer review-first workflow instead of being rejected.
