@@ -1277,12 +1277,38 @@ a:focus-visible {
 }
 
 .summary-action-row .secondary-button span,
+.button-pair-row button,
 .work-finish-stack button {
   min-width: 0;
 }
 
+.summary-action-row .secondary-button:only-child,
 .summary-action-row .record-notes-button:only-child {
   grid-column: 1 / -1;
+}
+
+.button-pair-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.button-pair-row > button,
+.button-pair-row > form {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.button-pair-row > button:only-child,
+.button-pair-row > form:only-child {
+  grid-column: 1 / -1;
+}
+
+.button-pair-row button {
+  width: 100%;
+  min-height: 48px;
 }
 
 .ai-cleanup-button {
@@ -1291,6 +1317,10 @@ a:focus-visible {
 
 .ai-cleanup-status {
   min-height: 18px;
+}
+
+.ai-cleanup-status:empty {
+  display: none;
 }
 
 .ticket-picker-status.is-loading {
@@ -2427,27 +2457,37 @@ td a {
   margin-top: 16px;
 }
 
+.review-action-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.review-summary-action-row {
+  margin-top: 10px;
+}
+
+.review-action-row {
+  margin-top: 0;
+}
+
+.review-inline-action-form,
+.purge-form,
+.submitted-entry-delete-form {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.edit-panel .summary-action-row .secondary-button,
 .edit-panel .summary-tool-row .secondary-button,
 .action-row button,
 .submitted-entry-delete-form button,
-.purge-form button {
-  width: min(100%, 210px);
+.purge-form button,
+.review-action-row button {
+  width: 100%;
   min-height: 48px;
-}
-
-.purge-form {
-  margin-top: 18px;
-  display: grid;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
-}
-
-.submitted-entry-delete-form {
-  display: grid;
-  justify-items: start;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
 }
 
 .audit-panel {

@@ -15,7 +15,7 @@ from tests.conftest import extract_csrf_token
 def test_app_version_matches_current_release() -> None:
     """The source-controlled version should match the current release."""
 
-    assert APP_VERSION == "1.1.0"
+    assert APP_VERSION == "1.1.1"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -25,11 +25,13 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
+    assert "## v1.1.1 - Review action cleanup and Autotask fallback" in changelog_text
     assert "## v1.1.0 - Direct submission, backups, and passkeys" in changelog_text
     assert "## v1.0.2 - Autotask workflow and desktop layout updates" in changelog_text
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
+    assert "## v1.1.1 - Review action cleanup" in web_changelog_text
     assert "## v1.1.0 - Direct submission and passkeys" in web_changelog_text
     assert "## v1.0.2 - Autotask workflow and desktop layout updates" in web_changelog_text
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in web_changelog_text
@@ -40,6 +42,9 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "0.0.1" not in changelog_text
     assert "0.0.1" not in web_changelog_text
     assert "WEB_CHANGELOG.md" in changelog_text
+    assert "Diagnostics" not in web_changelog_text
+    assert "debug page" not in web_changelog_text
+    assert "super admin" not in web_changelog_text.lower()
 
 
 def test_web_changelog_is_available_to_runtime_artifacts() -> None:
@@ -61,27 +66,12 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="v1.1.0",
-        title="Direct submission and passkeys",
+        version="v1.1.1",
+        title="Review action cleanup",
         changes=(
-            "Added a Config option to submit time entries directly from Work in Progress.",
-            "Review is still available afterward for submitted-entry edits and Autotask deletion.",
-            "Added passkey sign-in for managed users, with password login still available.",
-            "App sessions can now require users to sign in again after the configured timeout.",
-            "Diagnostics can now log out all managed web users without logging out the super admin.",
-            "Diagnostics now highlights super admin successful logins with a yellow account chip.",
-            "Disabled users are signed out and see an account-disabled message when they try to log in.",
-            "The Home passkey setup card now appears only once after login, while Config always keeps passkey setup available.",
-            "Ticket source can now mark alert-created tickets as Remote when ticket text does not say Remote or On-Site.",
-            "Review detail now shows the active Work in Progress rounded stop time before the job is ended.",
-            "Review open-ticket choices now match Work in Progress ticket card details and colors.",
-            "Selecting service calls or open tickets now keeps Autotask read-only until submission and defaults the local status to In progress.",
-            "Ollama and LM Studio cleanup can now use private LAN model servers.",
-            "Ollama and LM Studio cleanup now keep cleanup rules in the provider instruction field.",
-            "The mobile top bar now uses a logout icon instead of the app-close X.",
-            "Mobile Work in Progress actions now use compact button rows with shorter labels and icons.",
-            "Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay.",
-            "Mobile Summary notes boxes now start taller while still allowing manual resize.",
+            "Review detail now uses compact action rows like Work in Progress.",
+            "Record and AI Cleanup now share a row on review detail with shorter labels and icons.",
+            "Full browser Work in Progress and Review buttons now use cleaner paired rows.",
         ),
     )
 
@@ -103,31 +93,34 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
+    assert "v1.1.1" in response.text
     assert "v1.1.0" in response.text
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
+    assert "Review action cleanup" in response.text
+    assert "Review detail now uses compact action rows like Work in Progress." in response.text
+    assert "Record and AI Cleanup now share a row on review detail with shorter labels and icons." in response.text
+    assert "Full browser Work in Progress and Review buttons now use cleaner paired rows." in response.text
     assert "Direct submission and passkeys" in response.text
     assert "Added a Config option to submit time entries directly from Work in Progress." in response.text
     assert "Review is still available afterward for submitted-entry edits and Autotask deletion." in response.text
     assert "Added passkey sign-in for managed users, with password login still available." in response.text
     assert "App sessions can now require users to sign in again after the configured timeout." in response.text
-    assert "Diagnostics can now log out all managed web users without logging out the super admin." in response.text
-    assert "Diagnostics now highlights super admin successful logins with a yellow account chip." in response.text
     assert "Disabled users are signed out and see an account-disabled message when they try to log in." in response.text
     assert "The Home passkey setup card now appears only once after login" in response.text
     assert "Ticket source can now mark alert-created tickets as Remote" in response.text
     assert "Review detail now shows the active Work in Progress rounded stop time" in response.text
     assert "Review open-ticket choices now match Work in Progress ticket card details and colors." in response.text
-    assert "Selecting service calls or open tickets now keeps Autotask read-only until submission" in response.text
-    assert "Ollama and LM Studio cleanup can now use private LAN model servers." in response.text
-    assert "Ollama and LM Studio cleanup now keep cleanup rules in the provider instruction field." in response.text
     assert "The mobile top bar now uses a logout icon instead of the app-close X." in response.text
     assert "Mobile Work in Progress actions now use compact button rows with shorter labels and icons." in response.text
     assert "Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay." in response.text
     assert "Mobile Summary notes boxes now start taller while still allowing manual resize." in response.text
     assert "automatic database backups" not in response.text
     assert "debug page" not in response.text
+    assert "Diagnostics can now log out all managed web users" not in response.text
+    assert "Diagnostics now highlights super admin successful logins" not in response.text
+    assert "super admin" not in response.text.lower()
     assert "Autotask workflow and desktop layout updates" in response.text
     assert "Edit Entry can update submitted time entries that were already marked Complete." in response.text
     assert "Starting work on a New ticket now moves it to In progress." in response.text
@@ -140,10 +133,12 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
+    assert response.text.index("Review action cleanup") < response.text.index("Direct submission and passkeys")
     assert response.text.index("Direct submission and passkeys") < response.text.index("Autotask workflow and desktop layout updates")
     assert response.text.index("Autotask workflow and desktop layout updates") < response.text.index("Mobile shell navigation and close behavior")
     assert response.text.index("Mobile shell navigation and close behavior") < response.text.index("Initial release")
-    assert '<h2 id="current-version-heading">Direct submission and passkeys</h2>' in response.text
+    assert '<h2 id="current-version-heading">Review action cleanup</h2>' in response.text
+    assert '<span class="release-version">v1.1.1</span>' in response.text
     assert '<span class="release-version">v1.1.0</span>' in response.text
     assert '<span class="release-version">v1.0.2</span>' in response.text
     assert '<span class="release-version">v1.0.1</span>' in response.text
@@ -194,4 +189,4 @@ def test_super_admin_can_view_changelog_in_dark_theme(super_admin_client: TestCl
 
     assert response.status_code == 200
     assert 'class="theme-dark"' in response.text
-    assert "v1.1.0" in response.text
+    assert "v1.1.1" in response.text

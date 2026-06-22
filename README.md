@@ -29,6 +29,7 @@ Autotask REST API references used by this app:
 - Tickets entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/TicketsEntity.htm
 - Companies entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/CompaniesEntity.htm
 - Resources entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ResourcesEntity.htm
+- ResourceServiceDeskRoles entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ResourceServiceDeskRolesEntity.htm
 - ServiceCalls entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ServiceCallsEntity.htm
 - ServiceCallTickets entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ServiceCallTicketsEntity.htm
 - ServiceCallTicketResources entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ServiceCallTicketResourceEntity.htm
@@ -392,14 +393,16 @@ Set these passkey variables for production when needed:
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.1.0`. Version history starts at `v1.0.0`.
+currently `v1.1.1`. Version history starts at `v1.0.0`.
 
 Authenticated pages show the current version discreetly in the shared header.
 Clicking that version opens `/changelog`, which displays the current version
 and concise release notes parsed from `WEB_CHANGELOG.md`. The current-version
 panel lists short user-facing changes directly, and the timeline keeps prior
 versions visible. `CHANGELOG.md` remains the detailed source changelog for
-operators and agents. The changelog page uses the same authenticated session,
+operators and agents. `WEB_CHANGELOG.md` is only for user-facing changes; keep
+diagnostics, debug-page, super-admin-only, operator-only, and agent-facing notes
+in `CHANGELOG.md` only. The changelog page uses the same authenticated session,
 dark/light theme variables, and responsive layout system as the rest of the app.
 
 ## Provider Modes
@@ -448,11 +451,11 @@ The active-job and review-detail recorder streams `MediaRecorder` chunks to
 `WebSocket /jobs/{job_id}/description/audio/stream`. The first WebSocket
 message carries metadata and the CSRF token, then binary audio chunks are sent
 as soon as the browser produces them. The server starts a best-effort interim
-transcription from the first buffered chunk. The **Record Audio** button uses
-an orange treatment on review detail. In active mobile Work in Progress cards,
-the same action is labeled **Record** and sits beside **AI Cleanup** when cleanup
-is enabled. It becomes a **Stop recording** button while browser capture is
-active. Stopping capture lets the browser flush the final chunk, sends WebSocket
+transcription from the first buffered chunk. The **Record** button uses an
+orange treatment and sits beside **AI Cleanup** when cleanup is enabled on Work
+in Progress and review detail. It becomes a **Stop recording** button while
+browser capture is active. Stopping capture lets the browser flush the final
+chunk, sends WebSocket
 `finish`, returns the button to its idle label, keeps that disabled button in
 the shared loading state, and shows clear text progress:
 **Sending data to server...**, then **Converting audio to text...**, then
@@ -596,10 +599,13 @@ global impersonation resource.
 
 Do not set static role or billing-code IDs. When a reviewed job is submitted,
 Job Logger re-queries the selected ticket and uses that ticket's
-`assignedResourceroleID` for `TimeEntries.roleID`. Billing code / Work Type is
-also ticket-driven: Job Logger omits `TimeEntries.billingCodeID` so Autotask
-inherits the selected ticket's `billingCodeID` on create without requiring
-separate Allocation Code edit permission.
+`assignedResourceroleID` for `TimeEntries.roleID` when available. If the ticket
+does not return an assigned role, Job Logger falls back to the submitting web
+user's default active `ResourceServiceDeskRoles.roleID` and lets Autotask
+validate the final time-entry create. Billing code / Work Type is also
+ticket-driven: Job Logger omits `TimeEntries.billingCodeID` so Autotask inherits
+the selected ticket's `billingCodeID` on create without requiring separate
+Allocation Code edit permission.
 
 The super-admin `/users` page can query Autotask Resources through the server
 while adding or editing a web user. Resource names are displayed in Autotask's
@@ -775,7 +781,10 @@ corrected before submission or **Edit Entry**. The server parses that prefix
 back into the stored work-location mode and keeps local note storage unprefixed.
 
 Ticket `TimeEntries` payloads use the selected ticket's
-`assignedResourceroleID` for `roleID`. They intentionally omit `billingCodeID` /
+`assignedResourceroleID` for `roleID` when available. If Autotask returns the
+ticket without that assigned role, Job Logger uses the submitting web user's
+default active `ResourceServiceDeskRoles.roleID` as a fallback and lets Autotask
+validate the create request. Payloads intentionally omit `billingCodeID` /
 Allocation Code values; Autotask inherits the selected ticket's Work Type on
 create, which avoids requiring the API resource to have Allocation Code edit
 permission for ticket time entries. Existing `AUTOTASK_ROLE_ID` and

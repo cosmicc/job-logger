@@ -235,10 +235,10 @@ Recording is browser-side in `job_logger/static/mobile.js` for active work and
 
 Current behavior:
 
-- The active mobile **Record** button starts audio capture and shares a compact
-  two-button row with optional **AI Cleanup** in the Summary notes area. Review
-  detail shows the same recording control for jobs that have not been
-  successfully submitted to Autotask.
+- The active mobile and review-detail **Record** buttons start audio capture and
+  share a compact two-button row with optional **AI Cleanup** in the Summary
+  notes area. Review-detail recording remains available only for jobs that have
+  not been successfully submitted to Autotask.
 - The active mobile **Record** button uses an orange treatment, and the button
   label changes to **Stop recording** while browser recording is active. After
   capture stops, the disabled button returns to the **Record** label and shows
@@ -360,6 +360,13 @@ The review detail form does not expose a manual Save button. Editable review
 fields are saved through debounced background posts to `POST /review/{job_id}/save`.
 The route still supports normal form posts for compatibility, and the Accept,
 Retry, and **Delete time entry** actions remain explicit workflow actions.
+Review detail action controls should stay in the selected detail pane and render
+as compact paired rows on both phone and full-browser layouts. Use no more than
+two buttons per row. Pair **Record** with **AI Cleanup** under Summary notes,
+pair **Edit Entry** with **Delete From Autotask** for submitted entries, and
+pair **Accept and Submit** with **Delete time entry** for normal unsubmitted
+entries. Submission-failed jobs may use one row for **Retry** and
+**Accept and Submit**, with destructive local delete on its own following row.
 
 Review ticket selection persists through `POST /review/{job_id}/ticket`. The
 route uses the recently loaded server-side open-ticket selection cache when it

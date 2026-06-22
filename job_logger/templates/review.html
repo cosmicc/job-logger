@@ -78,7 +78,9 @@
 
       <section class="edit-panel" aria-label="Selected job editor">
         {% if selected_job %}
+          {% set review_form_id = "review-form-" ~ selected_job.id %}
           <form
+            id="{{ review_form_id }}"
             method="post"
             class="review-form {% if selected_job_submitted %}review-form-submitted{% endif %}"
             data-review-task-form
@@ -298,80 +300,102 @@
               <span>Summary notes</span>
               <textarea name="summary_notes" rows="8" data-review-summary-textarea>{{ selected_job_autotask_summary_notes }}</textarea>
             </label>
-            {% if can_modify_selected_job and not selected_job_submitted %}
-              <div class="recording-control-stack">
-                <button
-                  class="secondary-button record-notes-button"
-                  type="button"
-                  data-review-record-button
-                  data-job-id="{{ selected_job.id }}"
-                  aria-pressed="false"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                    <path d="M12 19v3"></path>
-                  </svg>
-                  <span data-record-audio-label>Record Audio</span>
-                </button>
+            {% if can_modify_selected_job and (not selected_job_submitted or ai_cleanup_enabled) %}
+              <div class="summary-action-row review-summary-action-row recording-control-stack">
+                {% if not selected_job_submitted %}
+                  <button
+                    class="secondary-button record-notes-button"
+                    type="button"
+                    data-review-record-button
+                    data-job-id="{{ selected_job.id }}"
+                    aria-pressed="false"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                      <path d="M12 19v3"></path>
+                    </svg>
+                    <span data-record-audio-label>Record</span>
+                  </button>
+                {% endif %}
+                {% if ai_cleanup_enabled %}
+                  <button
+                    type="button"
+                    class="secondary-button ai-cleanup-button"
+                    data-ai-cleanup-button
+                    data-cleanup-url="/review/{{ selected_job.id }}/summary/cleanup"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 3l1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3Z"></path>
+                      <path d="M19 13l.7 2.3L22 16l-2.3.7L19 19l-.7-2.3L16 16l2.3-.7L19 13Z"></path>
+                      <path d="M5 14l.8 2.2L8 17l-2.2.8L5 20l-.8-2.2L2 17l2.2-.8L5 14Z"></path>
+                    </svg>
+                    <span>AI Cleanup</span>
+                  </button>
+                {% endif %}
               </div>
-              <p
-                class="recording-status"
-                data-review-recording-status
-                data-job-id="{{ selected_job.id }}"
-                aria-live="polite"
-              ></p>
-              {% if selected_job.transcription_error %}
-                <p class="error-text">{{ selected_job.transcription_error }}</p>
+              {% if not selected_job_submitted %}
+                <p
+                  class="recording-status"
+                  data-review-recording-status
+                  data-job-id="{{ selected_job.id }}"
+                  aria-live="polite"
+                ></p>
+                {% if selected_job.transcription_error %}
+                  <p class="error-text">{{ selected_job.transcription_error }}</p>
+                {% endif %}
+              {% endif %}
+              {% if ai_cleanup_enabled %}
+                <p class="recording-status ai-cleanup-status" data-ai-cleanup-status aria-live="polite"></p>
               {% endif %}
             {% endif %}
-            {% if can_modify_selected_job and ai_cleanup_enabled %}
-              <div class="summary-tool-row">
-                <button
-                  type="button"
-                  class="secondary-button ai-cleanup-button"
-                  data-ai-cleanup-button
-                  data-cleanup-url="/review/{{ selected_job.id }}/summary/cleanup"
-                >
-                  AI Cleanup
-                </button>
-                <span class="muted-text ai-cleanup-status" data-ai-cleanup-status aria-live="polite"></span>
-              </div>
-            {% endif %}
             </fieldset>
+          </form>
 
-            {% if can_modify_selected_job and selected_job_submitted %}
-              <div class="action-row">
-                <button
-                  class="primary-button"
-                  type="submit"
-                  formaction="/review/{{ selected_job.id }}/edit-entry"
-                  data-review-loading-message="Updating Autotask ticket and time entry..."
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4z"></path>
-                    <path d="M13.5 6.5l4 4"></path>
-                  </svg>
-                  Edit Entry
-                </button>
-              </div>
-            {% elif can_modify_selected_job %}
-              <div class="action-row">
-                <button
-                  class="primary-button"
-                  type="submit"
-                  formaction="/review/{{ selected_job.id }}/accept"
-                  data-review-loading-message="Submitting time entry to Autotask..."
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M20 6L9 17l-5-5"></path>
-                  </svg>
-                  Accept and Submit
-                </button>
-                {% if selected_job.status.value == "submission_failed" %}
+          {% if can_modify_selected_job %}
+            <div class="review-action-stack" aria-label="Review actions">
+              {% if selected_job_submitted %}
+                <div class="button-pair-row review-action-row">
                   <button
                     class="primary-button"
                     type="submit"
+                    form="{{ review_form_id }}"
+                    formaction="/review/{{ selected_job.id }}/edit-entry"
+                    data-review-loading-message="Updating Autotask ticket and time entry..."
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4z"></path>
+                      <path d="M13.5 6.5l4 4"></path>
+                    </svg>
+                    Edit Entry
+                  </button>
+                  <form
+                    method="post"
+                    action="/review/{{ selected_job.id }}/delete-entry"
+                    class="submitted-entry-delete-form review-inline-action-form"
+                    data-review-task-form
+                    data-review-loading-message="Deleting Autotask time entry..."
+                    data-confirm-message="This will delete the existing Autotask time entry and return this job to review. Continue?"
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="danger-outline-button" type="submit">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6h18"></path>
+                        <path d="M8 6V4h8v2"></path>
+                        <path d="M10 11v6"></path>
+                        <path d="M14 11v6"></path>
+                        <path d="M9 10h6"></path>
+                      </svg>
+                      Delete From Autotask
+                    </button>
+                  </form>
+                </div>
+              {% elif selected_job.status.value == "submission_failed" %}
+                <div class="button-pair-row review-action-row">
+                  <button
+                    class="primary-button"
+                    type="submit"
+                    form="{{ review_form_id }}"
                     formaction="/review/{{ selected_job.id }}/retry"
                     data-review-loading-message="Retrying Autotask submission..."
                   >
@@ -381,51 +405,74 @@
                     </svg>
                     Retry
                   </button>
-                {% endif %}
-              </div>
-            {% endif %}
-          </form>
-
-          {% if can_modify_selected_job and selected_job_submitted %}
-            <form
-              method="post"
-              action="/review/{{ selected_job.id }}/delete-entry"
-              class="submitted-entry-delete-form"
-              data-review-task-form
-              data-review-loading-message="Deleting Autotask time entry..."
-              data-confirm-message="This will delete the existing Autotask time entry and return this job to review. Continue?"
-            >
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button class="danger-outline-button" type="submit">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 6h18"></path>
-                  <path d="M8 6V4h8v2"></path>
-                  <path d="M10 11v6"></path>
-                  <path d="M14 11v6"></path>
-                  <path d="M9 10h6"></path>
-                </svg>
-                Delete From Autotask
-              </button>
-            </form>
-          {% elif can_modify_selected_job %}
-            <form
-              method="post"
-              action="/review/{{ selected_job.id }}/purge"
-              class="purge-form"
-              data-confirm-message="This will permanently remove this local time entry and related debug history. Continue?"
-            >
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button class="danger-outline-button" type="submit">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 6h18"></path>
-                  <path d="M8 6V4h8v2"></path>
-                  <path d="M10 11v6"></path>
-                  <path d="M14 11v6"></path>
-                  <path d="M9 10h6"></path>
-                </svg>
-                Delete time entry
-              </button>
-            </form>
+                  <button
+                    class="primary-button"
+                    type="submit"
+                    form="{{ review_form_id }}"
+                    formaction="/review/{{ selected_job.id }}/accept"
+                    data-review-loading-message="Submitting time entry to Autotask..."
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M20 6L9 17l-5-5"></path>
+                    </svg>
+                    Accept and Submit
+                  </button>
+                </div>
+                <div class="button-pair-row review-action-row">
+                  <form
+                    method="post"
+                    action="/review/{{ selected_job.id }}/purge"
+                    class="purge-form review-inline-action-form"
+                    data-confirm-message="This will permanently remove this local time entry and related debug history. Continue?"
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="danger-outline-button" type="submit">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6h18"></path>
+                        <path d="M8 6V4h8v2"></path>
+                        <path d="M10 11v6"></path>
+                        <path d="M14 11v6"></path>
+                        <path d="M9 10h6"></path>
+                      </svg>
+                      Delete time entry
+                    </button>
+                  </form>
+                </div>
+              {% else %}
+                <div class="button-pair-row review-action-row">
+                  <button
+                    class="primary-button"
+                    type="submit"
+                    form="{{ review_form_id }}"
+                    formaction="/review/{{ selected_job.id }}/accept"
+                    data-review-loading-message="Submitting time entry to Autotask..."
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M20 6L9 17l-5-5"></path>
+                    </svg>
+                    Accept and Submit
+                  </button>
+                  <form
+                    method="post"
+                    action="/review/{{ selected_job.id }}/purge"
+                    class="purge-form review-inline-action-form"
+                    data-confirm-message="This will permanently remove this local time entry and related debug history. Continue?"
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="danger-outline-button" type="submit">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6h18"></path>
+                        <path d="M8 6V4h8v2"></path>
+                        <path d="M10 11v6"></path>
+                        <path d="M14 11v6"></path>
+                        <path d="M9 10h6"></path>
+                      </svg>
+                      Delete time entry
+                    </button>
+                  </form>
+                </div>
+              {% endif %}
+            </div>
           {% endif %}
 
           <details class="audit-panel audit-timeline" aria-label="Audit timeline">

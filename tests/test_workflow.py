@@ -434,6 +434,9 @@ def test_submitted_review_page_allows_controlled_entry_edits(authenticated_clien
     assert "Submitted Autotask entry" in review_html
     assert "can be updated with Edit Entry" in review_html
     assert 'class="review-form review-form-submitted"' in review_html
+    assert 'class="review-action-stack"' in review_html
+    assert 'class="button-pair-row review-action-row"' in review_html
+    assert f'form="review-form-{submitted_job_id}"' in review_html
     assert re.search(r'<select(?=[^>]*name="ticket_status")(?![^>]*disabled)', review_html)
     assert re.search(r'<input(?=[^>]*name="job_date")(?![^>]*disabled)', review_html)
     assert re.search(r'<input(?=[^>]*name="start_time")(?![^>]*disabled)', review_html)
@@ -820,8 +823,12 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "background: var(--success);" in stylesheet
     assert ".ai-cleanup-button,\n.summary-tool-row .ai-cleanup-button" in stylesheet
     assert ".summary-action-row" in stylesheet
+    assert ".button-pair-row" in stylesheet
+    assert ".review-action-stack" in stylesheet
+    assert ".review-summary-action-row" in stylesheet
     assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in stylesheet
     assert ".recording-status:empty,\n[data-active-save-status]:empty" in stylesheet
+    assert ".ai-cleanup-status:empty" in stylesheet
     assert "background: var(--ai-action);" in stylesheet
     assert ".app-header {\n  display: grid;" in phone_stylesheet
     assert "grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);" in phone_stylesheet
@@ -838,6 +845,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".work-panel[data-active-job-card]" in desktop_stylesheet
     assert "grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);" in desktop_stylesheet
     assert "grid-template-columns: minmax(0, 1fr) minmax(360px, 0.78fr);" in desktop_stylesheet
+    assert ".work-panel[data-active-job-card] .summary-action-row .secondary-button" in desktop_stylesheet
     assert ".active-jobs-stack > .work-panel:not([data-active-job-card])" not in phone_stylesheet
     assert ".work-panel[data-active-job-card]" not in phone_stylesheet
     mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
@@ -847,7 +855,13 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ">Record</span>" in mobile_template
     assert "Delete time entry" not in mobile_template
     assert re.search(r">\s*Delete\s*</button>", mobile_template)
+    assert 'class="summary-action-row review-summary-action-row recording-control-stack"' in review_template
     assert review_template.index("data-review-record-button") < review_template.index("data-ai-cleanup-button")
+    assert ">Record</span>" in review_template
+    assert "Record Audio" not in review_template
+    assert 'class="review-action-stack"' in review_template
+    assert 'class="button-pair-row review-action-row"' in review_template
+    assert 'form="{{ review_form_id }}"' in review_template
 
 
 def test_active_job_completion_requires_client_name(authenticated_client: TestClient) -> None:
@@ -1861,6 +1875,11 @@ def test_review_detail_record_button_only_for_unsubmitted_jobs(authenticated_cli
     review_page_response = authenticated_client.get(f"/review/{active_job_id}")
     assert review_page_response.status_code == 200
     assert "data-review-record-button" in review_page_response.text
+    assert ">Record</span>" in review_page_response.text
+    assert "Record Audio" not in review_page_response.text
+    assert 'class="summary-action-row review-summary-action-row recording-control-stack"' in review_page_response.text
+    assert 'class="review-action-stack"' in review_page_response.text
+    assert 'class="button-pair-row review-action-row"' in review_page_response.text
 
     submitted_job_id, _review_csrf_token = create_submitted_mock_job(authenticated_client)
     submitted_review_page_response = authenticated_client.get(f"/review/{submitted_job_id}")

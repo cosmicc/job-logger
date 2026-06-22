@@ -2,6 +2,25 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## v1.1.1 - Review action cleanup and Autotask fallback
+
+- Advanced the source-controlled dev runtime version to `v1.1.1`, including the
+  Python package metadata and PWA service worker cache version.
+- Changed review detail Summary notes controls so **Record** and optional
+  **AI Cleanup** share the same compact two-button row, use leading icons, and
+  no longer reserve empty status space while idle.
+- Changed review detail workflow controls into a compact action stack with no
+  more than two buttons per row. Submitted jobs pair **Edit Entry** with
+  **Delete From Autotask**, normal unsubmitted jobs pair **Accept and Submit**
+  with **Delete time entry**, and failed submissions keep retry/accept actions
+  together while leaving destructive local delete on a separate row.
+- Changed the full browser Work in Progress and review detail button styling so
+  paired action rows use matched widths and heights instead of leaving uneven
+  spacing around primary and destructive actions.
+- Fixed Autotask submission for tickets that do not return
+  `assignedResourceroleID` by falling back to the submitting managed user's
+  default active service-desk role before creating the time entry.
+
 ## v1.1.0 - Direct submission, backups, and passkeys
 
 - Added a default-off per-user **Submit from Work in Progress** setting on

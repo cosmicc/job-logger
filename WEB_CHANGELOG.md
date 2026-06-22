@@ -2,22 +2,24 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## v1.1.1 - Review action cleanup
+
+- Review detail now uses compact action rows like Work in Progress.
+- Record and AI Cleanup now share a row on review detail with shorter labels and icons.
+- Full browser Work in Progress and Review buttons now use cleaner paired rows.
+
 ## v1.1.0 - Direct submission and passkeys
 
 - Added a Config option to submit time entries directly from Work in Progress.
 - Review is still available afterward for submitted-entry edits and Autotask deletion.
 - Added passkey sign-in for managed users, with password login still available.
 - App sessions can now require users to sign in again after the configured timeout.
-- Diagnostics can now log out all managed web users without logging out the super admin.
-- Diagnostics now highlights super admin successful logins with a yellow account chip.
 - Disabled users are signed out and see an account-disabled message when they try to log in.
 - The Home passkey setup card now appears only once after login, while Config always keeps passkey setup available.
 - Ticket source can now mark alert-created tickets as Remote when ticket text does not say Remote or On-Site.
 - Review detail now shows the active Work in Progress rounded stop time before the job is ended.
 - Review open-ticket choices now match Work in Progress ticket card details and colors.
-- Selecting service calls or open tickets now keeps Autotask read-only until submission and defaults the local status to In progress.
-- Ollama and LM Studio cleanup can now use private LAN model servers.
-- Ollama and LM Studio cleanup now keep cleanup rules in the provider instruction field.
+- Time entry submission can now use the submitting user's default service-desk role when the selected ticket has no assigned role.
 - The mobile top bar now uses a logout icon instead of the app-close X.
 - Mobile Work in Progress actions now use compact button rows with shorter labels and icons.
 - Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay.

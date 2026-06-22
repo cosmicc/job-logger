@@ -3,7 +3,7 @@ const REVIEW_AUTOSAVE_DELAY_MS = 650;
 const RECORDING_CHUNK_INTERVAL_MS = 2500;
 const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
-const RECORD_AUDIO_LABEL = "Record Audio";
+const RECORD_AUDIO_LABEL = "Record";
 const STOP_RECORDING_LABEL = "Stop recording";
 const RECORDING_STATUS_RECORDING = "Recording audio...";
 const RECORDING_STATUS_SENDING = "Sending data to server...";
@@ -473,7 +473,7 @@ async function finalizeReviewRecordingForJob(activeJobId) {
   reviewAudioCompletionInProgress = true;
   try {
     if (reviewAudioStreamFailed) {
-      setReviewRecordingStatus(safeJobId, "Recording stream failed. Press Record Audio and try again.", true);
+      setReviewRecordingStatus(safeJobId, "Recording stream failed. Press Record and try again.", true);
       return;
     }
 
@@ -553,13 +553,13 @@ async function startReviewRecording(activeJobId) {
 
       stopReviewAudioStreamTracks();
       if (reviewAudioStreamFailed) {
-        setReviewRecordingStatus(jobId, "Recording stream failed. Press Record Audio and try again.", true);
+        setReviewRecordingStatus(jobId, "Recording stream failed. Press Record and try again.", true);
         clearReviewRecordingState();
         return;
       }
 
       if (!reviewHasRecordedAudio) {
-        setReviewRecordingStatus(jobId, "No audio was recorded. Press Record Audio and try again.");
+        setReviewRecordingStatus(jobId, "No audio was recorded. Press Record and try again.");
         clearReviewRecordingState();
         return;
       }
@@ -593,7 +593,7 @@ async function stopReviewRecording(activeJobId) {
     setReviewRecordingUi({jobId: activeJobId, isProcessing: true});
     setReviewRecordingStatus(activeJobId, RECORDING_STATUS_SENDING);
     if (!reviewHasRecordedAudio) {
-      setReviewRecordingStatus(activeJobId, "No audio was recorded. Press Record Audio and try again.");
+      setReviewRecordingStatus(activeJobId, "No audio was recorded. Press Record and try again.");
       clearReviewRecordingState();
       return;
     }

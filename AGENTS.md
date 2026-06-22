@@ -231,9 +231,11 @@ Autotask's optional `ImpersonationResourceId` header; do not add or restore a
 global `AUTOTASK_IMPERSONATION_RESOURCE_ID` setting. Static Autotask role and
 billing-code IDs must not be configured. The live provider must query the
 selected ticket at submission time, use `Tickets.assignedResourceroleID` as
-`TimeEntries.roleID`, and omit `TimeEntries.billingCodeID` so Autotask inherits
-the selected ticket's Work Type on create. API credentials, ticket status IDs,
-and time-entry type remain environment configuration.
+`TimeEntries.roleID` when available, fall back to the submitting managed user's
+default active `ResourceServiceDeskRoles.roleID` when the ticket omits an
+assigned role, and omit `TimeEntries.billingCodeID` so Autotask inherits the
+selected ticket's Work Type on create. API credentials, ticket status IDs, and
+time-entry type remain environment configuration.
 The super-admin `/users` page may query `/Resources/query` through the server
 to find matching Autotask Resources by `Last, First` name and fill the
 user-specific resource ID and optional email address. Per-row refresh on
@@ -319,6 +321,11 @@ prefix. Saving review edits parses that prefix back into the stored
 ticket or client identity to edits. The selected Autotask client name, company
 ID, ticket number, and ticket title are read-only identity fields populated from
 Autotask lookup and must not be editable on the review page.
+Work in Progress and review detail action controls should stay compact and
+scannable on both phone and full browser layouts. Use paired button rows when
+two actions naturally belong together, such as **Record** with **AI Cleanup**,
+**End Work** with **Delete**, and review submit/edit actions with the matching
+delete action. Never place more than two action buttons in one row.
 
 All state-changing actions must be explicit and auditable.
 
@@ -399,7 +406,10 @@ Every released version must update both the detailed source changelog and the
 authenticated web changelog. `CHANGELOG.md` is the detailed operator and
 agent-facing record. `WEB_CHANGELOG.md` is the concise source parsed by
 `/changelog`; keep each web entry to short, simple user-facing bullets and do
-not copy the detailed `CHANGELOG.md` wording into the web page.
+not copy the detailed `CHANGELOG.md` wording into the web page. Diagnostics
+page changes, debug tooling, super-admin-only behavior, operator-only
+deployment details, and agent-facing notes belong only in `CHANGELOG.md`, never
+in `WEB_CHANGELOG.md`.
 
 ## Development Process
 
@@ -609,7 +619,8 @@ The normal workflow is:
    the job and appears as the leading prefix in the review summary textarea so
    it can be corrected before Autotask submission.
 10. User records notes during an active job from the Summary notes action row,
-   where **Record** sits beside the optional **AI Cleanup** action. The record
+   where **Record** sits beside the optional **AI Cleanup** action. Review
+   detail uses the same paired summary action row for unsubmitted jobs. The record
    button becomes a stop button while audio chunks stream to the server over
    WebSocket. Recording, sending, and converting progress use plain status
    text, and stopping capture keeps the disabled record button in a loading
@@ -631,11 +642,15 @@ The normal workflow is:
     failed-submission review state with the safe error message.
 14. User reviews the job from `/review`, edits time/status/notes if needed,
     optionally records more audio notes before Autotask submission, and keeps
-    the selected client/ticket identity read-only. Directly submitted jobs still
-    appear in Review for submitted-entry **Edit Entry** and **Delete From
-    Autotask** actions. Active jobs opened in Review show the same rounded stop
-    preview as Work in Progress, but review saves must not apply that displayed
-    end time until the job is actually ended.
+    the selected client/ticket identity read-only. Review detail groups action
+    controls into compact rows with at most two buttons per row; submitted
+    entries pair **Edit Entry** with **Delete From Autotask**, while local
+    unsubmitted entries pair the submit action with **Delete time entry** when
+    possible. Directly submitted jobs still appear in Review for submitted-entry
+    **Edit Entry** and **Delete From Autotask** actions. Active jobs opened in
+    Review show the same rounded stop preview as Work in Progress, but review
+    saves must not apply that displayed end time until the job is actually
+    ended.
 15. Accept/retry submits a reviewed job to Autotask idempotently with the
     owning managed web user's resource ID.
 16. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes
@@ -697,4 +712,6 @@ configuration, database schema, or diagnostics:
 - Update `CHANGELOG.md` for every user-visible, security, workflow, database,
   Docker, Autotask, transcription, or diagnostic change.
 - Update `WEB_CHANGELOG.md` for every released version with short web-facing
-  bullets that are simpler than the detailed `CHANGELOG.md` entry.
+  bullets that are simpler than the detailed `CHANGELOG.md` entry. Exclude
+  diagnostics, debug-page, super-admin-only, operator-only, and agent-facing
+  changes from `WEB_CHANGELOG.md`.
