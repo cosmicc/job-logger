@@ -32,7 +32,7 @@
                   <th scope="col">Username</th>
                   <th scope="col">Email</th>
                   <th scope="col">Resource ID</th>
-                  <th scope="col">Default role</th>
+                  <th scope="col">Role ID</th>
                   <th scope="col">Status</th>
                   <th scope="col">Jobs</th>
                   <th scope="col">Actions</th>
@@ -45,7 +45,7 @@
                       <span class="user-name-cell" title="{{ row.user.full_name }}">{{ row.user.full_name }}</span>
                     </td>
                     <td data-label="Username">
-                      <span class="mono-value">{{ row.user.username }}</span>
+                      <span class="mono-value user-username-cell" title="{{ row.user.username }}">{{ row.user.username }}</span>
                     </td>
                     <td data-label="Email">
                       {% if row.user.email %}
@@ -59,7 +59,7 @@
                     </td>
                     <td data-label="Default role">
                       {% if row.user.autotask_default_service_desk_role_id %}
-                        <span class="mono-value">Role {{ row.user.autotask_default_service_desk_role_id }}</span>
+                        <span class="mono-value user-default-role-value">{{ row.user.autotask_default_service_desk_role_id }}</span>
                       {% else %}
                         <span class="muted-text">Not set</span>
                       {% endif %}
@@ -76,22 +76,6 @@
                     </td>
                     <td data-label="Actions" class="user-actions-cell">
                       <div class="user-row-actions" aria-label="Actions for {{ row.user.full_name }}">
-                        <form method="post" action="/users/{{ row.user.id }}/refresh-resource">
-                          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                          <button
-                            class="secondary-button user-action-icon-button"
-                            type="submit"
-                            title="Refresh Autotask resource"
-                            aria-label="Refresh Autotask resource for {{ row.user.full_name }}"
-                          >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M21 12a9 9 0 0 1-15.5 6.2"></path>
-                              <path d="M3 12A9 9 0 0 1 18.5 5.8"></path>
-                              <path d="M18 2v4h-4"></path>
-                              <path d="M6 22v-4h4"></path>
-                            </svg>
-                          </button>
-                        </form>
                         <button
                           class="secondary-button user-action-icon-button user-edit-toggle"
                           type="button"
@@ -247,7 +231,7 @@
                             </button>
                           </div>
                           <p class="resource-picker-status muted-text" data-resource-status aria-live="polite">
-                            Use the full name above to refresh the resource ID.
+                            Use the full name above to search for the resource ID.
                           </p>
                           <div class="resource-picker-results" data-resource-results hidden></div>
                         </section>

@@ -162,7 +162,7 @@
         <section id="passkeys" class="edit-panel config-panel passkey-config-panel" aria-labelledby="passkeys-heading" data-passkey-register-panel>
           <div class="panel-title-row">
             <div>
-              <h2 id="passkeys-heading">Passkeys</h2>
+              <h2 id="passkeys-heading">Device sign-in</h2>
               <p class="muted-text">Use this device's unlock method for future sign-ins.</p>
             </div>
             <button class="secondary-button" type="button" data-passkey-register-button>
@@ -171,7 +171,7 @@
                 <path d="M7 11V8a5 5 0 0 1 10 0v3"></path>
                 <path d="M12 15v2"></path>
               </svg>
-              Add passkey
+              Set up device sign-in
             </button>
           </div>
           <p class="muted-text passkey-status" data-passkey-register-status aria-live="polite"></p>
@@ -180,7 +180,7 @@
               {% for credential in passkey_credentials %}
                 <article class="passkey-list-item">
                   <div>
-                    <strong>Passkey {{ loop.index }}</strong>
+                    <strong>Device sign-in {{ loop.index }}</strong>
                     <p class="muted-text">
                       Added {{ credential.created_at_utc|local_display }}
                       {% if credential.last_used_at_utc %}
@@ -188,7 +188,7 @@
                       {% endif %}
                     </p>
                     <p class="muted-text">
-                      {% if credential.device_type == "multi_device" %}Synced passkey{% else %}Device passkey{% endif %}
+                      {% if credential.device_type == "multi_device" %}Synced sign-in{% else %}Device-only sign-in{% endif %}
                       {% if credential.backed_up %} · Backed up{% endif %}
                     </p>
                   </div>
@@ -200,7 +200,7 @@
               {% endfor %}
             </div>
           {% else %}
-            <p class="muted-text">No passkeys have been added for this account.</p>
+            <p class="muted-text">No device sign-ins have been added for this account.</p>
           {% endif %}
         </section>
       </div>

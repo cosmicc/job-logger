@@ -749,6 +749,15 @@ class FakeConfiguredDefaultRoleClient:
 
         raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
 
+    def patch(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Capture required submission-time ticket status updates."""
+
+        self.operations.append((endpoint_path, dict(json)))
+        if endpoint_path == "/Tickets":
+            return FakeAutotaskResponse({})
+
+        raise AssertionError(f"Unexpected fake Autotask PATCH endpoint: {endpoint_path}")
+
 
 class FakeTimeEntryUpdateClient:
     """Fake Autotask client that captures the TimeEntries update payload."""
@@ -1057,7 +1066,7 @@ class FakeConnectivityProvider:
         )
 
 
-def _live_test_provider(*, ticket_status_updates_enabled: bool = True) -> LiveAutotaskProvider:
+def _live_test_provider() -> LiveAutotaskProvider:
     """Return a configured live provider without real Autotask credentials."""
 
     test_settings = replace(
@@ -1067,7 +1076,6 @@ def _live_test_provider(*, ticket_status_updates_enabled: bool = True) -> LiveAu
         autotask_username="api-user-key",
         autotask_secret="api-secret",
         autotask_api_integration_code="integration-code",
-        autotask_ticket_status_updates_enabled=ticket_status_updates_enabled,
         autotask_status_in_progress_id=1,
         autotask_status_waiting_customer_id=2,
         autotask_status_waiting_parts_id=3,
@@ -1678,10 +1686,12 @@ def test_complete_submission_updates_ticket_status_after_time_entry_create(monke
     ]
 
 
-def test_submission_skips_ticket_status_updates_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    """TimeEntries creation should not require Tickets.status permissions by default."""
+def test_submission_updates_ticket_status_before_and_after_complete_time_entry_create(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TimeEntries submission should sync the selected app ticket status."""
 
-    provider = _live_test_provider(ticket_status_updates_enabled=False)
+    provider = _live_test_provider()
     fake_client = FakeCompleteSubmissionClient()
     rounded_start_utc = datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
     job = Job(
@@ -1689,8 +1699,8 @@ def test_submission_skips_ticket_status_updates_when_disabled(monkeypatch: pytes
         status=JobStatus.READY_FOR_REVIEW,
         ticket_number="T20260616.0001",
         ticket_status=TicketStatus.COMPLETE,
-        summary_notes="Create time without changing ticket status.",
-        description_text="Create time without changing ticket status.",
+        summary_notes="Create time and change ticket status.",
+        description_text="Create time and change ticket status.",
         raw_start_utc=rounded_start_utc,
         raw_end_utc=rounded_start_utc + timedelta(minutes=30),
         rounded_start_utc=rounded_start_utc,
@@ -1709,10 +1719,10 @@ def test_submission_skips_ticket_status_updates_when_disabled(monkeypatch: pytes
 
     assert result.succeeded is True
     assert result.external_id == "987654"
-    assert result.request_snapshot["ticketStatusUpdatesEnabled"] is False
-    assert result.request_snapshot["ticketStatusUpdateAttempted"] is False
-    assert result.request_snapshot["ticketStatusPreUpdate"] is None
-    assert result.request_snapshot["ticketStatusPostUpdate"] is None
+    assert result.request_snapshot["ticketStatusUpdatePolicy"] == "required_on_submit"
+    assert result.request_snapshot["ticketStatusUpdateAttempted"] is True
+    assert result.request_snapshot["ticketStatusPreUpdate"] == "in_progress"
+    assert result.request_snapshot["ticketStatusPostUpdate"] == "complete"
     assert fake_client.posted_payload is not None
     assert fake_client.operations == [
         (
@@ -1723,8 +1733,38 @@ def test_submission_skips_ticket_status_updates_when_disabled(monkeypatch: pytes
                 "MaxRecords": 1,
             },
         ),
+        ("/Tickets", {"id": 123456, "status": 1}),
         ("/TimeEntries", fake_client.posted_payload),
+        ("/Tickets", {"id": 123456, "status": 5}),
     ]
+
+
+def test_submission_fails_when_selected_ticket_status_id_is_not_configured() -> None:
+    """Submitting should not create time when the selected status cannot sync."""
+
+    provider = _live_test_provider()
+    provider = LiveAutotaskProvider(replace(provider.application_settings, autotask_status_complete_id=None))
+    rounded_start_utc = datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="complete-submit-missing-status-id-test",
+        status=JobStatus.READY_FOR_REVIEW,
+        ticket_number="T20260616.0001",
+        ticket_status=TicketStatus.COMPLETE,
+        summary_notes="Missing status ID should fail.",
+        description_text="Missing status ID should fail.",
+        raw_start_utc=rounded_start_utc,
+        raw_end_utc=rounded_start_utc + timedelta(minutes=30),
+        rounded_start_utc=rounded_start_utc,
+        rounded_end_utc=rounded_start_utc + timedelta(minutes=30),
+    )
+
+    result = provider.submit_job(job, resource_id=1)
+
+    assert result.succeeded is False
+    assert result.external_id is None
+    assert result.safe_error == "Autotask status ID for Complete is not configured."
+    assert result.request_snapshot["ticketStatusUpdatePolicy"] == "required_on_submit"
+    assert result.request_snapshot["ticketStatusUpdateAttempted"] is False
 
 
 def test_submission_uses_resource_default_role_when_ticket_role_missing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1803,7 +1843,7 @@ def test_submission_uses_resource_default_role_when_ticket_role_missing(monkeypa
 def test_submission_uses_configured_default_role_when_autotask_roles_are_ambiguous(monkeypatch: pytest.MonkeyPatch) -> None:
     """Submitting time can use the web user's configured role fallback."""
 
-    provider = _live_test_provider(ticket_status_updates_enabled=False)
+    provider = _live_test_provider()
     fake_client = FakeConfiguredDefaultRoleClient()
     rounded_start_utc = datetime(2026, 6, 21, 13, 0, tzinfo=UTC)
     job = Job(
@@ -1858,6 +1898,7 @@ def test_submission_uses_configured_default_role_when_autotask_roles_are_ambiguo
                 "MaxRecords": 50,
             },
         ),
+        ("/Tickets", {"id": 123456, "status": 1}),
         ("/TimeEntries", fake_client.posted_payload),
     ]
 
@@ -2066,13 +2107,12 @@ def test_live_time_entry_update_reopens_complete_ticket_before_patch(monkeypatch
         external_id="987654",
         resource_id=1,
         previous_ticket_status=TicketStatus.COMPLETE,
-        update_ticket_status=False,
     )
 
     assert result.succeeded is True
     assert result.safe_error is None
-    assert result.request_snapshot["ticketStatusUpdateRequested"] is False
-    assert result.request_snapshot["ticketStatusUpdateAttempted"] is False
+    assert result.request_snapshot["ticketStatusUpdateRequested"] is True
+    assert result.request_snapshot["ticketStatusUpdateAttempted"] is True
     assert result.request_snapshot["ticketStatusPreUpdate"] == "in_progress"
     assert result.request_snapshot["ticketStatusPostUpdate"] == "complete"
     assert fake_client.patched_payload is not None
@@ -2091,6 +2131,39 @@ def test_live_time_entry_update_reopens_complete_ticket_before_patch(monkeypatch
         ("/TimeEntries", fake_client.patched_payload),
         ("/Tickets", {"id": 123456, "status": 5}),
     ]
+
+
+def test_live_time_entry_update_fails_when_selected_ticket_status_id_is_not_configured() -> None:
+    """Submitted-entry edits require the selected status to have a tenant picklist ID."""
+
+    provider = _live_test_provider()
+    provider = LiveAutotaskProvider(replace(provider.application_settings, autotask_status_follow_up_id=None))
+    rounded_start_utc = datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="time-entry-update-missing-status-id-test",
+        status=JobStatus.SUBMITTED,
+        ticket_number="T20260616.0001",
+        ticket_status=TicketStatus.FOLLOW_UP,
+        summary_notes="Missing edit status ID should fail.",
+        description_text="Missing edit status ID should fail.",
+        raw_start_utc=rounded_start_utc,
+        raw_end_utc=rounded_start_utc + timedelta(minutes=45),
+        rounded_start_utc=rounded_start_utc,
+        rounded_end_utc=rounded_start_utc + timedelta(minutes=45),
+    )
+
+    result = provider.update_time_entry(
+        job,
+        external_id="987654",
+        resource_id=1,
+        previous_ticket_status=TicketStatus.IN_PROGRESS,
+    )
+
+    assert result.succeeded is False
+    assert result.external_id == "987654"
+    assert result.safe_error == "Autotask status ID for Follow up is not configured."
+    assert result.request_snapshot["ticketStatusUpdatePolicy"] == "required_on_edit"
+    assert result.request_snapshot["ticketStatusUpdateAttempted"] is True
 
 
 def test_time_entry_delete_uses_existing_entry_endpoint() -> None:

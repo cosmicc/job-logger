@@ -37,6 +37,7 @@ from job_logger.services.jobs import (
     is_job_locked_after_successful_submission,
     list_review_jobs,
     purge_job,
+    purge_submitted_job_after_failed_autotask_delete,
     rounded_stop_for_active_job,
     submit_job_to_autotask,
     update_submitted_job_autotask_entry,
@@ -47,6 +48,9 @@ from job_logger.time_utils import format_local_date, format_local_time
 from job_logger.ui import template_context, templates
 
 router = APIRouter(prefix="/review", tags=["review"])
+
+SESSION_DELETE_AUTOTASK_FAILED_JOB_ID_KEY = "delete_autotask_failed_job_id"
+SESSION_DELETE_AUTOTASK_FAILED_EXTERNAL_ID_KEY = "delete_autotask_failed_external_id"
 
 
 def _ticket_status_options() -> list[tuple[str, str]]:
@@ -240,6 +244,21 @@ def _review_display_end_time_utc(job: object | None):
     return getattr(job, "rounded_end_utc", None)
 
 
+def _submitted_delete_failure_purge_available(request: Request, selected_job: object | None) -> bool:
+    """Return whether the selected submitted job can show the local-purge fallback."""
+
+    if selected_job is None or not is_job_locked_after_successful_submission(selected_job):
+        return False
+
+    failed_job_id = request.session.get(SESSION_DELETE_AUTOTASK_FAILED_JOB_ID_KEY)
+    failed_external_id = request.session.get(SESSION_DELETE_AUTOTASK_FAILED_EXTERNAL_ID_KEY)
+    return (
+        failed_job_id == getattr(selected_job, "id", None)
+        and failed_external_id == (getattr(selected_job, "autotask_external_id", None) or "")
+        and bool(getattr(selected_job, "autotask_error", None))
+    )
+
+
 def _render_review(
     request: Request,
     database_session: Session,
@@ -268,6 +287,7 @@ def _render_review(
         selected_job, audit_events = _selected_review_context(database_session, selected_job_id, web_user_id=web_user_id)
     except JobWorkflowError:
         return RedirectResponse(url="/review", status_code=303)
+    show_delete_failure_purge_prompt = _submitted_delete_failure_purge_available(request, selected_job)
 
     return templates.TemplateResponse(
         request,
@@ -288,6 +308,7 @@ def _render_review(
             show_job_owner=is_super_admin,
             audit_events=audit_events,
             ticket_status_options=_ticket_status_options(),
+            show_delete_failure_purge_prompt=show_delete_failure_purge_prompt,
         ),
     )
 
@@ -475,9 +496,63 @@ async def delete_submitted_entry(
         )
         database_session.commit()
         if job.autotask_error:
+            request.session[SESSION_DELETE_AUTOTASK_FAILED_JOB_ID_KEY] = job.id
+            request.session[SESSION_DELETE_AUTOTASK_FAILED_EXTERNAL_ID_KEY] = original_external_id or ""
             add_flash_message(request, f"Autotask entry delete failed: {job.autotask_error}", "error")
         else:
+            request.session.pop(SESSION_DELETE_AUTOTASK_FAILED_JOB_ID_KEY, None)
+            request.session.pop(SESSION_DELETE_AUTOTASK_FAILED_EXTERNAL_ID_KEY, None)
             add_flash_message(request, "Autotask entry deleted; job returned to review.", "success")
+    except (HTTPException, JobWorkflowError, WebUserError) as exc:
+        database_session.rollback()
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
+
+    return RedirectResponse(url=f"/review/{job_id}", status_code=303)
+
+
+@router.post("/{job_id}/purge-submitted-local")
+async def purge_submitted_local_after_delete_failure(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Purge a submitted local review row after Delete From Autotask fails."""
+
+    actor = require_authenticated_username(request)
+    await _form_values(request)
+    try:
+        web_user = _current_enabled_web_user(request, database_session)
+        job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(job, web_user.id)
+        failed_job_id = request.session.get(SESSION_DELETE_AUTOTASK_FAILED_JOB_ID_KEY)
+        failed_external_id = request.session.get(SESSION_DELETE_AUTOTASK_FAILED_EXTERNAL_ID_KEY)
+        if failed_job_id != job.id or failed_external_id != (job.autotask_external_id or ""):
+            raise JobWorkflowError("Delete From Autotask must fail before this local purge is available.")
+
+        original_external_id = job.autotask_external_id
+        safe_delete_error = job.autotask_error
+        purge_submitted_job_after_failed_autotask_delete(database_session, job)
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.review.submitted_delete_failed_local_purged",
+            request=request,
+            details={
+                "job_id": job.id,
+                "external_id": original_external_id,
+                "autotask_delete_error": safe_delete_error,
+                "local_only": True,
+            },
+        )
+        database_session.commit()
+        request.session.pop(SESSION_DELETE_AUTOTASK_FAILED_JOB_ID_KEY, None)
+        request.session.pop(SESSION_DELETE_AUTOTASK_FAILED_EXTERNAL_ID_KEY, None)
+        add_flash_message(
+            request,
+            "Job purged from Job Logger review. The Autotask time entry may still exist.",
+            "success",
+        )
+        return RedirectResponse(url="/review", status_code=303)
     except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")

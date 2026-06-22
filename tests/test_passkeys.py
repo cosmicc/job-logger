@@ -137,7 +137,7 @@ def test_login_page_exposes_password_fallback_and_passkey_button(client: TestCli
 
     assert response.status_code == 200
     assert 'action="/login"' in response.text
-    assert "Use passkey" in response.text
+    assert "Use device sign-in" in response.text
     assert "data-passkey-login-button" in response.text
     assert "/static/passkeys.js" in response.text
 
@@ -148,9 +148,9 @@ def test_config_can_register_and_delete_passkey(client: TestClient, monkeypatch)
     credential = _register_mock_passkey(client, monkeypatch)
 
     config_response = client.get("/config")
-    assert "Passkeys" in config_response.text
+    assert "Device sign-in" in config_response.text
     assert "data-passkey-register-button" in config_response.text
-    assert "Synced passkey" in config_response.text
+    assert "Synced sign-in" in config_response.text
     assert "Backed up" in config_response.text
     assert f"/config/passkeys/{credential.id}/delete" in config_response.text
 

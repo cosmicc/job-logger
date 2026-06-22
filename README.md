@@ -80,13 +80,10 @@ Autotask REST API references used by this app:
 
 7. Sign in with the config super-admin account, open `/users`, and create at
    least one web user with full name, username, password, and Autotask resource
-   ID. The users page shows managed accounts in a table with per-row edit,
-   refresh, enable/disable, and disable controls as compact icons, including any
-   email address captured from Autotask Resource lookup. The disable action signs
-   out that user's existing sessions on their next request and blocks future
-   login. The refresh icon re-queries Autotask Resources and updates the stored
-   local name/email metadata when the returned resource still matches that user's
-   saved resource ID. The
+   ID. The users page shows managed accounts in a table with per-row edit and
+   enable/disable controls as compact icons, including any email address
+   captured from Autotask Resource lookup. The disable action signs out that
+   user's existing sessions on their next request and blocks future login. The
    add-user form suggests a username from the name, such as `jblow` for
    `Joe Blow`, and add/edit forms can search Autotask Resources so you can
    select the matching `Last, First` resource and fill its ID. The same form can
@@ -383,7 +380,7 @@ Static CSS and JavaScript links include a content-derived version value so
 browser and installed-app shells fetch changed assets after deploy without
 requiring an application version bump.
 
-## Authentication And Passkeys
+## Authentication And Device Sign-In
 
 Local app sessions expire after `APP_SESSION_TIMEOUT_HOURS`, defaulting to
 `12`. The value is measured in hours and is used for both the signed session
@@ -396,15 +393,17 @@ submitted, the login screen says the account is disabled.
 
 The config super-admin account still signs in with `APP_USERNAME` and
 `APP_PASSWORD` only. Managed web users can sign in with their username/password
-or with a registered passkey. A passkey can be added from `/config` after a
-normal password login. The `/home` page prompts managed users without a passkey
-only once after each successful login, while `/config` always keeps passkey
-setup available. Job Logger stores only the public credential ID, public key,
+or with registered device sign-in. The app labels this feature **Device
+sign-in** because the underlying passkey can use a phone, browser profile,
+security key, fingerprint, Face ID, PIN, pattern, or another local unlock
+method. Device sign-in can be set up from `/config` after a normal password
+login. The `/home` page prompts managed users without a registered credential
+only once after each successful login, while `/config` always keeps setup
+available. Job Logger stores only the public credential ID, public key,
 signature counter, and device metadata. The phone, browser, or passkey provider
-keeps the private key and performs the fingerprint, Face ID, PIN, pattern, or
-other local unlock prompt.
+keeps the private key and performs the local unlock prompt.
 
-Passkey login is intentionally a fallback-friendly option. If the browser does
+Device sign-in is intentionally a fallback-friendly option. If the browser does
 not support passkeys, the device cancels, or signature verification fails, the
 normal username/password login form remains available.
 
@@ -654,22 +653,14 @@ human-readable labels when allowed, and save one optional default service-desk
 role ID. That configured role is used only as a time-entry fallback after
 ticket-assigned role sources fail. If the optional `Roles` lookup is not
 permitted, the picker still works with numeric role labels. Each table row also
-has a refresh icon that re-runs the server-side resource lookup and updates
-stored name/email metadata only after the returned resource ID matches the
-user's saved resource ID. The browser never receives Autotask credentials and
-cannot query Autotask directly.
+shows the stored email and default role ID metadata. The browser never receives
+Autotask credentials and cannot query Autotask directly.
 
-Autotask ticket status writes are optional. By default, Job Logger creates and
-updates `TimeEntries` without patching `Tickets.status`, which works for API
-users that have time-entry permissions but cannot change ticket workflow
-status. Set `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true` only when the API user
-is allowed to patch `Tickets.status` and you want Job Logger to advance or close
-tickets automatically.
+Autotask ticket status picklist IDs vary by tenant. Job Logger uses the selected
+local app status to patch `Tickets.status` during time-entry submission and
+submitted **Edit Entry** resubmission, so the Autotask API user must be allowed
+to update ticket workflow status. Configure all status IDs:
 
-Autotask ticket status picklist IDs vary by tenant. Configure these only when
-ticket status updates are enabled:
-
-- `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED`
 - `AUTOTASK_STATUS_IN_PROGRESS_ID`
 - `AUTOTASK_STATUS_WAITING_CUSTOMER_ID`
 - `AUTOTASK_STATUS_WAITING_PARTS_ID`
@@ -678,10 +669,8 @@ ticket status updates are enabled:
 
 Open-ticket and service-call selection do not use the Autotask `Tickets`
 endpoint for status changes; they only default the local editable ticket status
-to `In progress`. With ticket status updates disabled, the selected status stays
-local and does not block `TimeEntries` creation. With ticket status updates
-enabled, Autotask ticket status writes wait until the complete time entry is
-submitted or an already submitted entry is explicitly edited.
+to `In progress`. Autotask ticket status writes wait until the complete time
+entry is submitted or an already submitted entry is explicitly edited.
 
 Managed web users can enable **Submit from Work in Progress** on `/config`.
 This option is off by default so existing accounts keep the review-first
@@ -805,15 +794,15 @@ After a job is successfully submitted to Autotask, ticket and client identity
 stay read-only. The selected review detail allows job date, start time, end
 time, summary notes, and ticket status edits through **Edit Entry**, which
 patches the existing `TimeEntries` row instead of creating a duplicate entry.
-With `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true`, **Edit Entry** can also
-patch `Tickets.status` for intentional status changes, including temporarily
-moving a previously `Complete` ticket to `In progress` before the time-entry
-patch. With the default disabled setting, **Edit Entry** patches only
-`TimeEntries`.
+**Edit Entry** also patches `Tickets.status` to match the selected Job Logger
+status, including temporarily moving a previously `Complete` ticket to
+`In progress` before the time-entry patch when Autotask requires that sequence.
 The same submitted detail also has **Delete From Autotask**, which deletes the
 existing Autotask time entry and returns the local job to review without
 removing the local job record. If Autotask refuses the delete, the job remains
-submitted and the safe failure message is shown in review.
+submitted and the safe failure message is shown in review. The selected detail
+then shows a dialog that can purge the local Job Logger review entry only; that
+fallback warns that the Autotask time entry may still exist.
 Save, accept/resend, retry, ticket selection, and local **Delete time entry**
 cleanup remain blocked for submitted jobs. **Delete time entry** may remove
 active or other unsubmitted local jobs from the selected review detail when the
@@ -940,9 +929,9 @@ When Autotask rejects `TimeEntries` creation/update, Job Logger surfaces bounded
 body-level error details when Autotask provides them. This usually identifies
 the specific missing permission, invalid role, billing code, resource, or
 required field more clearly than a generic HTTP 500 message. If the error names
-ticket status updates or `Tickets.status`, leave
-`AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=false` unless the API user has the
-ticket workflow permissions needed to change statuses.
+ticket status updates or `Tickets.status`, confirm the API user has ticket
+workflow permissions and that the `AUTOTASK_STATUS_*_ID` values match the
+tenant picklist IDs.
 
 ## Time Handling
 

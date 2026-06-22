@@ -33,6 +33,14 @@ WORK_LOCATION_SUMMARY_PREFIXES = {
     WorkLocation.REMOTE: "Remote",
     WorkLocation.ON_SITE: "On-Site",
 }
+
+TICKET_STATUS_DISPLAY_LABELS = {
+    TicketStatus.IN_PROGRESS: "In progress",
+    TicketStatus.WAITING_CUSTOMER: "Waiting customer",
+    TicketStatus.WAITING_PARTS: "Waiting parts",
+    TicketStatus.FOLLOW_UP: "Follow up",
+    TicketStatus.COMPLETE: "Complete",
+}
 MIN_COMPANY_SEARCH_CHARACTERS = 3
 MIN_RESOURCE_SEARCH_CHARACTERS = 2
 REMOTE_SERVICE_CALL_PATTERN = re.compile(r"\bremote\b", re.IGNORECASE)
@@ -370,7 +378,6 @@ class BaseAutotaskProvider:
         *,
         resource_id: int,
         previous_ticket_status: TicketStatus | None = None,
-        update_ticket_status: bool = True,
     ) -> AutotaskSubmissionResult:
         """Update an existing external time entry for a submitted job."""
 
@@ -717,7 +724,6 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         *,
         resource_id: int,
         previous_ticket_status: TicketStatus | None = None,
-        update_ticket_status: bool = True,
     ) -> AutotaskSubmissionResult:
         """Return a deterministic success for submitted-entry update tests."""
 
@@ -726,7 +732,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         snapshot["external_id"] = external_id
         snapshot["resourceID"] = resource_id
         snapshot["previous_ticket_status"] = previous_ticket_status.value if previous_ticket_status else None
-        snapshot["ticketStatusUpdateAttempted"] = update_ticket_status
+        snapshot["ticketStatusUpdateAttempted"] = job.ticket_status is not None
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,
@@ -1405,9 +1411,6 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
     def _workflow_configuration_gaps(self) -> list[str]:
         """Return missing settings that would prevent the full Autotask workflow."""
-
-        if not self.application_settings.autotask_ticket_status_updates_enabled:
-            return []
 
         required_workflow_values = {
             "AUTOTASK_STATUS_IN_PROGRESS_ID": self.application_settings.autotask_status_in_progress_id,
@@ -2450,27 +2453,38 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return ticket_id
 
-    def _update_ticket_status(self, client: httpx.Client, ticket_id: int, ticket_status: TicketStatus | None) -> None:
-        """Update the Autotask ticket status when a tenant picklist ID is configured."""
+    def _ticket_status_id(self, ticket_status: TicketStatus | None, *, required: bool = False) -> int | None:
+        """Return the configured Autotask picklist ID for one local ticket status."""
 
         if ticket_status is None:
-            return
+            if required:
+                raise AutotaskSubmissionError("Ticket status is required before Autotask submission.")
+            return None
 
         status_id = self.application_settings.autotask_status_id_map.get(ticket_status.value)
+        if status_id is None and required:
+            raise AutotaskSubmissionError(
+                f"Autotask status ID for {TICKET_STATUS_DISPLAY_LABELS[ticket_status]} is not configured."
+            )
+
+        return status_id
+
+    def _update_ticket_status(
+        self,
+        client: httpx.Client,
+        ticket_id: int,
+        ticket_status: TicketStatus | None,
+        *,
+        required: bool = False,
+    ) -> None:
+        """Update the Autotask ticket status when a tenant picklist ID is configured."""
+
+        status_id = self._ticket_status_id(ticket_status, required=required)
         if status_id is None:
             return
 
         response = client.patch("/Tickets", json={"id": ticket_id, "status": status_id})
         self._raise_for_safe_response(response, "Autotask ticket status update")
-
-    def _can_update_ticket_status(self, ticket_status: TicketStatus | None) -> bool:
-        """Return whether a local status has a configured Autotask picklist ID."""
-
-        return (
-            self.application_settings.autotask_ticket_status_updates_enabled
-            and ticket_status is not None
-            and self.application_settings.autotask_status_id_map.get(ticket_status.value) is not None
-        )
 
     def _time_entry_payload(
         self,
@@ -2575,13 +2589,14 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 ),
                 "billingCodeIDSource": "ticket inheritance",
                 "timeEntryType": self.application_settings.autotask_time_entry_type,
-                "ticketStatusUpdatesEnabled": self.application_settings.autotask_ticket_status_updates_enabled,
+                "ticketStatusUpdatePolicy": "required_on_submit",
                 "ticketStatusUpdateAttempted": False,
                 "ticketStatusPreUpdate": None,
                 "ticketStatusPostUpdate": None,
             }
         )
         try:
+            self._ticket_status_id(job.ticket_status, required=True)
             with self._client() as client:
                 ticket_context = self._query_ticket_time_entry_context(
                     client,
@@ -2589,7 +2604,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     resource_id=resource_id,
                     default_service_desk_role_id=default_service_desk_role_id,
                 )
-                should_update_ticket_status = self._can_update_ticket_status(job.ticket_status)
+                should_update_ticket_status = True
                 snapshot["roleID"] = ticket_context.role_id
                 snapshot["roleIDSource"] = ticket_context.role_id_source
                 snapshot["ticketAssignedResourceID"] = ticket_context.assigned_resource_id
@@ -2597,10 +2612,10 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 snapshot["ticketStatusUpdateAttempted"] = should_update_ticket_status
                 if should_update_ticket_status and job.ticket_status == TicketStatus.COMPLETE:
                     snapshot["ticketStatusPreUpdate"] = TicketStatus.IN_PROGRESS.value
-                    self._update_ticket_status(client, ticket_context.ticket_id, TicketStatus.IN_PROGRESS)
+                    self._update_ticket_status(client, ticket_context.ticket_id, TicketStatus.IN_PROGRESS, required=True)
                 elif should_update_ticket_status:
                     snapshot["ticketStatusPreUpdate"] = job.ticket_status.value if job.ticket_status else None
-                    self._update_ticket_status(client, ticket_context.ticket_id, job.ticket_status)
+                    self._update_ticket_status(client, ticket_context.ticket_id, job.ticket_status, required=True)
                 external_id = self._create_time_entry(
                     client,
                     job,
@@ -2610,7 +2625,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 )
                 if should_update_ticket_status and job.ticket_status == TicketStatus.COMPLETE:
                     snapshot["ticketStatusPostUpdate"] = TicketStatus.COMPLETE.value
-                    self._update_ticket_status(client, ticket_context.ticket_id, TicketStatus.COMPLETE)
+                    self._update_ticket_status(client, ticket_context.ticket_id, TicketStatus.COMPLETE, required=True)
         except (httpx.HTTPError, AutotaskSubmissionError) as exc:
             return AutotaskSubmissionResult(
                 provider=self.provider_name,
@@ -2635,19 +2650,18 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         *,
         resource_id: int,
         previous_ticket_status: TicketStatus | None = None,
-        update_ticket_status: bool = True,
     ) -> AutotaskSubmissionResult:
         """Update an existing Autotask time entry from reviewed submitted fields."""
 
         if not job.ticket_number:
             raise AutotaskSubmissionError("Ticket number is required before Autotask time entry updates.")
 
-        ticket_status_updates_enabled = self.application_settings.autotask_ticket_status_updates_enabled
-        should_update_ticket_status = update_ticket_status and self._can_update_ticket_status(job.ticket_status)
-        should_reopen_complete_ticket = ticket_status_updates_enabled and previous_ticket_status == TicketStatus.COMPLETE
-        should_update_status_after_time_entry = should_reopen_complete_ticket and job.ticket_status != TicketStatus.IN_PROGRESS
-        if ticket_status_updates_enabled and job.ticket_status == TicketStatus.COMPLETE:
-            should_update_status_after_time_entry = True
+        should_update_ticket_status = job.ticket_status is not None
+        should_reopen_complete_ticket = should_update_ticket_status and previous_ticket_status == TicketStatus.COMPLETE
+        should_update_status_after_time_entry = should_update_ticket_status and (
+            (should_reopen_complete_ticket and job.ticket_status != TicketStatus.IN_PROGRESS)
+            or job.ticket_status == TicketStatus.COMPLETE
+        )
         snapshot = build_safe_submission_snapshot(job)
         snapshot.update(
             {
@@ -2656,8 +2670,8 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 "resourceID": resource_id,
                 "resourceIDSource": "managed_web_user.autotask_resource_id",
                 "previousTicketStatus": previous_ticket_status.value if previous_ticket_status else None,
-                "ticketStatusUpdatesEnabled": ticket_status_updates_enabled,
-                "ticketStatusUpdateRequested": update_ticket_status,
+                "ticketStatusUpdatePolicy": "required_on_edit",
+                "ticketStatusUpdateRequested": should_update_ticket_status,
                 "ticketStatusUpdateAttempted": should_update_ticket_status,
                 "ticketStatusPreUpdate": TicketStatus.IN_PROGRESS.value if should_reopen_complete_ticket else None,
                 "ticketStatusPostUpdate": (
@@ -2666,19 +2680,23 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             }
         )
         try:
+            if should_update_ticket_status:
+                self._ticket_status_id(job.ticket_status, required=True)
+            if should_reopen_complete_ticket:
+                self._ticket_status_id(TicketStatus.IN_PROGRESS, required=True)
             with self._client() as client:
                 ticket_id: int | None = None
                 if should_reopen_complete_ticket or should_update_ticket_status:
                     ticket_id = self._query_ticket_id(client, job.ticket_number)
                 if should_reopen_complete_ticket and ticket_id is not None:
-                    self._update_ticket_status(client, ticket_id, TicketStatus.IN_PROGRESS)
+                    self._update_ticket_status(client, ticket_id, TicketStatus.IN_PROGRESS, required=True)
                 elif should_update_ticket_status and job.ticket_status != TicketStatus.COMPLETE and ticket_id is not None:
-                    self._update_ticket_status(client, ticket_id, job.ticket_status)
+                    self._update_ticket_status(client, ticket_id, job.ticket_status, required=True)
                 self._update_time_entry(client, job, external_id)
                 if should_update_status_after_time_entry and job.ticket_status is not None:
                     if ticket_id is None:
                         ticket_id = self._query_ticket_id(client, job.ticket_number)
-                    self._update_ticket_status(client, ticket_id, job.ticket_status)
+                    self._update_ticket_status(client, ticket_id, job.ticket_status, required=True)
         except (httpx.HTTPError, AutotaskSubmissionError) as exc:
             return AutotaskSubmissionResult(
                 provider=self.provider_name,

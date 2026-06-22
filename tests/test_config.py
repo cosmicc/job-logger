@@ -28,9 +28,9 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert "Lowercase and uppercase letters" in config_response.text
     assert "At least one number" in config_response.text
     assert "At least one symbol" in config_response.text
-    assert "Passkeys" in config_response.text
-    assert "Add passkey" in config_response.text
-    assert "No passkeys have been added" in config_response.text
+    assert "Device sign-in" in config_response.text
+    assert "Set up device sign-in" in config_response.text
+    assert "No device sign-ins have been added" in config_response.text
     assert "Submit from Work in Progress" in config_response.text
     assert "submits the time entry to Autotask immediately" in config_response.text
     assert "data-direct-submit-option" in config_response.text

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
@@ -88,6 +89,7 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
         user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
         assert user is not None
         user.email = "tech@example.test"
+        user.autotask_default_service_desk_role_id = 8
         database_session.commit()
 
     users_page = super_admin_client.get("/users")
@@ -95,14 +97,20 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert users_page.status_code == 200
     assert '<table class="users-table">' in users_page.text
     assert "<th scope=\"col\">Email</th>" in users_page.text
-    assert "<th scope=\"col\">Default role</th>" in users_page.text
+    assert "<th scope=\"col\">Role ID</th>" in users_page.text
     assert 'data-label="Email"' in users_page.text
     assert 'data-label="Default role"' in users_page.text
     assert "tech@example.test" in users_page.text
+    assert re.search(
+        r'<td data-label="Default role">\s*<span class="mono-value user-default-role-value">8</span>\s*</td>',
+        users_page.text,
+    )
+    assert 'class="mono-value user-default-role-value">Role 8<' not in users_page.text
     assert 'data-user-edit-toggle' in users_page.text
     assert 'data-user-edit-panel' in users_page.text
     assert 'title="Edit user"' in users_page.text
-    assert 'title="Refresh Autotask resource"' in users_page.text
+    assert 'title="Refresh Autotask resource"' not in users_page.text
+    assert "/refresh-resource" not in users_page.text
     assert 'title="Disable user"' in users_page.text
     assert 'class="danger-outline-button user-action-icon-button"' in users_page.text
     assert 'class="secondary-link-button" href="/review"' not in users_page.text
@@ -466,37 +474,3 @@ def test_users_page_persists_valid_default_service_desk_role(super_admin_client:
 
     users_page = super_admin_client.get("/users")
     assert "Role 15" in users_page.text
-
-
-def test_users_page_refreshes_autotask_resource_metadata(super_admin_client: TestClient) -> None:
-    """The row refresh action should update safe stored metadata from Autotask."""
-
-    with database.SessionLocal() as database_session:
-        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
-        assert user is not None
-        user.email = None
-        database_session.commit()
-        user_id = user.id
-
-    users_page = super_admin_client.get("/users")
-    csrf_token = extract_csrf_token(users_page.text)
-    refresh_response = super_admin_client.post(
-        f"/users/{user_id}/refresh-resource",
-        data={"csrf_token": csrf_token},
-        follow_redirects=False,
-    )
-
-    assert refresh_response.status_code == 303
-    with database.SessionLocal() as database_session:
-        user = database_session.get(WebUser, user_id)
-        assert user is not None
-        assert user.full_name == "Test Technician"
-        assert user.email == "test.technician@example.test"
-        audit_event = database_session.scalar(
-            select(AuditEvent).where(AuditEvent.action == "user.web.resource_refreshed")
-        )
-        assert audit_event is not None
-        assert audit_event.details["autotask_resource_id"] == 1
-
-    users_page = super_admin_client.get("/users")
-    assert "test.technician@example.test" in users_page.text

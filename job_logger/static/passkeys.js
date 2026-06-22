@@ -102,7 +102,7 @@
     });
     const payload = await response.json();
     if (!response.ok) {
-      throw new Error(payload.detail || "Passkey request failed.");
+      throw new Error(payload.detail || "Device sign-in request failed.");
     }
     return payload;
   }
@@ -117,7 +117,7 @@
 
     if (!browserSupportsPasskeys()) {
       button.disabled = true;
-      setStatus(statusElement, "Passkeys are not available in this browser.", true);
+      setStatus(statusElement, "Device sign-in is not available in this browser.", true);
       return;
     }
 
@@ -130,19 +130,19 @@
           publicKey: creationOptionsFromJSON(optionsPayload.publicKey),
         });
         if (!credential) {
-          throw new Error("Passkey setup was canceled.");
+          throw new Error("Device sign-in setup was canceled.");
         }
 
         const verificationPayload = await postJSON(
           "/config/passkeys/verify",
           credentialToJSON(credential),
         );
-        setStatus(statusElement, verificationPayload.message || "Passkey added.", false);
+        setStatus(statusElement, verificationPayload.message || "Device sign-in added.", false);
         window.setTimeout(() => {
           window.location.reload();
         }, 500);
       } catch (error) {
-        setStatus(statusElement, error.message || "Passkey setup failed.", true);
+        setStatus(statusElement, error.message || "Device sign-in setup failed.", true);
         button.disabled = false;
       }
     });
@@ -166,7 +166,7 @@
           publicKey: requestOptionsFromJSON(optionsPayload.publicKey),
         });
         if (!credential) {
-          throw new Error("Passkey login was canceled.");
+          throw new Error("Device sign-in was canceled.");
         }
 
         const verificationPayload = await postJSON(
@@ -175,7 +175,7 @@
         );
         window.location.href = verificationPayload.redirect_url || "/home";
       } catch (error) {
-        setStatus(statusElement, `${error.message || "Passkey login failed."} Use username and password.`, true);
+        setStatus(statusElement, `${error.message || "Device sign-in failed."} Use username and password.`, true);
         button.disabled = false;
       }
     });

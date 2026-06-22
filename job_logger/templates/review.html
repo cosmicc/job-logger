@@ -393,6 +393,34 @@
                     </button>
                   </form>
                 </div>
+                {% if show_delete_failure_purge_prompt %}
+                  <dialog class="submitted-delete-fallback-dialog" data-submitted-delete-fallback-dialog>
+                    <div class="submitted-delete-fallback-content">
+                      <p class="eyebrow-text">Autotask delete failed</p>
+                      <h2>Purge from Job Logger review?</h2>
+                      <p class="muted-text">
+                        Delete From Autotask did not complete. This fallback removes only the Job Logger review entry and
+                        related local submission history. It does not delete the time entry from Autotask.
+                      </p>
+                      {% if selected_job.autotask_error %}
+                        <p class="error-text">{{ selected_job.autotask_error }}</p>
+                      {% endif %}
+                      <div class="button-pair-row review-action-row">
+                        <form method="dialog" class="review-inline-action-form">
+                          <button class="secondary-button" type="submit">Keep in Review</button>
+                        </form>
+                        <form
+                          method="post"
+                          action="/review/{{ selected_job.id }}/purge-submitted-local"
+                          class="review-inline-action-form"
+                        >
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                          <button class="danger-outline-button" type="submit">Purge from Review</button>
+                        </form>
+                      </div>
+                    </div>
+                  </dialog>
+                {% endif %}
               {% elif selected_job.status.value == "active" %}
                 <div class="button-pair-row review-action-row">
                   <button

@@ -111,7 +111,7 @@ async def passkey_registration_verify(
         return JSONResponse(
             {
                 "registered": True,
-                "message": "Passkey added.",
+                "message": "Device sign-in added.",
                 "credential": {
                     "id": credential.id,
                     "device_type": credential.device_type,
@@ -159,7 +159,7 @@ async def passkey_delete(
             details={"web_user_id": web_user.id, "credential_row_id": credential.id},
         )
         database_session.commit()
-        add_flash_message(request, "Passkey deleted.", "success")
+        add_flash_message(request, "Device sign-in deleted.", "success")
     except HTTPException:
         database_session.rollback()
         raise
@@ -207,7 +207,7 @@ async def passkey_login_verify(
             web_user_id=web_user.id,
             authentication_method=PASSKEY_AUTH_METHOD,
         )
-        add_flash_message(request, "Signed in with passkey.", "success")
+        add_flash_message(request, "Signed in with device sign-in.", "success")
         record_audit_event(
             database_session,
             actor=web_user.username,

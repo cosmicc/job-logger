@@ -39,11 +39,10 @@ service-desk role. The final `TimeEntries.resourceID` must still be the
 owning/submitting managed user's resource ID. The provider omits
 `TimeEntries.billingCodeID` so Autotask
 inherits the selected ticket's Work Type on create. API credentials, ticket
-status IDs, the `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED` switch, time-entry
-type, and optional Autotask provider settings remain environment-backed. Ticket
-status writes are disabled by default; enable them only when the API user can
-patch `Tickets.status` and the deployment intentionally wants Job Logger to
-advance or close tickets automatically. Do not add a global
+status IDs, time-entry type, and optional Autotask provider settings remain
+environment-backed. New time-entry submissions and submitted-entry Edit Entry
+resubmissions must patch `Tickets.status` to the selected local ticket status
+and require the mapped tenant status ID. Do not add a global
 Autotask impersonation resource setting; user-scoped workflows use the owning
 managed web user's resource ID in payloads and filters but do not send
 Autotask's optional `ImpersonationResourceId` header.
@@ -55,9 +54,7 @@ shows human-readable role names while the form still submits and stores the
 numeric `roleID`. These lookups must still go through the server-side provider
 and return only safe metadata. When the selected resource includes an email
 address, the user manager stores it with the managed web-user row for future
-user-scoped features. The same page has a per-user refresh action that re-runs
-Resource lookup, matches the returned resource ID against the user's saved
-resource ID, and updates only safe local name/email metadata.
+user-scoped features.
 
 ## Provider Location
 
@@ -74,8 +71,6 @@ Current provider responsibilities:
 - Test connectivity.
 - Search companies for client autocomplete.
 - Search Resources for super-admin managed-user setup.
-- Refresh safe stored Resource metadata for one managed user through the
-  super-admin user manager.
 - Query one selected company by ID.
 - Query open tickets for a company.
 - Query selected-day service calls for the logged-in managed web user's
@@ -86,9 +81,10 @@ Current provider responsibilities:
 - Query a ticket ID from a ticket number.
 - Keep service-call and open-ticket selection read-only against Autotask while
   the workflow stores a local editable default status of `In progress`.
-- Update selected ticket status only during submission and submitted-entry edits
-  when `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true` and tenant status IDs are
-  configured.
+- Update selected ticket status during time-entry submission using the local
+  app ticket status and tenant status IDs.
+- Update ticket status during submitted-entry edits using the local app ticket
+  status and tenant status IDs.
 - Create `TimeEntries`.
 - Patch existing submitted `TimeEntries`.
 - Delete existing submitted `TimeEntries` when the local job must return to
@@ -227,12 +223,6 @@ When the browser submits the selected resource email back with the add/edit
 form, the server must treat it as optional metadata, validate it as a bounded
 email address, and never trust it as an authorization source.
 
-Per-row refresh on `/users` is also super-admin-only and CSRF-protected. It
-must search through the server-side provider, require the selected resource's ID
-to equal the user's stored resource ID, and update only locally stored
-non-secret metadata such as full name and email. Do not use returned email or
-display names for authorization.
-
 Remote/On-Site detection is intentionally simple and auditable: scan
 service-call details or open-ticket title/description text for `remote`,
 `onsite`, `on-site`, or `on site`. If both words are present, the first match in
@@ -327,7 +317,7 @@ Required live Autotask values include:
   ticket-assigned resource's service-desk role, or the submitting resource's
   service-desk role.
 - Time entry type.
-- Tenant-specific ticket status picklist IDs only when ticket status updates are enabled.
+- Tenant-specific ticket status picklist IDs for each selectable local status.
 
 Ticket `TimeEntries` creation must query the selected `Tickets` row by
 `ticketNumber` and use `assignedResourceroleID` for `TimeEntries.roleID` when
@@ -369,7 +359,7 @@ entries for the same accepted job.
 
 Both Review acceptance and direct Work in Progress submission must call
 `submit_job_to_autotask()` so idempotency keys, submission attempts, safe error
-handling, optional ticket status updates, role lookup, and summary construction
+handling, required submission ticket status updates, role lookup, and summary construction
 remain centralized.
 
 After a provider reports successful submission, ticket identity and destructive
@@ -378,16 +368,17 @@ selection, accept/resend, retry, or local **Delete time entry** actions for that
 job. Supported submitted-job mutations are limited to audited external-entry
 actions: **Edit Entry** validates one job date, start/end times, summary notes,
 and ticket status, then patches the existing Autotask `TimeEntries` row by its
-stored external ID. With `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true`, a
-previously submitted `Complete` ticket may be moved to `In progress` before
-patching `TimeEntries`, and an intentional final status change may patch
-`Tickets.status`. With ticket status updates disabled, **Edit Entry** must not
-patch `Tickets.status`; it should only patch the existing `TimeEntries` row.
-Failure must leave local state aligned with the last known successful Autotask
-state. **Delete From Autotask** deletes `TimeEntries/{id}` and
+stored external ID and reasserts the selected local ticket status on
+`Tickets.status`. A previously submitted `Complete` ticket may be moved to
+`In progress` before patching `TimeEntries`, then moved to the selected final
+status after the time-entry patch when needed. **Delete From Autotask** deletes
+`TimeEntries/{id}` and
 returns the local job to review only after Autotask confirms the delete. If
-either action fails, keep local state aligned with the last known successful
-Autotask state and store only safe error details.
+the delete fails, the selected review detail may offer a session-scoped,
+local-only purge fallback that removes the Job Logger row while warning that
+the Autotask time entry may still exist. If either action fails, keep local
+state aligned with the last known successful Autotask state and store only safe
+error details.
 
 Live Autotask write failures should use `_raise_for_safe_response()` so bounded
 body-level messages from `Tickets` or `TimeEntries` errors are shown without

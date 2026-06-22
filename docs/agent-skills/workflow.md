@@ -395,15 +395,17 @@ accept/resend, retry, and local **Delete time entry** controls hidden or
 blocked. Date, start time, end time, summary notes, and ticket status can stay
 editable only when the submitted detail shows **Edit Entry**. That button must
 call the submitted-entry update route so the existing Autotask `TimeEntries`
-row is patched before local values are kept. Ticket status writes are opt-in:
-with `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true`, a previously submitted
-Complete ticket may be moved to In progress before patching `TimeEntries`, and
-intentional final status changes may patch `Tickets.status`. With ticket status
-updates disabled, submitted-entry edits patch only `TimeEntries`. The submitted
-detail can also show
+row is patched before local values are kept. Edit Entry must also reassert the
+selected local ticket status on `Tickets.status`; a previously submitted
+Complete ticket may be moved to In progress before patching `TimeEntries`, then
+the selected final status may be applied after the time-entry patch. The
+submitted detail can also show
 **Delete From Autotask**, which deletes the external time entry and moves the
 local job back to review only after Autotask confirms the delete. This action
-must not delete the local job, audit events, or submission attempts.
+must not delete the local job, audit events, or submission attempts. If Delete
+From Autotask fails, the selected detail may show a session-scoped local-only
+purge dialog that warns the Autotask time entry may still exist before removing
+the Job Logger review row.
 
 The review detail uses one local job date with start and end times. Jobs do not
 span multiple dates; validation must reject edits where the end time is not
@@ -419,8 +421,10 @@ states, failed submission states, or audited cleanup paths.
 delete active, ready-for-review, or failed local jobs when the current managed
 web user owns the job. Successfully submitted Autotask jobs cannot use local
 review cleanup because local history must stay tied to the external time entry.
-Use the audited Edit Entry or Delete From Autotask paths for submitted-entry
-corrections instead of expanding local destructive behavior.
+The only submitted-job local purge exception is the explicit fallback after
+Delete From Autotask fails. Use the audited Edit Entry or Delete From Autotask
+paths for submitted-entry corrections instead of expanding local destructive
+behavior.
 
 ## Time Rules
 

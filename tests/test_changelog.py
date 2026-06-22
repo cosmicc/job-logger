@@ -25,12 +25,14 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
+    assert "## v1.1.2 - User management table polish" in changelog_text
     assert "## v1.1.1 - Review cleanup, Autotask roles, Docker startup, and diagnostics" in changelog_text
     assert "## v1.1.0 - Direct submission, backups, and passkeys" in changelog_text
     assert "## v1.0.2 - Autotask workflow and desktop layout updates" in changelog_text
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
+    assert "## v1.1.2 - User list and Device sign-in updates" in web_changelog_text
     assert "## v1.1.1 - Review action cleanup and Autotask role fixes" in web_changelog_text
     assert "## v1.1.0 - Direct submission and passkeys" in web_changelog_text
     assert "## v1.0.2 - Autotask workflow and desktop layout updates" in web_changelog_text
@@ -73,11 +75,9 @@ def test_changelog_parser_reads_current_release() -> None:
             "Record and AI Cleanup now share a row on review detail with shorter labels and icons.",
             "Active jobs can now be ended from Review detail.",
             "Full browser Work in Progress and Review buttons now use cleaner paired rows.",
-            "Autotask time-entry submission no longer requires ticket status update permission by default.",
             "Autotask submission now handles tickets that provide an assigned resource but omit the assigned role.",
             "Autotask submission now handles tickets where the submitting user is assigned as a secondary resource.",
-            "Autotask submission can now use a configured default service-desk role for a web user when a ticket does not provide usable role data.",
-            "The default service-desk role picker now shows role names when available.",
+            "Autotask submission can now use a configured default service-desk role for a user when a ticket does not provide usable role data.",
         ),
     )
 
@@ -99,24 +99,33 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
+    assert "v1.1.2" in response.text
     assert "v1.1.1" in response.text
     assert "v1.1.0" in response.text
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
+    assert "User list and Device sign-in updates" in response.text
+    assert "User list columns now fit longer names and usernames better." in response.text
+    assert "User list role values now show the saved role ID more simply." in response.text
+    assert "The old Autotask refresh action was removed from each user row." in response.text
+    assert "Passkey setup and login buttons now use the clearer Device sign-in name." in response.text
+    assert (
+        "Submitted time entries now keep the Autotask ticket status matched to the selected Job Logger "
+        "status on submit and Edit Entry."
+    ) in response.text
+    assert "If Delete From Autotask fails, Review can now offer a local-only purge option for the Job Logger entry." in response.text
     assert "Review action cleanup" in response.text
     assert "Review detail now uses compact action rows like Work in Progress." in response.text
     assert "Record and AI Cleanup now share a row on review detail with shorter labels and icons." in response.text
     assert "Active jobs can now be ended from Review detail." in response.text
     assert "Full browser Work in Progress and Review buttons now use cleaner paired rows." in response.text
-    assert "Autotask time-entry submission no longer requires ticket status update permission by default." in response.text
     assert "Autotask submission now handles tickets that provide an assigned resource but omit the assigned role." in response.text
     assert "Autotask submission now handles tickets where the submitting user is assigned as a secondary resource." in response.text
     assert (
-        "Autotask submission can now use a configured default service-desk role for a web user "
+        "Autotask submission can now use a configured default service-desk role for a user "
         "when a ticket does not provide usable role data."
     ) in response.text
-    assert "The default service-desk role picker now shows role names when available." in response.text
     assert "Direct submission and passkeys" in response.text
     assert "Added a Config option to submit time entries directly from Work in Progress." in response.text
     assert "Review is still available afterward for submitted-entry edits and Autotask deletion." in response.text
@@ -149,10 +158,12 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
     assert response.text.index("Review action cleanup") < response.text.index("Direct submission and passkeys")
+    assert response.text.index("User list and Device sign-in updates") < response.text.index("Direct submission and passkeys")
     assert response.text.index("Direct submission and passkeys") < response.text.index("Autotask workflow and desktop layout updates")
     assert response.text.index("Autotask workflow and desktop layout updates") < response.text.index("Mobile shell navigation and close behavior")
     assert response.text.index("Mobile shell navigation and close behavior") < response.text.index("Initial release")
     assert '<h2 id="current-version-heading">Review action cleanup and Autotask role fixes</h2>' in response.text
+    assert '<span class="release-version">v1.1.2</span>' in response.text
     assert '<span class="release-version">v1.1.1</span>' in response.text
     assert '<span class="release-version">v1.1.0</span>' in response.text
     assert '<span class="release-version">v1.0.2</span>' in response.text

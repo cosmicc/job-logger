@@ -35,12 +35,10 @@ Autotask resource ID. They may also store the email address returned by the
 selected Autotask Resource lookup and an optional default active service-desk
 role ID selected from that resource's active Autotask `ResourceServiceDeskRoles`.
 The `/users` page presents managed accounts in a table with visible stored email
-and default-role metadata and icon-only row actions for refresh, edit,
-enable/disable, and delete-as-disable. The refresh action
-re-queries Autotask Resources, requires the returned resource ID to match the
-stored ID, and updates only safe local name/email metadata. The add form may
-suggest usernames from full names, such as `jblow` for `Joe Blow`, and add/edit
-forms may query Autotask Resources and active service-desk roles for
+and default-role metadata and icon-only row actions for edit, enable/disable,
+and delete-as-disable. The add form may suggest usernames from full names, such
+as `jblow` for `Joe Blow`, and add/edit forms may query Autotask Resources and
+active service-desk roles for
 super-admin-only resource and role pickers. The role picker should show
 Autotask `Roles.name` labels when that metadata is readable while storing only
 the selected numeric `roleID` on the managed web-user row.
@@ -70,9 +68,11 @@ session challenges, require CSRF on browser fetches, require user verification,
 verify the configured relying-party ID and origin, update signature counters on
 successful login, block disabled users, audit only safe metadata, and keep
 password login available as fallback.
-`/config` is the persistent passkey management surface. `/home` may show an
-Add Passkey card only once after each successful login, and only while that
-managed user has no registered passkeys.
+`/config` is the persistent passkey management surface. User-facing buttons and
+prompts should call this **Device sign-in** so users understand it can use a
+phone, browser, biometric unlock, PIN, or another passkey-capable device.
+`/home` may show a device sign-in setup card only once after each successful
+login, and only while that managed user has no registered passkeys.
 
 Managed web users may change per-login configuration on `/config`. Per-user
 configuration is database-backed, defaults to the dark theme, saves immediately
@@ -162,14 +162,15 @@ Recorded jobs follow this lifecycle:
    read-only. Its job date, start time, end time, summary notes, and ticket
    status can be changed only through the audited **Edit Entry** action, which
    updates the existing Autotask time entry instead of creating another entry.
-   When `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true`, **Edit Entry** may
-   temporarily move a previously Complete ticket to In progress before patching
-   `TimeEntries`, then move the ticket to the selected final status when
-   needed. With ticket status updates disabled, **Edit Entry** patches only the
-   existing `TimeEntries` row and never patches `Tickets.status`.
+   **Edit Entry** always patches `Tickets.status` to the selected local app
+   status as part of the resubmission. When needed, it may temporarily move a
+   previously Complete ticket to In progress before patching `TimeEntries`,
+   then move the ticket to the selected final status after the time-entry patch.
    The audited **Delete From Autotask** action may delete the external time
    entry and move the local job back to review, but must not delete the local
-   job record.
+   job record. If Delete From Autotask fails, the selected review detail may
+   show an explicit local-only purge fallback that removes the Job Logger review
+   row while warning that the Autotask time entry may still exist.
 8. Failed or edited jobs remain available for audit history. Local cleanup is
    available only through explicit audited delete actions, including **Delete
    time entry** on review detail for local unsubmitted jobs.
@@ -233,10 +234,10 @@ or owning user's resource ID for service-call lookup and for
 `TimeEntries.resourceID` on create. User-scoped Autotask calls must not send
 Autotask's optional `ImpersonationResourceId` header; do not add or restore a
 global `AUTOTASK_IMPERSONATION_RESOURCE_ID` setting. Static Autotask role and
-billing-code IDs must not be configured. Ticket status writes are opt-in
-through `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED`; when disabled, submission and
-submitted-entry edits must not patch `Tickets.status` and should create or
-patch only `TimeEntries`. The live provider must query the selected ticket at
+billing-code IDs must not be configured. Time-entry submission and submitted
+**Edit Entry** actions must patch `Tickets.status` to the selected local app
+ticket status, using the configured tenant-specific `AUTOTASK_STATUS_*_ID`
+mapping. The live provider must query the selected ticket at
 submission time, use `Tickets.assignedResourceroleID` as `TimeEntries.roleID`
 when available, fall back to
 `TicketSecondaryResources.roleID` for the submitting managed user's resource
@@ -255,9 +256,7 @@ to find matching Autotask Resources by `Last, First` name and fill the
 user-specific resource ID and optional email address. It may also query
 `ResourceServiceDeskRoles` through the server to list active role IDs for the
 selected resource, enrich those dropdown choices with `Roles.name` when allowed,
-and save the chosen numeric per-user fallback role ID. Per-row refresh on
-`/users` uses the same server-side provider and updates stored local metadata
-only after the returned resource ID matches the user's saved resource ID.
+and save the chosen numeric per-user fallback role ID.
 
 Autotask API errors must be recorded clearly for review and troubleshooting
 without exposing credentials or sensitive protocol details.
@@ -535,8 +534,8 @@ The application is a FastAPI project under `job_logger/`.
   selected job, and explicit local **Delete time entry** cleanup.
 - `job_logger/routes/users.py` handles the super-admin managed web-user page,
   including add/edit/enable/disable/delete-as-disable behavior, Autotask
-  Resource lookup, active service-desk role lookup, per-row Resource metadata
-  refresh, and session invalidation when accounts are disabled.
+  Resource lookup, active service-desk role lookup, and session invalidation
+  when accounts are disabled.
 - `job_logger/routes/configuration.py` handles authenticated managed-web-user
   configuration such as immediate light/dark theme selection and explicit
   managed-user password changes.
@@ -597,11 +596,10 @@ The normal workflow is:
    app login.
 2. The config super admin opens `/users` to create and edit managed web users.
    The page lists users in a desktop table and mobile card layout with icon-only
-   row actions for refresh, edit, enable/disable, and delete-as-disable.
+   row actions for edit, enable/disable, and delete-as-disable.
    The add form suggests a username from the full name, and add/edit forms can
    query Autotask Resources to select the matching resource ID and capture the
-   returned email address. Per-row refresh re-queries Autotask Resources and
-   updates stored local name/email metadata only for the saved resource ID.
+   returned email address.
    Delete actions always disable the selected account, sign out its existing
    sessions on the next request, and preserve the row so future login attempts
    can show the disabled-account message. The first managed web user claims any
@@ -683,19 +681,22 @@ The normal workflow is:
 16. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes
     updates against the existing Autotask time entry, or **Delete From Autotask**
     to remove the external time entry and return the local job to review.
-    `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true` allows **Edit Entry** to
-    reopen previously Complete tickets to In progress before patching
-    `TimeEntries`, then apply the selected final status after the time-entry
-    patch when needed. With the default disabled setting, submitted-entry edits
-    patch only `TimeEntries`.
+    **Edit Entry** reasserts the selected local ticket status in Autotask every
+    time it patches the existing `TimeEntries` row. It may reopen previously
+    Complete tickets to In progress before patching `TimeEntries`, then apply
+    the selected final status after the time-entry patch when needed.
+    If **Delete From Autotask** fails, a session-scoped dialog can offer a
+    local-only purge from Job Logger review while warning that the Autotask time
+    entry may still exist.
     Ticket/client identity, local delete, accept/resend, and retry stay blocked
     while the job remains submitted.
 17. Submission attempts and important state changes are recorded for audit and
     diagnostics.
-18. Managed users without a passkey see a Home prompt to add one once after a
-    successful login. `/config` always shows passkey management. Later passkey
-    login uses `/login/passkey/options` and `/login/passkey/verify`; failed or
-    canceled passkey login must leave the normal password form available.
+18. Managed users without a passkey see a Home prompt to set up device sign-in
+    once after a successful login. `/config` always shows device sign-in
+    management backed by passkeys. Later device sign-in uses
+    `/login/passkey/options` and `/login/passkey/verify`; failed or canceled
+    passkey login must leave the normal password form available.
 19. Authenticated users may open `/changelog` from the discreet header version
     link to view the current source-controlled version and prior concise release
     notes parsed from `WEB_CHANGELOG.md`. The current-version panel must show
@@ -718,15 +719,17 @@ In production:
   still call Autotask only when those specific workflows need provider data.
   Service-call and open-ticket selection are read/query-only against Autotask
   and must not patch remote ticket status before time-entry submission.
-- Ticket status writes are disabled by default. Set
-  `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true` only when the Autotask API user
-  is allowed to patch `Tickets.status` and the deployment intentionally wants
-  Job Logger to advance or close tickets as part of submission/edit workflows.
+- Time-entry submission patches `Tickets.status` to match the selected Job
+  Logger ticket status. Configure all `AUTOTASK_STATUS_*_ID` values and ensure
+  the Autotask API user can patch `Tickets.status`; otherwise submission fails
+  without marking the local job submitted.
+- Submitted **Edit Entry** actions also patch `Tickets.status` to match the
+  selected Job Logger ticket status. The removed
+  `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED` setting must not be reintroduced.
 - Super-admin resource lookup on `/users` calls Autotask Resources only through
   the server-side provider; browser code never contacts Autotask directly.
   Returned resource email metadata is optional and is stored only when a user
-  selects a resource that includes one. Per-row refresh uses the same provider
-  and updates only safe local metadata after matching the saved resource ID.
+  selects a resource that includes one.
 - The `/debug` page provides the supported manual **Test Autotask API** action.
 - The `/debug` page provides a super-admin-only **Log out web users** action
   that invalidates all managed web-user sessions without ending the current

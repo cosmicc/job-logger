@@ -15,6 +15,7 @@ from job_logger import database
 from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
 from job_logger.models import AuditEvent, Job, SubmissionAttempt
 from job_logger.services.ai_cleanup import AiCleanupResult
+from job_logger.services.autotask import AutotaskSubmissionResult
 from job_logger.services.jobs import get_active_job
 from job_logger.time_utils import format_local_time, local_date_for
 from tests.conftest import extract_csrf_token, login_as_super_admin
@@ -88,6 +89,28 @@ def create_submitted_mock_job(authenticated_client: TestClient, *, summary_notes
     assert accept_response.status_code == 303
 
     return active_job_id, review_csrf_token
+
+
+class FailingDeleteAutotaskProvider:
+    """Provider double that fails only the submitted-entry delete operation."""
+
+    provider_name = "fake-autotask"
+
+    def delete_time_entry(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
+        """Return a safe remote delete failure without changing local state."""
+
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=False,
+            external_id=external_id,
+            safe_error="Autotask refused to delete that time entry.",
+            request_snapshot={
+                "operation": "delete_time_entry",
+                "job_id": job.id,
+                "external_id": external_id,
+                "resourceID": resource_id,
+            },
+        )
 
 
 def enable_submit_from_work_in_progress(authenticated_client: TestClient) -> None:
@@ -501,6 +524,11 @@ def test_submitted_jobs_allow_edit_entry_but_block_local_mutations(authenticated
         data={"csrf_token": review_csrf_token},
         follow_redirects=False,
     )
+    submitted_local_purge_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/purge-submitted-local",
+        data={"csrf_token": review_csrf_token},
+        follow_redirects=False,
+    )
     ticket_selection_response = authenticated_client.post(
         f"/review/{submitted_job_id}/ticket",
         headers={"X-CSRF-Token": review_csrf_token},
@@ -518,6 +546,8 @@ def test_submitted_jobs_allow_edit_entry_but_block_local_mutations(authenticated
     assert removed_reject_route_response.status_code == 404
     assert purge_response.status_code == 303
     assert purge_response.headers["location"] == f"/review/{submitted_job_id}"
+    assert submitted_local_purge_response.status_code == 303
+    assert submitted_local_purge_response.headers["location"] == f"/review/{submitted_job_id}"
     assert ticket_selection_response.status_code == 400
     assert "cannot be deleted locally, resent, or have ticket identity changed" in ticket_selection_response.json()["detail"]
     assert edit_entry_response.status_code == 303
@@ -549,8 +579,8 @@ def test_submitted_jobs_allow_edit_entry_but_block_local_mutations(authenticated
         assert submission_attempts[1].request_snapshot["ticketStatusUpdateAttempted"] is True
 
 
-def test_submitted_entry_edit_without_status_change_skips_ticket_status_update(authenticated_client: TestClient) -> None:
-    """Unchanged submitted-entry status must not require an Autotask ticket update."""
+def test_submitted_entry_edit_without_status_change_reasserts_ticket_status(authenticated_client: TestClient) -> None:
+    """Edit Entry reasserts the selected ticket status even when local status is unchanged."""
 
     submitted_job_id, review_csrf_token = create_submitted_mock_job(
         authenticated_client,
@@ -590,7 +620,7 @@ def test_submitted_entry_edit_without_status_change_skips_ticket_status_update(a
         assert len(submission_attempts) == 2
         assert submission_attempts[1].succeeded is True
         assert submission_attempts[1].request_snapshot["operation"] == "update_time_entry"
-        assert submission_attempts[1].request_snapshot["ticketStatusUpdateAttempted"] is False
+        assert submission_attempts[1].request_snapshot["ticketStatusUpdateAttempted"] is True
 
 
 def test_submitted_job_delete_entry_removes_autotask_entry_only(authenticated_client: TestClient) -> None:
@@ -642,6 +672,64 @@ def test_submitted_job_delete_entry_removes_autotask_entry_only(authenticated_cl
     updated_review_html = updated_review_page_response.text
     assert "Delete From Autotask" not in updated_review_html
     assert f'formaction="/review/{submitted_job_id}/accept"' in updated_review_html
+
+
+def test_failed_delete_from_autotask_prompts_local_review_purge(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed remote delete can fall back to an explicit local-only purge."""
+
+    submitted_job_id, review_csrf_token = create_submitted_mock_job(
+        authenticated_client,
+        summary_notes="Submitted notes for failed remote delete.",
+    )
+    monkeypatch.setattr(
+        "job_logger.services.jobs.get_autotask_provider",
+        lambda: FailingDeleteAutotaskProvider(),
+    )
+
+    delete_entry_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/delete-entry",
+        data={"csrf_token": review_csrf_token},
+        follow_redirects=False,
+    )
+
+    assert delete_entry_response.status_code == 303
+    assert delete_entry_response.headers["location"] == f"/review/{submitted_job_id}"
+    with database.SessionLocal() as database_session:
+        submitted_job = database_session.get(Job, submitted_job_id)
+        assert submitted_job is not None
+        assert submitted_job.status == JobStatus.SUBMITTED
+        assert submitted_job.autotask_external_id == f"mock-time-entry-{submitted_job_id}"
+        assert submitted_job.autotask_error == "Autotask refused to delete that time entry."
+
+    failed_review_response = authenticated_client.get(f"/review/{submitted_job_id}")
+    failed_review_html = failed_review_response.text
+    assert "Autotask delete failed" in failed_review_html
+    assert "Purge from Job Logger review?" in failed_review_html
+    assert "It does not delete the time entry from Autotask." in failed_review_html
+    assert f'action="/review/{submitted_job_id}/purge-submitted-local"' in failed_review_html
+
+    purge_csrf_token = extract_csrf_token(failed_review_html)
+    purge_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/purge-submitted-local",
+        data={"csrf_token": purge_csrf_token},
+        follow_redirects=False,
+    )
+
+    assert purge_response.status_code == 303
+    assert purge_response.headers["location"] == "/review"
+    with database.SessionLocal() as database_session:
+        assert database_session.get(Job, submitted_job_id) is None
+        assert database_session.query(SubmissionAttempt).filter_by(job_id=submitted_job_id).count() == 0
+        purge_event = database_session.query(AuditEvent).filter_by(
+            action="job.review.submitted_delete_failed_local_purged",
+        ).one()
+        assert purge_event.job_id is None
+        assert purge_event.details["job_id"] == submitted_job_id
+        assert purge_event.details["external_id"] == f"mock-time-entry-{submitted_job_id}"
+        assert purge_event.details["local_only"] is True
 
 
 def test_mobile_page_and_blank_start_do_not_probe_autotask(

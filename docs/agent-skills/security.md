@@ -54,9 +54,10 @@ admin must not register or use passkeys. Passkey registration is available only
 after a normal managed-user login from `/config`; login remains available from
 the password page through a separate passkey button. Failed, canceled, or
 unsupported passkey authentication must leave the username/password form usable.
-The `/home` Add Passkey card is only a one-time post-login prompt for managed
-users without a passkey; `/config` must always keep the Add Passkey action
-available.
+User-facing controls should call this feature **Device sign-in** even though the
+technical implementation remains WebAuthn/passkeys. The `/home` device sign-in
+setup card is only a one-time post-login prompt for managed users without a
+passkey; `/config` must always keep the device sign-in setup action available.
 
 The app stores only WebAuthn public credential material: credential ID, public
 key, signature counter, safe device metadata, creation time, and last-used time.
@@ -88,9 +89,6 @@ labels from `Roles.name` for the selected resource, but saving a submitted
 default role must still re-query the server-side provider and verify that role
 is active for the submitted resource ID. The stored managed-user value remains
 the numeric role ID, not the display name.
-The per-row `/users/{user_id}/refresh-resource` action is also
-super-admin-only, CSRF-protected, and must update only safe local metadata after
-matching the returned Autotask resource ID to the user's stored ID.
 
 Per-user configuration lives behind authenticated managed-web-user-only
 `/config` routes. The config super admin has no user settings, must not see the
@@ -193,8 +191,7 @@ Important actions must record audit events through `job_logger/services/audit.py
 Audit-worthy actions include:
 
 - Authentication-sensitive events.
-- Managed web-user add, edit, enable, disable, delete-as-disable, and
-  Autotask Resource metadata refresh actions.
+- Managed web-user add, edit, enable, disable, and delete-as-disable actions.
 - Per-user configuration updates.
 - Managed web-user password changes.
 - Managed web-user passkey registration, deletion, and login success/failure.
@@ -320,10 +317,12 @@ which may update only job date, start time, end time, summary notes, and ticket
 status for the same submitted job. It must patch the existing Autotask
 `TimeEntries` row instead of creating a new time entry. If the previous ticket
 status was Complete, the provider may temporarily move the ticket to In progress
-before the time-entry patch and then apply the selected final status. A second
+before the time-entry patch and then apply the selected final status. Edit Entry
+must always reassert the selected local ticket status in Autotask. A second
 CSRF-protected submitted action, **Delete From Autotask**, may delete the
 external `TimeEntries` row and return the local job to review, but it must not
-delete the local job, audit events, or submission attempts.
+delete the local job, audit events, or submission attempts unless that remote
+delete fails and the user confirms the session-scoped local-only purge fallback.
 
 ## Database And Deletion Safety
 
@@ -338,7 +337,10 @@ discard path. Local **Delete time entry** cleanup must stay blocked for
 successfully submitted Autotask jobs so local history remains tied to the
 external time entry.
 Submitted-entry corrections belong in the audited Edit Entry or Delete From
-Autotask routes, not local cleanup or resend flows.
+Autotask routes, not local cleanup or resend flows. The only submitted-job local
+cleanup exception is the explicit, CSRF-protected local-only purge offered after
+Delete From Autotask fails, and it must warn that the Autotask entry may still
+exist.
 
 The `/debug` full backup and restore actions are the supported whole-app data
 export/import path. They must remain super-admin-only and CSRF-protected. Backup

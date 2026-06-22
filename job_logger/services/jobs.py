@@ -881,7 +881,6 @@ def update_submitted_job_autotask_entry(
         "rounded_end_utc": job.rounded_end_utc,
         "local_work_date": job.local_work_date,
     }
-    ticket_status_changed = previous_values["ticket_status"] != review_fields.ticket_status
     _apply_submitted_entry_fields(job, review_fields)
 
     try:
@@ -890,7 +889,6 @@ def update_submitted_job_autotask_entry(
             external_id,
             resource_id=resource_id,
             previous_ticket_status=previous_values["ticket_status"],
-            update_ticket_status=ticket_status_changed,
         )
     except AutotaskSubmissionError as exc:
         submission_result = None
@@ -1017,6 +1015,23 @@ def purge_job(database_session: Session, job: Job) -> Job:
 
     # Keep audit history intact by leaving audit event rows in place; they remain
     # with a NULLed job_id so security and troubleshooting context is preserved.
+    database_session.delete(job)
+    return job
+
+
+def purge_submitted_job_after_failed_autotask_delete(database_session: Session, job: Job) -> Job:
+    """Delete a submitted local job only after its Autotask delete path failed."""
+
+    ensure_job_is_successfully_submitted(job)
+    if not (job.autotask_external_id or "").strip():
+        raise JobWorkflowError("This submitted job no longer has an Autotask time entry ID.")
+    if not (job.autotask_error or "").strip():
+        raise JobWorkflowError("Delete From Autotask must fail before this local purge is available.")
+
+    # This is intentionally separate from purge_job because submitted jobs are
+    # normally protected. It is a last-resort local cleanup after the remote
+    # delete failed and the user explicitly confirms the local-only removal.
+    database_session.query(SubmissionAttempt).filter_by(job_id=job.id).delete(synchronize_session=False)
     database_session.delete(job)
     return job
 

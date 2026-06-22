@@ -2,6 +2,32 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## v1.1.2 - User management table polish
+
+- Changed the super-admin `/users` table to make the managed-user name and
+  username columns easier to read in the desktop table by tightening table
+  padding, reallocating column widths, and allowing those identity values to
+  wrap instead of clipping.
+- Changed the `/users` table's default service-desk role display to show only
+  the numeric saved role ID. The add/edit role picker still keeps its
+  explanatory labels for selection clarity.
+- Removed the per-row Autotask Resource refresh action from `/users` and
+  resized the action column for the remaining edit and enable/disable controls.
+- Changed live Autotask time-entry submission so the selected Job Logger ticket
+  status is required to sync to `Tickets.status` during submission. Submissions
+  now fail with a clear configuration or permission error instead of creating a
+  time entry while leaving the ticket in an old status such as New.
+- Removed the `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED` runtime option. New
+  submissions and submitted **Edit Entry** resubmissions now always reassert the
+  selected Job Logger ticket status in Autotask, while ticket lookup and ticket
+  selection remain read-only.
+- Added a failed **Delete From Autotask** fallback dialog that can purge the
+  local Job Logger review entry after a remote delete failure, with a local-only
+  warning that the Autotask time entry may still exist.
+- Renamed user-facing passkey action buttons and prompts to **Device sign-in**
+  so users understand the feature can use a phone, browser, biometric unlock,
+  PIN, or other passkey-capable device.
+
 ## v1.1.1 - Review cleanup, Autotask roles, Docker startup, and diagnostics
 
 - Advanced the source-controlled dev runtime version to `v1.1.1`, including the

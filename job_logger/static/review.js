@@ -15,6 +15,7 @@ const aiCleanupButtons = document.querySelectorAll("[data-ai-cleanup-button]");
 const reviewRecordButtons = document.querySelectorAll("[data-review-record-button]");
 const confirmationForms = document.querySelectorAll("[data-confirm-message]");
 const reviewTaskForms = document.querySelectorAll("[data-review-task-form]");
+const submittedDeleteFallbackDialog = document.querySelector("[data-submitted-delete-fallback-dialog]");
 const reviewPageLoadingOverlay = document.querySelector("[data-review-page-loading]");
 const reviewPageLoadingMessage = document.querySelector("[data-review-page-loading-message]");
 
@@ -644,6 +645,21 @@ function handleReviewTaskFormSubmit(event) {
   showReviewPageLoading(loadingMessage);
 }
 
+function showSubmittedDeleteFallbackDialog() {
+  if (!submittedDeleteFallbackDialog) {
+    return;
+  }
+
+  if (typeof submittedDeleteFallbackDialog.showModal === "function") {
+    if (!submittedDeleteFallbackDialog.open) {
+      submittedDeleteFallbackDialog.showModal();
+    }
+    return;
+  }
+
+  submittedDeleteFallbackDialog.setAttribute("open", "");
+}
+
 function buildReviewAutosaveSnapshot() {
   if (!reviewAutosaveForm) {
     return "";
@@ -1122,3 +1138,5 @@ if (confirmationForms.length > 0) {
 if (reviewTaskForms.length > 0) {
   document.addEventListener("submit", handleReviewTaskFormSubmit);
 }
+
+showSubmittedDeleteFallbackDialog();
