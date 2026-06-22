@@ -157,12 +157,11 @@ Recorded jobs follow this lifecycle:
    read-only. Its job date, start time, end time, summary notes, and ticket
    status can be changed only through the audited **Edit Entry** action, which
    updates the existing Autotask time entry instead of creating another entry.
-   If the previously submitted ticket status is Complete, **Edit Entry** must
-   temporarily move the ticket to In progress before patching `TimeEntries`,
-   then move the ticket to the selected final status when needed. If the
-   previous status was not Complete, the app patches `Tickets.status` only for
-   an intentional status change, and final Complete status is applied after the
-   time-entry patch.
+   When `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true`, **Edit Entry** may
+   temporarily move a previously Complete ticket to In progress before patching
+   `TimeEntries`, then move the ticket to the selected final status when
+   needed. With ticket status updates disabled, **Edit Entry** patches only the
+   existing `TimeEntries` row and never patches `Tickets.status`.
    The audited **Delete From Autotask** action may delete the external time
    entry and move the local job back to review, but must not delete the local
    job record.
@@ -207,7 +206,7 @@ The required Autotask time-entry fields for this application are:
 
 - Ticket number.
 - Summary notes.
-- Ticket status.
+- Local ticket status selection.
 - Date.
 - Start time.
 - End time.
@@ -229,9 +228,12 @@ or owning user's resource ID for service-call lookup and for
 `TimeEntries.resourceID` on create. User-scoped Autotask calls must not send
 Autotask's optional `ImpersonationResourceId` header; do not add or restore a
 global `AUTOTASK_IMPERSONATION_RESOURCE_ID` setting. Static Autotask role and
-billing-code IDs must not be configured. The live provider must query the
-selected ticket at submission time, use `Tickets.assignedResourceroleID` as
-`TimeEntries.roleID` when available, fall back to
+billing-code IDs must not be configured. Ticket status writes are opt-in
+through `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED`; when disabled, submission and
+submitted-entry edits must not patch `Tickets.status` and should create or
+patch only `TimeEntries`. The live provider must query the selected ticket at
+submission time, use `Tickets.assignedResourceroleID` as `TimeEntries.roleID`
+when available, fall back to
 `TicketSecondaryResources.roleID` for the submitting managed user's resource
 when that user is a secondary resource on the ticket, then fall back to
 `Tickets.assignedResourceID` to resolve that resource's default or single active
@@ -239,8 +241,9 @@ when that user is a secondary resource on the ticket, then fall back to
 user's default or single active service-desk role when the ticket omits assigned
 role context. The app must still send the submitting managed user's resource ID
 as `TimeEntries.resourceID`. Omit `TimeEntries.billingCodeID` so Autotask
-inherits the selected ticket's Work Type on create. API credentials, ticket
-status IDs, and time-entry type remain environment configuration.
+inherits the selected ticket's Work Type on create. API credentials, optional
+ticket status IDs, the ticket-status-update switch, and time-entry type remain
+environment configuration.
 The super-admin `/users` page may query `/Resources/query` through the server
 to find matching Autotask Resources by `Last, First` name and fill the
 user-specific resource ID and optional email address. Per-row refresh on
@@ -659,7 +662,9 @@ The normal workflow is:
     controls into compact rows with at most two buttons per row; submitted
     entries pair **Edit Entry** with **Delete From Autotask**, while local
     unsubmitted entries pair the submit action with **Delete time entry** when
-    possible. Directly submitted jobs still appear in Review for submitted-entry
+    possible. Active jobs selected in Review show **End Work** paired with
+    **Delete time entry** and post to the normal end-work route. Directly
+    submitted jobs still appear in Review for submitted-entry
     **Edit Entry** and **Delete From Autotask** actions. Active jobs opened in
     Review show the same rounded stop preview as Work in Progress, but review
     saves must not apply that displayed end time until the job is actually
@@ -669,9 +674,11 @@ The normal workflow is:
 16. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes
     updates against the existing Autotask time entry, or **Delete From Autotask**
     to remove the external time entry and return the local job to review.
-    **Edit Entry** reopens previously Complete tickets to In progress before
-    patching `TimeEntries`, then applies the selected final status after the
-    time-entry patch when needed.
+    `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true` allows **Edit Entry** to
+    reopen previously Complete tickets to In progress before patching
+    `TimeEntries`, then apply the selected final status after the time-entry
+    patch when needed. With the default disabled setting, submitted-entry edits
+    patch only `TimeEntries`.
     Ticket/client identity, local delete, accept/resend, and retry stay blocked
     while the job remains submitted.
 17. Submission attempts and important state changes are recorded for audit and
@@ -702,6 +709,10 @@ In production:
   still call Autotask only when those specific workflows need provider data.
   Service-call and open-ticket selection are read/query-only against Autotask
   and must not patch remote ticket status before time-entry submission.
+- Ticket status writes are disabled by default. Set
+  `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true` only when the Autotask API user
+  is allowed to patch `Tickets.status` and the deployment intentionally wants
+  Job Logger to advance or close tickets as part of submission/edit workflows.
 - Super-admin resource lookup on `/users` calls Autotask Resources only through
   the server-side provider; browser code never contacts Autotask directly.
   Returned resource email metadata is optional and is stored only when a user

@@ -963,7 +963,7 @@ class FakeConnectivityProvider:
         )
 
 
-def _live_test_provider() -> LiveAutotaskProvider:
+def _live_test_provider(*, ticket_status_updates_enabled: bool = True) -> LiveAutotaskProvider:
     """Return a configured live provider without real Autotask credentials."""
 
     test_settings = replace(
@@ -973,6 +973,7 @@ def _live_test_provider() -> LiveAutotaskProvider:
         autotask_username="api-user-key",
         autotask_secret="api-secret",
         autotask_api_integration_code="integration-code",
+        autotask_ticket_status_updates_enabled=ticket_status_updates_enabled,
         autotask_status_in_progress_id=1,
         autotask_status_waiting_customer_id=2,
         autotask_status_waiting_parts_id=3,
@@ -1471,6 +1472,55 @@ def test_complete_submission_updates_ticket_status_after_time_entry_create(monke
         ("/Tickets", {"id": 123456, "status": 1}),
         ("/TimeEntries", fake_client.posted_payload),
         ("/Tickets", {"id": 123456, "status": 5}),
+    ]
+
+
+def test_submission_skips_ticket_status_updates_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """TimeEntries creation should not require Tickets.status permissions by default."""
+
+    provider = _live_test_provider(ticket_status_updates_enabled=False)
+    fake_client = FakeCompleteSubmissionClient()
+    rounded_start_utc = datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="complete-submit-without-ticket-status-test",
+        status=JobStatus.READY_FOR_REVIEW,
+        ticket_number="T20260616.0001",
+        ticket_status=TicketStatus.COMPLETE,
+        summary_notes="Create time without changing ticket status.",
+        description_text="Create time without changing ticket status.",
+        raw_start_utc=rounded_start_utc,
+        raw_end_utc=rounded_start_utc + timedelta(minutes=30),
+        rounded_start_utc=rounded_start_utc,
+        rounded_end_utc=rounded_start_utc + timedelta(minutes=30),
+    )
+
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeAutotaskClientContext:
+        """Return the fake client while matching the provider client signature."""
+
+        assert timeout_seconds == 30.0
+        return FakeAutotaskClientContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    result = provider.submit_job(job, resource_id=1)
+
+    assert result.succeeded is True
+    assert result.external_id == "987654"
+    assert result.request_snapshot["ticketStatusUpdatesEnabled"] is False
+    assert result.request_snapshot["ticketStatusUpdateAttempted"] is False
+    assert result.request_snapshot["ticketStatusPreUpdate"] is None
+    assert result.request_snapshot["ticketStatusPostUpdate"] is None
+    assert fake_client.posted_payload is not None
+    assert fake_client.operations == [
+        (
+            "/Tickets/query",
+            {
+                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "assignedResourceID", "billingCodeID"],
+                "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260616.0001"}],
+                "MaxRecords": 1,
+            },
+        ),
+        ("/TimeEntries", fake_client.posted_payload),
     ]
 
 

@@ -1171,6 +1171,8 @@ async def end_work(
     submitted_work_location = str(raw_work_location) if raw_work_location is not None else None
     raw_ticket_status = form_data.get("ticket_status")
     submitted_ticket_status = str(raw_ticket_status) if raw_ticket_status is not None else None
+    return_to = str(form_data.get("return_to", "")).strip().lower()
+    redirect_url = f"/review/{job_id}" if return_to == "review" else "/home"
 
     try:
         web_user = _current_enabled_web_user(request, database_session)
@@ -1233,7 +1235,7 @@ async def end_work(
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/home", status_code=303)
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @router.post("/jobs/{job_id}/description/text")

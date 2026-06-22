@@ -93,6 +93,9 @@
             {% endif %}
           >
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            {% if selected_job.status.value == "active" %}
+              <input type="hidden" name="return_to" value="review">
+            {% endif %}
 
             <div class="form-header-row">
               <div>
@@ -387,6 +390,39 @@
                         <path d="M9 10h6"></path>
                       </svg>
                       Delete From Autotask
+                    </button>
+                  </form>
+                </div>
+              {% elif selected_job.status.value == "active" %}
+                <div class="button-pair-row review-action-row">
+                  <button
+                    class="primary-button"
+                    type="submit"
+                    form="{{ review_form_id }}"
+                    formaction="/jobs/{{ selected_job.id }}/end"
+                    data-review-loading-message="Ending work..."
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M8 5h8v14H8z"></path>
+                    </svg>
+                    End Work
+                  </button>
+                  <form
+                    method="post"
+                    action="/review/{{ selected_job.id }}/purge"
+                    class="purge-form review-inline-action-form"
+                    data-confirm-message="This will permanently remove this local time entry and related debug history. Continue?"
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="danger-outline-button" type="submit">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6h18"></path>
+                        <path d="M8 6V4h8v2"></path>
+                        <path d="M10 11v6"></path>
+                        <path d="M14 11v6"></path>
+                        <path d="M9 10h6"></path>
+                      </svg>
+                      Delete time entry
                     </button>
                   </form>
                 </div>

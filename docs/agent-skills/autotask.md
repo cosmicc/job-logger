@@ -37,8 +37,11 @@ the submitting managed user's default or single active service-desk role. The
 final `TimeEntries.resourceID` must still be the owning/submitting managed
 user's resource ID. The provider omits `TimeEntries.billingCodeID` so Autotask
 inherits the selected ticket's Work Type on create. API credentials, ticket
-status IDs, time-entry type, and optional Autotask provider settings remain
-environment-backed. Do not add a global
+status IDs, the `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED` switch, time-entry
+type, and optional Autotask provider settings remain environment-backed. Ticket
+status writes are disabled by default; enable them only when the API user can
+patch `Tickets.status` and the deployment intentionally wants Job Logger to
+advance or close tickets automatically. Do not add a global
 Autotask impersonation resource setting; user-scoped workflows use the owning
 managed web user's resource ID in payloads and filters but do not send
 Autotask's optional `ImpersonationResourceId` header.
@@ -79,7 +82,8 @@ Current provider responsibilities:
 - Keep service-call and open-ticket selection read-only against Autotask while
   the workflow stores a local editable default status of `In progress`.
 - Update selected ticket status only during submission and submitted-entry edits
-  when configured and required by the workflow.
+  when `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true` and tenant status IDs are
+  configured.
 - Create `TimeEntries`.
 - Patch existing submitted `TimeEntries`.
 - Delete existing submitted `TimeEntries` when the local job must return to
@@ -318,7 +322,7 @@ Required live Autotask values include:
   ticket-assigned resource's service-desk role, or the submitting resource's
   service-desk role.
 - Time entry type.
-- Tenant-specific ticket status picklist IDs.
+- Tenant-specific ticket status picklist IDs only when ticket status updates are enabled.
 
 Ticket `TimeEntries` creation must query the selected `Tickets` row by
 `ticketNumber` and use `assignedResourceroleID` for `TimeEntries.roleID` when
@@ -357,8 +361,8 @@ entries for the same accepted job.
 
 Both Review acceptance and direct Work in Progress submission must call
 `submit_job_to_autotask()` so idempotency keys, submission attempts, safe error
-handling, ticket status updates, role lookup, and summary construction remain
-centralized.
+handling, optional ticket status updates, role lookup, and summary construction
+remain centralized.
 
 After a provider reports successful submission, ticket identity and destructive
 workflow actions remain protected. Do not allow later review save, ticket
@@ -366,13 +370,13 @@ selection, accept/resend, retry, or local **Delete time entry** actions for that
 job. Supported submitted-job mutations are limited to audited external-entry
 actions: **Edit Entry** validates one job date, start/end times, summary notes,
 and ticket status, then patches the existing Autotask `TimeEntries` row by its
-stored external ID. If the previously submitted ticket status is `Complete`,
-**Edit Entry** must first move the ticket to `In progress`, then patch
-`TimeEntries`, then move the ticket to the selected final status when needed.
-If the previous status was not `Complete`, update `Tickets.status` only for an
-intentional status change, and move a final `Complete` status after the
-`TimeEntries` patch. Failure must leave local state aligned with the last known
-successful Autotask state. **Delete From Autotask** deletes `TimeEntries/{id}` and
+stored external ID. With `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true`, a
+previously submitted `Complete` ticket may be moved to `In progress` before
+patching `TimeEntries`, and an intentional final status change may patch
+`Tickets.status`. With ticket status updates disabled, **Edit Entry** must not
+patch `Tickets.status`; it should only patch the existing `TimeEntries` row.
+Failure must leave local state aligned with the last known successful Autotask
+state. **Delete From Autotask** deletes `TimeEntries/{id}` and
 returns the local job to review only after Autotask confirms the delete. If
 either action fails, keep local state aligned with the last known successful
 Autotask state and store only safe error details.

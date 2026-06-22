@@ -6,7 +6,9 @@ Short release notes shown on the authenticated `/changelog` page.
 
 - Review detail now uses compact action rows like Work in Progress.
 - Record and AI Cleanup now share a row on review detail with shorter labels and icons.
+- Active jobs can now be ended from Review detail.
 - Full browser Work in Progress and Review buttons now use cleaner paired rows.
+- Autotask time-entry submission no longer requires ticket status update permission by default.
 - Autotask submission now handles tickets that provide an assigned resource but omit the assigned role.
 - Autotask submission now handles tickets where the submitting user is assigned as a secondary resource.
 

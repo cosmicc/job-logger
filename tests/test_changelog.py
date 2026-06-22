@@ -71,7 +71,9 @@ def test_changelog_parser_reads_current_release() -> None:
         changes=(
             "Review detail now uses compact action rows like Work in Progress.",
             "Record and AI Cleanup now share a row on review detail with shorter labels and icons.",
+            "Active jobs can now be ended from Review detail.",
             "Full browser Work in Progress and Review buttons now use cleaner paired rows.",
+            "Autotask time-entry submission no longer requires ticket status update permission by default.",
             "Autotask submission now handles tickets that provide an assigned resource but omit the assigned role.",
             "Autotask submission now handles tickets where the submitting user is assigned as a secondary resource.",
         ),
@@ -103,7 +105,9 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Review action cleanup" in response.text
     assert "Review detail now uses compact action rows like Work in Progress." in response.text
     assert "Record and AI Cleanup now share a row on review detail with shorter labels and icons." in response.text
+    assert "Active jobs can now be ended from Review detail." in response.text
     assert "Full browser Work in Progress and Review buttons now use cleaner paired rows." in response.text
+    assert "Autotask time-entry submission no longer requires ticket status update permission by default." in response.text
     assert "Autotask submission now handles tickets that provide an assigned resource but omit the assigned role." in response.text
     assert "Autotask submission now handles tickets where the submitting user is assigned as a secondary resource." in response.text
     assert "Direct submission and passkeys" in response.text

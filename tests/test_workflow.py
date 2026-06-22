@@ -1011,6 +1011,67 @@ def test_review_delete_time_entry_can_delete_active_jobs(authenticated_client: T
         assert audit_event.details["job_status"] == "active"
 
 
+def test_review_detail_can_end_active_jobs(authenticated_client: TestClient) -> None:
+    """Active jobs selected on review detail expose the normal End Work action."""
+
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    save_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Review Active Client",
+            "summary_notes": "Ready to end from review.",
+            "ticket_status": "in_progress",
+        },
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_html = review_page_response.text
+    review_csrf_token = extract_csrf_token(review_html)
+
+    assert review_page_response.status_code == 200
+    assert "End Work" in review_html
+    assert f'formaction="/jobs/{active_job_id}/end"' in review_html
+    assert 'name="return_to" value="review"' in review_html
+    assert "Accept and Submit" not in review_html
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={
+            "csrf_token": review_csrf_token,
+            "return_to": "review",
+            "client_name": "Review Active Client",
+            "summary_notes": "Ready to end from review.",
+            "work_location": "remote",
+            "ticket_status": "in_progress",
+        },
+        follow_redirects=False,
+    )
+
+    assert end_response.status_code == 303
+    assert end_response.headers["location"] == f"/review/{active_job_id}"
+    with database.SessionLocal() as database_session:
+        ended_job = database_session.get(Job, active_job_id)
+        assert ended_job is not None
+        assert ended_job.status == JobStatus.READY_FOR_REVIEW
+        assert ended_job.summary_notes == "Ready to end from review."
+
+
 def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_client: TestClient) -> None:
     """The active mobile card renders selected Autotask clients as read-only."""
 

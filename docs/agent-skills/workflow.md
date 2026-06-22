@@ -363,10 +363,11 @@ Retry, and **Delete time entry** actions remain explicit workflow actions.
 Review detail action controls should stay in the selected detail pane and render
 as compact paired rows on both phone and full-browser layouts. Use no more than
 two buttons per row. Pair **Record** with **AI Cleanup** under Summary notes,
-pair **Edit Entry** with **Delete From Autotask** for submitted entries, and
-pair **Accept and Submit** with **Delete time entry** for normal unsubmitted
-entries. Submission-failed jobs may use one row for **Retry** and
-**Accept and Submit**, with destructive local delete on its own following row.
+pair **End Work** with **Delete time entry** for active jobs, pair **Edit
+Entry** with **Delete From Autotask** for submitted entries, and pair **Accept
+and Submit** with **Delete time entry** for normal unsubmitted entries.
+Submission-failed jobs may use one row for **Retry** and **Accept and Submit**,
+with destructive local delete on its own following row.
 
 Review ticket selection persists through `POST /review/{job_id}/ticket`. The
 route uses the recently loaded server-side open-ticket selection cache when it
@@ -394,12 +395,12 @@ accept/resend, retry, and local **Delete time entry** controls hidden or
 blocked. Date, start time, end time, summary notes, and ticket status can stay
 editable only when the submitted detail shows **Edit Entry**. That button must
 call the submitted-entry update route so the existing Autotask `TimeEntries`
-row is patched before local values are kept. If the previously submitted ticket
-status was Complete, the provider must move the ticket to In progress before
-patching `TimeEntries`, then apply the selected final status when needed. For
-other previous statuses, patch `Tickets.status` only for an intentional status
-change, and apply final Complete status after the time-entry patch. The
-submitted detail can also show
+row is patched before local values are kept. Ticket status writes are opt-in:
+with `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true`, a previously submitted
+Complete ticket may be moved to In progress before patching `TimeEntries`, and
+intentional final status changes may patch `Tickets.status`. With ticket status
+updates disabled, submitted-entry edits patch only `TimeEntries`. The submitted
+detail can also show
 **Delete From Autotask**, which deletes the external time entry and moves the
 local job back to review only after Autotask confirms the delete. This action
 must not delete the local job, audit events, or submission attempts.

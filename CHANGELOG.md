@@ -19,9 +19,16 @@ All notable changes to Job Logger are documented in this file.
   **Delete From Autotask**, normal unsubmitted jobs pair **Accept and Submit**
   with **Delete time entry**, and failed submissions keep retry/accept actions
   together while leaving destructive local delete on a separate row.
+- Added **End Work** to review detail for active jobs, paired with **Delete time
+  entry**, so work can be ended from the selected review pane without returning
+  to the Work in Progress page.
 - Changed the full browser Work in Progress and review detail button styling so
   paired action rows use matched widths and heights instead of leaving uneven
   spacing around primary and destructive actions.
+- Changed Autotask ticket status writes to be opt-in with
+  `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=false` by default. Time-entry
+  submission and submitted-entry edits no longer require permission to patch
+  `Tickets.status` unless that setting is explicitly enabled.
 - Fixed Autotask submission for tickets that do not return
   `assignedResourceroleID` by using the ticket's `assignedResourceID` to resolve
   a default or single active service-desk role before falling back to the

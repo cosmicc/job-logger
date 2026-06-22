@@ -649,9 +649,17 @@ name/email metadata only after the returned resource ID matches the user's saved
 resource ID. The browser never receives Autotask credentials and cannot query
 Autotask directly.
 
-Autotask ticket status picklist IDs vary by tenant. Configure these before
-production use so the full workflow can update the selected ticket status:
+Autotask ticket status writes are optional. By default, Job Logger creates and
+updates `TimeEntries` without patching `Tickets.status`, which works for API
+users that have time-entry permissions but cannot change ticket workflow
+status. Set `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true` only when the API user
+is allowed to patch `Tickets.status` and you want Job Logger to advance or close
+tickets automatically.
 
+Autotask ticket status picklist IDs vary by tenant. Configure these only when
+ticket status updates are enabled:
+
+- `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED`
 - `AUTOTASK_STATUS_IN_PROGRESS_ID`
 - `AUTOTASK_STATUS_WAITING_CUSTOMER_ID`
 - `AUTOTASK_STATUS_WAITING_PARTS_ID`
@@ -660,12 +668,10 @@ production use so the full workflow can update the selected ticket status:
 
 Open-ticket and service-call selection do not use the Autotask `Tickets`
 endpoint for status changes; they only default the local editable ticket status
-to `In progress`. Autotask ticket status writes wait until the complete time
-entry is submitted or an already submitted entry is explicitly edited. If a
-submitted time-entry edit starts from a `Complete` ticket, Job Logger
-temporarily moves the ticket to `In progress`, patches the existing time entry,
-and moves the ticket to the selected final status. Other status changes are
-applied only when the reviewer changes the selected status.
+to `In progress`. With ticket status updates disabled, the selected status stays
+local and does not block `TimeEntries` creation. With ticket status updates
+enabled, Autotask ticket status writes wait until the complete time entry is
+submitted or an already submitted entry is explicitly edited.
 
 Managed web users can enable **Submit from Work in Progress** on `/config`.
 This option is off by default so existing accounts keep the review-first
@@ -779,7 +785,9 @@ buttons; rounded start/stop `-15` and `+15` adjustments skip the full-page
 overlay so those small time changes feel immediate.
 In active mobile Work in Progress cards, **End Work** or **Submit to Autotask**
 shares a row with the destructive **Delete** action to keep the active-card
-controls compact.
+controls compact. Active jobs selected on Review detail also show **End Work**
+beside **Delete time entry**, and the button returns to that review detail after
+the job is ended.
 The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
 and records every attempt in `submission_attempts`.
 
@@ -787,11 +795,11 @@ After a job is successfully submitted to Autotask, ticket and client identity
 stay read-only. The selected review detail allows job date, start time, end
 time, summary notes, and ticket status edits through **Edit Entry**, which
 patches the existing `TimeEntries` row instead of creating a duplicate entry.
-If the previously submitted status was `Complete`, **Edit Entry** first moves
-the ticket to `In progress`, patches the existing time entry, and then moves the
-ticket to the selected final status when needed. If the previous status was not
-`Complete`, Job Logger updates `Tickets.status` only for an intentional status
-change, with final `Complete` status applied after the time-entry patch.
+With `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=true`, **Edit Entry** can also
+patch `Tickets.status` for intentional status changes, including temporarily
+moving a previously `Complete` ticket to `In progress` before the time-entry
+patch. With the default disabled setting, **Edit Entry** patches only
+`TimeEntries`.
 The same submitted detail also has **Delete From Autotask**, which deletes the
 existing Autotask time entry and returns the local job to review without
 removing the local job record. If Autotask refuses the delete, the job remains
@@ -909,10 +917,13 @@ result and the `/debug` failed-operation label when diagnosing Autotask HTTP
 500 or permission failures. Some Autotask permission denials are returned as
 HTTP 500 responses, so check the preflight detail before changing credentials.
 
-When Autotask rejects ticket status updates or `TimeEntries` creation/update, Job
-Logger surfaces bounded body-level error details when Autotask provides them.
-This usually identifies the specific missing permission, invalid role, billing
-code, resource, or required field more clearly than a generic HTTP 500 message.
+When Autotask rejects `TimeEntries` creation/update, Job Logger surfaces bounded
+body-level error details when Autotask provides them. This usually identifies
+the specific missing permission, invalid role, billing code, resource, or
+required field more clearly than a generic HTTP 500 message. If the error names
+ticket status updates or `Tickets.status`, leave
+`AUTOTASK_TICKET_STATUS_UPDATES_ENABLED=false` unless the API user has the
+ticket workflow permissions needed to change statuses.
 
 ## Time Handling
 
