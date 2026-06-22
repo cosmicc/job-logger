@@ -15,7 +15,7 @@ from tests.conftest import extract_csrf_token
 def test_app_version_matches_current_release() -> None:
     """The source-controlled version should match the current release."""
 
-    assert APP_VERSION == "1.1.1"
+    assert APP_VERSION == "1.1.2"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -25,14 +25,14 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert "## v1.1.2 - User management table polish" in changelog_text
+    assert "## v1.1.2 - User management, ticket status, and Device sign-in updates" in changelog_text
     assert "## v1.1.1 - Review cleanup, Autotask roles, Docker startup, and diagnostics" in changelog_text
     assert "## v1.1.0 - Direct submission, backups, and passkeys" in changelog_text
     assert "## v1.0.2 - Autotask workflow and desktop layout updates" in changelog_text
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
-    assert "## v1.1.2 - User list and Device sign-in updates" in web_changelog_text
+    assert "## v1.1.2 - User management, ticket status, and Device sign-in updates" in web_changelog_text
     assert "## v1.1.1 - Review action cleanup and Autotask role fixes" in web_changelog_text
     assert "## v1.1.0 - Direct submission and passkeys" in web_changelog_text
     assert "## v1.0.2 - Autotask workflow and desktop layout updates" in web_changelog_text
@@ -68,16 +68,13 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="v1.1.1",
-        title="Review action cleanup and Autotask role fixes",
+        version="v1.1.2",
+        title="User management, ticket status, and Device sign-in updates",
         changes=(
-            "Review detail now uses compact action rows like Work in Progress.",
-            "Record and AI Cleanup now share a row on review detail with shorter labels and icons.",
-            "Active jobs can now be ended from Review detail.",
-            "Full browser Work in Progress and Review buttons now use cleaner paired rows.",
-            "Autotask submission now handles tickets that provide an assigned resource but omit the assigned role.",
-            "Autotask submission now handles tickets where the submitting user is assigned as a secondary resource.",
-            "Autotask submission can now use a configured default service-desk role for a user when a ticket does not provide usable role data.",
+            "User management rows are more compact and easier to scan.",
+            "Passkey setup and login buttons now use the clearer Device sign-in name.",
+            "Submitted time entries now keep the Autotask ticket status matched to the selected Job Logger status on submit and Edit Entry.",
+            "If Delete From Autotask fails, Review can now offer a local-only purge option for the Job Logger entry.",
         ),
     )
 
@@ -105,10 +102,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
-    assert "User list and Device sign-in updates" in response.text
-    assert "User list columns now fit longer names and usernames better." in response.text
-    assert "User list role values now show the saved role ID more simply." in response.text
-    assert "The old Autotask refresh action was removed from each user row." in response.text
+    assert "User management, ticket status, and Device sign-in updates" in response.text
+    assert "User management rows are more compact and easier to scan." in response.text
     assert "Passkey setup and login buttons now use the clearer Device sign-in name." in response.text
     assert (
         "Submitted time entries now keep the Autotask ticket status matched to the selected Job Logger "
@@ -157,12 +152,12 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
+    assert response.text.index("User management, ticket status, and Device sign-in updates") < response.text.index("Direct submission and passkeys")
     assert response.text.index("Review action cleanup") < response.text.index("Direct submission and passkeys")
-    assert response.text.index("User list and Device sign-in updates") < response.text.index("Direct submission and passkeys")
     assert response.text.index("Direct submission and passkeys") < response.text.index("Autotask workflow and desktop layout updates")
     assert response.text.index("Autotask workflow and desktop layout updates") < response.text.index("Mobile shell navigation and close behavior")
     assert response.text.index("Mobile shell navigation and close behavior") < response.text.index("Initial release")
-    assert '<h2 id="current-version-heading">Review action cleanup and Autotask role fixes</h2>' in response.text
+    assert '<h2 id="current-version-heading">User management, ticket status, and Device sign-in updates</h2>' in response.text
     assert '<span class="release-version">v1.1.2</span>' in response.text
     assert '<span class="release-version">v1.1.1</span>' in response.text
     assert '<span class="release-version">v1.1.0</span>' in response.text
@@ -215,4 +210,4 @@ def test_super_admin_can_view_changelog_in_dark_theme(super_admin_client: TestCl
 
     assert response.status_code == 200
     assert 'class="theme-dark"' in response.text
-    assert "v1.1.1" in response.text
+    assert "v1.1.2" in response.text

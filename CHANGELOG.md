@@ -2,8 +2,10 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## v1.1.2 - User management table polish
+## v1.1.2 - User management, ticket status, and Device sign-in updates
 
+- Advanced the source-controlled runtime version to `v1.1.2`, including the
+  Python package metadata and PWA service worker cache version.
 - Changed the super-admin `/users` table to make the managed-user name and
   username columns easier to read in the desktop table by tightening table
   padding, reallocating column widths, and allowing those identity values to

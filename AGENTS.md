@@ -249,8 +249,8 @@ submitting managed user's default or single active service-desk role when the
 ticket omits assigned role context. The app must still send the submitting
 managed user's resource ID as `TimeEntries.resourceID`. Omit
 `TimeEntries.billingCodeID` so Autotask inherits the selected ticket's Work Type
-on create. API credentials, optional ticket status IDs, the ticket-status-update
-switch, and time-entry type remain environment configuration.
+on create. API credentials, tenant ticket status IDs, time-entry type, and
+optional Autotask provider settings remain environment configuration.
 The super-admin `/users` page may query `/Resources/query` through the server
 to find matching Autotask Resources by `Last, First` name and fill the
 user-specific resource ID and optional email address. It may also query

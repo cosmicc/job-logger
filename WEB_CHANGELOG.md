@@ -2,8 +2,9 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## v1.1.2 - Ticket status and Device sign-in updates
+## v1.1.2 - User management, ticket status, and Device sign-in updates
 
+- User management rows are more compact and easier to scan.
 - Passkey setup and login buttons now use the clearer Device sign-in name.
 - Submitted time entries now keep the Autotask ticket status matched to the selected Job Logger status on submit and Edit Entry.
 - If Delete From Autotask fails, Review can now offer a local-only purge option for the Job Logger entry.
