@@ -357,12 +357,14 @@ def test_users_page_autotask_role_lookup_is_super_admin_only(client: TestClient)
     payload = lookup_response.json()
     assert payload["roles"][0] == {
         "role_id": 8,
-        "label": "Role 8 (Autotask default)",
+        "name": "Service Desk",
+        "label": "Service Desk (ID 8, Autotask default)",
         "is_default": True,
     }
     assert payload["roles"][1] == {
         "role_id": 15,
-        "label": "Role 15",
+        "name": "Field Technician",
+        "label": "Field Technician (ID 15)",
         "is_default": False,
     }
 

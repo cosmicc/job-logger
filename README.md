@@ -30,6 +30,7 @@ Autotask REST API references used by this app:
 - Companies entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/CompaniesEntity.htm
 - Resources entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ResourcesEntity.htm
 - ResourceServiceDeskRoles entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ResourceServiceDeskRolesEntity.htm
+- Roles entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/RolesEntity.htm
 - ServiceCalls entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ServiceCallsEntity.htm
 - ServiceCallTickets entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ServiceCallTicketsEntity.htm
 - ServiceCallTicketResources entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ServiceCallTicketResourceEntity.htm
@@ -89,13 +90,14 @@ Autotask REST API references used by this app:
    add-user form suggests a username from the name, such as `jblow` for
    `Joe Blow`, and add/edit forms can search Autotask Resources so you can
    select the matching `Last, First` resource and fill its ID. The same form can
-   load active service-desk roles for that resource and save an optional default
-   role fallback for tickets that do not return usable role data. When Autotask
-   returns an email for the selected resource, Job Logger saves it with that
-   web-user account. Managed-user passwords must be at least 8 characters and
-   include lowercase, uppercase, number, and symbol characters. The first web
-   user you create takes ownership of any existing unowned jobs from earlier
-   single-user installs.
+   load active service-desk roles for that resource, show role names when
+   Autotask role metadata is readable, and save the selected numeric role ID as
+   an optional default fallback for tickets that do not return usable role data.
+   When Autotask returns an email for the selected resource, Job Logger saves it
+   with that web-user account. Managed-user passwords must be at least 8
+   characters and include lowercase, uppercase, number, and symbol characters.
+   The first web user you create takes ownership of any existing unowned jobs
+   from earlier single-user installs.
 
 8. Managed web users can open `/config` to choose their visual theme and work
    completion behavior. Dark is the default, and changes save and apply
@@ -647,13 +649,15 @@ while adding or editing a web user. Resource names are displayed in Autotask's
 required resource ID field. If Autotask returns an email address for the chosen
 resource, the email is saved with the managed web-user account and displayed in
 the Users table for future user-scoped features. The form can also load active
-`ResourceServiceDeskRoles` for the selected resource and save one optional
-default service-desk role. That configured role is used only as a time-entry
-fallback after ticket-assigned role sources fail. Each table row also has a
-refresh icon that re-runs the server-side resource lookup and updates stored
-name/email metadata only after the returned resource ID matches the user's saved
-resource ID. The browser never receives Autotask credentials and cannot query
-Autotask directly.
+`ResourceServiceDeskRoles` for the selected resource, query `Roles.name` for
+human-readable labels when allowed, and save one optional default service-desk
+role ID. That configured role is used only as a time-entry fallback after
+ticket-assigned role sources fail. If the optional `Roles` lookup is not
+permitted, the picker still works with numeric role labels. Each table row also
+has a refresh icon that re-runs the server-side resource lookup and updates
+stored name/email metadata only after the returned resource ID matches the
+user's saved resource ID. The browser never receives Autotask credentials and
+cannot query Autotask directly.
 
 Autotask ticket status writes are optional. By default, Job Logger creates and
 updates `TimeEntries` without patching `Tickets.status`, which works for API

@@ -127,6 +127,7 @@ def autotask_resource_role_options(request: Request, resource_id: str = "") -> J
             "roles": [
                 {
                     "role_id": role_option.role_id,
+                    "name": role_option.name,
                     "label": role_option.label,
                     "is_default": role_option.is_default,
                 }

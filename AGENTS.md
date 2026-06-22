@@ -41,7 +41,9 @@ re-queries Autotask Resources, requires the returned resource ID to match the
 stored ID, and updates only safe local name/email metadata. The add form may
 suggest usernames from full names, such as `jblow` for `Joe Blow`, and add/edit
 forms may query Autotask Resources and active service-desk roles for
-super-admin-only resource and role pickers.
+super-admin-only resource and role pickers. The role picker should show
+Autotask `Roles.name` labels when that metadata is readable while storing only
+the selected numeric `roleID` on the managed web-user row.
 Store only salted password verifiers, never raw managed user passwords.
 Managed-user passwords must be at least 8 characters and include lowercase,
 uppercase, number, and symbol characters.
@@ -252,7 +254,8 @@ The super-admin `/users` page may query `/Resources/query` through the server
 to find matching Autotask Resources by `Last, First` name and fill the
 user-specific resource ID and optional email address. It may also query
 `ResourceServiceDeskRoles` through the server to list active role IDs for the
-selected resource before saving a per-user fallback role. Per-row refresh on
+selected resource, enrich those dropdown choices with `Roles.name` when allowed,
+and save the chosen numeric per-user fallback role ID. Per-row refresh on
 `/users` uses the same server-side provider and updates stored local metadata
 only after the returned resource ID matches the user's saved resource ID.
 

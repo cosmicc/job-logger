@@ -23,6 +23,7 @@ MAX_TICKET_LOOKUP_RESULTS = 25
 MAX_OPEN_TICKET_QUERY_RECORDS = MAX_TICKET_LOOKUP_RESULTS
 MAX_RESOURCE_LOOKUP_RESULTS = 25
 MAX_RESOURCE_NAME_LENGTH = 160
+MAX_SERVICE_DESK_ROLE_NAME_LENGTH = 200
 MAX_SERVICE_CALL_LOOKUP_RESULTS = 25
 MAX_SERVICE_CALL_NAME_LENGTH = 240
 MAX_SERVICE_CALL_DETAIL_LENGTH = 2000
@@ -178,8 +179,11 @@ class AutotaskServiceDeskRoleOption:
     # role_id is the ResourceServiceDeskRoles.roleID value used by TimeEntries.
     role_id: int
 
+    # name is the optional human-readable Autotask Roles.name for the role ID.
+    name: str | None = None
+
     # label is display-only role context safe for the super-admin user manager.
-    label: str
+    label: str = ""
 
     # is_default mirrors ResourceServiceDeskRoles.isDefault when Autotask returns it.
     is_default: bool = False
@@ -584,10 +588,13 @@ def _resource_display_name(first_name: str | None, last_name: str | None, resour
     return f"Resource {resource_id}"
 
 
-def _service_desk_role_label(role_id: int, *, is_default: bool = False) -> str:
+def _service_desk_role_label(role_id: int, *, role_name: str | None = None, is_default: bool = False) -> str:
     """Return display text for an active ResourceServiceDeskRoles role ID."""
 
-    label = f"Role {role_id}"
+    safe_role_name = _safe_optional_resource_text(role_name, max_length=MAX_SERVICE_DESK_ROLE_NAME_LENGTH)
+    if safe_role_name and is_default:
+        return f"{safe_role_name} (ID {role_id}, Autotask default)"
+    label = f"{safe_role_name} (ID {role_id})" if safe_role_name else f"Role {role_id}"
     if is_default:
         return f"{label} (Autotask default)"
     return label
@@ -851,8 +858,13 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         if resource_id <= 0:
             raise AutotaskSubmissionError("Autotask resource ID must be a positive number.")
         return [
-            AutotaskServiceDeskRoleOption(role_id=8, label="Role 8 (Autotask default)", is_default=True),
-            AutotaskServiceDeskRoleOption(role_id=15, label="Role 15"),
+            AutotaskServiceDeskRoleOption(
+                role_id=8,
+                name="Service Desk",
+                label="Service Desk (ID 8, Autotask default)",
+                is_default=True,
+            ),
+            AutotaskServiceDeskRoleOption(role_id=15, name="Field Technician", label="Field Technician (ID 15)"),
         ]
 
     def list_todays_service_calls_for_resource(
@@ -2042,6 +2054,15 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         with self._client() as client:
             role_records = self._query_active_resource_service_desk_role_records(client, resource_id)
+            active_role_ids = [
+                role_id
+                for role_record in role_records
+                if (role_id := _coerce_positive_autotask_id(role_record.get("roleID"))) is not None
+            ]
+            try:
+                role_names_by_id = self._query_role_names_by_id(client, active_role_ids)
+            except AutotaskSubmissionError:
+                role_names_by_id = {}
 
         role_options_by_id: dict[int, AutotaskServiceDeskRoleOption] = {}
         for role_record in role_records:
@@ -2049,12 +2070,14 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             if role_id is None:
                 continue
             is_default = _is_autotask_truthy(role_record.get("isDefault"))
+            role_name = role_names_by_id.get(role_id)
             existing_option = role_options_by_id.get(role_id)
             if existing_option is not None and not is_default:
                 continue
             role_options_by_id[role_id] = AutotaskServiceDeskRoleOption(
                 role_id=role_id,
-                label=_service_desk_role_label(role_id, is_default=is_default),
+                name=role_name,
+                label=_service_desk_role_label(role_id, role_name=role_name, is_default=is_default),
                 is_default=is_default,
             )
 
@@ -2227,6 +2250,46 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             max_records=50,
             follow_pagination=False,
         )
+
+    def _query_role_names_by_id(
+        self,
+        client: httpx.Client,
+        role_ids: list[int],
+    ) -> dict[int, str]:
+        """Return Autotask role names keyed by role ID for dropdown labels."""
+
+        role_names_by_id: dict[int, str] = {}
+        for role_id_chunk in _chunked_autotask_ids(role_ids):
+            if not role_id_chunk:
+                continue
+            query_payload = {
+                "IncludeFields": ["id", "name", "isActive"],
+                "filter": [
+                    {
+                        "op": "in",
+                        "field": "id",
+                        "value": role_id_chunk,
+                    }
+                ],
+            }
+            role_records = self._query_paginated_items(
+                client,
+                endpoint_path="/Roles/query",
+                query_payload=query_payload,
+                action_description="Autotask service-desk role name lookup",
+                max_records=len(role_id_chunk),
+                follow_pagination=False,
+            )
+            for role_record in role_records:
+                role_id = _coerce_positive_autotask_id(role_record.get("id"))
+                role_name = _safe_optional_resource_text(
+                    role_record.get("name"),
+                    max_length=MAX_SERVICE_DESK_ROLE_NAME_LENGTH,
+                )
+                if role_id is not None and role_name:
+                    role_names_by_id[role_id] = role_name
+
+        return role_names_by_id
 
     def _query_ticket_secondary_resource_role(
         self,

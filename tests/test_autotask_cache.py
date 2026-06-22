@@ -382,7 +382,7 @@ class FakeResourceLookupClient:
 
 
 class FakeResourceServiceDeskRoleListClient:
-    """Fake Autotask client that exposes active ResourceServiceDeskRoles."""
+    """Fake Autotask client that exposes active roles and role names."""
 
     def __init__(self) -> None:
         """Initialize captured role lookup requests."""
@@ -393,22 +393,46 @@ class FakeResourceServiceDeskRoleListClient:
         """Return active roles with one duplicate default row for de-duplication."""
 
         self.post_requests.append((endpoint_path, dict(json)))
-        assert endpoint_path == "/ResourceServiceDeskRoles/query"
-        return FakeAutotaskResponse(
-            {
-                "items": [
-                    {"id": 10, "resourceID": 42, "roleID": 9, "isDefault": False, "isActive": True},
-                    {"id": 11, "resourceID": 42, "roleID": 8, "isDefault": True, "isActive": True},
-                    {"id": 12, "resourceID": 42, "roleID": 8, "isDefault": False, "isActive": True},
-                ],
-                "pageDetails": {},
-            }
-        )
+        if endpoint_path == "/ResourceServiceDeskRoles/query":
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 10, "resourceID": 42, "roleID": 9, "isDefault": False, "isActive": True},
+                        {"id": 11, "resourceID": 42, "roleID": 8, "isDefault": True, "isActive": True},
+                        {"id": 12, "resourceID": 42, "roleID": 8, "isDefault": False, "isActive": True},
+                    ],
+                    "pageDetails": {},
+                }
+            )
+        if endpoint_path == "/Roles/query":
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 8, "name": "Service Desk", "isActive": True},
+                        {"id": 9, "name": "Field Technician", "isActive": True},
+                    ],
+                    "pageDetails": {},
+                }
+            )
+        raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
 
     def get(self, endpoint_path: str) -> FakeAutotaskResponse:
         """Fail if role lookup performs unexpected metadata GET calls."""
 
         raise AssertionError(f"Unexpected fake Autotask GET endpoint: {endpoint_path}")
+
+
+class FakeResourceServiceDeskRoleListWithoutNamesClient(FakeResourceServiceDeskRoleListClient):
+    """Fake Autotask client that blocks the optional role-name lookup."""
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return role associations but reject the optional role-name lookup."""
+
+        if endpoint_path == "/Roles/query":
+            self.post_requests.append((endpoint_path, dict(json)))
+            return FakeAutotaskResponse({"message": "Access denied."}, status_code=403)
+
+        return super().post(endpoint_path, json)
 
 
 class FakeEmptyCompanyQueryClient:
@@ -1243,9 +1267,9 @@ def test_resource_service_desk_role_lookup_lists_active_roles(monkeypatch: pytes
 
     role_options = provider.list_resource_service_desk_roles(42)
 
-    assert [(role.role_id, role.label, role.is_default) for role in role_options] == [
-        (8, "Role 8 (Autotask default)", True),
-        (9, "Role 9", False),
+    assert [(role.role_id, role.name, role.label, role.is_default) for role in role_options] == [
+        (8, "Service Desk", "Service Desk (ID 8, Autotask default)", True),
+        (9, "Field Technician", "Field Technician (ID 9)", False),
     ]
     assert fake_client.post_requests == [
         (
@@ -1259,6 +1283,40 @@ def test_resource_service_desk_role_lookup_lists_active_roles(monkeypatch: pytes
                 "MaxRecords": 50,
             },
         ),
+        (
+            "/Roles/query",
+            {
+                "IncludeFields": ["id", "name", "isActive"],
+                "filter": [
+                    {"op": "in", "field": "id", "value": [9, 8]},
+                ],
+                "MaxRecords": 2,
+            },
+        ),
+    ]
+
+
+def test_resource_service_desk_role_lookup_falls_back_without_role_name_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Role lookup should still work when Autotask blocks the optional Roles query."""
+
+    provider = _live_test_provider()
+    fake_client = FakeResourceServiceDeskRoleListWithoutNamesClient()
+
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeConnectivityContext:
+        """Return one fake role client while matching the provider signature."""
+
+        assert timeout_seconds == 30.0
+        return FakeConnectivityContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    role_options = provider.list_resource_service_desk_roles(42)
+
+    assert [(role.role_id, role.name, role.label, role.is_default) for role in role_options] == [
+        (8, None, "Role 8 (Autotask default)", True),
+        (9, None, "Role 9", False),
     ]
 
 

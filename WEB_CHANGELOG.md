@@ -2,7 +2,7 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## v1.1.1 - Review action cleanup and Autotask submission fixes
+## v1.1.1 - Review action cleanup and Autotask role fixes
 
 - Review detail now uses compact action rows like Work in Progress.
 - Record and AI Cleanup now share a row on review detail with shorter labels and icons.
@@ -12,6 +12,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Autotask submission now handles tickets that provide an assigned resource but omit the assigned role.
 - Autotask submission now handles tickets where the submitting user is assigned as a secondary resource.
 - Autotask submission can now use a configured default service-desk role for a web user when a ticket does not provide usable role data.
+- The default service-desk role picker now shows role names when available.
 
 ## v1.1.0 - Direct submission and passkeys
 

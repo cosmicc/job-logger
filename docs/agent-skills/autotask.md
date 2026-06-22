@@ -50,12 +50,14 @@ Autotask's optional `ImpersonationResourceId` header.
 The config super admin may use `/users` to query Autotask Resources by name
 while creating a managed web user, and may query active
 `ResourceServiceDeskRoles` by selected Resource ID for a per-user default role
-dropdown. Both lookups must still go through the server-side provider and return
-only safe metadata. When the selected resource includes an email address, the
-user manager stores it with the managed web-user row for future user-scoped
-features. The same page has a per-user refresh action that re-runs Resource
-lookup, matches the returned resource ID against the user's saved resource ID,
-and updates only safe local name/email metadata.
+dropdown. The provider may also query matching `Roles` records so the dropdown
+shows human-readable role names while the form still submits and stores the
+numeric `roleID`. These lookups must still go through the server-side provider
+and return only safe metadata. When the selected resource includes an email
+address, the user manager stores it with the managed web-user row for future
+user-scoped features. The same page has a per-user refresh action that re-runs
+Resource lookup, matches the returned resource ID against the user's saved
+resource ID, and updates only safe local name/email metadata.
 
 ## Provider Location
 

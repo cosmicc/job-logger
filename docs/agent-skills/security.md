@@ -84,9 +84,10 @@ validate the submitted resource ID and must never expose Autotask credentials or
 raw remote error details.
 The `/users/autotask-resource-roles` lookup endpoint is also super-admin-only.
 It may return active `ResourceServiceDeskRoles.roleID` values and safe display
-labels for the selected resource, but saving a submitted default role must still
-re-query the server-side provider and verify that role is active for the
-submitted resource ID.
+labels from `Roles.name` for the selected resource, but saving a submitted
+default role must still re-query the server-side provider and verify that role
+is active for the submitted resource ID. The stored managed-user value remains
+the numeric role ID, not the display name.
 The per-row `/users/{user_id}/refresh-resource` action is also
 super-admin-only, CSRF-protected, and must update only safe local metadata after
 matching the returned Autotask resource ID to the user's stored ID.

@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## v1.1.1 - Review cleanup, Autotask fixes, Docker startup, and diagnostics
+## v1.1.1 - Review cleanup, Autotask roles, Docker startup, and diagnostics
 
 - Advanced the source-controlled dev runtime version to `v1.1.1`, including the
   Python package metadata and PWA service worker cache version.
@@ -45,6 +45,9 @@ All notable changes to Job Logger are documented in this file.
   Resource ID, choose a fallback role, and let Autotask submission use that
   explicit role when the selected ticket, secondary-resource assignment, and
   ticket-assigned resource do not provide a usable role.
+- Changed the default service-desk role picker to show Autotask role names from
+  `Roles.name` when available while still storing the selected numeric role ID
+  on the managed web-user account.
 
 ## v1.1.0 - Direct submission, backups, and passkeys
 
