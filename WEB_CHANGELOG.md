@@ -11,6 +11,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Autotask time-entry submission no longer requires ticket status update permission by default.
 - Autotask submission now handles tickets that provide an assigned resource but omit the assigned role.
 - Autotask submission now handles tickets where the submitting user is assigned as a secondary resource.
+- Autotask submission can now use a configured default service-desk role for a web user when a ticket does not provide usable role data.
 
 ## v1.1.0 - Direct submission and passkeys
 

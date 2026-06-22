@@ -381,6 +381,36 @@ class FakeResourceLookupClient:
         raise AssertionError(f"Unexpected fake Autotask GET endpoint: {endpoint_path}")
 
 
+class FakeResourceServiceDeskRoleListClient:
+    """Fake Autotask client that exposes active ResourceServiceDeskRoles."""
+
+    def __init__(self) -> None:
+        """Initialize captured role lookup requests."""
+
+        self.post_requests: list[tuple[str, dict[str, Any]]] = []
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return active roles with one duplicate default row for de-duplication."""
+
+        self.post_requests.append((endpoint_path, dict(json)))
+        assert endpoint_path == "/ResourceServiceDeskRoles/query"
+        return FakeAutotaskResponse(
+            {
+                "items": [
+                    {"id": 10, "resourceID": 42, "roleID": 9, "isDefault": False, "isActive": True},
+                    {"id": 11, "resourceID": 42, "roleID": 8, "isDefault": True, "isActive": True},
+                    {"id": 12, "resourceID": 42, "roleID": 8, "isDefault": False, "isActive": True},
+                ],
+                "pageDetails": {},
+            }
+        )
+
+    def get(self, endpoint_path: str) -> FakeAutotaskResponse:
+        """Fail if role lookup performs unexpected metadata GET calls."""
+
+        raise AssertionError(f"Unexpected fake Autotask GET endpoint: {endpoint_path}")
+
+
 class FakeEmptyCompanyQueryClient:
     """Fake Autotask client that returns no companies for each live query."""
 
@@ -652,6 +682,46 @@ class FakeTicketAssignedResourceSingleRoleTimeEntryContextClient:
                     "pageDetails": {},
                 }
             )
+
+        raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
+
+
+class FakeConfiguredDefaultRoleClient:
+    """Fake client for tickets where only the configured user default role is usable."""
+
+    def __init__(self) -> None:
+        """Initialize captured operations and the TimeEntries payload."""
+
+        self.post_requests: list[tuple[str, dict[str, Any]]] = []
+        self.operations: list[tuple[str, dict[str, Any] | None]] = []
+        self.posted_payload: dict[str, Any] | None = None
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return missing ticket role context or capture TimeEntries create."""
+
+        self.post_requests.append((endpoint_path, dict(json)))
+        self.operations.append((endpoint_path, dict(json)))
+        if endpoint_path == "/Tickets/query":
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "id": 123456,
+                            "ticketNumber": "T20260621.0001",
+                            "assignedResourceroleID": None,
+                            "billingCodeID": 24746620,
+                        }
+                    ],
+                    "pageDetails": {},
+                }
+            )
+        if endpoint_path == "/TicketSecondaryResources/query":
+            return FakeAutotaskResponse({"items": [], "pageDetails": {}})
+        if endpoint_path == "/ResourceServiceDeskRoles/query":
+            raise AssertionError("Configured default role should avoid ambiguous ResourceServiceDeskRoles fallback.")
+        if endpoint_path == "/TimeEntries":
+            self.posted_payload = dict(json)
+            return FakeAutotaskResponse({"itemId": 987654})
 
         raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
 
@@ -1157,6 +1227,41 @@ def test_resource_lookup_uses_name_filters_and_cache(monkeypatch: pytest.MonkeyP
     ]
 
 
+def test_resource_service_desk_role_lookup_lists_active_roles(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Managed-user setup should list active service-desk roles for a resource."""
+
+    provider = _live_test_provider()
+    fake_client = FakeResourceServiceDeskRoleListClient()
+
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeConnectivityContext:
+        """Return one fake role client while matching the provider signature."""
+
+        assert timeout_seconds == 30.0
+        return FakeConnectivityContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    role_options = provider.list_resource_service_desk_roles(42)
+
+    assert [(role.role_id, role.label, role.is_default) for role in role_options] == [
+        (8, "Role 8 (Autotask default)", True),
+        (9, "Role 9", False),
+    ]
+    assert fake_client.post_requests == [
+        (
+            "/ResourceServiceDeskRoles/query",
+            {
+                "IncludeFields": ["id", "resourceID", "roleID", "isDefault", "isActive"],
+                "filter": [
+                    {"op": "eq", "field": "resourceID", "value": 42},
+                    {"op": "eq", "field": "isActive", "value": True},
+                ],
+                "MaxRecords": 50,
+            },
+        ),
+    ]
+
+
 def test_debug_connectivity_check_runs_fresh_provider_check(monkeypatch: pytest.MonkeyPatch) -> None:
     """The debug Autotask test should run the provider check when requested."""
 
@@ -1395,6 +1500,46 @@ def test_ticket_time_entry_context_uses_single_active_ticket_assigned_resource_r
     assert ticket_context.assigned_resource_id == 99
 
 
+def test_ticket_time_entry_context_uses_configured_default_role_when_autotask_roles_are_ambiguous() -> None:
+    """A configured user role should be usable when ticket-derived role context is absent."""
+
+    provider = _live_test_provider()
+    fake_client = FakeConfiguredDefaultRoleClient()
+
+    ticket_context = provider._query_ticket_time_entry_context(
+        fake_client,
+        "T20260621.0001",
+        resource_id=42,
+        default_service_desk_role_id=77,
+    )
+
+    assert ticket_context.ticket_id == 123456
+    assert ticket_context.role_id == 77
+    assert ticket_context.role_id_source == "managed_web_user.autotask_default_service_desk_role_id"
+    assert ticket_context.assigned_resource_id is None
+    assert fake_client.post_requests == [
+        (
+            "/Tickets/query",
+            {
+                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "assignedResourceID", "billingCodeID"],
+                "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260621.0001"}],
+                "MaxRecords": 1,
+            },
+        ),
+        (
+            "/TicketSecondaryResources/query",
+            {
+                "IncludeFields": ["id", "ticketID", "resourceID", "roleID"],
+                "filter": [
+                    {"op": "eq", "field": "ticketID", "value": 123456},
+                    {"op": "eq", "field": "resourceID", "value": 42},
+                ],
+                "MaxRecords": 50,
+            },
+        ),
+    ]
+
+
 def test_time_entry_creation_uses_ticket_role_and_inherits_billing_code() -> None:
     """Ticket TimeEntries should use ticket role and let Autotask inherit billing code."""
 
@@ -1593,6 +1738,68 @@ def test_submission_uses_resource_default_role_when_ticket_role_missing(monkeypa
             },
         ),
         ("/Tickets", {"id": 123456, "status": 1}),
+        ("/TimeEntries", fake_client.posted_payload),
+    ]
+
+
+def test_submission_uses_configured_default_role_when_autotask_roles_are_ambiguous(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Submitting time can use the web user's configured role fallback."""
+
+    provider = _live_test_provider(ticket_status_updates_enabled=False)
+    fake_client = FakeConfiguredDefaultRoleClient()
+    rounded_start_utc = datetime(2026, 6, 21, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="configured-role-submit-test",
+        status=JobStatus.READY_FOR_REVIEW,
+        ticket_number="T20260621.0001",
+        ticket_status=TicketStatus.IN_PROGRESS,
+        summary_notes="Created time with configured default role.",
+        description_text="Created time with configured default role.",
+        raw_start_utc=rounded_start_utc,
+        raw_end_utc=rounded_start_utc + timedelta(minutes=30),
+        rounded_start_utc=rounded_start_utc,
+        rounded_end_utc=rounded_start_utc + timedelta(minutes=30),
+    )
+
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeAutotaskClientContext:
+        """Return the fake client while matching the provider client signature."""
+
+        assert timeout_seconds == 30.0
+        return FakeAutotaskClientContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    result = provider.submit_job(job, resource_id=42, default_service_desk_role_id=77)
+
+    assert result.succeeded is True
+    assert result.external_id == "987654"
+    assert result.request_snapshot["configuredDefaultServiceDeskRoleID"] == 77
+    assert result.request_snapshot["roleID"] == 77
+    assert result.request_snapshot["roleIDSource"] == "managed_web_user.autotask_default_service_desk_role_id"
+    assert fake_client.posted_payload is not None
+    assert fake_client.posted_payload["ticketID"] == 123456
+    assert fake_client.posted_payload["resourceID"] == 42
+    assert fake_client.posted_payload["roleID"] == 77
+    assert fake_client.operations == [
+        (
+            "/Tickets/query",
+            {
+                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "assignedResourceID", "billingCodeID"],
+                "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260621.0001"}],
+                "MaxRecords": 1,
+            },
+        ),
+        (
+            "/TicketSecondaryResources/query",
+            {
+                "IncludeFields": ["id", "ticketID", "resourceID", "roleID"],
+                "filter": [
+                    {"op": "eq", "field": "ticketID", "value": 123456},
+                    {"op": "eq", "field": "resourceID", "value": 42},
+                ],
+                "MaxRecords": 50,
+            },
+        ),
         ("/TimeEntries", fake_client.posted_payload),
     ]
 

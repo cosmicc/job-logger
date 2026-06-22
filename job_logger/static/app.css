@@ -2033,7 +2033,7 @@ td a {
 
 .users-table {
   width: 100%;
-  min-width: 900px;
+  min-width: 1040px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -2059,7 +2059,7 @@ td a {
 
 .users-table th:nth-child(1),
 .users-table td:nth-child(1) {
-  width: 15%;
+  width: 14%;
 }
 
 .users-table th:nth-child(2),
@@ -2069,27 +2069,32 @@ td a {
 
 .users-table th:nth-child(3),
 .users-table td:nth-child(3) {
-  width: 22%;
+  width: 20%;
 }
 
 .users-table th:nth-child(4),
 .users-table td:nth-child(4) {
-  width: 10%;
+  width: 9%;
 }
 
 .users-table th:nth-child(5),
 .users-table td:nth-child(5) {
-  width: 10%;
+  width: 11%;
 }
 
 .users-table th:nth-child(6),
 .users-table td:nth-child(6) {
-  width: 6%;
+  width: 9%;
 }
 
 .users-table th:nth-child(7),
 .users-table td:nth-child(7) {
-  width: 27%;
+  width: 5%;
+}
+
+.users-table th:nth-child(8),
+.users-table td:nth-child(8) {
+  width: 22%;
 }
 
 .user-display-row:hover,
@@ -2522,6 +2527,113 @@ td a {
 
 .debug-panel-body {
   padding: 18px;
+}
+
+.disk-space-card.disk-space-warning {
+  border-color: var(--warning);
+  background: linear-gradient(135deg, var(--warning-soft), var(--surface) 58%);
+  box-shadow: 0 0 0 1px var(--warning-soft), var(--shadow);
+}
+
+.disk-space-card.disk-space-critical {
+  border-color: var(--danger);
+  background: linear-gradient(135deg, var(--danger-soft), var(--surface) 58%);
+  box-shadow: 0 0 0 1px var(--danger-soft), var(--shadow);
+}
+
+.disk-space-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.disk-volume-row {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.disk-volume-row.disk-volume-warning {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.disk-volume-row.disk-volume-critical {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.disk-volume-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.disk-space-status,
+.disk-volume-status {
+  white-space: nowrap;
+}
+
+.disk-space-status-ok,
+.disk-volume-status-ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.disk-space-status-warning,
+.disk-volume-status-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.disk-space-status-critical,
+.disk-volume-status-critical {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.disk-meter {
+  width: 100%;
+  height: 14px;
+  accent-color: var(--success);
+}
+
+.disk-meter-warning {
+  accent-color: var(--warning);
+}
+
+.disk-meter-critical {
+  accent-color: var(--danger);
+}
+
+.disk-volume-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 12px;
+  margin: 0;
+}
+
+.disk-volume-stats div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.disk-volume-stats dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.disk-volume-stats dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
 }
 
 .debug-list {

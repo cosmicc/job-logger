@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## v1.1.1 - Review cleanup, Autotask fixes, and Docker startup
+## v1.1.1 - Review cleanup, Autotask fixes, Docker startup, and diagnostics
 
 - Advanced the source-controlled dev runtime version to `v1.1.1`, including the
   Python package metadata and PWA service worker cache version.
@@ -11,6 +11,9 @@ All notable changes to Job Logger are documented in this file.
   healthcheck state. The app entrypoint still waits for PostgreSQL before
   migrations, and the database healthcheck keeps a longer first-start grace
   period for cold dev deployments.
+- Added a super-admin Diagnostics disk-space monitor for the app filesystem,
+  log directory, and backup directory, with warning and critical card states
+  before monitored storage fills up.
 - Changed review detail Summary notes controls so **Record** and optional
   **AI Cleanup** share the same compact two-button row, use leading icons, and
   no longer reserve empty status space while idle.
@@ -37,6 +40,11 @@ All notable changes to Job Logger are documented in this file.
 - Fixed Autotask submission for tickets where the submitting managed user is a
   secondary resource by using the matching `TicketSecondaryResources.roleID`
   before generic Resource Service Desk Role fallbacks.
+- Added an optional per-user default service-desk role on `/users`. Super
+  admins can load active Autotask `ResourceServiceDeskRoles` for a user's
+  Resource ID, choose a fallback role, and let Autotask submission use that
+  explicit role when the selected ticket, secondary-resource assignment, and
+  ticket-assigned resource do not provide a usable role.
 
 ## v1.1.0 - Direct submission, backups, and passkeys
 

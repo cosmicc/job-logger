@@ -2,6 +2,7 @@
   "use strict";
 
   const AUTOTASK_RESOURCE_SEARCH_DELAY_MS = 450;
+  const AUTOTASK_ROLE_LOAD_DELAY_MS = 350;
 
   function usernamePart(value) {
     return String(value || "").replace(/[^A-Za-z0-9]/g, "");
@@ -67,6 +68,147 @@
     resourceEmailInput.value = String(email || "").trim();
   }
 
+  function setRoleStatus(form, message, isError) {
+    const statusElement = form.querySelector("[data-role-status]");
+    if (!statusElement) {
+      return;
+    }
+
+    statusElement.textContent = message;
+    statusElement.classList.toggle("error-text", Boolean(isError));
+  }
+
+  function roleOptionLabel(role) {
+    if (role.label) {
+      return String(role.label);
+    }
+    const label = `Role ${role.role_id}`;
+    return role.is_default ? `${label} (Autotask default)` : label;
+  }
+
+  function resetRoleSelect(form, message) {
+    const roleSelect = form.querySelector("[data-role-select]");
+    if (!roleSelect) {
+      return;
+    }
+
+    roleSelect.replaceChildren();
+    const blankOption = document.createElement("option");
+    blankOption.value = "";
+    blankOption.textContent = "No default role selected";
+    roleSelect.appendChild(blankOption);
+    roleSelect.dataset.selectedRoleId = "";
+    if (message) {
+      setRoleStatus(form, message, false);
+    }
+  }
+
+  function selectedRoleIdForLoad(roleSelect, roles) {
+    const savedRoleId = String(roleSelect.dataset.selectedRoleId || "").trim();
+    if (savedRoleId) {
+      return savedRoleId;
+    }
+
+    const defaultRole = roles.find((role) => Boolean(role.is_default));
+    if (defaultRole) {
+      return String(defaultRole.role_id);
+    }
+
+    if (roles.length === 1) {
+      return String(roles[0].role_id);
+    }
+
+    return "";
+  }
+
+  function renderRoleOptions(form, roles) {
+    const roleSelect = form.querySelector("[data-role-select]");
+    if (!roleSelect) {
+      return;
+    }
+
+    const safeRoles = Array.isArray(roles) ? roles : [];
+    roleSelect.replaceChildren();
+
+    const blankOption = document.createElement("option");
+    blankOption.value = "";
+    blankOption.textContent = "No default role selected";
+    roleSelect.appendChild(blankOption);
+
+    if (safeRoles.length === 0) {
+      roleSelect.dataset.selectedRoleId = "";
+      setRoleStatus(form, "No active service desk roles were returned for this resource.", true);
+      return;
+    }
+
+    const selectedRoleId = selectedRoleIdForLoad(roleSelect, safeRoles);
+    let matchedSelectedRole = false;
+    safeRoles.forEach((role) => {
+      const optionElement = document.createElement("option");
+      optionElement.value = String(role.role_id || "");
+      optionElement.textContent = roleOptionLabel(role);
+      if (optionElement.value && optionElement.value === selectedRoleId) {
+        optionElement.selected = true;
+        matchedSelectedRole = true;
+      }
+      roleSelect.appendChild(optionElement);
+    });
+
+    if (selectedRoleId && matchedSelectedRole) {
+      roleSelect.dataset.selectedRoleId = selectedRoleId;
+      setRoleStatus(form, "Selected role is active for this Autotask resource.", false);
+      return;
+    }
+
+    roleSelect.dataset.selectedRoleId = "";
+    if (selectedRoleId) {
+      setRoleStatus(form, "The saved default role is not active for this Autotask resource.", true);
+      return;
+    }
+
+    setRoleStatus(form, "Choose a default role, or leave blank to use Autotask ticket role fallbacks only.", false);
+  }
+
+  async function loadResourceRoles(form) {
+    if (!form) {
+      return;
+    }
+
+    const roleUrl = form.dataset.autotaskRoleUrl;
+    const resourceIdInput = form.querySelector("[data-resource-id-input]");
+    const roleSelect = form.querySelector("[data-role-select]");
+    const resourceId = resourceIdInput ? resourceIdInput.value.trim() : "";
+    if (!roleUrl || !roleSelect) {
+      return;
+    }
+    if (!resourceId) {
+      resetRoleSelect(form, "Select an Autotask resource to load active roles.");
+      return;
+    }
+
+    const lookupUrl = new URL(roleUrl, window.location.origin);
+    lookupUrl.searchParams.set("resource_id", resourceId);
+    roleSelect.disabled = true;
+    setRoleStatus(form, "Loading active service desk roles...", false);
+
+    try {
+      const response = await fetch(lookupUrl.toString(), {
+        headers: {"Accept": "application/json"},
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.detail || "Autotask service desk role lookup failed.");
+      }
+
+      renderRoleOptions(form, payload.roles || []);
+    } catch (error) {
+      resetRoleSelect(form);
+      setRoleStatus(form, error.message || "Autotask service desk role lookup failed.", true);
+    } finally {
+      roleSelect.disabled = false;
+    }
+  }
+
   function renderResourceResults(form, resources) {
     const resultsElement = form.querySelector("[data-resource-results]");
     const resourceIdInput = form.querySelector("[data-resource-id-input]");
@@ -103,6 +245,8 @@
       optionButton.addEventListener("click", () => {
         resourceIdInput.value = String(resource.resource_id || "");
         setResourceEmail(form, resource.email || "");
+        resetRoleSelect(form);
+        loadResourceRoles(form);
         clearResourceResults(form);
         const emailMessage = resource.email ? " Email saved with this user." : " No email returned.";
         setResourceStatus(form, `Selected ${resourceOptionLabel(resource)}.${emailMessage}`, false);
@@ -198,6 +342,7 @@
     const searchButton = form.querySelector("[data-resource-search-button]");
     const resourceIdInput = form.querySelector("[data-resource-id-input]");
     let resourceSearchTimer = null;
+    let roleLoadTimer = null;
 
     function scheduleResourceSearch() {
       window.clearTimeout(resourceSearchTimer);
@@ -220,6 +365,18 @@
     if (resourceIdInput) {
       resourceIdInput.addEventListener("input", () => {
         setResourceEmail(form, "");
+        resetRoleSelect(form);
+        window.clearTimeout(roleLoadTimer);
+        roleLoadTimer = window.setTimeout(() => {
+          loadResourceRoles(form);
+        }, AUTOTASK_ROLE_LOAD_DELAY_MS);
+      });
+    }
+
+    const roleSelect = form.querySelector("[data-role-select]");
+    if (roleSelect) {
+      roleSelect.addEventListener("change", () => {
+        roleSelect.dataset.selectedRoleId = roleSelect.value;
       });
     }
   }
@@ -282,6 +439,7 @@
         }
         setUserEditMode(userId, shouldOpen);
         if (shouldOpen) {
+          loadResourceRoles(editPanel.querySelector("form"));
           const firstInput = editPanel.querySelector("input:not([type='hidden'])");
           if (firstInput) {
             firstInput.focus();
@@ -298,6 +456,11 @@
         if (editForm) {
           editForm.reset();
           clearResourceResults(editForm);
+          const roleSelect = editForm.querySelector("[data-role-select]");
+          if (roleSelect) {
+            roleSelect.dataset.selectedRoleId = roleSelect.dataset.initialRoleId || "";
+          }
+          loadResourceRoles(editForm);
         }
         setUserEditMode(userId, false);
       });

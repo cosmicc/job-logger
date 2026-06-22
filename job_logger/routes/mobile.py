@@ -1196,7 +1196,12 @@ async def end_work(
         apply_manual_summary_to_job(database_session, job_id=job.id, summary_text=summary_notes)
         submit_from_work_in_progress = get_submit_from_work_in_progress_for_session(database_session, request.session)
         if submit_from_work_in_progress:
-            submit_job_to_autotask(database_session, job, resource_id=web_user.autotask_resource_id)
+            submit_job_to_autotask(
+                database_session,
+                job,
+                resource_id=web_user.autotask_resource_id,
+                default_service_desk_role_id=web_user.autotask_default_service_desk_role_id,
+            )
         record_audit_event(
             database_session,
             actor=actor,

@@ -19,6 +19,56 @@
       </form>
     </div>
 
+    <section id="disk-space" class="table-panel disk-space-card disk-space-{{ disk_usage.severity }}" aria-label="Disk space monitor">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <div>
+            <h2>Disk space</h2>
+            <p class="muted-text">
+              App-visible storage paths. Warning at 85% used or under 5 GB free; critical at 95% used or under 1 GB free.
+            </p>
+          </div>
+          <span class="status-chip disk-space-status disk-space-status-{{ disk_usage.severity }}">{{ disk_usage.status_label }}</span>
+        </div>
+
+        <div class="disk-space-grid">
+          {% for volume in disk_usage.volumes %}
+            <article class="disk-volume-row disk-volume-{{ volume.severity }}">
+              <div class="disk-volume-heading">
+                <strong>{{ volume.label }}</strong>
+                <span class="status-chip disk-volume-status disk-volume-status-{{ volume.severity }}">{{ volume.status_label }}</span>
+              </div>
+              <progress
+                class="disk-meter disk-meter-{{ volume.severity }}"
+                value="{{ volume.used_percent }}"
+                max="100"
+              >{{ volume.used_percent_display }}</progress>
+              <dl class="disk-volume-stats">
+                <div>
+                  <dt>Used</dt>
+                  <dd>{{ volume.used_display }} / {{ volume.total_display }} ({{ volume.used_percent_display }})</dd>
+                </div>
+                <div>
+                  <dt>Free</dt>
+                  <dd>{{ volume.free_display }}</dd>
+                </div>
+                <div>
+                  <dt>Path</dt>
+                  <dd>{{ volume.configured_path }}</dd>
+                </div>
+                {% if volume.measured_path != volume.configured_path %}
+                  <div>
+                    <dt>Measured path</dt>
+                    <dd>{{ volume.measured_path }}</dd>
+                  </div>
+                {% endif %}
+              </dl>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
     <section id="session-controls" class="table-panel" aria-label="Session controls">
       <div class="debug-panel-body">
         <div class="review-header">

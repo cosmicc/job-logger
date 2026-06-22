@@ -29,7 +29,9 @@ backup/restore, but it must not start, edit, submit, delete, record, or
 AI-cleanup jobs because it has no Autotask resource ID. Work-entry users are
 database-managed `WebUser` rows created on `/users`; they store full name,
 username, salted password hash, required Autotask resource ID, optional email
-captured from Autotask Resource lookup, and disabled state. Disabled web users
+captured from Autotask Resource lookup, optional default service-desk role ID
+selected from that resource's active Autotask roles, and disabled state.
+Disabled web users
 must be blocked from new logins and from old signed sessions. Managed-user
 passwords must be at least 8 characters and include lowercase, uppercase,
 number, and symbol characters. Enforce that rule server-side before hashing;
@@ -80,6 +82,11 @@ return only safe Autotask Resource metadata. Browser code can use it from
 add/edit user forms to fill the resource ID field, but the server must still
 validate the submitted resource ID and must never expose Autotask credentials or
 raw remote error details.
+The `/users/autotask-resource-roles` lookup endpoint is also super-admin-only.
+It may return active `ResourceServiceDeskRoles.roleID` values and safe display
+labels for the selected resource, but saving a submitted default role must still
+re-query the server-side provider and verify that role is active for the
+submitted resource ID.
 The per-row `/users/{user_id}/refresh-resource` action is also
 super-admin-only, CSRF-protected, and must update only safe local metadata after
 matching the returned Autotask resource ID to the user's stored ID.
@@ -137,7 +144,10 @@ and other proxy headers as supporting metadata only. The successful-login table
 may use a yellow account-kind chip for config super-admin rows so they are easy
 to distinguish from managed web users. The bottom of `/debug` may show a
 sanitized newest-first tail of `${LOG_DIR}/app.log`; keep that bounded,
-scrollable, and redacted.
+scrollable, and redacted. `/debug` may also show disk usage for app-visible
+storage paths such as `/`, `${LOG_DIR}`, and `${AUTOMATIC_BACKUP_DIR}`. Keep
+disk diagnostics read-only and limited to path, usage, and warning/critical
+metadata.
 
 ## CSRF Rules
 

@@ -1048,7 +1048,13 @@ def reset_ticket_data(database_session: Session) -> dict[str, int]:
     }
 
 
-def submit_job_to_autotask(database_session: Session, job: Job, *, resource_id: int) -> Job:
+def submit_job_to_autotask(
+    database_session: Session,
+    job: Job,
+    *,
+    resource_id: int,
+    default_service_desk_role_id: int | None = None,
+) -> Job:
     """Submit a locally completed job to the configured Autotask provider."""
 
     if job.status == JobStatus.ACTIVE:
@@ -1057,7 +1063,11 @@ def submit_job_to_autotask(database_session: Session, job: Job, *, resource_id: 
     ensure_job_ready_for_autotask_submission(job)
 
     try:
-        submission_result = get_autotask_provider().submit_job(job, resource_id=resource_id)
+        submission_result = get_autotask_provider().submit_job(
+            job,
+            resource_id=resource_id,
+            default_service_desk_role_id=default_service_desk_role_id,
+        )
     except AutotaskSubmissionError as exc:
         submission_result = None
         job.status = JobStatus.SUBMISSION_FAILED

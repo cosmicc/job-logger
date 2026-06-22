@@ -32,10 +32,12 @@ ticket's `assignedResourceroleID` at submit time when available. If the ticket
 omits that role, the provider first checks `TicketSecondaryResources` for a row
 matching the selected ticket and the submitting managed user's resource ID, then
 uses `Tickets.assignedResourceID` to resolve that ticket-assigned resource's
-default or single active `ResourceServiceDeskRoles.roleID`, then falls back to
-the submitting managed user's default or single active service-desk role. The
-final `TimeEntries.resourceID` must still be the owning/submitting managed
-user's resource ID. The provider omits `TimeEntries.billingCodeID` so Autotask
+default or single active `ResourceServiceDeskRoles.roleID`, then uses the
+submitting managed user's configured default service-desk role ID when present,
+then falls back to the submitting managed user's default or single active
+service-desk role. The final `TimeEntries.resourceID` must still be the
+owning/submitting managed user's resource ID. The provider omits
+`TimeEntries.billingCodeID` so Autotask
 inherits the selected ticket's Work Type on create. API credentials, ticket
 status IDs, the `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED` switch, time-entry
 type, and optional Autotask provider settings remain environment-backed. Ticket
@@ -46,13 +48,14 @@ Autotask impersonation resource setting; user-scoped workflows use the owning
 managed web user's resource ID in payloads and filters but do not send
 Autotask's optional `ImpersonationResourceId` header.
 The config super admin may use `/users` to query Autotask Resources by name
-while creating a managed web user, but that lookup must still go through the
-server-side provider and return only safe resource metadata. When the selected
-resource includes an email address, the user manager stores it with the managed
-web-user row for future user-scoped features. The same page has a per-user
-refresh action that re-runs Resource lookup, matches the returned resource ID
-against the user's saved resource ID, and updates only safe local name/email
-metadata.
+while creating a managed web user, and may query active
+`ResourceServiceDeskRoles` by selected Resource ID for a per-user default role
+dropdown. Both lookups must still go through the server-side provider and return
+only safe metadata. When the selected resource includes an email address, the
+user manager stores it with the managed web-user row for future user-scoped
+features. The same page has a per-user refresh action that re-runs Resource
+lookup, matches the returned resource ID against the user's saved resource ID,
+and updates only safe local name/email metadata.
 
 ## Provider Location
 
@@ -330,12 +333,15 @@ the ticket provides one. If the ticket omits that role, query
 `TicketSecondaryResources` for the selected `ticketID` and submitting managed
 user's resource ID before generic resource-role fallbacks. If no matching
 ticket-specific secondary role exists, query `ResourceServiceDeskRoles` for
-`Tickets.assignedResourceID` first, then for the submitting managed user's
-resource ID. A generic resource-role lookup may use the default active role, or
-a single active role when Autotask does not mark a default. If multiple active
-roles exist without a default, fail clearly instead of choosing one arbitrarily.
-Autotask may still reject a fallback role when tenant permissions or ticket
-rules require a different role.
+`Tickets.assignedResourceID` first. If that does not produce a role, use the
+submitting managed user's configured default service-desk role ID when one was
+selected on `/users`, then query `ResourceServiceDeskRoles` for the submitting
+managed user's resource ID. A generic resource-role lookup may use the default
+active role, or a single active role when Autotask does not mark a default. If
+multiple active roles exist without a default and no configured per-user role is
+available, fail clearly instead of choosing one arbitrarily. Autotask may still
+reject a fallback role when tenant permissions or ticket rules require a
+different role.
 
 Ticket `TimeEntries` creation must not include `billingCodeID`. Autotask labels
 that as Allocation Code / Work Type. On create, omitting it lets Autotask

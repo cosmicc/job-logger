@@ -57,6 +57,7 @@ def test_super_admin_adds_first_web_user_and_claims_existing_jobs(super_admin_cl
             "username": "first-tech",
             "password": first_user_password,
             "autotask_resource_id": "42",
+            "autotask_default_service_desk_role_id": "8",
             "autotask_resource_email": "first.tech@example.test",
         },
         follow_redirects=False,
@@ -68,6 +69,7 @@ def test_super_admin_adds_first_web_user_and_claims_existing_jobs(super_admin_cl
         assert user is not None
         assert user.password_hash != first_user_password
         assert user.autotask_resource_id == 42
+        assert user.autotask_default_service_desk_role_id == 8
         assert user.email == "first.tech@example.test"
         job = database_session.get(Job, legacy_job_id)
         assert job is not None
@@ -93,7 +95,9 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert users_page.status_code == 200
     assert '<table class="users-table">' in users_page.text
     assert "<th scope=\"col\">Email</th>" in users_page.text
+    assert "<th scope=\"col\">Default role</th>" in users_page.text
     assert 'data-label="Email"' in users_page.text
+    assert 'data-label="Default role"' in users_page.text
     assert "tech@example.test" in users_page.text
     assert 'data-user-edit-toggle' in users_page.text
     assert 'data-user-edit-panel' in users_page.text
@@ -105,6 +109,9 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert ">Edit<" not in users_page.text
     assert ">Delete<" not in users_page.text
     assert 'name="autotask_resource_email"' in users_page.text
+    assert 'name="autotask_default_service_desk_role_id"' in users_page.text
+    assert 'data-autotask-role-url="/users/autotask-resource-roles"' in users_page.text
+    assert 'data-role-select' in users_page.text
     assert 'data-resource-results hidden' in users_page.text
     assert f"/static/users.js?v={static_asset_version()}" in users_page.text
     assert "The config super admin is intentionally not listed here." in users_page.text
@@ -268,6 +275,7 @@ def test_users_page_disables_user_with_job_history(
             "password": "",
             "autotask_resource_id": "1",
             "autotask_resource_email": "",
+            "autotask_default_service_desk_role_id": "",
         },
         follow_redirects=False,
     )
@@ -300,6 +308,7 @@ def test_managed_user_password_complexity_is_enforced(super_admin_client: TestCl
             "username": "weak-password",
             "password": "lowercase1!",
             "autotask_resource_id": "42",
+            "autotask_default_service_desk_role_id": "8",
             "autotask_resource_email": "weak@example.test",
         },
         follow_redirects=False,
@@ -335,6 +344,29 @@ def test_users_page_autotask_resource_lookup_is_super_admin_only(client: TestCli
     assert payload["resources"][0]["email"] == "joe.blow@example.test"
 
 
+def test_users_page_autotask_role_lookup_is_super_admin_only(client: TestClient) -> None:
+    """Only the config super admin should query active service-desk role options."""
+
+    login_as_web_user(client)
+    forbidden_response = client.get("/users/autotask-resource-roles?resource_id=42")
+    assert forbidden_response.status_code == 403
+
+    login_as_super_admin(client)
+    lookup_response = client.get("/users/autotask-resource-roles?resource_id=42")
+    assert lookup_response.status_code == 200
+    payload = lookup_response.json()
+    assert payload["roles"][0] == {
+        "role_id": 8,
+        "label": "Role 8 (Autotask default)",
+        "is_default": True,
+    }
+    assert payload["roles"][1] == {
+        "role_id": 15,
+        "label": "Role 15",
+        "is_default": False,
+    }
+
+
 def test_users_page_persists_autotask_resource_email_on_edit(super_admin_client: TestClient) -> None:
     """The selected Autotask resource email should be stored with the managed user."""
 
@@ -353,6 +385,7 @@ def test_users_page_persists_autotask_resource_email_on_edit(super_admin_client:
             "username": "tech",
             "password": "",
             "autotask_resource_id": "42",
+            "autotask_default_service_desk_role_id": "",
             "autotask_resource_email": "joe.blow@example.test",
         },
         follow_redirects=False,
@@ -367,6 +400,70 @@ def test_users_page_persists_autotask_resource_email_on_edit(super_admin_client:
 
     users_page = super_admin_client.get("/users")
     assert "joe.blow@example.test" in users_page.text
+
+
+def test_users_page_persists_valid_default_service_desk_role(super_admin_client: TestClient) -> None:
+    """The selected default service-desk role should be stored with the managed user."""
+
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user_id = user.id
+
+    users_page = super_admin_client.get("/users")
+    csrf_token = extract_csrf_token(users_page.text)
+    invalid_response = super_admin_client.post(
+        f"/users/{user_id}/update",
+        data={
+            "csrf_token": csrf_token,
+            "full_name": "Test Technician",
+            "username": "tech",
+            "password": "",
+            "autotask_resource_id": "42",
+            "autotask_default_service_desk_role_id": "999",
+            "autotask_resource_email": "joe.blow@example.test",
+        },
+        follow_redirects=False,
+    )
+
+    assert invalid_response.status_code == 303
+    invalid_page = super_admin_client.get("/users")
+    assert "Default service desk role must be an active role for the selected Autotask resource." in invalid_page.text
+    with database.SessionLocal() as database_session:
+        user = database_session.get(WebUser, user_id)
+        assert user is not None
+        assert user.autotask_default_service_desk_role_id is None
+
+    csrf_token = extract_csrf_token(invalid_page.text)
+    update_response = super_admin_client.post(
+        f"/users/{user_id}/update",
+        data={
+            "csrf_token": csrf_token,
+            "full_name": "Test Technician",
+            "username": "tech",
+            "password": "",
+            "autotask_resource_id": "42",
+            "autotask_default_service_desk_role_id": "15",
+            "autotask_resource_email": "joe.blow@example.test",
+        },
+        follow_redirects=False,
+    )
+
+    assert update_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        user = database_session.get(WebUser, user_id)
+        assert user is not None
+        assert user.autotask_resource_id == 42
+        assert user.autotask_default_service_desk_role_id == 15
+        assert user.email == "joe.blow@example.test"
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "user.web.updated")
+        )
+        assert audit_event is not None
+        assert audit_event.details["autotask_default_service_desk_role_id"] == 15
+
+    users_page = super_admin_client.get("/users")
+    assert "Role 15" in users_page.text
 
 
 def test_users_page_refreshes_autotask_resource_metadata(super_admin_client: TestClient) -> None:

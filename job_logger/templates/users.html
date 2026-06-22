@@ -32,6 +32,7 @@
                   <th scope="col">Username</th>
                   <th scope="col">Email</th>
                   <th scope="col">Resource ID</th>
+                  <th scope="col">Default role</th>
                   <th scope="col">Status</th>
                   <th scope="col">Jobs</th>
                   <th scope="col">Actions</th>
@@ -55,6 +56,13 @@
                     </td>
                     <td data-label="Resource ID">
                       <span class="mono-value">{{ row.user.autotask_resource_id }}</span>
+                    </td>
+                    <td data-label="Default role">
+                      {% if row.user.autotask_default_service_desk_role_id %}
+                        <span class="mono-value">Role {{ row.user.autotask_default_service_desk_role_id }}</span>
+                      {% else %}
+                        <span class="muted-text">Not set</span>
+                      {% endif %}
                     </td>
                     <td data-label="Status">
                       {% if row.user.disabled %}
@@ -107,6 +115,11 @@
                             <input type="hidden" name="password" value="">
                             <input type="hidden" name="autotask_resource_id" value="{{ row.user.autotask_resource_id }}">
                             <input type="hidden" name="autotask_resource_email" value="{{ row.user.email or '' }}">
+                            <input
+                              type="hidden"
+                              name="autotask_default_service_desk_role_id"
+                              value="{{ row.user.autotask_default_service_desk_role_id or '' }}"
+                            >
                             <button
                               class="success-outline-button user-action-icon-button"
                               type="submit"
@@ -148,7 +161,7 @@
                     data-user-id="{{ row.user.id }}"
                     hidden
                   >
-                    <td colspan="7">
+                    <td colspan="8">
                       <form
                         id="user-update-{{ row.user.id }}"
                         method="post"
@@ -156,6 +169,7 @@
                         class="user-management-form user-edit-form"
                         data-user-edit-form
                         data-autotask-resource-url="/users/autotask-resources"
+                        data-autotask-role-url="/users/autotask-resource-roles"
                       >
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <input
@@ -199,7 +213,26 @@
                               required
                             >
                           </label>
+                          <label>
+                            <span>Default service desk role</span>
+                            <select
+                              name="autotask_default_service_desk_role_id"
+                              data-role-select
+                              data-selected-role-id="{{ row.user.autotask_default_service_desk_role_id or '' }}"
+                              data-initial-role-id="{{ row.user.autotask_default_service_desk_role_id or '' }}"
+                            >
+                              <option value="">No default role selected</option>
+                              {% if row.user.autotask_default_service_desk_role_id %}
+                                <option value="{{ row.user.autotask_default_service_desk_role_id }}" selected>
+                                  Role {{ row.user.autotask_default_service_desk_role_id }} (saved)
+                                </option>
+                              {% endif %}
+                            </select>
+                          </label>
                         </div>
+                        <p class="resource-picker-status muted-text" data-role-status aria-live="polite">
+                          Load active roles after selecting the Autotask resource.
+                        </p>
                         <section class="resource-picker" aria-label="Autotask resource lookup" data-resource-picker>
                           <div class="resource-picker-header">
                             <div>
@@ -271,6 +304,7 @@
           data-user-create-form
           data-username-autogenerate
           data-autotask-resource-url="/users/autotask-resources"
+          data-autotask-role-url="/users/autotask-resource-roles"
         >
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="autotask_resource_email" data-resource-email-input>
@@ -300,7 +334,16 @@
               <span>Autotask resource ID</span>
               <input name="autotask_resource_id" type="number" min="1" step="1" inputmode="numeric" data-resource-id-input required>
             </label>
+            <label>
+              <span>Default service desk role</span>
+              <select name="autotask_default_service_desk_role_id" data-role-select data-selected-role-id="" data-initial-role-id="">
+                <option value="">No default role selected</option>
+              </select>
+            </label>
           </div>
+          <p class="resource-picker-status muted-text" data-role-status aria-live="polite">
+            Select an Autotask resource to load active roles.
+          </p>
           <section class="resource-picker compact-resource-picker" aria-label="Autotask resource lookup" data-resource-picker>
             <div class="resource-picker-header">
               <div>

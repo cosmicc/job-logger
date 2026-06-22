@@ -80,6 +80,15 @@ class WebUser(Base):
         comment="Optional email address captured from the linked Autotask resource.",
     )
 
+    # autotask_default_service_desk_role_id is an explicit fallback role chosen
+    # by the super admin for TimeEntries.roleID when a ticket omits assigned
+    # role context and Autotask cannot return one unambiguous active role.
+    autotask_default_service_desk_role_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Optional active ResourceServiceDeskRoles.roleID fallback used for this user's Autotask time entries.",
+    )
+
     # disabled blocks future local login without deleting job/audit history.
     disabled: Mapped[bool] = mapped_column(
         Boolean,

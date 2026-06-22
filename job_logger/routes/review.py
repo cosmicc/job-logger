@@ -502,7 +502,12 @@ async def accept_review(
         ensure_job_is_not_locked_after_successful_submission(job)
         review_fields = validate_review_fields(_read_only_review_form_values(form_values, job), require_ticket_number=True)
         apply_review_fields(job, review_fields)
-        submit_job_to_autotask(database_session, job, resource_id=web_user.autotask_resource_id)
+        submit_job_to_autotask(
+            database_session,
+            job,
+            resource_id=web_user.autotask_resource_id,
+            default_service_desk_role_id=web_user.autotask_default_service_desk_role_id,
+        )
         record_audit_event(
             database_session,
             actor=actor,
@@ -541,7 +546,12 @@ async def retry_submission(
         if form_values:
             review_fields = validate_review_fields(_read_only_review_form_values(form_values, job), require_ticket_number=True)
             apply_review_fields(job, review_fields)
-        submit_job_to_autotask(database_session, job, resource_id=web_user.autotask_resource_id)
+        submit_job_to_autotask(
+            database_session,
+            job,
+            resource_id=web_user.autotask_resource_id,
+            default_service_desk_role_id=web_user.autotask_default_service_desk_role_id,
+        )
         record_audit_event(
             database_session,
             actor=actor,

@@ -45,6 +45,9 @@ AUTOMATIC_DAILY_BACKUP_DAYS_TO_KEEP = 3
 _BACKUP_RESTORE_LOCK = threading.RLock()
 _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
     "web_users": {
+        # v1.1.1 added an optional explicit Autotask service-desk role fallback.
+        # Older full backups should restore without forcing a role selection.
+        "autotask_default_service_desk_role_id": None,
         # v1.1.0 added per-user session invalidation. Older full backups should
         # restore without forcing users out immediately.
         "sessions_invalidated_at_utc": None,

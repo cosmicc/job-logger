@@ -25,7 +25,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert "## v1.1.1 - Review cleanup, Autotask fixes, and Docker startup" in changelog_text
+    assert "## v1.1.1 - Review cleanup, Autotask fixes, Docker startup, and diagnostics" in changelog_text
     assert "## v1.1.0 - Direct submission, backups, and passkeys" in changelog_text
     assert "## v1.0.2 - Autotask workflow and desktop layout updates" in changelog_text
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
@@ -76,6 +76,7 @@ def test_changelog_parser_reads_current_release() -> None:
             "Autotask time-entry submission no longer requires ticket status update permission by default.",
             "Autotask submission now handles tickets that provide an assigned resource but omit the assigned role.",
             "Autotask submission now handles tickets where the submitting user is assigned as a secondary resource.",
+            "Autotask submission can now use a configured default service-desk role for a web user when a ticket does not provide usable role data.",
         ),
     )
 
@@ -110,6 +111,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Autotask time-entry submission no longer requires ticket status update permission by default." in response.text
     assert "Autotask submission now handles tickets that provide an assigned resource but omit the assigned role." in response.text
     assert "Autotask submission now handles tickets where the submitting user is assigned as a secondary resource." in response.text
+    assert (
+        "Autotask submission can now use a configured default service-desk role for a web user "
+        "when a ticket does not provide usable role data."
+    ) in response.text
     assert "Direct submission and passkeys" in response.text
     assert "Added a Config option to submit time entries directly from Work in Progress." in response.text
     assert "Review is still available afterward for submitted-entry edits and Autotask deletion." in response.text

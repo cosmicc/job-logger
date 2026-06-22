@@ -32,13 +32,16 @@ managed web users must receive 403 for direct debug requests.
 
 Managed web users must have a full name, unique username, password hash, and
 Autotask resource ID. They may also store the email address returned by the
-selected Autotask Resource lookup. The `/users` page presents managed accounts
-in a table with visible stored email metadata and icon-only row actions for
-refresh, edit, enable/disable, and delete-as-disable. The refresh action
+selected Autotask Resource lookup and an optional default active service-desk
+role ID selected from that resource's active Autotask `ResourceServiceDeskRoles`.
+The `/users` page presents managed accounts in a table with visible stored email
+and default-role metadata and icon-only row actions for refresh, edit,
+enable/disable, and delete-as-disable. The refresh action
 re-queries Autotask Resources, requires the returned resource ID to match the
 stored ID, and updates only safe local name/email metadata. The add form may
 suggest usernames from full names, such as `jblow` for `Joe Blow`, and add/edit
-forms may query Autotask Resources for a super-admin-only resource picker.
+forms may query Autotask Resources and active service-desk roles for
+super-admin-only resource and role pickers.
 Store only salted password verifiers, never raw managed user passwords.
 Managed-user passwords must be at least 8 characters and include lowercase,
 uppercase, number, and symbol characters.
@@ -237,16 +240,19 @@ when available, fall back to
 `TicketSecondaryResources.roleID` for the submitting managed user's resource
 when that user is a secondary resource on the ticket, then fall back to
 `Tickets.assignedResourceID` to resolve that resource's default or single active
-`ResourceServiceDeskRoles.roleID`, then fall back to the submitting managed
-user's default or single active service-desk role when the ticket omits assigned
-role context. The app must still send the submitting managed user's resource ID
-as `TimeEntries.resourceID`. Omit `TimeEntries.billingCodeID` so Autotask
-inherits the selected ticket's Work Type on create. API credentials, optional
-ticket status IDs, the ticket-status-update switch, and time-entry type remain
-environment configuration.
+`ResourceServiceDeskRoles.roleID`, then use the submitting managed user's
+configured default service-desk role ID when present, then fall back to the
+submitting managed user's default or single active service-desk role when the
+ticket omits assigned role context. The app must still send the submitting
+managed user's resource ID as `TimeEntries.resourceID`. Omit
+`TimeEntries.billingCodeID` so Autotask inherits the selected ticket's Work Type
+on create. API credentials, optional ticket status IDs, the ticket-status-update
+switch, and time-entry type remain environment configuration.
 The super-admin `/users` page may query `/Resources/query` through the server
 to find matching Autotask Resources by `Last, First` name and fill the
-user-specific resource ID and optional email address. Per-row refresh on
+user-specific resource ID and optional email address. It may also query
+`ResourceServiceDeskRoles` through the server to list active role IDs for the
+selected resource before saving a per-user fallback role. Per-row refresh on
 `/users` uses the same server-side provider and updates stored local metadata
 only after the returned resource ID matches the user's saved resource ID.
 
@@ -526,17 +532,17 @@ The application is a FastAPI project under `job_logger/`.
   selected job, and explicit local **Delete time entry** cleanup.
 - `job_logger/routes/users.py` handles the super-admin managed web-user page,
   including add/edit/enable/disable/delete-as-disable behavior, Autotask
-  Resource lookup, per-row Resource metadata refresh, and session invalidation
-  when accounts are disabled.
+  Resource lookup, active service-desk role lookup, per-row Resource metadata
+  refresh, and session invalidation when accounts are disabled.
 - `job_logger/routes/configuration.py` handles authenticated managed-web-user
   configuration such as immediate light/dark theme selection and explicit
   managed-user password changes.
 - `job_logger/routes/changelog.py` handles authenticated `/changelog` release
   history for the discreet version link shown in the shared app header.
 - `job_logger/routes/debug.py` handles the super-admin diagnostic page, the
-  sanitized successful/failed login windows, app log tail, full backup/restore
-  actions, managed web-user session invalidation, and the Autotask API
-  connectivity test.
+  sanitized successful/failed login windows, disk-space monitor, app log tail,
+  full backup/restore actions, managed web-user session invalidation, and the
+  Autotask API connectivity test.
 - `job_logger/routes/health.py` exposes private container health endpoints.
 - `job_logger/routes/pwa.py` serves the web app manifest and root-scoped
   service worker for installed mobile app behavior. The service worker must not
@@ -545,11 +551,11 @@ The application is a FastAPI project under `job_logger/`.
   the primary place for workflow and job-ownership validation.
 - `job_logger/services/autotask.py` owns Autotask providers, connectivity tests,
   company/ticket lookup, per-user resource service-call lookup, cache behavior,
-  pagination, submission-time status mapping, time entry submission,
-  existing-entry updates, and existing-entry deletes.
+  pagination, active service-desk role lookup, submission-time status mapping,
+  time entry submission, existing-entry updates, and existing-entry deletes.
 - `job_logger/services/users.py` owns managed web-user validation, optional
-  Autotask Resource email storage, password hashing and changes, first-user
-  legacy job claiming, and delete-as-disable rules.
+  Autotask Resource email and default-role storage, password hashing and
+  changes, first-user legacy job claiming, and delete-as-disable rules.
 - `job_logger/services/session_control.py` owns server-side managed web-user
   session invalidation cutoffs used by diagnostics and user disable actions.
 - `job_logger/services/preferences.py` owns per-authenticated-user

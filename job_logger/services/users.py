@@ -143,6 +143,20 @@ def normalize_autotask_resource_id(raw_resource_id: int | str | None) -> int:
     return resource_id
 
 
+def normalize_optional_autotask_role_id(raw_role_id: int | str | None) -> int | None:
+    """Return an optional positive Autotask service-desk role ID."""
+
+    if raw_role_id is None or (isinstance(raw_role_id, str) and not raw_role_id.strip()):
+        return None
+    try:
+        role_id = int(raw_role_id)
+    except (TypeError, ValueError) as exc:
+        raise WebUserError("Default service desk role must be a positive number.") from exc
+    if role_id <= 0:
+        raise WebUserError("Default service desk role must be a positive number.")
+    return role_id
+
+
 def normalize_optional_email(email: str | None) -> str | None:
     """Return a bounded optional email captured from Autotask Resource lookup."""
 
@@ -330,6 +344,7 @@ def create_web_user(
     username: str | None,
     password: str | None,
     autotask_resource_id: int | str | None,
+    autotask_default_service_desk_role_id: int | str | None = None,
     email: str | None = None,
     disabled: bool = False,
 ) -> WebUserCreateResult:
@@ -345,6 +360,7 @@ def create_web_user(
         username_normalized=username_normalized(normalized_username),
         password_hash=hash_password(password or ""),
         autotask_resource_id=normalize_autotask_resource_id(autotask_resource_id),
+        autotask_default_service_desk_role_id=normalize_optional_autotask_role_id(autotask_default_service_desk_role_id),
         email=normalize_optional_email(email),
         disabled=disabled,
     )
@@ -371,6 +387,7 @@ def update_web_user(
     username: str | None,
     password: str | None,
     autotask_resource_id: int | str | None,
+    autotask_default_service_desk_role_id: int | str | None,
     email: str | None,
     disabled: bool,
 ) -> WebUser:
@@ -385,6 +402,7 @@ def update_web_user(
     if password:
         user.password_hash = hash_password(password)
     user.autotask_resource_id = normalize_autotask_resource_id(autotask_resource_id)
+    user.autotask_default_service_desk_role_id = normalize_optional_autotask_role_id(autotask_default_service_desk_role_id)
     user.email = normalize_optional_email(email)
     user.disabled = disabled
     if disabled and not was_disabled:

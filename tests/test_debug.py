@@ -8,6 +8,7 @@ import os
 import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
@@ -15,6 +16,7 @@ from sqlalchemy import func, select
 from job_logger import database
 from job_logger.enums import JobStatus, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
 from job_logger.models import AuditEvent, Job, SubmissionAttempt, UserPreference, WebAuthnCredential, WebUser
+from job_logger.routes import debug as debug_routes
 from job_logger.services.backups import (
     automatic_backup_filename,
     create_automatic_backup,
@@ -192,6 +194,74 @@ def test_debug_can_force_managed_web_users_to_sign_in_again(client: TestClient) 
         )
         assert audit_event is not None
         assert audit_event.details["affected_user_count"] == 1
+
+
+def test_debug_page_shows_disk_space_monitor(super_admin_client: TestClient, monkeypatch) -> None:
+    """Diagnostics should render app-visible disk usage with warning styling."""
+
+    snapshot = debug_routes.DebugDiskUsageSnapshot(
+        severity="warning",
+        status_label="Disk space nearing full",
+        volumes=(
+            debug_routes.DebugDiskUsageVolume(
+                label="Log directory",
+                configured_path="/data/logs",
+                measured_path="/data/logs",
+                total_display="100.0 GB",
+                used_display="88.6 GB",
+                free_display="11.4 GB",
+                used_percent=88.6,
+                used_percent_display="88.6%",
+                severity="warning",
+                status_label="Nearing full",
+            ),
+        ),
+    )
+    monkeypatch.setattr(debug_routes, "_collect_disk_usage_snapshot", lambda: snapshot)
+
+    response = super_admin_client.get("/debug")
+
+    assert response.status_code == 200
+    assert 'id="disk-space"' in response.text
+    assert "disk-space-card disk-space-warning" in response.text
+    assert "Disk space nearing full" in response.text
+    assert "Warning at 85% used or under 5 GB free" in response.text
+    assert "Log directory" in response.text
+    assert "88.6 GB / 100.0 GB (88.6%)" in response.text
+    assert "/data/logs" in response.text
+    assert 'class="disk-meter disk-meter-warning"' in response.text
+    assert 'value="88.6"' in response.text
+
+
+def test_debug_disk_usage_serializer_uses_existing_parent_for_missing_path(tmp_path: Path, monkeypatch) -> None:
+    """Disk diagnostics should still work when a configured child path is absent."""
+
+    configured_path = tmp_path / "logs" / "future"
+    observed_paths: list[Path] = []
+
+    def fake_disk_usage(path: Path) -> SimpleNamespace:
+        observed_paths.append(path)
+        gibibyte = 1024 * 1024 * 1024
+        return SimpleNamespace(
+            total=100 * gibibyte,
+            used=96 * gibibyte,
+            free=4 * gibibyte,
+        )
+
+    monkeypatch.setattr(debug_routes.shutil, "disk_usage", fake_disk_usage)
+
+    volume = debug_routes._serialize_disk_usage_volume("Missing child", str(configured_path))
+
+    assert observed_paths == [tmp_path]
+    assert volume.configured_path == str(configured_path)
+    assert volume.measured_path == str(tmp_path)
+    assert volume.total_display == "100.0 GB"
+    assert volume.used_display == "96.0 GB"
+    assert volume.free_display == "4.0 GB"
+    assert volume.used_percent == 96.0
+    assert volume.used_percent_display == "96.0%"
+    assert volume.severity == "critical"
+    assert volume.status_label == "Critical"
 
 
 def test_openapi_schema_route_is_disabled(client: TestClient) -> None:
@@ -402,6 +472,9 @@ def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient)
     assert "position: absolute;" in stylesheet
     assert "width: min(760px, calc(100vw - 96px));" in stylesheet
     assert "max-height: calc(20lh + 24px);" in stylesheet
+    assert ".disk-space-card.disk-space-warning" in stylesheet
+    assert ".disk-space-card.disk-space-critical" in stylesheet
+    assert ".disk-meter-critical" in stylesheet
 
 
 def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -> None:
@@ -483,6 +556,7 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert "Autotask debug" in debug_response.text
     assert "Application version" in debug_response.text
     assert APP_VERSION in debug_response.text
+    assert debug_response.text.index("Disk space") < debug_response.text.index("Session controls")
     assert debug_response.text.index("Session controls") < debug_response.text.index("Successful logins")
     assert debug_response.text.index("Successful logins") < debug_response.text.index("Login failures")
     assert debug_response.text.index("Login failures") < debug_response.text.index("Autotask submission attempts")
@@ -769,6 +843,54 @@ def test_debug_restore_defaults_missing_web_session_invalidation_column(
         restored_user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
         assert restored_user is not None
         assert restored_user.sessions_invalidated_at_utc is None
+
+
+def test_debug_restore_defaults_missing_web_user_default_role_column(
+    super_admin_client: TestClient,
+) -> None:
+    """Restore backups that predate per-user default service-desk roles."""
+
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user.autotask_default_service_desk_role_id = 8
+        database_session.commit()
+
+    debug_page_response = super_admin_client.get("/debug")
+    csrf_token = extract_csrf_token(debug_page_response.text)
+    backup_response = super_admin_client.post(
+        "/debug/backup",
+        data={"csrf_token": csrf_token},
+    )
+    payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
+    for row in payload["tables"]["web_users"]:
+        row.pop("autotask_default_service_desk_role_id", None)
+    payload["schema"]["web_users"].remove("autotask_default_service_desk_role_id")
+    legacy_backup_content = gzip.compress(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+        mtime=0,
+    )
+
+    restore_page_response = super_admin_client.get("/debug")
+    restore_csrf_token = extract_csrf_token(restore_page_response.text)
+    restore_response = super_admin_client.post(
+        "/debug/restore",
+        data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
+        files={
+            "backup_file": (
+                "job-logger-pre-default-role-full-backup.json.gz",
+                legacy_backup_content,
+                "application/gzip",
+            )
+        },
+        follow_redirects=False,
+    )
+
+    assert restore_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        restored_user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert restored_user is not None
+        assert restored_user.autotask_default_service_desk_role_id is None
 
 
 def test_debug_restore_defaults_missing_passkey_table_to_empty(

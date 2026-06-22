@@ -88,7 +88,9 @@ Autotask REST API references used by this app:
    saved resource ID. The
    add-user form suggests a username from the name, such as `jblow` for
    `Joe Blow`, and add/edit forms can search Autotask Resources so you can
-   select the matching `Last, First` resource and fill its ID. When Autotask
+   select the matching `Last, First` resource and fill its ID. The same form can
+   load active service-desk roles for that resource and save an optional default
+   role fallback for tickets that do not return usable role data. When Autotask
    returns an email for the selected resource, Job Logger saves it with that
    web-user account. Managed-user passwords must be at least 8 characters and
    include lowercase, uppercase, number, and symbol characters. The first web
@@ -629,11 +631,12 @@ does not return an assigned role, Job Logger first checks whether the submitting
 web user is a secondary resource on that ticket and uses that ticket-specific
 `TicketSecondaryResources.roleID`. If no matching secondary resource role
 exists, it uses the ticket's `assignedResourceID` to resolve that resource's
-default or single active `ResourceServiceDeskRoles.roleID`, then falls back to
-the submitting web user's default or single active service-desk role. The time
-entry still uses the submitting managed user's Autotask resource ID as
-`TimeEntries.resourceID`. Billing code / Work Type is also ticket-driven: Job
-Logger omits
+default or single active `ResourceServiceDeskRoles.roleID`, then uses the
+submitting web user's configured default service-desk role when one has been
+selected on `/users`, then falls back to the submitting web user's default or
+single active service-desk role. The time entry still uses the submitting
+managed user's Autotask resource ID as `TimeEntries.resourceID`. Billing code /
+Work Type is also ticket-driven: Job Logger omits
 `TimeEntries.billingCodeID` so Autotask inherits the selected ticket's
 `billingCodeID` on create without requiring separate Allocation Code edit
 permission.
@@ -643,7 +646,10 @@ while adding or editing a web user. Resource names are displayed in Autotask's
 `Last, First` format in a dropdown-style picker, and choosing one fills the
 required resource ID field. If Autotask returns an email address for the chosen
 resource, the email is saved with the managed web-user account and displayed in
-the Users table for future user-scoped features. Each table row also has a
+the Users table for future user-scoped features. The form can also load active
+`ResourceServiceDeskRoles` for the selected resource and save one optional
+default service-desk role. That configured role is used only as a time-entry
+fallback after ticket-assigned role sources fail. Each table row also has a
 refresh icon that re-runs the server-side resource lookup and updates stored
 name/email metadata only after the returned resource ID matches the user's saved
 resource ID. The browser never receives Autotask credentials and cannot query
@@ -824,8 +830,10 @@ Ticket `TimeEntries` payloads use the selected ticket's
 ticket without that assigned role, Job Logger first checks
 `TicketSecondaryResources` for the submitting web user's ticket-specific role,
 then uses `Tickets.assignedResourceID` to resolve that resource's default or
-single active service-desk role, then falls back to the submitting web user's
-default or single active `ResourceServiceDeskRoles.roleID`. Payloads
+single active service-desk role, then uses the submitting web user's configured
+default service-desk role from `/users` when present, then falls back to the
+submitting web user's default or single active `ResourceServiceDeskRoles.roleID`.
+Payloads
 intentionally omit `billingCodeID` /
 Allocation Code values; Autotask inherits the selected ticket's Work Type on
 create, which avoids requiring the API resource to have Allocation Code edit
@@ -866,6 +874,13 @@ a green chip for managed web users.
 The raw submitted password is never stored or displayed. The `/debug/logs/login-failures` and
 `/debug/logs/login-successes` endpoints download the raw JSONL files for
 authenticated diagnostics.
+
+The `/debug` page also includes a **Disk space** card for the app-visible root
+filesystem, `LOG_DIR`, and `AUTOMATIC_BACKUP_DIR`. The card warns at 85% used
+or under 5 GB free, and becomes critical at 95% used or under 1 GB free. In
+Docker this reflects storage visible from the app container, including the
+mounted log and backup paths; monitor the PostgreSQL volume separately unless
+that volume is also exposed to the app container.
 
 At the bottom of `/debug`, the **Application Log** card shows the newest 200
 lines first from `${LOG_DIR}/app.log`, normally

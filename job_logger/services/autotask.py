@@ -172,6 +172,20 @@ class AutotaskResourceOption:
 
 
 @dataclass(frozen=True)
+class AutotaskServiceDeskRoleOption:
+    """Safe active service-desk role option for one Autotask Resource."""
+
+    # role_id is the ResourceServiceDeskRoles.roleID value used by TimeEntries.
+    role_id: int
+
+    # label is display-only role context safe for the super-admin user manager.
+    label: str
+
+    # is_default mirrors ResourceServiceDeskRoles.isDefault when Autotask returns it.
+    is_default: bool = False
+
+
+@dataclass(frozen=True)
 class AutotaskConnectivityResult:
     """Safe diagnostic result for the mandatory Autotask API dependency."""
 
@@ -334,7 +348,13 @@ class BaseAutotaskProvider:
 
     provider_name = "base"
 
-    def submit_job(self, job: Job, *, resource_id: int) -> AutotaskSubmissionResult:
+    def submit_job(
+        self,
+        job: Job,
+        *,
+        resource_id: int,
+        default_service_desk_role_id: int | None = None,
+    ) -> AutotaskSubmissionResult:
         """Submit a reviewed job to an external destination."""
 
         raise NotImplementedError
@@ -380,6 +400,11 @@ class BaseAutotaskProvider:
 
     def search_resources(self, query_text: str) -> list[AutotaskResourceOption]:
         """Return matching Autotask resources for managed-user setup."""
+
+        raise NotImplementedError
+
+    def list_resource_service_desk_roles(self, resource_id: int) -> list[AutotaskServiceDeskRoleOption]:
+        """Return active service-desk roles for one Autotask resource."""
 
         raise NotImplementedError
 
@@ -559,6 +584,15 @@ def _resource_display_name(first_name: str | None, last_name: str | None, resour
     return f"Resource {resource_id}"
 
 
+def _service_desk_role_label(role_id: int, *, is_default: bool = False) -> str:
+    """Return display text for an active ResourceServiceDeskRoles role ID."""
+
+    label = f"Role {role_id}"
+    if is_default:
+        return f"{label} (Autotask default)"
+    return label
+
+
 def _parse_autotask_datetime(raw_datetime: Any) -> datetime | None:
     """Parse an Autotask UTC datetime string for local sorting and audit context."""
 
@@ -649,11 +683,18 @@ class MockAutotaskProvider(BaseAutotaskProvider):
 
     provider_name = "mock"
 
-    def submit_job(self, job: Job, *, resource_id: int) -> AutotaskSubmissionResult:
+    def submit_job(
+        self,
+        job: Job,
+        *,
+        resource_id: int,
+        default_service_desk_role_id: int | None = None,
+    ) -> AutotaskSubmissionResult:
         """Return a deterministic mock external ID for end-to-end tests."""
 
         snapshot = build_safe_submission_snapshot(job)
         snapshot["resourceID"] = resource_id
+        snapshot["defaultServiceDeskRoleID"] = default_service_desk_role_id
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,
@@ -803,6 +844,16 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         ]
 
         return matching_options[:MAX_RESOURCE_LOOKUP_RESULTS]
+
+    def list_resource_service_desk_roles(self, resource_id: int) -> list[AutotaskServiceDeskRoleOption]:
+        """Return deterministic service-desk role options for local web-user setup."""
+
+        if resource_id <= 0:
+            raise AutotaskSubmissionError("Autotask resource ID must be a positive number.")
+        return [
+            AutotaskServiceDeskRoleOption(role_id=8, label="Role 8 (Autotask default)", is_default=True),
+            AutotaskServiceDeskRoleOption(role_id=15, label="Role 15"),
+        ]
 
     def list_todays_service_calls_for_resource(
         self,
@@ -1983,6 +2034,32 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return resource_options[:MAX_RESOURCE_LOOKUP_RESULTS]
 
+    def list_resource_service_desk_roles(self, resource_id: int) -> list[AutotaskServiceDeskRoleOption]:
+        """Return active service-desk roles for a managed user's Autotask resource."""
+
+        if resource_id <= 0:
+            raise AutotaskSubmissionError("Autotask resource ID must be a positive number.")
+
+        with self._client() as client:
+            role_records = self._query_active_resource_service_desk_role_records(client, resource_id)
+
+        role_options_by_id: dict[int, AutotaskServiceDeskRoleOption] = {}
+        for role_record in role_records:
+            role_id = _coerce_positive_autotask_id(role_record.get("roleID"))
+            if role_id is None:
+                continue
+            is_default = _is_autotask_truthy(role_record.get("isDefault"))
+            existing_option = role_options_by_id.get(role_id)
+            if existing_option is not None and not is_default:
+                continue
+            role_options_by_id[role_id] = AutotaskServiceDeskRoleOption(
+                role_id=role_id,
+                label=_service_desk_role_label(role_id, is_default=is_default),
+                is_default=is_default,
+            )
+
+        return sorted(role_options_by_id.values(), key=lambda option: (not option.is_default, option.role_id))
+
     def list_todays_service_calls_for_resource(
         self,
         resource_id: int,
@@ -2106,22 +2183,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
     ) -> _ServiceDeskRoleLookup | None:
         """Return an unambiguous active service-desk role for an Autotask resource."""
 
-        query_payload = {
-            "IncludeFields": ["id", "resourceID", "roleID", "isDefault", "isActive"],
-            "filter": [
-                {"op": "eq", "field": "resourceID", "value": resource_id},
-                {"op": "eq", "field": "isActive", "value": True},
-            ],
-        }
-        role_records = self._query_paginated_items(
-            client,
-            endpoint_path="/ResourceServiceDeskRoles/query",
-            query_payload=query_payload,
-            action_description="Autotask resource service-desk role lookup",
-            max_records=50,
-            follow_pagination=False,
-        )
-
+        role_records = self._query_active_resource_service_desk_role_records(client, resource_id)
         active_role_ids: list[int] = []
         for role_record in role_records:
             role_id = _coerce_positive_autotask_id(role_record.get("roleID"))
@@ -2142,6 +2204,29 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             )
 
         return None
+
+    def _query_active_resource_service_desk_role_records(
+        self,
+        client: httpx.Client,
+        resource_id: int,
+    ) -> list[dict[str, Any]]:
+        """Return active ResourceServiceDeskRoles records for one resource."""
+
+        query_payload = {
+            "IncludeFields": ["id", "resourceID", "roleID", "isDefault", "isActive"],
+            "filter": [
+                {"op": "eq", "field": "resourceID", "value": resource_id},
+                {"op": "eq", "field": "isActive", "value": True},
+            ],
+        }
+        return self._query_paginated_items(
+            client,
+            endpoint_path="/ResourceServiceDeskRoles/query",
+            query_payload=query_payload,
+            action_description="Autotask resource service-desk role lookup",
+            max_records=50,
+            follow_pagination=False,
+        )
 
     def _query_ticket_secondary_resource_role(
         self,
@@ -2187,6 +2272,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         ticket_number: str,
         *,
         resource_id: int,
+        default_service_desk_role_id: int | None = None,
     ) -> AutotaskTicketTimeEntryContext:
         """Find ticket fields needed for a matching ticket TimeEntries create."""
 
@@ -2230,7 +2316,6 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if role_id is None:
             role_lookup_candidates = [
                 (assigned_resource_id, "ticket.assignedResourceID.ResourceServiceDeskRoles"),
-                (resource_id, "managed_web_user.autotask_resource_id.ResourceServiceDeskRoles"),
             ]
             checked_resource_ids: set[int] = set()
             for role_resource_id, source_prefix in role_lookup_candidates:
@@ -2246,12 +2331,28 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     role_id = role_lookup.role_id
                     role_id_source = role_lookup.source
                     break
+
+        if role_id is None and default_service_desk_role_id is not None:
+            role_id = default_service_desk_role_id
+            role_id_source = "managed_web_user.autotask_default_service_desk_role_id"
+
+        if role_id is None:
+            role_lookup = self._query_resource_service_desk_role(
+                client,
+                resource_id,
+                source_prefix="managed_web_user.autotask_resource_id.ResourceServiceDeskRoles",
+            )
+            if role_lookup is not None:
+                role_id = role_lookup.role_id
+                role_id_source = role_lookup.source
+
             if role_id is None:
                 raise AutotaskSubmissionError(
                     f"Autotask ticket {ticket_number} did not return assignedResourceroleID, "
                     "the submitting resource was not found with an unambiguous TicketSecondaryResources role, "
-                    "and neither the ticket assigned resource nor the submitting resource returned an unambiguous "
-                    "active ResourceServiceDeskRoles role for time entry creation."
+                    "the ticket assigned resource did not return an unambiguous active ResourceServiceDeskRoles role, "
+                    "no configured default service-desk role was available for the submitting user, and the submitting "
+                    "resource did not return an unambiguous active ResourceServiceDeskRoles role for time entry creation."
                 )
 
         return AutotaskTicketTimeEntryContext(
@@ -2386,7 +2487,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         response = client.delete(f"/TimeEntries/{time_entry_id}")
         self._raise_for_safe_response(response, "Autotask time entry deletion")
 
-    def submit_job(self, job: Job, *, resource_id: int) -> AutotaskSubmissionResult:
+    def submit_job(
+        self,
+        job: Job,
+        *,
+        resource_id: int,
+        default_service_desk_role_id: int | None = None,
+    ) -> AutotaskSubmissionResult:
         """Submit a reviewed job to the Autotask REST API."""
 
         if not job.ticket_number:
@@ -2397,9 +2504,11 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             {
                 "resourceID": resource_id,
                 "resourceIDSource": "managed_web_user.autotask_resource_id",
+                "configuredDefaultServiceDeskRoleID": default_service_desk_role_id,
                 "roleIDSource": (
                     "ticket.assignedResourceroleID, ticket secondary resource role, "
-                    "ticket.assignedResourceID ResourceServiceDeskRoles, or managed user ResourceServiceDeskRoles"
+                    "ticket.assignedResourceID ResourceServiceDeskRoles, configured managed user default role, "
+                    "or managed user ResourceServiceDeskRoles"
                 ),
                 "billingCodeIDSource": "ticket inheritance",
                 "timeEntryType": self.application_settings.autotask_time_entry_type,
@@ -2411,7 +2520,12 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         )
         try:
             with self._client() as client:
-                ticket_context = self._query_ticket_time_entry_context(client, job.ticket_number, resource_id=resource_id)
+                ticket_context = self._query_ticket_time_entry_context(
+                    client,
+                    job.ticket_number,
+                    resource_id=resource_id,
+                    default_service_desk_role_id=default_service_desk_role_id,
+                )
                 should_update_ticket_status = self._can_update_ticket_status(job.ticket_status)
                 snapshot["roleID"] = ticket_context.role_id
                 snapshot["roleIDSource"] = ticket_context.role_id_source

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,6 +42,35 @@ router = APIRouter(prefix="/debug", tags=["debug"])
 LOGIN_ATTEMPT_PAGE_SIZE = 10
 APP_LOG_TAIL_LINES = 200
 MAX_APP_LOG_LINE_CHARS = 2000
+DISK_SPACE_WARNING_USED_PERCENT = 85.0
+DISK_SPACE_CRITICAL_USED_PERCENT = 95.0
+DISK_SPACE_WARNING_FREE_BYTES = 5 * 1024 * 1024 * 1024
+DISK_SPACE_CRITICAL_FREE_BYTES = 1 * 1024 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class DebugDiskUsageVolume:
+    """Display-safe disk usage details for one monitored filesystem path."""
+
+    label: str
+    configured_path: str
+    measured_path: str
+    total_display: str
+    used_display: str
+    free_display: str
+    used_percent: float
+    used_percent_display: str
+    severity: str
+    status_label: str
+
+
+@dataclass(frozen=True)
+class DebugDiskUsageSnapshot:
+    """Disk usage summary rendered on the super-admin diagnostics page."""
+
+    severity: str
+    status_label: str
+    volumes: tuple[DebugDiskUsageVolume, ...]
 
 
 @dataclass(frozen=True)
@@ -155,13 +185,95 @@ def _backup_upload_max_mb() -> int:
 
 
 def _format_file_size(size_bytes: int) -> str:
-    """Return a compact human-readable file size for backup listings."""
+    """Return a compact human-readable file size for diagnostics."""
 
-    if size_bytes >= 1024 * 1024:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
-    if size_bytes >= 1024:
-        return f"{size_bytes / 1024:.1f} KB"
+    units = ("B", "KB", "MB", "GB", "TB")
+    size_value = float(size_bytes)
+    for unit in units:
+        if size_value < 1024 or unit == units[-1]:
+            if unit == "B":
+                return f"{int(size_value)} B"
+            return f"{size_value:.1f} {unit}"
+        size_value /= 1024
+
     return f"{size_bytes} B"
+
+
+def _existing_disk_probe_path(configured_path: str) -> Path:
+    """Return an existing path that can be passed to ``shutil.disk_usage``."""
+
+    candidate = Path(configured_path or "/").expanduser()
+    if not candidate.is_absolute():
+        candidate = candidate.resolve(strict=False)
+
+    while not candidate.exists() and candidate.parent != candidate:
+        candidate = candidate.parent
+
+    if candidate.exists():
+        return candidate
+
+    return Path("/")
+
+
+def _disk_usage_severity(used_percent: float, free_bytes: int) -> tuple[str, str]:
+    """Return the diagnostic severity and display label for a filesystem."""
+
+    if used_percent >= DISK_SPACE_CRITICAL_USED_PERCENT or free_bytes <= DISK_SPACE_CRITICAL_FREE_BYTES:
+        return "critical", "Critical"
+    if used_percent >= DISK_SPACE_WARNING_USED_PERCENT or free_bytes <= DISK_SPACE_WARNING_FREE_BYTES:
+        return "warning", "Nearing full"
+    return "ok", "OK"
+
+
+def _serialize_disk_usage_volume(label: str, configured_path: str) -> DebugDiskUsageVolume:
+    """Return disk usage metadata for one configured diagnostics path."""
+
+    measured_path = _existing_disk_probe_path(configured_path)
+    usage = shutil.disk_usage(measured_path)
+    used_percent = 0.0
+    if usage.total > 0:
+        used_percent = (usage.used / usage.total) * 100
+    severity, status_label = _disk_usage_severity(used_percent, usage.free)
+
+    return DebugDiskUsageVolume(
+        label=label,
+        configured_path=configured_path,
+        measured_path=str(measured_path),
+        total_display=_format_file_size(usage.total),
+        used_display=_format_file_size(usage.used),
+        free_display=_format_file_size(usage.free),
+        used_percent=round(used_percent, 1),
+        used_percent_display=f"{used_percent:.1f}%",
+        severity=severity,
+        status_label=status_label,
+    )
+
+
+def _collect_disk_usage_snapshot() -> DebugDiskUsageSnapshot:
+    """Return the worst current disk state across key app-visible paths."""
+
+    monitored_paths = (
+        ("App filesystem", "/"),
+        ("Log directory", settings.log_dir),
+        ("Backup directory", settings.automatic_backup_dir),
+    )
+    volumes = tuple(
+        _serialize_disk_usage_volume(label, configured_path)
+        for label, configured_path in monitored_paths
+    )
+    severity_rank = {"ok": 0, "warning": 1, "critical": 2}
+    worst_volume = max(volumes, key=lambda volume: severity_rank[volume.severity])
+    status_label = "Disk space OK"
+    if worst_volume.severity == "warning":
+        status_label = "Disk space nearing full"
+    elif worst_volume.severity == "critical":
+        status_label = "Disk space critical"
+
+    return DebugDiskUsageSnapshot(
+        severity=worst_volume.severity,
+        status_label=status_label,
+        volumes=volumes,
+    )
 
 
 def _serialize_automatic_backup(backup_file: AutomaticBackupFile) -> DebugAutomaticBackup:
@@ -251,6 +363,7 @@ def debug_page(
             login_attempt_page_size=LOGIN_ATTEMPT_PAGE_SIZE,
             login_successes=read_login_successes_page(page=success_page, page_size=LOGIN_ATTEMPT_PAGE_SIZE),
             login_failures=read_login_failures_page(page=failure_page, page_size=LOGIN_ATTEMPT_PAGE_SIZE),
+            disk_usage=_collect_disk_usage_snapshot(),
             submission_attempts=debug_submission_attempts,
             automatic_backups=[
                 _serialize_automatic_backup(backup_file)

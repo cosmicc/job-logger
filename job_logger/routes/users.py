@@ -20,6 +20,8 @@ from job_logger.services.users import (
     delete_or_disable_web_user,
     get_web_user_by_id_or_raise,
     list_web_users,
+    normalize_autotask_resource_id,
+    normalize_optional_autotask_role_id,
     refresh_web_user_autotask_metadata,
     update_web_user,
 )
@@ -109,11 +111,51 @@ def autotask_resource_options(request: Request, query: str = "") -> JSONResponse
     )
 
 
+@router.get("/autotask-resource-roles")
+def autotask_resource_role_options(request: Request, resource_id: str = "") -> JSONResponse:
+    """Return active Autotask service-desk role options for one resource."""
+
+    try:
+        require_super_admin(request)
+        safe_resource_id = normalize_autotask_resource_id(resource_id)
+        role_options = get_autotask_provider().list_resource_service_desk_roles(safe_resource_id)
+    except (HTTPException, AutotaskSubmissionError, WebUserError) as exc:
+        return JSONResponse({"detail": str(getattr(exc, "detail", exc)), "roles": []}, status_code=getattr(exc, "status_code", 400))
+
+    return JSONResponse(
+        {
+            "roles": [
+                {
+                    "role_id": role_option.role_id,
+                    "label": role_option.label,
+                    "is_default": role_option.is_default,
+                }
+                for role_option in role_options
+            ],
+        }
+    )
+
+
 def _resource_full_name(first_name: str | None, last_name: str | None, fallback_name: str) -> str:
     """Return a local display name from safe Autotask Resource name parts."""
 
     name_parts = [name_part.strip() for name_part in (first_name or "", last_name or "") if name_part.strip()]
     return " ".join(name_parts) if name_parts else fallback_name
+
+
+def _validated_default_service_desk_role_id(form_values: dict[str, str]) -> int | None:
+    """Validate a submitted default role against the selected Autotask resource."""
+
+    role_id = normalize_optional_autotask_role_id(form_values.get("autotask_default_service_desk_role_id"))
+    if role_id is None:
+        return None
+
+    resource_id = normalize_autotask_resource_id(form_values.get("autotask_resource_id"))
+    role_options = get_autotask_provider().list_resource_service_desk_roles(resource_id)
+    if not any(role_option.role_id == role_id for role_option in role_options):
+        raise WebUserError("Default service desk role must be an active role for the selected Autotask resource.")
+
+    return role_id
 
 
 @router.post("")
@@ -132,6 +174,7 @@ async def add_user(
             username=form_values.get("username"),
             password=form_values.get("password"),
             autotask_resource_id=form_values.get("autotask_resource_id"),
+            autotask_default_service_desk_role_id=_validated_default_service_desk_role_id(form_values),
             email=form_values.get("autotask_resource_email"),
             disabled="disabled" in form_values,
         )
@@ -145,6 +188,7 @@ async def add_user(
                 "username": result.user.username,
                 "disabled": result.user.disabled,
                 "autotask_resource_id": result.user.autotask_resource_id,
+                "autotask_default_service_desk_role_id": result.user.autotask_default_service_desk_role_id,
                 "email_saved": result.user.email is not None,
                 "claimed_unowned_job_count": result.claimed_unowned_job_count,
             },
@@ -158,7 +202,7 @@ async def add_user(
             )
         else:
             add_flash_message(request, "User created.", "success")
-    except (HTTPException, WebUserError) as exc:
+    except (HTTPException, AutotaskSubmissionError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
@@ -238,6 +282,7 @@ async def edit_user(
             username=form_values.get("username"),
             password=form_values.get("password") or None,
             autotask_resource_id=form_values.get("autotask_resource_id"),
+            autotask_default_service_desk_role_id=_validated_default_service_desk_role_id(form_values),
             email=form_values.get("autotask_resource_email"),
             disabled="disabled" in form_values,
         )
@@ -251,13 +296,14 @@ async def edit_user(
                 "username": user.username,
                 "disabled": user.disabled,
                 "autotask_resource_id": user.autotask_resource_id,
+                "autotask_default_service_desk_role_id": user.autotask_default_service_desk_role_id,
                 "email_saved": user.email is not None,
                 "password_changed": bool(form_values.get("password")),
             },
         )
         database_session.commit()
         add_flash_message(request, "User updated.", "success")
-    except (HTTPException, WebUserError) as exc:
+    except (HTTPException, AutotaskSubmissionError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
