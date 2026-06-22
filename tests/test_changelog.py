@@ -73,6 +73,7 @@ def test_changelog_parser_reads_current_release() -> None:
             "Record and AI Cleanup now share a row on review detail with shorter labels and icons.",
             "Full browser Work in Progress and Review buttons now use cleaner paired rows.",
             "Autotask submission now handles tickets that provide an assigned resource but omit the assigned role.",
+            "Autotask submission now handles tickets where the submitting user is assigned as a secondary resource.",
         ),
     )
 
@@ -104,6 +105,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Record and AI Cleanup now share a row on review detail with shorter labels and icons." in response.text
     assert "Full browser Work in Progress and Review buttons now use cleaner paired rows." in response.text
     assert "Autotask submission now handles tickets that provide an assigned resource but omit the assigned role." in response.text
+    assert "Autotask submission now handles tickets where the submitting user is assigned as a secondary resource." in response.text
     assert "Direct submission and passkeys" in response.text
     assert "Added a Config option to submit time entries directly from Work in Progress." in response.text
     assert "Review is still available afterward for submitted-entry edits and Autotask deletion." in response.text

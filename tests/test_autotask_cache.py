@@ -518,6 +518,8 @@ class FakeTicketMissingRoleTimeEntryContextClient:
                     "pageDetails": {},
                 }
             )
+        if endpoint_path == "/TicketSecondaryResources/query":
+            return FakeAutotaskResponse({"items": [], "pageDetails": {}})
         if endpoint_path == "/ResourceServiceDeskRoles/query":
             return FakeAutotaskResponse(
                 {
@@ -559,12 +561,56 @@ class FakeTicketAssignedResourceRoleTimeEntryContextClient:
                     "pageDetails": {},
                 }
             )
+        if endpoint_path == "/TicketSecondaryResources/query":
+            return FakeAutotaskResponse({"items": [], "pageDetails": {}})
         if endpoint_path == "/ResourceServiceDeskRoles/query":
             assert json["filter"][0]["value"] == 99
             return FakeAutotaskResponse(
                 {
                     "items": [
                         {"id": 21, "resourceID": 99, "roleID": 12, "isDefault": True, "isActive": True},
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
+
+
+class FakeTicketSecondaryResourceRoleTimeEntryContextClient:
+    """Fake client for tickets where the submitter is a secondary resource."""
+
+    def __init__(self) -> None:
+        """Initialize captured query payloads for secondary-resource assertions."""
+
+        self.post_requests: list[tuple[str, dict[str, Any]]] = []
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return ticket context, then the submitter's ticket-specific role."""
+
+        self.post_requests.append((endpoint_path, dict(json)))
+        if endpoint_path == "/Tickets/query":
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "id": 123456,
+                            "ticketNumber": "T20260621.0001",
+                            "assignedResourceroleID": None,
+                            "assignedResourceID": 99,
+                            "billingCodeID": 24746620,
+                        }
+                    ],
+                    "pageDetails": {},
+                }
+            )
+        if endpoint_path == "/TicketSecondaryResources/query":
+            assert json["filter"][0]["value"] == 123456
+            assert json["filter"][1]["value"] == 42
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 31, "ticketID": 123456, "resourceID": 42, "roleID": 15},
                     ],
                     "pageDetails": {},
                 }
@@ -594,6 +640,8 @@ class FakeTicketAssignedResourceSingleRoleTimeEntryContextClient:
                     "pageDetails": {},
                 }
             )
+        if endpoint_path == "/TicketSecondaryResources/query":
+            return FakeAutotaskResponse({"items": [], "pageDetails": {}})
         if endpoint_path == "/ResourceServiceDeskRoles/query":
             assert json["filter"][0]["value"] == 99
             return FakeAutotaskResponse(
@@ -725,11 +773,66 @@ class FakeMissingTicketRoleSubmissionClient:
                     "pageDetails": {},
                 }
             )
+        if endpoint_path == "/TicketSecondaryResources/query":
+            return FakeAutotaskResponse({"items": [], "pageDetails": {}})
         if endpoint_path == "/ResourceServiceDeskRoles/query":
             return FakeAutotaskResponse(
                 {
                     "items": [
                         {"id": 11, "resourceID": 42, "roleID": 8, "isDefault": True, "isActive": True},
+                    ],
+                    "pageDetails": {},
+                }
+            )
+        if endpoint_path == "/TimeEntries":
+            self.posted_payload = dict(json)
+            return FakeAutotaskResponse({"itemId": 987654})
+
+        raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
+
+    def patch(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Capture ticket status patch payloads."""
+
+        assert endpoint_path == "/Tickets"
+        self.operations.append((endpoint_path, dict(json)))
+        return FakeAutotaskResponse({})
+
+
+class FakeTicketSecondaryResourceRoleSubmissionClient:
+    """Fake client for submission that resolves role from ticket secondary resource."""
+
+    def __init__(self) -> None:
+        """Initialize operation captures for secondary-resource assertions."""
+
+        self.operations: list[tuple[str, dict[str, Any] | None]] = []
+        self.posted_payload: dict[str, Any] | None = None
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return ticket/secondary role context or capture TimeEntries create."""
+
+        self.operations.append((endpoint_path, dict(json)))
+        if endpoint_path == "/Tickets/query":
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "id": 123456,
+                            "ticketNumber": "T20260621.0001",
+                            "assignedResourceroleID": None,
+                            "assignedResourceID": 99,
+                            "billingCodeID": 24746620,
+                        }
+                    ],
+                    "pageDetails": {},
+                }
+            )
+        if endpoint_path == "/TicketSecondaryResources/query":
+            assert json["filter"][0]["value"] == 123456
+            assert json["filter"][1]["value"] == 42
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 31, "ticketID": 123456, "resourceID": 42, "roleID": 15},
                     ],
                     "pageDetails": {},
                 }
@@ -776,6 +879,8 @@ class FakeTicketAssignedResourceRoleSubmissionClient:
                     "pageDetails": {},
                 }
             )
+        if endpoint_path == "/TicketSecondaryResources/query":
+            return FakeAutotaskResponse({"items": [], "pageDetails": {}})
         if endpoint_path == "/ResourceServiceDeskRoles/query":
             assert json["filter"][0]["value"] == 99
             return FakeAutotaskResponse(
@@ -1170,12 +1275,58 @@ def test_ticket_time_entry_context_falls_back_to_resource_default_role() -> None
             },
         ),
         (
+            "/TicketSecondaryResources/query",
+            {
+                "IncludeFields": ["id", "ticketID", "resourceID", "roleID"],
+                "filter": [
+                    {"op": "eq", "field": "ticketID", "value": 123456},
+                    {"op": "eq", "field": "resourceID", "value": 42},
+                ],
+                "MaxRecords": 50,
+            },
+        ),
+        (
             "/ResourceServiceDeskRoles/query",
             {
                 "IncludeFields": ["id", "resourceID", "roleID", "isDefault", "isActive"],
                 "filter": [
                     {"op": "eq", "field": "resourceID", "value": 42},
                     {"op": "eq", "field": "isActive", "value": True},
+                ],
+                "MaxRecords": 50,
+            },
+        ),
+    ]
+
+
+def test_ticket_time_entry_context_uses_matching_secondary_resource_role() -> None:
+    """A submitter assigned as a secondary resource should use that ticket role."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTicketSecondaryResourceRoleTimeEntryContextClient()
+
+    ticket_context = provider._query_ticket_time_entry_context(fake_client, "T20260621.0001", resource_id=42)
+
+    assert ticket_context.ticket_id == 123456
+    assert ticket_context.role_id == 15
+    assert ticket_context.role_id_source == "ticket.secondaryResource.roleID"
+    assert ticket_context.assigned_resource_id == 99
+    assert fake_client.post_requests == [
+        (
+            "/Tickets/query",
+            {
+                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "assignedResourceID", "billingCodeID"],
+                "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260621.0001"}],
+                "MaxRecords": 1,
+            },
+        ),
+        (
+            "/TicketSecondaryResources/query",
+            {
+                "IncludeFields": ["id", "ticketID", "resourceID", "roleID"],
+                "filter": [
+                    {"op": "eq", "field": "ticketID", "value": 123456},
+                    {"op": "eq", "field": "resourceID", "value": 42},
                 ],
                 "MaxRecords": 50,
             },
@@ -1202,6 +1353,17 @@ def test_ticket_time_entry_context_uses_ticket_assigned_resource_role_when_ticke
                 "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "assignedResourceID", "billingCodeID"],
                 "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260621.0001"}],
                 "MaxRecords": 1,
+            },
+        ),
+        (
+            "/TicketSecondaryResources/query",
+            {
+                "IncludeFields": ["id", "ticketID", "resourceID", "roleID"],
+                "filter": [
+                    {"op": "eq", "field": "ticketID", "value": 123456},
+                    {"op": "eq", "field": "resourceID", "value": 42},
+                ],
+                "MaxRecords": 50,
             },
         ),
         (
@@ -1359,12 +1521,87 @@ def test_submission_uses_resource_default_role_when_ticket_role_missing(monkeypa
             },
         ),
         (
+            "/TicketSecondaryResources/query",
+            {
+                "IncludeFields": ["id", "ticketID", "resourceID", "roleID"],
+                "filter": [
+                    {"op": "eq", "field": "ticketID", "value": 123456},
+                    {"op": "eq", "field": "resourceID", "value": 42},
+                ],
+                "MaxRecords": 50,
+            },
+        ),
+        (
             "/ResourceServiceDeskRoles/query",
             {
                 "IncludeFields": ["id", "resourceID", "roleID", "isDefault", "isActive"],
                 "filter": [
                     {"op": "eq", "field": "resourceID", "value": 42},
                     {"op": "eq", "field": "isActive", "value": True},
+                ],
+                "MaxRecords": 50,
+            },
+        ),
+        ("/Tickets", {"id": 123456, "status": 1}),
+        ("/TimeEntries", fake_client.posted_payload),
+    ]
+
+
+def test_submission_uses_matching_secondary_resource_role(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Submitting user secondary-resource roles should avoid generic role guessing."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTicketSecondaryResourceRoleSubmissionClient()
+    rounded_start_utc = datetime(2026, 6, 21, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="secondary-resource-role-submit-test",
+        status=JobStatus.READY_FOR_REVIEW,
+        ticket_number="T20260621.0001",
+        ticket_status=TicketStatus.IN_PROGRESS,
+        summary_notes="Created time with ticket secondary resource role.",
+        description_text="Created time with ticket secondary resource role.",
+        raw_start_utc=rounded_start_utc,
+        raw_end_utc=rounded_start_utc + timedelta(minutes=30),
+        rounded_start_utc=rounded_start_utc,
+        rounded_end_utc=rounded_start_utc + timedelta(minutes=30),
+    )
+
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeAutotaskClientContext:
+        """Return the fake client while matching the provider client signature."""
+
+        assert timeout_seconds == 30.0
+        return FakeAutotaskClientContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    result = provider.submit_job(job, resource_id=42)
+
+    assert result.succeeded is True
+    assert result.external_id == "987654"
+    assert result.request_snapshot["resourceID"] == 42
+    assert result.request_snapshot["ticketAssignedResourceID"] == 99
+    assert result.request_snapshot["roleID"] == 15
+    assert result.request_snapshot["roleIDSource"] == "ticket.secondaryResource.roleID"
+    assert fake_client.posted_payload is not None
+    assert fake_client.posted_payload["ticketID"] == 123456
+    assert fake_client.posted_payload["resourceID"] == 42
+    assert fake_client.posted_payload["roleID"] == 15
+    assert fake_client.operations == [
+        (
+            "/Tickets/query",
+            {
+                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "assignedResourceID", "billingCodeID"],
+                "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260621.0001"}],
+                "MaxRecords": 1,
+            },
+        ),
+        (
+            "/TicketSecondaryResources/query",
+            {
+                "IncludeFields": ["id", "ticketID", "resourceID", "roleID"],
+                "filter": [
+                    {"op": "eq", "field": "ticketID", "value": 123456},
+                    {"op": "eq", "field": "resourceID", "value": 42},
                 ],
                 "MaxRecords": 50,
             },
@@ -1420,6 +1657,17 @@ def test_submission_uses_ticket_assigned_resource_role_when_ticket_role_missing(
                 "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "assignedResourceID", "billingCodeID"],
                 "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260621.0001"}],
                 "MaxRecords": 1,
+            },
+        ),
+        (
+            "/TicketSecondaryResources/query",
+            {
+                "IncludeFields": ["id", "ticketID", "resourceID", "roleID"],
+                "filter": [
+                    {"op": "eq", "field": "ticketID", "value": 123456},
+                    {"op": "eq", "field": "resourceID", "value": 42},
+                ],
+                "MaxRecords": 50,
             },
         ),
         (

@@ -2140,6 +2140,44 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return None
 
+    def _query_ticket_secondary_resource_role(
+        self,
+        client: httpx.Client,
+        ticket_id: int,
+        resource_id: int,
+    ) -> _ServiceDeskRoleLookup | None:
+        """Return the ticket-specific secondary-resource role for a resource."""
+
+        query_payload = {
+            "IncludeFields": ["id", "ticketID", "resourceID", "roleID"],
+            "filter": [
+                {"op": "eq", "field": "ticketID", "value": ticket_id},
+                {"op": "eq", "field": "resourceID", "value": resource_id},
+            ],
+        }
+        secondary_resource_records = self._query_paginated_items(
+            client,
+            endpoint_path="/TicketSecondaryResources/query",
+            query_payload=query_payload,
+            action_description="Autotask ticket secondary resource role lookup",
+            max_records=50,
+            follow_pagination=False,
+        )
+
+        role_ids = [
+            role_id
+            for secondary_resource_record in secondary_resource_records
+            if (role_id := _coerce_positive_autotask_id(secondary_resource_record.get("roleID"))) is not None
+        ]
+        unique_role_ids = list(dict.fromkeys(role_ids))
+        if len(unique_role_ids) == 1:
+            return _ServiceDeskRoleLookup(
+                role_id=unique_role_ids[0],
+                source="ticket.secondaryResource.roleID",
+            )
+
+        return None
+
     def _query_ticket_time_entry_context(
         self,
         client: httpx.Client,
@@ -2181,6 +2219,12 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if assigned_resource_id is None:
             assigned_resource_id = _coerce_positive_autotask_id(tickets[0].get("assignedresourceID"))
         if role_id is None:
+            secondary_role_lookup = self._query_ticket_secondary_resource_role(client, safe_ticket_id, resource_id)
+            if secondary_role_lookup is not None:
+                role_id = secondary_role_lookup.role_id
+                role_id_source = secondary_role_lookup.source
+
+        if role_id is None:
             role_lookup_candidates = [
                 (assigned_resource_id, "ticket.assignedResourceID.ResourceServiceDeskRoles"),
                 (resource_id, "managed_web_user.autotask_resource_id.ResourceServiceDeskRoles"),
@@ -2202,8 +2246,9 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             if role_id is None:
                 raise AutotaskSubmissionError(
                     f"Autotask ticket {ticket_number} did not return assignedResourceroleID, "
+                    "the submitting resource was not found with an unambiguous TicketSecondaryResources role, "
                     "and neither the ticket assigned resource nor the submitting resource returned an unambiguous "
-                    "active service-desk role for time entry creation."
+                    "active ResourceServiceDeskRoles role for time entry creation."
                 )
 
         return AutotaskTicketTimeEntryContext(
@@ -2346,8 +2391,8 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 "resourceID": resource_id,
                 "resourceIDSource": "managed_web_user.autotask_resource_id",
                 "roleIDSource": (
-                    "ticket.assignedResourceroleID, ticket.assignedResourceID ResourceServiceDeskRoles, "
-                    "or managed user ResourceServiceDeskRoles"
+                    "ticket.assignedResourceroleID, ticket secondary resource role, "
+                    "ticket.assignedResourceID ResourceServiceDeskRoles, or managed user ResourceServiceDeskRoles"
                 ),
                 "billingCodeIDSource": "ticket inheritance",
                 "timeEntryType": self.application_settings.autotask_time_entry_type,

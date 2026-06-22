@@ -27,6 +27,9 @@ All notable changes to Job Logger are documented in this file.
   a default or single active service-desk role before falling back to the
   submitting managed user's service-desk role. The app still creates the time
   entry under the submitting managed user's Autotask resource ID.
+- Fixed Autotask submission for tickets where the submitting managed user is a
+  secondary resource by using the matching `TicketSecondaryResources.roleID`
+  before generic Resource Service Desk Role fallbacks.
 
 ## v1.1.0 - Direct submission, backups, and passkeys
 

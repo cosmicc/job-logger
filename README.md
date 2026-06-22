@@ -625,12 +625,15 @@ global impersonation resource.
 Do not set static role or billing-code IDs. When a reviewed job is submitted,
 Job Logger re-queries the selected ticket and uses that ticket's
 `assignedResourceroleID` for `TimeEntries.roleID` when available. If the ticket
-does not return an assigned role, Job Logger uses the ticket's
-`assignedResourceID` to resolve that resource's default or single active
-`ResourceServiceDeskRoles.roleID`, then falls back to the submitting web user's
-default or single active service-desk role. The time entry still uses the
-submitting managed user's Autotask resource ID as `TimeEntries.resourceID`.
-Billing code / Work Type is also ticket-driven: Job Logger omits
+does not return an assigned role, Job Logger first checks whether the submitting
+web user is a secondary resource on that ticket and uses that ticket-specific
+`TicketSecondaryResources.roleID`. If no matching secondary resource role
+exists, it uses the ticket's `assignedResourceID` to resolve that resource's
+default or single active `ResourceServiceDeskRoles.roleID`, then falls back to
+the submitting web user's default or single active service-desk role. The time
+entry still uses the submitting managed user's Autotask resource ID as
+`TimeEntries.resourceID`. Billing code / Work Type is also ticket-driven: Job
+Logger omits
 `TimeEntries.billingCodeID` so Autotask inherits the selected ticket's
 `billingCodeID` on create without requiring separate Allocation Code edit
 permission.
@@ -810,10 +813,12 @@ back into the stored work-location mode and keeps local note storage unprefixed.
 
 Ticket `TimeEntries` payloads use the selected ticket's
 `assignedResourceroleID` for `roleID` when available. If Autotask returns the
-ticket without that assigned role, Job Logger uses `Tickets.assignedResourceID`
-to resolve that resource's default or single active service-desk role, then
-falls back to the submitting web user's default or single active
-`ResourceServiceDeskRoles.roleID`. Payloads intentionally omit `billingCodeID` /
+ticket without that assigned role, Job Logger first checks
+`TicketSecondaryResources` for the submitting web user's ticket-specific role,
+then uses `Tickets.assignedResourceID` to resolve that resource's default or
+single active service-desk role, then falls back to the submitting web user's
+default or single active `ResourceServiceDeskRoles.roleID`. Payloads
+intentionally omit `billingCodeID` /
 Allocation Code values; Autotask inherits the selected ticket's Work Type on
 create, which avoids requiring the API resource to have Allocation Code edit
 permission for ticket time entries. Existing `AUTOTASK_ROLE_ID` and

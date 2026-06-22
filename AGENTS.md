@@ -232,6 +232,8 @@ global `AUTOTASK_IMPERSONATION_RESOURCE_ID` setting. Static Autotask role and
 billing-code IDs must not be configured. The live provider must query the
 selected ticket at submission time, use `Tickets.assignedResourceroleID` as
 `TimeEntries.roleID` when available, fall back to
+`TicketSecondaryResources.roleID` for the submitting managed user's resource
+when that user is a secondary resource on the ticket, then fall back to
 `Tickets.assignedResourceID` to resolve that resource's default or single active
 `ResourceServiceDeskRoles.roleID`, then fall back to the submitting managed
 user's default or single active service-desk role when the ticket omits assigned

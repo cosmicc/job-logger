@@ -8,6 +8,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Record and AI Cleanup now share a row on review detail with shorter labels and icons.
 - Full browser Work in Progress and Review buttons now use cleaner paired rows.
 - Autotask submission now handles tickets that provide an assigned resource but omit the assigned role.
+- Autotask submission now handles tickets where the submitting user is assigned as a secondary resource.
 
 ## v1.1.0 - Direct submission and passkeys
 
