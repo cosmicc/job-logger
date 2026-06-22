@@ -246,6 +246,17 @@ class AutotaskTicketOption:
 
 
 @dataclass(frozen=True)
+class _ServiceDeskRoleLookup:
+    """Resolved service-desk role context for a resource."""
+
+    # role_id is a TimeEntries.roleID candidate from ResourceServiceDeskRoles.
+    role_id: int
+
+    # source describes the non-secret lookup that supplied role_id.
+    source: str
+
+
+@dataclass(frozen=True)
 class AutotaskTicketTimeEntryContext:
     """Ticket fields required to create a matching Autotask TimeEntries row."""
 
@@ -257,6 +268,9 @@ class AutotaskTicketTimeEntryContext:
 
     # role_id_source describes the non-secret lookup that supplied role_id.
     role_id_source: str
+
+    # assigned_resource_id is Tickets.assignedResourceID when Autotask returns it.
+    assigned_resource_id: int | None
 
     # billing_code_id is the ticket Work Type ID; Autotask inherits it on create
     # when the TimeEntries payload omits billingCodeID.
@@ -578,6 +592,17 @@ def _coerce_positive_autotask_id(raw_identifier: Any) -> int | None:
         return None
 
     return coerced_identifier
+
+
+def _is_autotask_truthy(raw_value: Any) -> bool:
+    """Return whether an Autotask boolean-like field represents true."""
+
+    if raw_value is True:
+        return True
+    if isinstance(raw_value, str):
+        return raw_value.strip().lower() == "true"
+
+    return False
 
 
 def _chunked_autotask_ids(autotask_ids: list[int]) -> list[list[int]]:
@@ -2069,8 +2094,14 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         )
         return service_call_options
 
-    def _query_default_service_desk_role_id(self, client: httpx.Client, resource_id: int) -> int | None:
-        """Return the managed resource's default active service-desk role ID."""
+    def _query_resource_service_desk_role(
+        self,
+        client: httpx.Client,
+        resource_id: int,
+        *,
+        source_prefix: str,
+    ) -> _ServiceDeskRoleLookup | None:
+        """Return an unambiguous active service-desk role for an Autotask resource."""
 
         query_payload = {
             "IncludeFields": ["id", "resourceID", "roleID", "isDefault", "isActive"],
@@ -2088,13 +2119,24 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             follow_pagination=False,
         )
 
+        active_role_ids: list[int] = []
         for role_record in role_records:
             role_id = _coerce_positive_autotask_id(role_record.get("roleID"))
             if role_id is None:
                 continue
-            is_default = str(role_record.get("isDefault", "")).strip().lower() == "true"
-            if role_record.get("isDefault") is True or is_default:
-                return role_id
+            active_role_ids.append(role_id)
+            if _is_autotask_truthy(role_record.get("isDefault")):
+                return _ServiceDeskRoleLookup(
+                    role_id=role_id,
+                    source=f"{source_prefix}.default.roleID",
+                )
+
+        unique_active_role_ids = list(dict.fromkeys(active_role_ids))
+        if len(unique_active_role_ids) == 1:
+            return _ServiceDeskRoleLookup(
+                role_id=unique_active_role_ids[0],
+                source=f"{source_prefix}.singleActive.roleID",
+            )
 
         return None
 
@@ -2108,7 +2150,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Find ticket fields needed for a matching ticket TimeEntries create."""
 
         query_payload = {
-            "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "billingCodeID"],
+            "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "assignedResourceID", "billingCodeID"],
             "filter": [{"op": "eq", "field": "ticketNumber", "value": ticket_number}],
         }
         tickets = self._query_paginated_items(
@@ -2135,19 +2177,40 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             raw_role_id = tickets[0].get("assignedResourceRoleID")
         role_id = _coerce_positive_autotask_id(raw_role_id)
         role_id_source = "ticket.assignedResourceroleID"
+        assigned_resource_id = _coerce_positive_autotask_id(tickets[0].get("assignedResourceID"))
+        if assigned_resource_id is None:
+            assigned_resource_id = _coerce_positive_autotask_id(tickets[0].get("assignedresourceID"))
         if role_id is None:
-            role_id = self._query_default_service_desk_role_id(client, resource_id)
-            role_id_source = "ResourceServiceDeskRoles.default.roleID"
+            role_lookup_candidates = [
+                (assigned_resource_id, "ticket.assignedResourceID.ResourceServiceDeskRoles"),
+                (resource_id, "managed_web_user.autotask_resource_id.ResourceServiceDeskRoles"),
+            ]
+            checked_resource_ids: set[int] = set()
+            for role_resource_id, source_prefix in role_lookup_candidates:
+                if role_resource_id is None or role_resource_id in checked_resource_ids:
+                    continue
+                checked_resource_ids.add(role_resource_id)
+                role_lookup = self._query_resource_service_desk_role(
+                    client,
+                    role_resource_id,
+                    source_prefix=source_prefix,
+                )
+                if role_lookup is not None:
+                    role_id = role_lookup.role_id
+                    role_id_source = role_lookup.source
+                    break
             if role_id is None:
                 raise AutotaskSubmissionError(
                     f"Autotask ticket {ticket_number} did not return assignedResourceroleID, "
-                    "and the submitting resource did not return a default service-desk role for time entry creation."
+                    "and neither the ticket assigned resource nor the submitting resource returned an unambiguous "
+                    "active service-desk role for time entry creation."
                 )
 
         return AutotaskTicketTimeEntryContext(
             ticket_id=safe_ticket_id,
             role_id=role_id,
             role_id_source=role_id_source,
+            assigned_resource_id=assigned_resource_id,
             billing_code_id=_coerce_positive_autotask_id(tickets[0].get("billingCodeID")),
         )
 
@@ -2282,7 +2345,10 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             {
                 "resourceID": resource_id,
                 "resourceIDSource": "managed_web_user.autotask_resource_id",
-                "roleIDSource": "ticket.assignedResourceroleID or ResourceServiceDeskRoles.default.roleID",
+                "roleIDSource": (
+                    "ticket.assignedResourceroleID, ticket.assignedResourceID ResourceServiceDeskRoles, "
+                    "or managed user ResourceServiceDeskRoles"
+                ),
                 "billingCodeIDSource": "ticket inheritance",
                 "timeEntryType": self.application_settings.autotask_time_entry_type,
                 "ticketStatusPreUpdate": None,
@@ -2294,6 +2360,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 ticket_context = self._query_ticket_time_entry_context(client, job.ticket_number, resource_id=resource_id)
                 snapshot["roleID"] = ticket_context.role_id
                 snapshot["roleIDSource"] = ticket_context.role_id_source
+                snapshot["ticketAssignedResourceID"] = ticket_context.assigned_resource_id
                 snapshot["ticketBillingCodeID"] = ticket_context.billing_code_id
                 if job.ticket_status == TicketStatus.COMPLETE:
                     snapshot["ticketStatusPreUpdate"] = TicketStatus.IN_PROGRESS.value

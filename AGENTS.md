@@ -231,11 +231,14 @@ Autotask's optional `ImpersonationResourceId` header; do not add or restore a
 global `AUTOTASK_IMPERSONATION_RESOURCE_ID` setting. Static Autotask role and
 billing-code IDs must not be configured. The live provider must query the
 selected ticket at submission time, use `Tickets.assignedResourceroleID` as
-`TimeEntries.roleID` when available, fall back to the submitting managed user's
-default active `ResourceServiceDeskRoles.roleID` when the ticket omits an
-assigned role, and omit `TimeEntries.billingCodeID` so Autotask inherits the
-selected ticket's Work Type on create. API credentials, ticket status IDs, and
-time-entry type remain environment configuration.
+`TimeEntries.roleID` when available, fall back to
+`Tickets.assignedResourceID` to resolve that resource's default or single active
+`ResourceServiceDeskRoles.roleID`, then fall back to the submitting managed
+user's default or single active service-desk role when the ticket omits assigned
+role context. The app must still send the submitting managed user's resource ID
+as `TimeEntries.resourceID`. Omit `TimeEntries.billingCodeID` so Autotask
+inherits the selected ticket's Work Type on create. API credentials, ticket
+status IDs, and time-entry type remain environment configuration.
 The super-admin `/users` page may query `/Resources/query` through the server
 to find matching Autotask Resources by `Last, First` name and fill the
 user-specific resource ID and optional email address. Per-row refresh on
@@ -406,7 +409,9 @@ Every released version must update both the detailed source changelog and the
 authenticated web changelog. `CHANGELOG.md` is the detailed operator and
 agent-facing record. `WEB_CHANGELOG.md` is the concise source parsed by
 `/changelog`; keep each web entry to short, simple user-facing bullets and do
-not copy the detailed `CHANGELOG.md` wording into the web page. Diagnostics
+not copy the detailed `CHANGELOG.md` wording into the web page. Keep version
+titles in both changelogs broad enough to represent all changes in that version,
+or at least the major user-facing and operational themes. Diagnostics
 page changes, debug tooling, super-admin-only behavior, operator-only
 deployment details, and agent-facing notes belong only in `CHANGELOG.md`, never
 in `WEB_CHANGELOG.md`.

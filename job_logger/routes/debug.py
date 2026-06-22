@@ -99,7 +99,7 @@ def _safe_autotask_config() -> dict[str, object]:
         "has_username": bool(settings.autotask_username),
         "has_secret": bool(settings.autotask_secret),
         "has_api_integration_code": bool(settings.autotask_api_integration_code),
-        "time_entry_role_source": "selected ticket assignedResourceroleID, then resource default service-desk role",
+        "time_entry_role_source": "selected ticket assignedResourceroleID, then ticket-assigned or managed-user service-desk role",
         "billing_code_source": "selected ticket inheritance",
         "time_entry_type": settings.autotask_time_entry_type,
         "status_id_map": settings.autotask_status_id_map,

@@ -28,12 +28,16 @@ configuration. A managed web user must have an Autotask resource ID before they
 can start work. Routes pass that resource ID into service-call lookup and time
 entry submission. Static role and billing-code IDs must not be environment
 configuration. The live provider gets `TimeEntries.roleID` from the selected
-ticket's `assignedResourceroleID` at submit time when available, falls back to
-the submitting resource's default active `ResourceServiceDeskRoles.roleID` when
-the ticket omits an assigned role, and omits `TimeEntries.billingCodeID` so
-Autotask inherits the selected ticket's Work Type on create. API credentials,
-ticket status IDs, time-entry type, and optional Autotask provider settings
-remain environment-backed. Do not add a global
+ticket's `assignedResourceroleID` at submit time when available. If the ticket
+omits that role, the provider uses `Tickets.assignedResourceID` to resolve that
+ticket-assigned resource's default or single active
+`ResourceServiceDeskRoles.roleID`, then falls back to the submitting managed
+user's default or single active service-desk role. The final
+`TimeEntries.resourceID` must still be the owning/submitting managed user's
+resource ID. The provider omits `TimeEntries.billingCodeID` so Autotask inherits
+the selected ticket's Work Type on create. API credentials, ticket status IDs,
+time-entry type, and optional Autotask provider settings remain
+environment-backed. Do not add a global
 Autotask impersonation resource setting; user-scoped workflows use the owning
 managed web user's resource ID in payloads and filters but do not send
 Autotask's optional `ImpersonationResourceId` header.
@@ -309,18 +313,20 @@ Required live Autotask values include:
 
 - The owning managed web user's Autotask resource ID.
 - A usable role ID from the selected ticket's assigned role or, when that is
-  missing, the submitting resource's default active service-desk role.
+  missing, the ticket-assigned resource's service-desk role or the submitting
+  resource's service-desk role.
 - Time entry type.
 - Tenant-specific ticket status picklist IDs.
 
 Ticket `TimeEntries` creation must query the selected `Tickets` row by
 `ticketNumber` and use `assignedResourceroleID` for `TimeEntries.roleID` when
 the ticket provides one. If the ticket omits that role, query
-`ResourceServiceDeskRoles` for the submitting managed user's default active
-service-desk role and let Autotask validate the final `TimeEntries` create.
-Autotask requires ticket time-entry roles to match the ticket's assigned role
-unless the tenant explicitly allows role edits on ticket time entries; tenants
-with unassigned ticket roles may still reject the fallback role.
+`ResourceServiceDeskRoles` for `Tickets.assignedResourceID` first, then for the
+submitting managed user's resource ID. A role lookup may use the default active
+role, or a single active role when Autotask does not mark a default. If multiple
+active roles exist without a default, fail clearly instead of choosing one
+arbitrarily. Autotask may still reject a fallback role when tenant permissions
+or ticket rules require a different role.
 
 Ticket `TimeEntries` creation must not include `billingCodeID`. Autotask labels
 that as Allocation Code / Work Type. On create, omitting it lets Autotask

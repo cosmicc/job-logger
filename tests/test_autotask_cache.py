@@ -483,6 +483,7 @@ class FakeTicketTimeEntryContextClient:
                         "id": 123456,
                         "ticketNumber": "T20260616.0001",
                         "assignedResourceroleID": 8,
+                        "assignedResourceID": 42,
                         "billingCodeID": 24746620,
                     }
                 ],
@@ -523,6 +524,82 @@ class FakeTicketMissingRoleTimeEntryContextClient:
                     "items": [
                         {"id": 10, "resourceID": 42, "roleID": 7, "isDefault": False, "isActive": True},
                         {"id": 11, "resourceID": 42, "roleID": 8, "isDefault": True, "isActive": True},
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
+
+
+class FakeTicketAssignedResourceRoleTimeEntryContextClient:
+    """Fake client for tickets with an assigned resource but no assigned role."""
+
+    def __init__(self) -> None:
+        """Initialize captured query payloads for ticket-assigned resource assertions."""
+
+        self.post_requests: list[tuple[str, dict[str, Any]]] = []
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return ticket context, then the ticket-assigned resource role."""
+
+        self.post_requests.append((endpoint_path, dict(json)))
+        if endpoint_path == "/Tickets/query":
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "id": 123456,
+                            "ticketNumber": "T20260621.0001",
+                            "assignedResourceroleID": None,
+                            "assignedResourceID": 99,
+                            "billingCodeID": 24746620,
+                        }
+                    ],
+                    "pageDetails": {},
+                }
+            )
+        if endpoint_path == "/ResourceServiceDeskRoles/query":
+            assert json["filter"][0]["value"] == 99
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 21, "resourceID": 99, "roleID": 12, "isDefault": True, "isActive": True},
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
+
+
+class FakeTicketAssignedResourceSingleRoleTimeEntryContextClient:
+    """Fake client for a ticket-assigned resource with one non-default role."""
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return ticket context, then one active role without a default flag."""
+
+        if endpoint_path == "/Tickets/query":
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "id": 123456,
+                            "ticketNumber": "T20260621.0001",
+                            "assignedResourceroleID": None,
+                            "assignedResourceID": 99,
+                            "billingCodeID": 24746620,
+                        }
+                    ],
+                    "pageDetails": {},
+                }
+            )
+        if endpoint_path == "/ResourceServiceDeskRoles/query":
+            assert json["filter"][0]["value"] == 99
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 21, "resourceID": 99, "roleID": 12, "isDefault": False, "isActive": True},
                     ],
                     "pageDetails": {},
                 }
@@ -653,6 +730,58 @@ class FakeMissingTicketRoleSubmissionClient:
                 {
                     "items": [
                         {"id": 11, "resourceID": 42, "roleID": 8, "isDefault": True, "isActive": True},
+                    ],
+                    "pageDetails": {},
+                }
+            )
+        if endpoint_path == "/TimeEntries":
+            self.posted_payload = dict(json)
+            return FakeAutotaskResponse({"itemId": 987654})
+
+        raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
+
+    def patch(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Capture ticket status patch payloads."""
+
+        assert endpoint_path == "/Tickets"
+        self.operations.append((endpoint_path, dict(json)))
+        return FakeAutotaskResponse({})
+
+
+class FakeTicketAssignedResourceRoleSubmissionClient:
+    """Fake client for submission that resolves role from ticket assigned resource."""
+
+    def __init__(self) -> None:
+        """Initialize operation captures for ticket-assigned resource assertions."""
+
+        self.operations: list[tuple[str, dict[str, Any] | None]] = []
+        self.posted_payload: dict[str, Any] | None = None
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return ticket/resource role context or capture TimeEntries create."""
+
+        self.operations.append((endpoint_path, dict(json)))
+        if endpoint_path == "/Tickets/query":
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "id": 123456,
+                            "ticketNumber": "T20260621.0001",
+                            "assignedResourceroleID": None,
+                            "assignedResourceID": 99,
+                            "billingCodeID": 24746620,
+                        }
+                    ],
+                    "pageDetails": {},
+                }
+            )
+        if endpoint_path == "/ResourceServiceDeskRoles/query":
+            assert json["filter"][0]["value"] == 99
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 21, "resourceID": 99, "roleID": 12, "isDefault": True, "isActive": True},
                     ],
                     "pageDetails": {},
                 }
@@ -1006,12 +1135,14 @@ def test_ticket_time_entry_context_uses_ticket_role_and_billing_code() -> None:
     assert ticket_context.ticket_id == 123456
     assert ticket_context.role_id == 8
     assert ticket_context.role_id_source == "ticket.assignedResourceroleID"
+    assert ticket_context.assigned_resource_id == 42
     assert ticket_context.billing_code_id == 24746620
     assert fake_client.posted_payload is not None
     assert fake_client.posted_payload["IncludeFields"] == [
         "id",
         "ticketNumber",
         "assignedResourceroleID",
+        "assignedResourceID",
         "billingCodeID",
     ]
 
@@ -1026,13 +1157,14 @@ def test_ticket_time_entry_context_falls_back_to_resource_default_role() -> None
 
     assert ticket_context.ticket_id == 123456
     assert ticket_context.role_id == 8
-    assert ticket_context.role_id_source == "ResourceServiceDeskRoles.default.roleID"
+    assert ticket_context.role_id_source == "managed_web_user.autotask_resource_id.ResourceServiceDeskRoles.default.roleID"
+    assert ticket_context.assigned_resource_id is None
     assert ticket_context.billing_code_id == 24746620
     assert fake_client.post_requests == [
         (
             "/Tickets/query",
             {
-                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "billingCodeID"],
+                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "assignedResourceID", "billingCodeID"],
                 "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260621.0001"}],
                 "MaxRecords": 1,
             },
@@ -1049,6 +1181,55 @@ def test_ticket_time_entry_context_falls_back_to_resource_default_role() -> None
             },
         ),
     ]
+
+
+def test_ticket_time_entry_context_uses_ticket_assigned_resource_role_when_ticket_role_missing() -> None:
+    """Tickets with only assignedResourceID should use that resource's role context."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTicketAssignedResourceRoleTimeEntryContextClient()
+
+    ticket_context = provider._query_ticket_time_entry_context(fake_client, "T20260621.0001", resource_id=42)
+
+    assert ticket_context.ticket_id == 123456
+    assert ticket_context.role_id == 12
+    assert ticket_context.role_id_source == "ticket.assignedResourceID.ResourceServiceDeskRoles.default.roleID"
+    assert ticket_context.assigned_resource_id == 99
+    assert fake_client.post_requests == [
+        (
+            "/Tickets/query",
+            {
+                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "assignedResourceID", "billingCodeID"],
+                "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260621.0001"}],
+                "MaxRecords": 1,
+            },
+        ),
+        (
+            "/ResourceServiceDeskRoles/query",
+            {
+                "IncludeFields": ["id", "resourceID", "roleID", "isDefault", "isActive"],
+                "filter": [
+                    {"op": "eq", "field": "resourceID", "value": 99},
+                    {"op": "eq", "field": "isActive", "value": True},
+                ],
+                "MaxRecords": 50,
+            },
+        ),
+    ]
+
+
+def test_ticket_time_entry_context_uses_single_active_ticket_assigned_resource_role() -> None:
+    """A single active role is safe when Autotask does not mark a default."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTicketAssignedResourceSingleRoleTimeEntryContextClient()
+
+    ticket_context = provider._query_ticket_time_entry_context(fake_client, "T20260621.0001", resource_id=42)
+
+    assert ticket_context.ticket_id == 123456
+    assert ticket_context.role_id == 12
+    assert ticket_context.role_id_source == "ticket.assignedResourceID.ResourceServiceDeskRoles.singleActive.roleID"
+    assert ticket_context.assigned_resource_id == 99
 
 
 def test_time_entry_creation_uses_ticket_role_and_inherits_billing_code() -> None:
@@ -1120,7 +1301,7 @@ def test_complete_submission_updates_ticket_status_after_time_entry_create(monke
         (
             "/Tickets/query",
             {
-                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "billingCodeID"],
+                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "assignedResourceID", "billingCodeID"],
                 "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260616.0001"}],
                 "MaxRecords": 1,
             },
@@ -1163,7 +1344,7 @@ def test_submission_uses_resource_default_role_when_ticket_role_missing(monkeypa
     assert result.succeeded is True
     assert result.external_id == "987654"
     assert result.request_snapshot["roleID"] == 8
-    assert result.request_snapshot["roleIDSource"] == "ResourceServiceDeskRoles.default.roleID"
+    assert result.request_snapshot["roleIDSource"] == "managed_web_user.autotask_resource_id.ResourceServiceDeskRoles.default.roleID"
     assert fake_client.posted_payload is not None
     assert fake_client.posted_payload["ticketID"] == 123456
     assert fake_client.posted_payload["resourceID"] == 42
@@ -1172,7 +1353,7 @@ def test_submission_uses_resource_default_role_when_ticket_role_missing(monkeypa
         (
             "/Tickets/query",
             {
-                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "billingCodeID"],
+                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "assignedResourceID", "billingCodeID"],
                 "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260621.0001"}],
                 "MaxRecords": 1,
             },
@@ -1183,6 +1364,70 @@ def test_submission_uses_resource_default_role_when_ticket_role_missing(monkeypa
                 "IncludeFields": ["id", "resourceID", "roleID", "isDefault", "isActive"],
                 "filter": [
                     {"op": "eq", "field": "resourceID", "value": 42},
+                    {"op": "eq", "field": "isActive", "value": True},
+                ],
+                "MaxRecords": 50,
+            },
+        ),
+        ("/Tickets", {"id": 123456, "status": 1}),
+        ("/TimeEntries", fake_client.posted_payload),
+    ]
+
+
+def test_submission_uses_ticket_assigned_resource_role_when_ticket_role_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ticket assignedResourceID can supply role context without changing submitter resource."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTicketAssignedResourceRoleSubmissionClient()
+    rounded_start_utc = datetime(2026, 6, 21, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="assigned-resource-role-submit-test",
+        status=JobStatus.READY_FOR_REVIEW,
+        ticket_number="T20260621.0001",
+        ticket_status=TicketStatus.IN_PROGRESS,
+        summary_notes="Created time with ticket assigned resource role.",
+        description_text="Created time with ticket assigned resource role.",
+        raw_start_utc=rounded_start_utc,
+        raw_end_utc=rounded_start_utc + timedelta(minutes=30),
+        rounded_start_utc=rounded_start_utc,
+        rounded_end_utc=rounded_start_utc + timedelta(minutes=30),
+    )
+
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeAutotaskClientContext:
+        """Return the fake client while matching the provider client signature."""
+
+        assert timeout_seconds == 30.0
+        return FakeAutotaskClientContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    result = provider.submit_job(job, resource_id=42)
+
+    assert result.succeeded is True
+    assert result.external_id == "987654"
+    assert result.request_snapshot["resourceID"] == 42
+    assert result.request_snapshot["ticketAssignedResourceID"] == 99
+    assert result.request_snapshot["roleID"] == 12
+    assert result.request_snapshot["roleIDSource"] == "ticket.assignedResourceID.ResourceServiceDeskRoles.default.roleID"
+    assert fake_client.posted_payload is not None
+    assert fake_client.posted_payload["ticketID"] == 123456
+    assert fake_client.posted_payload["resourceID"] == 42
+    assert fake_client.posted_payload["roleID"] == 12
+    assert fake_client.operations == [
+        (
+            "/Tickets/query",
+            {
+                "IncludeFields": ["id", "ticketNumber", "assignedResourceroleID", "assignedResourceID", "billingCodeID"],
+                "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260621.0001"}],
+                "MaxRecords": 1,
+            },
+        ),
+        (
+            "/ResourceServiceDeskRoles/query",
+            {
+                "IncludeFields": ["id", "resourceID", "roleID", "isDefault", "isActive"],
+                "filter": [
+                    {"op": "eq", "field": "resourceID", "value": 99},
                     {"op": "eq", "field": "isActive", "value": True},
                 ],
                 "MaxRecords": 50,

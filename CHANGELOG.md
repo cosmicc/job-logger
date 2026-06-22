@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## v1.1.1 - Review action cleanup and Autotask fallback
+## v1.1.1 - Review action cleanup and Autotask submission fixes
 
 - Advanced the source-controlled dev runtime version to `v1.1.1`, including the
   Python package metadata and PWA service worker cache version.
@@ -18,8 +18,10 @@ All notable changes to Job Logger are documented in this file.
   paired action rows use matched widths and heights instead of leaving uneven
   spacing around primary and destructive actions.
 - Fixed Autotask submission for tickets that do not return
-  `assignedResourceroleID` by falling back to the submitting managed user's
-  default active service-desk role before creating the time entry.
+  `assignedResourceroleID` by using the ticket's `assignedResourceID` to resolve
+  a default or single active service-desk role before falling back to the
+  submitting managed user's service-desk role. The app still creates the time
+  entry under the submitting managed user's Autotask resource ID.
 
 ## v1.1.0 - Direct submission, backups, and passkeys
 

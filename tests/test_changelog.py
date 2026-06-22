@@ -25,13 +25,13 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert "## v1.1.1 - Review action cleanup and Autotask fallback" in changelog_text
+    assert "## v1.1.1 - Review action cleanup and Autotask submission fixes" in changelog_text
     assert "## v1.1.0 - Direct submission, backups, and passkeys" in changelog_text
     assert "## v1.0.2 - Autotask workflow and desktop layout updates" in changelog_text
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
-    assert "## v1.1.1 - Review action cleanup" in web_changelog_text
+    assert "## v1.1.1 - Review action cleanup and Autotask submission fixes" in web_changelog_text
     assert "## v1.1.0 - Direct submission and passkeys" in web_changelog_text
     assert "## v1.0.2 - Autotask workflow and desktop layout updates" in web_changelog_text
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in web_changelog_text
@@ -67,11 +67,12 @@ def test_changelog_parser_reads_current_release() -> None:
 
     assert current_entry == ChangelogEntry(
         version="v1.1.1",
-        title="Review action cleanup",
+        title="Review action cleanup and Autotask submission fixes",
         changes=(
             "Review detail now uses compact action rows like Work in Progress.",
             "Record and AI Cleanup now share a row on review detail with shorter labels and icons.",
             "Full browser Work in Progress and Review buttons now use cleaner paired rows.",
+            "Autotask submission now handles tickets that provide an assigned resource but omit the assigned role.",
         ),
     )
 
@@ -102,6 +103,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Review detail now uses compact action rows like Work in Progress." in response.text
     assert "Record and AI Cleanup now share a row on review detail with shorter labels and icons." in response.text
     assert "Full browser Work in Progress and Review buttons now use cleaner paired rows." in response.text
+    assert "Autotask submission now handles tickets that provide an assigned resource but omit the assigned role." in response.text
     assert "Direct submission and passkeys" in response.text
     assert "Added a Config option to submit time entries directly from Work in Progress." in response.text
     assert "Review is still available afterward for submitted-entry edits and Autotask deletion." in response.text
@@ -137,7 +139,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.text.index("Direct submission and passkeys") < response.text.index("Autotask workflow and desktop layout updates")
     assert response.text.index("Autotask workflow and desktop layout updates") < response.text.index("Mobile shell navigation and close behavior")
     assert response.text.index("Mobile shell navigation and close behavior") < response.text.index("Initial release")
-    assert '<h2 id="current-version-heading">Review action cleanup</h2>' in response.text
+    assert '<h2 id="current-version-heading">Review action cleanup and Autotask submission fixes</h2>' in response.text
     assert '<span class="release-version">v1.1.1</span>' in response.text
     assert '<span class="release-version">v1.1.0</span>' in response.text
     assert '<span class="release-version">v1.0.2</span>' in response.text
