@@ -358,6 +358,10 @@ unprivileged `appuser` account.
 
 PostgreSQL data must live in a persistent volume or documented persistent
 storage.
+PostgreSQL container health checks must be tolerant of first-time volume
+initialization on slower Docker hosts. Add a startup grace period instead of
+forcing operators to remove volumes when the database is merely still
+bootstrapping.
 
 The internet-facing nginx template must expose only the web interface and the
 authenticated browser actions required by those pages. Keep API-style,

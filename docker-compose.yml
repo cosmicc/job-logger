@@ -133,7 +133,11 @@ services:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
-      retries: 5
+      # First-time volume initialization can take longer on small or busy
+      # Docker hosts. Give Postgres time to bootstrap before app dependencies
+      # fail the whole Compose/Portainer stack as unhealthy.
+      start_period: 60s
+      retries: 12
     networks:
       default:
         aliases:

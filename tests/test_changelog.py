@@ -25,7 +25,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert "## v1.1.1 - Review action cleanup and Autotask submission fixes" in changelog_text
+    assert "## v1.1.1 - Review cleanup, Autotask fixes, and Docker startup" in changelog_text
     assert "## v1.1.0 - Direct submission, backups, and passkeys" in changelog_text
     assert "## v1.0.2 - Autotask workflow and desktop layout updates" in changelog_text
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text

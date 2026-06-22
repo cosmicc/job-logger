@@ -244,6 +244,30 @@ up` and `start worker process`. If the log later says `signal 3 (SIGQUIT)
 received, shutting down`, Docker or Compose asked Nginx to stop gracefully; that
 line is not an Nginx configuration failure by itself.
 
+### PostgreSQL Healthcheck Troubleshooting
+
+If a first-time or cold Docker/Portainer deploy fails with a message like
+`dependency failed to start: container job-logger-dev-db-1 is unhealthy`, check
+the PostgreSQL container before removing any volumes:
+
+```bash
+docker ps -a --filter name=job-logger-dev-db-1
+docker logs --tail=120 job-logger-dev-db-1
+docker inspect --format '{{.State.Health.Status}}' job-logger-dev-db-1
+```
+
+The database service healthcheck has a startup grace period so normal
+first-time initialization can finish before dependent app containers are
+started. If the DB container remains unhealthy after that window, treat it as a
+real database startup problem. The most common causes are a stale dev stack
+volume with different PostgreSQL credentials, a damaged/incompatible data
+directory, or an environment mismatch in the deployed stack.
+
+For disposable dev stacks only, the fastest reset is to remove the failed dev
+stack and its dev PostgreSQL volume, then redeploy with the intended `.env`.
+Do not remove the production `postgres_data` volume unless the stored job
+history is intentionally being discarded or a current backup has been verified.
+
 ### PostgreSQL Password Troubleshooting
 
 The PostgreSQL Docker image only applies `POSTGRES_PASSWORD` when the database

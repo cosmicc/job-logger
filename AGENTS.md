@@ -363,6 +363,9 @@ Persistent PostgreSQL data must be stored in a Docker volume or another
 documented persistent storage location.
 
 Health checks should be added for services where practical.
+PostgreSQL health checks must allow enough startup grace for first-time volume
+initialization so Docker Compose or Portainer does not abort the app stack while
+the database is still bootstrapping.
 
 ## Python Standards
 

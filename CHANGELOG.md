@@ -2,10 +2,13 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## v1.1.1 - Review action cleanup and Autotask submission fixes
+## v1.1.1 - Review cleanup, Autotask fixes, and Docker startup
 
 - Advanced the source-controlled dev runtime version to `v1.1.1`, including the
   Python package metadata and PWA service worker cache version.
+- Changed the PostgreSQL Docker healthcheck to allow a longer first-start grace
+  period and more retries so cold dev or Portainer deployments do not fail the
+  whole stack before the database finishes initializing.
 - Changed review detail Summary notes controls so **Record** and optional
   **AI Cleanup** share the same compact two-button row, use leading icons, and
   no longer reserve empty status space while idle.
