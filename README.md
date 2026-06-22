@@ -256,12 +256,13 @@ docker logs --tail=120 job-logger-dev-db-1
 docker inspect --format '{{.State.Health.Status}}' job-logger-dev-db-1
 ```
 
-The database service healthcheck has a startup grace period so normal
-first-time initialization can finish before dependent app containers are
-started. If the DB container remains unhealthy after that window, treat it as a
-real database startup problem. The most common causes are a stale dev stack
-volume with different PostgreSQL credentials, a damaged/incompatible data
-directory, or an environment mismatch in the deployed stack.
+The database service healthcheck has a startup grace period, and Compose starts
+the app after the database container is started rather than aborting the stack
+on the DB health status. The app entrypoint then waits for real database
+connectivity before running migrations. If the DB container remains unhealthy,
+treat it as a real database startup problem. The most common causes are a stale
+dev stack volume with different PostgreSQL credentials, a damaged/incompatible
+data directory, or an environment mismatch in the deployed stack.
 
 For disposable dev stacks only, the fastest reset is to remove the failed dev
 stack and its dev PostgreSQL volume, then redeploy with the intended `.env`.

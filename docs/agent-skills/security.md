@@ -362,6 +362,9 @@ PostgreSQL container health checks must be tolerant of first-time volume
 initialization on slower Docker hosts. Add a startup grace period instead of
 forcing operators to remove volumes when the database is merely still
 bootstrapping.
+Do not make Compose or Portainer stack creation depend on PostgreSQL becoming
+healthy. Preserve start order, then let the app entrypoint wait for database
+connectivity and emit sanitized diagnostics before migrations.
 
 The internet-facing nginx template must expose only the web interface and the
 authenticated browser actions required by those pages. Keep API-style,

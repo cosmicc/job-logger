@@ -73,9 +73,12 @@ services:
       # processes through host.docker.internal. Private LAN model servers can
       # be configured directly with their private IP base URLs.
       - "host.docker.internal:host-gateway"
+    # Start the database container first, but do not gate stack creation on the
+    # healthcheck. The app entrypoint waits for real database connectivity and
+    # prints sanitized startup diagnostics when credentials or volume state are
+    # wrong.
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     expose:
       # The app is intentionally exposed only to the private Compose network.
       # Nginx is the public-facing internal origin for Cloudflare Tunnel.
@@ -101,9 +104,11 @@ services:
       NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-12m}
       # NGINX_RESTORE_MAX_BODY_SIZE applies only to /debug/restore uploads.
       NGINX_RESTORE_MAX_BODY_SIZE: ${NGINX_RESTORE_MAX_BODY_SIZE:-250m}
+    # Nginx can start before the app is healthy; Docker health status and the
+    # app entrypoint make readiness visible without aborting Portainer stack
+    # creation.
     depends_on:
-      app:
-        condition: service_healthy
+      - app
     ports:
       # Bind Nginx on host interfaces so a remotely-managed Cloudflare Tunnel
       # service URL can target this server by LAN/internal IP and port.
@@ -134,8 +139,8 @@ services:
       interval: 10s
       timeout: 5s
       # First-time volume initialization can take longer on small or busy
-      # Docker hosts. Give Postgres time to bootstrap before app dependencies
-      # fail the whole Compose/Portainer stack as unhealthy.
+      # Docker hosts. Give Postgres time to bootstrap before the DB container
+      # reports a failing health state.
       start_period: 60s
       retries: 12
     networks:
@@ -158,8 +163,7 @@ services:
       - --token
       - ${CLOUDFLARE_TUNNEL_TOKEN:-not-set}
     depends_on:
-      nginx:
-        condition: service_healthy
+      - nginx
 
 volumes:
   postgres_data:

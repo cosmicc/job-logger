@@ -6,9 +6,11 @@ All notable changes to Job Logger are documented in this file.
 
 - Advanced the source-controlled dev runtime version to `v1.1.1`, including the
   Python package metadata and PWA service worker cache version.
-- Changed the PostgreSQL Docker healthcheck to allow a longer first-start grace
-  period and more retries so cold dev or Portainer deployments do not fail the
-  whole stack before the database finishes initializing.
+- Changed Docker startup ordering so Compose and Portainer create the app,
+  database, nginx, and tunnel containers without aborting the stack on an early
+  healthcheck state. The app entrypoint still waits for PostgreSQL before
+  migrations, and the database healthcheck keeps a longer first-start grace
+  period for cold dev deployments.
 - Changed review detail Summary notes controls so **Record** and optional
   **AI Cleanup** share the same compact two-button row, use leading icons, and
   no longer reserve empty status space while idle.

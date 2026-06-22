@@ -366,6 +366,9 @@ Health checks should be added for services where practical.
 PostgreSQL health checks must allow enough startup grace for first-time volume
 initialization so Docker Compose or Portainer does not abort the app stack while
 the database is still bootstrapping.
+Compose dependencies should preserve container start order without using
+`service_healthy` as a hard stack-creation gate; the app entrypoint owns the
+database connectivity wait before migrations.
 
 ## Python Standards
 
