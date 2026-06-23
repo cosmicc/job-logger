@@ -107,6 +107,14 @@ class WebUser(Base):
         comment="UTC cutoff after which existing signed web-user sessions must be renewed.",
     )
 
+    # last_login_at_utc is informational account metadata for the super-admin
+    # user list. It is stamped only after a successful managed-user login.
+    last_login_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="UTC timestamp for the latest successful managed web-user login.",
+    )
+
     # created_at_utc and updated_at_utc support account-management audit review.
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(

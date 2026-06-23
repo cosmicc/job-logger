@@ -45,6 +45,7 @@ from job_logger.services.jobs import (
     apply_manual_summary_to_job,
     apply_selected_ticket_from_lookup,
     apply_transcription_result_to_job,
+    completed_ticket_numbers_for_web_user,
     delete_active_job,
     end_job,
     ensure_job_can_record_description,
@@ -207,6 +208,32 @@ def _load_service_calls_for_mobile_start(
         ), None
     except AutotaskSubmissionError as exc:
         return [], str(exc)
+
+
+def _filter_completed_local_service_calls(
+    database_session: Session,
+    *,
+    web_user_id: str,
+    service_call_options: list[AutotaskServiceCallOption],
+) -> list[AutotaskServiceCallOption]:
+    """Hide service calls that already have a local Complete time entry."""
+
+    completed_ticket_numbers = completed_ticket_numbers_for_web_user(
+        database_session,
+        web_user_id=web_user_id,
+        ticket_numbers={
+            service_call_option.ticket_number
+            for service_call_option in service_call_options
+        },
+    )
+    if not completed_ticket_numbers:
+        return service_call_options
+
+    return [
+        service_call_option
+        for service_call_option in service_call_options
+        if service_call_option.ticket_number.strip().upper() not in completed_ticket_numbers
+    ]
 
 
 def _service_call_location_class(service_call_option: AutotaskServiceCallOption) -> str:
@@ -697,6 +724,11 @@ def home_service_call_options(
             {**service_call_date_context, "detail": service_call_error, "service_calls": []},
             status_code=400,
         )
+    service_call_options = _filter_completed_local_service_calls(
+        database_session,
+        web_user_id=web_user.id,
+        service_call_options=service_call_options,
+    )
 
     return JSONResponse(
         {
@@ -840,6 +872,11 @@ async def start_work_from_service_call(
         service_call_options = get_autotask_provider().list_todays_service_calls_for_resource(
             resource_id=web_user.autotask_resource_id,
             local_service_date=selected_service_call_date,
+        )
+        service_call_options = _filter_completed_local_service_calls(
+            database_session,
+            web_user_id=web_user.id,
+            service_call_options=service_call_options,
         )
         selected_service_call = _find_matching_service_call_option(service_call_options, service_call_ticket_id)
         if selected_service_call is None:

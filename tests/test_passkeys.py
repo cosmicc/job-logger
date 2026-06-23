@@ -238,6 +238,9 @@ def test_passkey_login_creates_managed_user_session(client: TestClient, monkeypa
         assert updated_credential is not None
         assert updated_credential.sign_count == 12
         assert updated_credential.last_used_at_utc is not None
+        web_user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert web_user is not None
+        assert web_user.last_login_at_utc is not None
         actions = list(database_session.scalars(select(AuditEvent.action).order_by(AuditEvent.created_at_utc)))
         assert "auth.passkey.login.succeeded" in actions
 

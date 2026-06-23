@@ -58,7 +58,9 @@ Autotask REST API references used by this app:
 
    Docker Compose sets `LOG_DIR=/data/logs` inside the app container and
    mounts `${HOST_LOG_DIR:-/var/log/job-logger}` there. The entrypoint prepares
-   ownership before it drops to the unprivileged `appuser`.
+   ownership before it drops to the unprivileged `appuser`. Set `LOG_LEVEL` to
+   `DEBUG`, `INFO`, `WARNING`, or `ERROR` to control how much detail is written
+   to `${LOG_DIR}/app.log`; Docker defaults to `INFO`.
 
 5. Start the stack:
 
@@ -82,8 +84,10 @@ Autotask REST API references used by this app:
    least one web user with full name, username, password, and Autotask resource
    ID. The users page shows managed accounts in a table with per-row edit and
    enable/disable controls as compact icons, including any email address
-   captured from Autotask Resource lookup. The disable action signs out that
-   user's existing sessions on their next request and blocks future login. The
+   captured from Autotask Resource lookup, last successful login time, and a
+   green or red Device sign-in key icon showing whether the account has any
+   registered passkeys. The disable action signs out that user's existing
+   sessions on their next request and blocks future login. The
    add-user form suggests a username from the name, such as `jblow` for
    `Joe Blow`, and add/edit forms can search Autotask Resources so you can
    select the matching `Last, First` resource and fill its ID. The same form can
@@ -421,7 +425,7 @@ Set these passkey variables for production when needed:
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.1.2`. Version history starts at `v1.0.0`.
+currently `v1.1.3`. Version history starts at `v1.0.0`.
 
 Authenticated pages show the current version discreetly in the shared header.
 Clicking that version opens `/changelog`, which displays the current version
@@ -581,8 +585,8 @@ failure details use the same plain-text status line as audio recording; the
 **AI Cleanup** button itself shows the shared spinner while cleanup is in
 progress, and cleanup waits until audio recording/transcription is finished. On
 review detail, the cleaned text replaces the textarea; non-submitted jobs
-autosave as usual, while submitted jobs still require **Edit Entry** to patch
-the existing Autotask time entry.
+autosave as usual, while submitted jobs still require **Submit changes** to
+patch the existing Autotask time entry.
 
 AI cleanup requests require the local authenticated session and CSRF token. The
 server sends bounded summary text plus minimal job context to the selected
@@ -653,12 +657,13 @@ human-readable labels when allowed, and save one optional default service-desk
 role ID. That configured role is used only as a time-entry fallback after
 ticket-assigned role sources fail. If the optional `Roles` lookup is not
 permitted, the picker still works with numeric role labels. Each table row also
-shows the stored email and default role ID metadata. The browser never receives
-Autotask credentials and cannot query Autotask directly.
+shows the stored email, default role ID metadata, and the last successful
+managed-user login time or `Never`. The browser never receives Autotask
+credentials and cannot query Autotask directly.
 
 Autotask ticket status picklist IDs vary by tenant. Job Logger uses the selected
 local app status to patch `Tickets.status` during time-entry submission and
-submitted **Edit Entry** resubmission, so the Autotask API user must be allowed
+submitted **Submit changes** resubmission, so the Autotask API user must be allowed
 to update ticket workflow status. Configure all status IDs:
 
 - `AUTOTASK_STATUS_IN_PROGRESS_ID`
@@ -751,6 +756,11 @@ Each service-call choice shows the client name, the detected `Remote` or
 range such as `4:00pm-5:00pm`, and the associated ticket title. Remote and
 On-Site cards use stronger distinct accent colors and badges so scheduled call
 type is easy to scan without wasting mobile screen space.
+Service-call options are filtered by local Job Logger history for the current
+managed user: if that user already has a job for the same ticket number with the
+editable local ticket status set to `Complete`, the service call is hidden even
+when that time entry has not yet been submitted to Autotask. The start endpoint
+applies the same filter before accepting a submitted service-call ID.
 Tapping a service call starts an active job with the server-verified ticket
 number, ticket title, bounded ticket description, client name, company ID, and
 detected work-location mode. It defaults the local editable ticket status to
@@ -770,8 +780,11 @@ The shared page data is styled through `app.css`, then viewport-specific
 and desktop browsers get appropriately sized layouts. In a full browser view,
 the `/home` Home screen lays out Start Work beside the service-call list, and
 Work in Progress puts job details beside notes and finish actions for easier
-scanning. Phone-sized authenticated
-layouts hide the brand mark and desktop logout button, place left navigation
+scanning. Active Work in Progress cards use distinct slot shading so two active
+jobs are easier to distinguish, and the full-browser active-card finish/delete
+row sits directly below the **Record** and **AI Cleanup** row with recording and
+cleanup status text below all action buttons. Phone-sized authenticated layouts
+hide the brand mark and desktop logout button, place left navigation
 icons on the left, center the version link, and put right-side actions on the
 right. Managed web users see Home and Review on the left, with Config and a
 logout icon on the right. The config super admin sees Users, Review, and
@@ -792,11 +805,12 @@ and records every attempt in `submission_attempts`.
 
 After a job is successfully submitted to Autotask, ticket and client identity
 stay read-only. The selected review detail allows job date, start time, end
-time, summary notes, and ticket status edits through **Edit Entry**, which
-patches the existing `TimeEntries` row instead of creating a duplicate entry.
-**Edit Entry** also patches `Tickets.status` to match the selected Job Logger
-status, including temporarily moving a previously `Complete` ticket to
-`In progress` before the time-entry patch when Autotask requires that sequence.
+time, summary notes, work location, and ticket status edits through
+**Submit changes**, which patches the existing `TimeEntries` row instead of
+creating a duplicate entry. **Submit changes** also patches `Tickets.status` to
+match the selected Job Logger status, including temporarily moving a previously
+`Complete` ticket to `In progress` before the time-entry patch when Autotask
+requires that sequence.
 The same submitted detail also has **Delete From Autotask**, which deletes the
 existing Autotask time entry and returns the local job to review without
 removing the local job record. If Autotask refuses the delete, the job remains
@@ -813,9 +827,11 @@ from the review detail when troubleshooting or checking history.
 
 The mobile Work in Progress card stores a work-location mode of `Remote` or
 `On-Site`, defaulting to `Remote`. This mode does not appear in the mobile
-summary text. Review detail shows the complete Autotask-bound summary, such as
+summary text. The review list shows each job's Remote or On-Site mode, and
+review detail exposes the same choice as an editable control. Changing it
+updates the visible Autotask-bound summary prefix, such as
 `Remote replaced firewall` or `On-Site replaced firewall`, so the prefix can be
-corrected before submission or **Edit Entry**. The server parses that prefix
+corrected before submission or **Submit changes**. The server parses that prefix
 back into the stored work-location mode and keeps local note storage unprefixed.
 
 Ticket `TimeEntries` payloads use the selected ticket's
@@ -879,7 +895,8 @@ At the bottom of `/debug`, the **Application Log** card shows the newest 200
 lines first from `${LOG_DIR}/app.log`, normally
 `/var/log/job-logger/app.log` on the Docker host. The card's viewport shows
 about 20 lines at a time and scrolls for the rest; use the host log files for
-longer history.
+longer history. `LOG_LEVEL` controls this file's verbosity and must be one of
+`DEBUG`, `INFO`, `WARNING`, or `ERROR`.
 
 The app also creates automatic full-database backups every hour when
 `AUTOMATIC_BACKUPS_ENABLED=true`, which is the default. Docker Compose stores
@@ -890,11 +907,12 @@ each of the prior 2 days; expired automatic backups are purged after each
 successful automatic backup.
 
 The `/debug` page also includes **Automatic database backups**, **Download Full
-Backup**, and **Restore Full Backup** controls. Backups are sensitive `.json.gz`
-files containing all Job Logger database tables, including managed web-user
-password hashes and email metadata, jobs, submission attempts, and audit events.
-Store backup files somewhere private because they contain account, customer,
-ticket, and work-summary history.
+Backup**, and **Restore Full Backup** controls. Each retained automatic backup
+also has a per-file **Download** button. Backups are sensitive `.json.gz` files
+containing all Job Logger database tables, including managed web-user password
+hashes and email metadata, jobs, submission attempts, and audit events. Store
+backup files somewhere private because they contain account, customer, ticket,
+and work-summary history.
 
 To restore, upload a Job Logger full-backup file on `/debug` and type
 `RESTORE`. Restore validates the archive format, required tables, and columns

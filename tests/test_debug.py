@@ -135,6 +135,7 @@ def test_debug_routes_are_super_admin_only(client: TestClient) -> None:
         ("POST", "/debug/sessions/logout-web-users"),
         ("POST", "/debug/backup"),
         ("POST", "/debug/restore"),
+        ("POST", "/debug/automatic-backups/download"),
         ("POST", "/debug/automatic-backups/restore"),
     )
     for method, path in forbidden_routes:
@@ -652,6 +653,7 @@ def test_debug_lists_and_restores_automatic_backups(super_admin_client: TestClie
     assert debug_page_response.status_code == 200
     assert "Automatic database backups" in debug_page_response.text
     assert backup_result.backup_file.filename in debug_page_response.text
+    assert '/debug/automatic-backups/download' in debug_page_response.text
     assert '/debug/automatic-backups/restore' in debug_page_response.text
     csrf_token = extract_csrf_token(debug_page_response.text)
 
@@ -679,6 +681,40 @@ def test_debug_lists_and_restores_automatic_backups(super_admin_client: TestClie
         actions = list(database_session.scalars(select(AuditEvent.action).order_by(AuditEvent.created_at_utc)))
         assert "backup.seeded" in actions
         assert "debug.automatic_backup.restored" in actions
+
+
+def test_debug_downloads_automatic_backup(super_admin_client: TestClient) -> None:
+    """Automatic backups should be individually downloadable from diagnostics."""
+
+    automatic_backup_dir = Path(os.environ["AUTOMATIC_BACKUP_DIR"])
+    _seed_full_backup_data()
+    with database.SessionLocal() as database_session:
+        backup_result = create_automatic_backup(
+            database_session,
+            automatic_backup_dir,
+            now=datetime(2026, 6, 20, 16, 0, tzinfo=UTC),
+        )
+
+    debug_page_response = super_admin_client.get("/debug")
+    csrf_token = extract_csrf_token(debug_page_response.text)
+    download_response = super_admin_client.post(
+        "/debug/automatic-backups/download",
+        data={"csrf_token": csrf_token, "filename": backup_result.backup_file.filename},
+    )
+
+    assert download_response.status_code == 200
+    assert download_response.content == backup_result.backup_file.path.read_bytes()
+    assert download_response.headers["cache-control"] == "no-store"
+    assert backup_result.backup_file.filename in download_response.headers["content-disposition"]
+    payload = json.loads(gzip.decompress(download_response.content).decode("utf-8"))
+    assert payload["format"] == "job_logger.full_backup"
+
+    with database.SessionLocal() as database_session:
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "debug.automatic_backup.downloaded")
+        )
+        assert audit_event is not None
+        assert audit_event.details["filename"] == backup_result.backup_file.filename
 
 
 def test_debug_full_backup_download_and_restore_round_trip(super_admin_client: TestClient) -> None:
@@ -893,6 +929,55 @@ def test_debug_restore_defaults_missing_web_user_default_role_column(
         assert restored_user.autotask_default_service_desk_role_id is None
 
 
+def test_debug_restore_defaults_missing_web_user_last_login_column(
+    super_admin_client: TestClient,
+) -> None:
+    """Restore backups that predate managed-user last-login metadata."""
+
+    last_login_at_utc = datetime(2026, 6, 23, 13, 30, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user.last_login_at_utc = last_login_at_utc
+        database_session.commit()
+
+    debug_page_response = super_admin_client.get("/debug")
+    csrf_token = extract_csrf_token(debug_page_response.text)
+    backup_response = super_admin_client.post(
+        "/debug/backup",
+        data={"csrf_token": csrf_token},
+    )
+    payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
+    for row in payload["tables"]["web_users"]:
+        row.pop("last_login_at_utc", None)
+    payload["schema"]["web_users"].remove("last_login_at_utc")
+    legacy_backup_content = gzip.compress(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+        mtime=0,
+    )
+
+    restore_page_response = super_admin_client.get("/debug")
+    restore_csrf_token = extract_csrf_token(restore_page_response.text)
+    restore_response = super_admin_client.post(
+        "/debug/restore",
+        data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
+        files={
+            "backup_file": (
+                "job-logger-pre-last-login-full-backup.json.gz",
+                legacy_backup_content,
+                "application/gzip",
+            )
+        },
+        follow_redirects=False,
+    )
+
+    assert restore_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        restored_user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert restored_user is not None
+        assert restored_user.last_login_at_utc is None
+
+
 def test_debug_restore_defaults_missing_passkey_table_to_empty(
     super_admin_client: TestClient,
 ) -> None:
@@ -971,5 +1056,17 @@ def test_debug_backup_download_requires_csrf(super_admin_client: TestClient) -> 
     """Full backup downloads are sensitive and require CSRF protection."""
 
     response = super_admin_client.post("/debug/backup", data={}, follow_redirects=False)
+
+    assert response.status_code == 403
+
+
+def test_debug_automatic_backup_download_requires_csrf(super_admin_client: TestClient) -> None:
+    """Automatic backup downloads are sensitive and require CSRF protection."""
+
+    response = super_admin_client.post(
+        "/debug/automatic-backups/download",
+        data={"filename": automatic_backup_filename(datetime(2026, 6, 20, 16, 0, tzinfo=UTC))},
+        follow_redirects=False,
+    )
 
     assert response.status_code == 403

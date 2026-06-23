@@ -51,6 +51,9 @@ _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
         # v1.1.0 added per-user session invalidation. Older full backups should
         # restore without forcing users out immediately.
         "sessions_invalidated_at_utc": None,
+        # v1.1.3 added a display-only last-login timestamp. Older full backups
+        # should restore with the account shown as never logged in.
+        "last_login_at_utc": None,
     },
     "user_preferences": {
         # v1.1.0 added this preference as default-off. Older full backups should

@@ -21,7 +21,7 @@ from job_logger.security import (
 )
 from job_logger.services.audit import record_audit_event
 from job_logger.services.login_failures import log_failed_login_attempt, log_successful_login_attempt
-from job_logger.services.users import authenticate_web_user_with_status
+from job_logger.services.users import authenticate_web_user_with_status, mark_web_user_login_succeeded
 from job_logger.ui import template_context, templates
 
 router = APIRouter(tags=["auth"])
@@ -76,6 +76,7 @@ async def login(
     )
     web_user = web_user_authentication.user
     if web_user is not None:
+        mark_web_user_login_succeeded(web_user)
         login_web_user_session(request, username=web_user.username, web_user_id=web_user.id)
         log_successful_login_attempt(
             request,

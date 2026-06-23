@@ -2,6 +2,15 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## v1.1.3 - Review visibility and Work in Progress refinements
+
+- Review rows now show whether each job is Remote or On-Site.
+- Review detail can now switch Remote or On-Site and updates the Summary notes prefix.
+- Work in Progress active job cards are easier to tell apart.
+- Full browser Work in Progress actions now keep finish and delete buttons directly under Record and AI Cleanup.
+- Service-call starts now hide tickets already marked Complete in Job Logger.
+- Submitted Review entries now use a clearer Submit changes button.
+
 ## v1.1.2 - User management, ticket status, and Device sign-in updates
 
 - User management rows are more compact and easier to scan.

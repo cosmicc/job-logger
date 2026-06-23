@@ -35,13 +35,14 @@ Autotask resource ID. They may also store the email address returned by the
 selected Autotask Resource lookup and an optional default active service-desk
 role ID selected from that resource's active Autotask `ResourceServiceDeskRoles`.
 The `/users` page presents managed accounts in a table with visible stored email
-and default-role metadata and icon-only row actions for edit, enable/disable,
-and delete-as-disable. The add form may suggest usernames from full names, such
-as `jblow` for `Joe Blow`, and add/edit forms may query Autotask Resources and
-active service-desk roles for
-super-admin-only resource and role pickers. The role picker should show
-Autotask `Roles.name` labels when that metadata is readable while storing only
-the selected numeric `roleID` on the managed web-user row.
+and default-role metadata, last successful managed-user login time, green/red
+Device sign-in passkey status icons, and icon-only row actions for edit,
+enable/disable, and delete-as-disable. The add form may suggest usernames from
+full names, such as `jblow` for `Joe Blow`, and add/edit forms may query
+Autotask Resources and active service-desk roles for super-admin-only resource
+and role pickers. The role picker should show Autotask `Roles.name` labels when
+that metadata is readable while storing only the selected numeric `roleID` on
+the managed web-user row.
 Store only salted password verifiers, never raw managed user passwords.
 Managed-user passwords must be at least 8 characters and include lowercase,
 uppercase, number, and symbol characters.
@@ -159,11 +160,12 @@ Recorded jobs follow this lifecycle:
 6. An accepted review job, or a directly submitted Work in Progress job, creates
    an Autotask time entry using the owning user's Autotask resource ID.
 7. A successfully submitted Autotask job keeps ticket and client identity
-   read-only. Its job date, start time, end time, summary notes, and ticket
-   status can be changed only through the audited **Edit Entry** action, which
-   updates the existing Autotask time entry instead of creating another entry.
-   **Edit Entry** always patches `Tickets.status` to the selected local app
-   status as part of the resubmission. When needed, it may temporarily move a
+   read-only. Its job date, start time, end time, summary notes, work location,
+   and ticket status can be changed only through the audited **Submit changes**
+   action, which updates the existing Autotask time entry instead of creating
+   another entry. **Submit changes** always patches `Tickets.status` to the
+   selected local app status as part of the resubmission. When needed, it may
+   temporarily move a
    previously Complete ticket to In progress before patching `TimeEntries`,
    then move the ticket to the selected final status after the time-entry patch.
    The audited **Delete From Autotask** action may delete the external time
@@ -235,7 +237,7 @@ or owning user's resource ID for service-call lookup and for
 Autotask's optional `ImpersonationResourceId` header; do not add or restore a
 global `AUTOTASK_IMPERSONATION_RESOURCE_ID` setting. Static Autotask role and
 billing-code IDs must not be configured. Time-entry submission and submitted
-**Edit Entry** actions must patch `Tickets.status` to the selected local app
+**Submit changes** actions must patch `Tickets.status` to the selected local app
 ticket status, using the configured tenant-specific `AUTOTASK_STATUS_*_ID`
 mapping. The live provider must query the selected ticket at
 submission time, use `Tickets.assignedResourceroleID` as `TimeEntries.roleID`
@@ -307,6 +309,11 @@ scan-friendly layout. Keep full-browser layout changes out of `phone.css` so
 the installed mobile phone experience remains unchanged unless explicitly
 requested. Do not use route names to select the mobile or desktop page version;
 presentation must follow client/browser and media behavior.
+When two active jobs are present, their Work in Progress cards should use
+distinct slot shading so they are easier to tell apart. On full-browser Work in
+Progress cards, the End Work/Delete row belongs directly under the
+Record/AI Cleanup row, and recording/AI status text belongs below all action
+buttons.
 
 Managed web-user pages must respect the current user's saved theme preference.
 The default is the dark theme. Light theme support must cover mobile, review,
@@ -329,11 +336,13 @@ the explicit desktop logout control.
 The standard review interface must work well on a full computer screen.
 
 The review interface must allow editing of reviewed job summary notes, ticket
-status, date, start time, end time, and the translated speech-to-text
-description before acceptance. The summary textarea must show the complete
+status, date, start time, end time, work location, and the translated
+speech-to-text description before acceptance. The review list must show each
+job's Remote or On-Site mode. The summary textarea must show the complete
 Autotask summary that will be sent, including the leading Remote or On-Site
 prefix. Saving review edits parses that prefix back into the stored
-`work_location` field so the final payload can be corrected without exposing
+`work_location` field, and the review-detail work-location control must update
+that visible prefix, so the final payload can be corrected without exposing
 ticket or client identity to edits. The selected Autotask client name, company
 ID, ticket number, and ticket title are read-only identity fields populated from
 Autotask lookup and must not be editable on the review page.
@@ -573,11 +582,13 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/audit.py` records immutable audit events.
 - `job_logger/services/backups.py` creates and restores portable gzip JSON full
   database backups, writes hourly automatic backup files, and enforces automatic
-  backup retention.
+  backup retention. `/debug` may download retained automatic backups only after
+  strict filename validation.
 - `job_logger/services/login_failures.py` writes and reads the host-mounted
   sanitized successful/failed login JSONL logs in `LOG_DIR`, defaulting to
   `job-logger-login-successes.log` and `job-logger-login-failures.log` inside
-  Docker's `/data/logs` mount.
+  Docker's `/data/logs` mount. `LOG_LEVEL` controls how verbose `${LOG_DIR}/app.log`
+  is and must be one of `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
 - `job_logger/templates/` contains Jinja pages for mobile, review, users,
   config, changelog, debug, and authentication views.
 - `job_logger/static/` contains browser-side JavaScript, CSS, PWA metadata, and
@@ -602,8 +613,11 @@ The normal workflow is:
    returned email address.
    Delete actions always disable the selected account, sign out its existing
    sessions on the next request, and preserve the row so future login attempts
-   can show the disabled-account message. The first managed web user claims any
-   existing unowned jobs from earlier single-user installs.
+   can show the disabled-account message. The Users list also shows the last
+   successful managed-user login time, stamped after password or passkey login,
+   or `Never`, plus a green/red key icon for whether Device sign-in passkeys are
+   registered. The first managed web user claims any existing unowned jobs from
+   earlier single-user installs.
 3. A managed web user may open `/config` to choose dark or light theme for
    their own login, enable the default-off **Submit from Work in Progress**
    option, change their password, and add or delete passkeys. Config changes
@@ -618,6 +632,9 @@ The normal workflow is:
    including each call's local start/end time range. The mobile date navigator
    can move backward/forward by day or open a calendar picker, but service-call
    starts are still verified server-side for the submitted date and resource.
+   The browser list and start route both filter out service calls for tickets
+   that already have a local Job Logger time entry with ticket status Complete
+   for the current managed user.
 6. User starts Job 1 or Job 2. Blank Start Work creates a local active job
    owned by that web user without first probing Autotask. At most two active
    jobs may exist at once per web user.
@@ -643,11 +660,13 @@ The normal workflow is:
    it can be corrected before Autotask submission.
 10. User records notes during an active job from the Summary notes action row,
    where **Record** sits beside the optional **AI Cleanup** action. Review
-   detail uses the same paired summary action row for unsubmitted jobs. The record
-   button becomes a stop button while audio chunks stream to the server over
-   WebSocket. Recording, sending, and converting progress use plain status
-   text, and stopping capture keeps the disabled record button in a loading
-   state until the final transcript returns.
+   detail uses the same paired summary action row for unsubmitted jobs. On
+   full-browser Work in Progress cards, the End Work/Delete row sits directly
+   below Record/AI Cleanup, and recording/AI status text sits below all action
+   buttons. The record button becomes a stop button while audio chunks stream to
+   the server over WebSocket. Recording, sending, and converting progress use
+   plain status text, and stopping capture keeps the disabled record button in a
+   loading state until the final transcript returns.
 11. When enabled, user can click **AI Cleanup** to send the current summary text
    through the configured server-side cleanup provider. On
    mobile, progress and failure details use the same plain-text status line as
@@ -667,24 +686,24 @@ The normal workflow is:
     optionally records more audio notes before Autotask submission, and keeps
     the selected client/ticket identity read-only. Review detail groups action
     controls into compact rows with at most two buttons per row; submitted
-    entries pair **Edit Entry** with **Delete From Autotask**, while local
+    entries pair **Submit changes** with **Delete From Autotask**, while local
     unsubmitted entries pair the submit action with **Delete time entry** when
     possible. Active jobs selected in Review show **End Work** paired with
     **Delete time entry** and post to the normal end-work route. Directly
     submitted jobs still appear in Review for submitted-entry
-    **Edit Entry** and **Delete From Autotask** actions. Active jobs opened in
-    Review show the same rounded stop preview as Work in Progress, but review
-    saves must not apply that displayed end time until the job is actually
-    ended.
+    **Submit changes** and **Delete From Autotask** actions. Active jobs opened
+    in Review show the same rounded stop preview as Work in Progress, but review
+    saves must not apply that displayed end time until the job is actually ended.
 15. Accept/retry submits a reviewed job to Autotask idempotently with the
     owning managed web user's resource ID.
-16. Successfully submitted jobs can use **Edit Entry** for date/time/status/notes
-    updates against the existing Autotask time entry, or **Delete From Autotask**
-    to remove the external time entry and return the local job to review.
-    **Edit Entry** reasserts the selected local ticket status in Autotask every
-    time it patches the existing `TimeEntries` row. It may reopen previously
-    Complete tickets to In progress before patching `TimeEntries`, then apply
-    the selected final status after the time-entry patch when needed.
+16. Successfully submitted jobs can use **Submit changes** for
+    date/time/status/notes/work-location updates against the existing Autotask
+    time entry, or **Delete From Autotask** to remove the external time entry and
+    return the local job to review. **Submit changes** reasserts the selected
+    local ticket status in Autotask every time it patches the existing
+    `TimeEntries` row. It may reopen previously Complete tickets to In progress
+    before patching `TimeEntries`, then apply the selected final status after the
+    time-entry patch when needed.
     If **Delete From Autotask** fails, a session-scoped dialog can offer a
     local-only purge from Job Logger review while warning that the Autotask time
     entry may still exist.
@@ -723,7 +742,7 @@ In production:
   Logger ticket status. Configure all `AUTOTASK_STATUS_*_ID` values and ensure
   the Autotask API user can patch `Tickets.status`; otherwise submission fails
   without marking the local job submitted.
-- Submitted **Edit Entry** actions also patch `Tickets.status` to match the
+- Submitted **Submit changes** actions also patch `Tickets.status` to match the
   selected Job Logger ticket status. The removed
   `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED` setting must not be reintroduced.
 - Super-admin resource lookup on `/users` calls Autotask Resources only through

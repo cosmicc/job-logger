@@ -588,6 +588,60 @@ async def restore_automatic_backup_form(
     return RedirectResponse(url="/debug#automatic-backups", status_code=303)
 
 
+@router.post("/automatic-backups/download")
+async def download_automatic_backup_form(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> Response:
+    """Download one retained automatic backup after strict filename validation."""
+
+    try:
+        actor = require_super_admin(request)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
+
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+    backup_filename = str(form_data.get("filename", "")).strip()
+
+    try:
+        content = read_automatic_backup_content(
+            settings.automatic_backup_dir,
+            backup_filename,
+            max_bytes=settings.max_backup_restore_bytes,
+        )
+    except BackupValidationError as exc:
+        logger.warning("Rejected automatic backup download filename=%s error=%s", backup_filename, exc)
+        add_flash_message(request, str(exc), "error")
+        return RedirectResponse(url="/debug#automatic-backups", status_code=303)
+
+    record_audit_event(
+        database_session,
+        actor=actor,
+        action="debug.automatic_backup.downloaded",
+        request=request,
+        details={
+            "filename": backup_filename,
+            "size_bytes": len(content),
+        },
+    )
+    database_session.commit()
+    logger.warning(
+        "Downloaded automatic Job Logger backup filename=%s size_bytes=%s actor=%s",
+        backup_filename,
+        len(content),
+        actor,
+    )
+    return Response(
+        content=content,
+        media_type=BACKUP_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="{backup_filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @router.post("/autotask/test")
 async def test_autotask_api(
     request: Request,

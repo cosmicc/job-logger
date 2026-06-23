@@ -31,7 +31,7 @@ from job_logger.services.passkeys import (
     finish_passkey_authentication,
     finish_passkey_registration,
 )
-from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
+from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise, mark_web_user_login_succeeded
 
 router = APIRouter(tags=["passkeys"])
 
@@ -194,6 +194,7 @@ async def passkey_login_verify(
         credential_payload = await _json_payload(request)
         authentication = finish_passkey_authentication(database_session, request, credential_payload)
         web_user = authentication.web_user
+        mark_web_user_login_succeeded(web_user)
         login_web_user_session(
             request,
             username=web_user.username,

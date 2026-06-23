@@ -157,11 +157,15 @@ bounded ticket description, client name, company ID, and detected work-location
 mode.
 
 The `/home/service-calls` endpoint is only for drawing already-verified
-candidate cards in the browser. `POST /jobs/start/service-call` must still
-re-read the provider list for the submitted local service-call date and verify
-the submitted service-call ticket association ID before creating a job. Starting
-from a service call stores verified ticket/client metadata and defaults the
-local editable ticket status to In progress without patching Autotask ticket
+candidate cards in the browser. Before returning or accepting service-call
+options, route code must filter out tickets that already have a local Job Logger
+job for the current managed web user with ticket status Complete; this local
+filter applies even when that job has not been submitted to Autotask yet.
+`POST /jobs/start/service-call` must still re-read the provider list for the
+submitted local service-call date, apply the same local Complete filter, and
+verify the submitted service-call ticket association ID before creating a job.
+Starting from a service call stores verified ticket/client metadata and defaults
+the local editable ticket status to In progress without patching Autotask ticket
 status. Mobile forms that navigate or redirect, including start, service-call
 start, end, rounded-start adjustment, and active delete, should show the shared
 loading overlay once a submit is accepted so slow Autotask lookups do not look
@@ -188,6 +192,10 @@ the mobile endpoint for reviewed, submitted, or failed jobs.
 In the active mobile card, the destructive mobile discard action is labeled
 **Delete** and shares a row with **End Work** or **Submit to Autotask** to keep
 the Work in Progress actions compact.
+When two active jobs are present, their Work in Progress panels should use
+distinct slot shading. In full-browser layout, keep End Work/Delete directly
+under the Record/AI Cleanup row and place recording or AI cleanup status below
+all action buttons.
 
 ## Ending Work
 
@@ -226,7 +234,7 @@ Direct Work in Progress submission rules:
 - Provider-level Autotask failures should use the existing submission-failed
   review state and safe error handling so the job can be retried from Review.
 - Successfully direct-submitted jobs still appear in Review, but only for the
-  submitted-entry **Edit Entry** and **Delete From Autotask** actions.
+  submitted-entry **Submit changes** and **Delete From Autotask** actions.
 
 ## Speech-To-Text Flow
 
@@ -295,7 +303,7 @@ summary text to a CSRF-protected cleanup endpoint; the server validates the job
 state, calls `job_logger/services/ai_cleanup.py`, records a metadata-only audit
 event, and returns cleaned text. The cleanup route
 must not submit to Autotask, change ticket/client identity, or bypass the normal
-save/review/Edit Entry workflow.
+save/review/submitted-entry update workflow.
 Configured `AI_CLEANUP_INSTRUCTIONS` must be sent through the selected
 provider's instruction field. Keep the user-visible cleanup prompt focused on
 the cleanup task, job context, and untrusted summary text.
@@ -313,7 +321,7 @@ Review detail uses `POST /review/{job_id}/summary/cleanup`. The returned text
 replaces the review summary textarea. Non-submitted review jobs continue through
 the existing autosave path, and cleanup waits for review audio recording or
 transcription to finish. Submitted jobs do not patch Autotask automatically; the
-user must still click **Edit Entry** to update the existing external Autotask
+user must still click **Submit changes** to update the existing external Autotask
 time entry.
 
 ## Review Flow
@@ -351,10 +359,12 @@ ordinary save operations.
 
 The review summary textarea displays the complete Autotask `summaryNotes`
 string, including the leading Remote or On-Site prefix. Review save, accept,
-retry, and submitted-entry edit handlers must parse that prefix back into the
-stored work-location mode and keep the persisted note body clean. This allows
-the operator to correct the final Autotask notes without making ticket/client
-identity editable.
+retry, and submitted-entry update handlers must parse that prefix back into the
+stored work-location mode and keep the persisted note body clean. The review
+list must show each row's Remote or On-Site mode, and the review detail
+work-location control must rewrite the visible summary prefix when it changes.
+This allows the operator to correct the final Autotask notes without making
+ticket/client identity editable.
 
 The review detail form does not expose a manual Save button. Editable review
 fields are saved through debounced background posts to `POST /review/{job_id}/save`.
@@ -363,8 +373,8 @@ Retry, and **Delete time entry** actions remain explicit workflow actions.
 Review detail action controls should stay in the selected detail pane and render
 as compact paired rows on both phone and full-browser layouts. Use no more than
 two buttons per row. Pair **Record** with **AI Cleanup** under Summary notes,
-pair **End Work** with **Delete time entry** for active jobs, pair **Edit
-Entry** with **Delete From Autotask** for submitted entries, and pair **Accept
+pair **End Work** with **Delete time entry** for active jobs, pair **Submit
+changes** with **Delete From Autotask** for submitted entries, and pair **Accept
 and Submit** with **Delete time entry** for normal unsubmitted entries.
 Submission-failed jobs may use one row for **Retry** and **Accept and Submit**,
 with destructive local delete on its own following row.
@@ -392,15 +402,15 @@ server verifies and stores the ticket.
 After a job is successfully submitted to Autotask, ticket/client identity and
 workflow actions remain protected. The UI must keep ticket selection,
 accept/resend, retry, and local **Delete time entry** controls hidden or
-blocked. Date, start time, end time, summary notes, and ticket status can stay
-editable only when the submitted detail shows **Edit Entry**. That button must
-call the submitted-entry update route so the existing Autotask `TimeEntries`
-row is patched before local values are kept. Edit Entry must also reassert the
-selected local ticket status on `Tickets.status`; a previously submitted
-Complete ticket may be moved to In progress before patching `TimeEntries`, then
-the selected final status may be applied after the time-entry patch. The
-submitted detail can also show
-**Delete From Autotask**, which deletes the external time entry and moves the
+blocked. Date, start time, end time, summary notes, work location, and ticket
+status can stay editable only when the submitted detail shows **Submit changes**.
+That button must call the submitted-entry update route so the existing Autotask
+`TimeEntries` row is patched before local values are kept. Submit changes must
+also reassert the selected local ticket status on `Tickets.status`; a previously
+submitted Complete ticket may be moved to In progress before patching
+`TimeEntries`, then the selected final status may be applied after the
+time-entry patch. The submitted detail can also show **Delete From Autotask**,
+which deletes the external time entry and moves the
 local job back to review only after Autotask confirms the delete. This action
 must not delete the local job, audit events, or submission attempts. If Delete
 From Autotask fails, the selected detail may show a session-scoped local-only
@@ -422,7 +432,7 @@ delete active, ready-for-review, or failed local jobs when the current managed
 web user owns the job. Successfully submitted Autotask jobs cannot use local
 review cleanup because local history must stay tied to the external time entry.
 The only submitted-job local purge exception is the explicit fallback after
-Delete From Autotask fails. Use the audited Edit Entry or Delete From Autotask
+Delete From Autotask fails. Use the audited Submit changes or Delete From Autotask
 paths for submitted-entry corrections instead of expanding local destructive
 behavior.
 

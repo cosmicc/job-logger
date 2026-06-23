@@ -26,6 +26,7 @@
             <tr>
                 <th>Ticket</th>
                 <th>Client</th>
+                <th>Work type</th>
                 {% if show_job_owner %}<th>Owner</th>{% endif %}
                 <th>Status</th>
                 <th>Date</th>
@@ -50,6 +51,12 @@
                   <td>
                     {{ job.client_name or "Not set" }}
                   </td>
+                  <td>
+                    {% set row_work_location = job.work_location.value if job.work_location else "remote" %}
+                    <span class="review-location-chip review-location-{{ row_work_location }}">
+                      {% if row_work_location == "on_site" %}On-Site{% else %}Remote{% endif %}
+                    </span>
+                  </td>
                   {% if show_job_owner %}
                     <td>{{ job.web_user.full_name if job.web_user else "Unassigned" }}</td>
                   {% endif %}
@@ -68,7 +75,7 @@
                 </tr>
               {% else %}
                 <tr>
-                  <td colspan="{% if show_job_owner %}7{% else %}6{% endif %}">No jobs are available for review.</td>
+                  <td colspan="{% if show_job_owner %}8{% else %}7{% endif %}">No jobs are available for review.</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -120,7 +127,7 @@
                 <strong>Submitted Autotask entry</strong>
                 <span>
                   {% if can_modify_selected_job %}
-                    Date, start time, end time, summary notes, and ticket status can be updated with Edit Entry.
+                    Date, start time, end time, summary notes, work type, and ticket status can be updated with Submit changes.
                   {% else %}
                     This submitted Autotask entry is visible to the super admin but cannot be edited from that account.
                   {% endif %}
@@ -179,11 +186,30 @@
                 name="autotask_company_id"
                 value="{{ selected_job.autotask_company_id or '' }}"
               >
-              <input
-                type="hidden"
-                name="work_location"
-                value="{{ selected_job.work_location.value if selected_job.work_location else 'remote' }}"
-              >
+              <div class="readonly-field-card review-work-location-card" aria-label="Work type">
+                <span class="metric-label readonly-field-title">Work type</span>
+                {% set selected_work_location = selected_job.work_location.value if selected_job.work_location else "remote" %}
+                <div class="work-location-switch" data-review-work-location-toggle role="radiogroup" aria-label="Work type">
+                  <label>
+                    <input
+                      type="radio"
+                      name="work_location"
+                      value="remote"
+                      {% if selected_work_location == "remote" %}checked{% endif %}
+                    >
+                    <span>Remote</span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="work_location"
+                      value="on_site"
+                      {% if selected_work_location == "on_site" %}checked{% endif %}
+                    >
+                    <span>On-Site</span>
+                  </label>
+                </div>
+              </div>
               <label>
                 <span>Job date</span>
                 <input name="job_date" type="date" value="{{ selected_job.local_work_date or selected_job.rounded_start_utc|local_date }}" required>
@@ -370,7 +396,7 @@
                       <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4z"></path>
                       <path d="M13.5 6.5l4 4"></path>
                     </svg>
-                    Edit Entry
+                    Submit changes
                   </button>
                   <form
                     method="post"

@@ -13,7 +13,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from job_logger.config import Settings, settings
-from job_logger.models import Job, WebUser
+from job_logger.models import Job, WebUser, utc_now
 from job_logger.services.session_control import invalidate_web_user_sessions
 
 PASSWORD_HASH_ALGORITHM = "pbkdf2_sha256"
@@ -308,6 +308,13 @@ def authenticate_web_user_with_status(
     if user.disabled:
         return WebUserAuthenticationResult(user=None, disabled_user=user)
     return WebUserAuthenticationResult(user=user)
+
+
+def mark_web_user_login_succeeded(user: WebUser) -> WebUser:
+    """Stamp safe account metadata after a successful managed-user login."""
+
+    user.last_login_at_utc = utc_now()
+    return user
 
 
 def _ensure_username_is_available(

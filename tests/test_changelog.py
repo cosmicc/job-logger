@@ -15,7 +15,7 @@ from tests.conftest import extract_csrf_token
 def test_app_version_matches_current_release() -> None:
     """The source-controlled version should match the current release."""
 
-    assert APP_VERSION == "1.1.2"
+    assert APP_VERSION == "1.1.3"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -25,6 +25,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
+    assert "## v1.1.3 - Review visibility and Work in Progress refinements" in changelog_text
     assert "## v1.1.2 - User management, ticket status, and Device sign-in updates" in changelog_text
     assert "## v1.1.1 - Review cleanup, Autotask roles, Docker startup, and diagnostics" in changelog_text
     assert "## v1.1.0 - Direct submission, backups, and passkeys" in changelog_text
@@ -32,6 +33,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
+    assert "## v1.1.3 - Review visibility and Work in Progress refinements" in web_changelog_text
     assert "## v1.1.2 - User management, ticket status, and Device sign-in updates" in web_changelog_text
     assert "## v1.1.1 - Review action cleanup and Autotask role fixes" in web_changelog_text
     assert "## v1.1.0 - Direct submission and passkeys" in web_changelog_text
@@ -68,13 +70,15 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="v1.1.2",
-        title="User management, ticket status, and Device sign-in updates",
+        version="v1.1.3",
+        title="Review visibility and Work in Progress refinements",
         changes=(
-            "User management rows are more compact and easier to scan.",
-            "Passkey setup and login buttons now use the clearer Device sign-in name.",
-            "Submitted time entries now keep the Autotask ticket status matched to the selected Job Logger status on submit and Edit Entry.",
-            "If Delete From Autotask fails, Review can now offer a local-only purge option for the Job Logger entry.",
+            "Review rows now show whether each job is Remote or On-Site.",
+            "Review detail can now switch Remote or On-Site and updates the Summary notes prefix.",
+            "Work in Progress active job cards are easier to tell apart.",
+            "Full browser Work in Progress actions now keep finish and delete buttons directly under Record and AI Cleanup.",
+            "Service-call starts now hide tickets already marked Complete in Job Logger.",
+            "Submitted Review entries now use a clearer Submit changes button.",
         ),
     )
 
@@ -96,12 +100,20 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
+    assert "v1.1.3" in response.text
     assert "v1.1.2" in response.text
     assert "v1.1.1" in response.text
     assert "v1.1.0" in response.text
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
+    assert "Review visibility and Work in Progress refinements" in response.text
+    assert "Review rows now show whether each job is Remote or On-Site." in response.text
+    assert "Review detail can now switch Remote or On-Site and updates the Summary notes prefix." in response.text
+    assert "Work in Progress active job cards are easier to tell apart." in response.text
+    assert "Full browser Work in Progress actions now keep finish and delete buttons directly under Record and AI Cleanup." in response.text
+    assert "Service-call starts now hide tickets already marked Complete in Job Logger." in response.text
+    assert "Submitted Review entries now use a clearer Submit changes button." in response.text
     assert "User management, ticket status, and Device sign-in updates" in response.text
     assert "User management rows are more compact and easier to scan." in response.text
     assert "Passkey setup and login buttons now use the clearer Device sign-in name." in response.text
@@ -152,12 +164,21 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
-    assert response.text.index("User management, ticket status, and Device sign-in updates") < response.text.index("Direct submission and passkeys")
-    assert response.text.index("Review action cleanup") < response.text.index("Direct submission and passkeys")
-    assert response.text.index("Direct submission and passkeys") < response.text.index("Autotask workflow and desktop layout updates")
-    assert response.text.index("Autotask workflow and desktop layout updates") < response.text.index("Mobile shell navigation and close behavior")
-    assert response.text.index("Mobile shell navigation and close behavior") < response.text.index("Initial release")
-    assert '<h2 id="current-version-heading">User management, ticket status, and Device sign-in updates</h2>' in response.text
+    v113_index = response.text.index("Review visibility and Work in Progress refinements")
+    v112_index = response.text.index("User management, ticket status, and Device sign-in updates")
+    v111_index = response.text.index("Review action cleanup")
+    v110_index = response.text.index("Direct submission and passkeys")
+    v102_index = response.text.index("Autotask workflow and desktop layout updates")
+    v101_index = response.text.index("Mobile shell navigation and close behavior")
+    v100_index = response.text.index("Initial release")
+    assert v113_index < v112_index
+    assert v112_index < v110_index
+    assert v111_index < v110_index
+    assert v110_index < v102_index
+    assert v102_index < v101_index
+    assert v101_index < v100_index
+    assert '<h2 id="current-version-heading">Review visibility and Work in Progress refinements</h2>' in response.text
+    assert '<span class="release-version">v1.1.3</span>' in response.text
     assert '<span class="release-version">v1.1.2</span>' in response.text
     assert '<span class="release-version">v1.1.1</span>' in response.text
     assert '<span class="release-version">v1.1.0</span>' in response.text
@@ -210,4 +231,4 @@ def test_super_admin_can_view_changelog_in_dark_theme(super_admin_client: TestCl
 
     assert response.status_code == 200
     assert 'class="theme-dark"' in response.text
-    assert "v1.1.2" in response.text
+    assert "v1.1.3" in response.text

@@ -540,6 +540,7 @@
                   <th>Created</th>
                   <th>File</th>
                   <th>Size</th>
+                  <th>Download</th>
                   <th>Restore</th>
                 </tr>
               </thead>
@@ -549,6 +550,13 @@
                     <td>{{ backup.created_at_display }}</td>
                     <td class="backup-file-name">{{ backup.filename }}</td>
                     <td>{{ backup.size_display }}</td>
+                    <td>
+                      <form method="post" action="/debug/automatic-backups/download" class="automatic-backup-action-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="filename" value="{{ backup.filename }}">
+                        <button class="secondary-button" type="submit">Download</button>
+                      </form>
+                    </td>
                     <td>
                       <form method="post" action="/debug/automatic-backups/restore" class="automatic-backup-restore-form">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

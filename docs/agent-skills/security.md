@@ -30,19 +30,21 @@ AI-cleanup jobs because it has no Autotask resource ID. Work-entry users are
 database-managed `WebUser` rows created on `/users`; they store full name,
 username, salted password hash, required Autotask resource ID, optional email
 captured from Autotask Resource lookup, optional default service-desk role ID
-selected from that resource's active Autotask roles, and disabled state.
-Disabled web users
-must be blocked from new logins and from old signed sessions. Managed-user
-passwords must be at least 8 characters and include lowercase, uppercase,
-number, and symbol characters. Enforce that rule server-side before hashing;
-browser validation is only a usability aid.
+selected from that resource's active Autotask roles, last successful login time,
+and disabled state.
+Disabled web users must be blocked from new logins and from old signed sessions.
+Managed-user passwords must be at least 8 characters and include lowercase,
+uppercase, number, and symbol characters. Enforce that rule server-side before
+hashing; browser validation is only a usability aid.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`.
 `job_logger/session_timeout.py` enforces the server-side timestamp check, and
 Starlette session cookies use the same configured lifetime. Every successful
 password or passkey login must stamp the session with the authentication time
 and method so stale signed cookies cannot remain valid past the configured
-timeout.
+timeout. Successful managed-user password and passkey login also stamp
+`web_users.last_login_at_utc` for the super-admin user list; this metadata is
+informational and must not replace session timeout or invalidation checks.
 Managed web-user sessions can also be invalidated by a per-user UTC cutoff in
 the `web_users` row. `job_logger/services/session_control.py` owns that cutoff
 logic. Disabling one user or using the Diagnostics **Log out web users** action
@@ -58,6 +60,9 @@ User-facing controls should call this feature **Device sign-in** even though the
 technical implementation remains WebAuthn/passkeys. The `/home` device sign-in
 setup card is only a one-time post-login prompt for managed users without a
 passkey; `/config` must always keep the device sign-in setup action available.
+The super-admin `/users` table may show only passkey setup status, such as a
+green/red icon or safe count. It must not expose credential IDs, public keys,
+transports, AAGUIDs, user agents, or other authenticator metadata.
 
 The app stores only WebAuthn public credential material: credential ID, public
 key, signature counter, safe device metadata, creation time, and last-used time.
@@ -143,10 +148,11 @@ and other proxy headers as supporting metadata only. The successful-login table
 may use a yellow account-kind chip for config super-admin rows so they are easy
 to distinguish from managed web users. The bottom of `/debug` may show a
 sanitized newest-first tail of `${LOG_DIR}/app.log`; keep that bounded,
-scrollable, and redacted. `/debug` may also show disk usage for app-visible
-storage paths such as `/`, `${LOG_DIR}`, and `${AUTOMATIC_BACKUP_DIR}`. Keep
-disk diagnostics read-only and limited to path, usage, and warning/critical
-metadata.
+scrollable, and redacted. `LOG_LEVEL` controls app-log verbosity and must be
+limited to `DEBUG`, `INFO`, `WARNING`, or `ERROR`. `/debug` may also show disk
+usage for app-visible storage paths such as `/`, `${LOG_DIR}`, and
+`${AUTOMATIC_BACKUP_DIR}`. Keep disk diagnostics read-only and limited to path,
+usage, and warning/critical metadata.
 
 ## CSRF Rules
 
@@ -312,13 +318,14 @@ local audit history for the external time entry. The server must reject later
 local review save, ticket selection, local delete, accept/resend, and retry
 requests even if a crafted request bypasses the review UI. This applies whether
 the external entry was created from Review acceptance or direct Work in Progress
-submission. The allowed exception is the CSRF-protected **Edit Entry** route,
-which may update only job date, start time, end time, summary notes, and ticket
-status for the same submitted job. It must patch the existing Autotask
-`TimeEntries` row instead of creating a new time entry. If the previous ticket
-status was Complete, the provider may temporarily move the ticket to In progress
-before the time-entry patch and then apply the selected final status. Edit Entry
-must always reassert the selected local ticket status in Autotask. A second
+submission. The allowed exception is the CSRF-protected **Submit changes** route,
+which may update only job date, start time, end time, summary notes, work
+location, and ticket status for the same submitted job. It must patch the
+existing Autotask `TimeEntries` row instead of creating a new time entry. If the
+previous ticket status was Complete, the provider may temporarily move the
+ticket to In progress before the time-entry patch and then apply the selected
+final status. Submit changes must always reassert the selected local ticket
+status in Autotask. A second
 CSRF-protected submitted action, **Delete From Autotask**, may delete the
 external `TimeEntries` row and return the local job to review, but it must not
 delete the local job, audit events, or submission attempts unless that remote
@@ -336,7 +343,7 @@ action. The mobile active-job delete route remains the quick in-progress
 discard path. Local **Delete time entry** cleanup must stay blocked for
 successfully submitted Autotask jobs so local history remains tied to the
 external time entry.
-Submitted-entry corrections belong in the audited Edit Entry or Delete From
+Submitted-entry corrections belong in the audited Submit changes or Delete From
 Autotask routes, not local cleanup or resend flows. The only submitted-job local
 cleanup exception is the explicit, CSRF-protected local-only purge offered after
 Delete From Autotask fails, and it must warn that the Autotask entry may still
@@ -359,9 +366,9 @@ Automatic backups use the same full-backup content format and restore path.
 The scheduler writes hourly files under `AUTOMATIC_BACKUP_DIR`, defaulting to a
 host-mounted runtime backup directory in Docker. Keep the backup directory
 private: files must be written through owner-only temporary files when possible,
-directory listings must be super-admin-only, selected restore filenames must be
-strictly validated instead of trusting form paths, and retention must purge
-expired automatic backups after successful backup creation.
+directory listings and downloads must be super-admin-only, selected download or
+restore filenames must be strictly validated instead of trusting form paths, and
+retention must purge expired automatic backups after successful backup creation.
 
 ## Docker And Runtime Safety
 

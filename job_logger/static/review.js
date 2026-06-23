@@ -2,6 +2,7 @@ const TIME_STEP_MINUTES = 15;
 const REVIEW_AUTOSAVE_DELAY_MS = 650;
 const RECORDING_CHUNK_INTERVAL_MS = 2500;
 const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
+const SUMMARY_WORK_LOCATION_PREFIX_PATTERN = /^\s*(on[\s-]?site|remote)\b(?:\s*[:\-]\s*|\s+|$)([\s\S]*)$/i;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 const RECORD_AUDIO_LABEL = "Record";
 const STOP_RECORDING_LABEL = "Stop recording";
@@ -162,7 +163,7 @@ function findReviewRecordingControls(jobId) {
 }
 
 function findReviewSummaryTextarea() {
-  return reviewAutosaveForm ? reviewAutosaveForm.querySelector('textarea[name="summary_notes"]') : null;
+  return document.querySelector('textarea[name="summary_notes"]');
 }
 
 function setReviewRecordingStatus(jobId, message, isError = false) {
@@ -264,8 +265,12 @@ function preferredReviewRecorderMimeType() {
 }
 
 function reviewSummaryPrefix() {
-  const workLocationInput = reviewAutosaveForm ? reviewAutosaveForm.querySelector('input[name="work_location"]') : null;
-  return workLocationInput && workLocationInput.value === "on_site" ? "On-Site" : "Remote";
+  const checkedWorkLocationInput = document.querySelector('input[name="work_location"]:checked');
+  const fallbackWorkLocationInput = document.querySelector('input[name="work_location"]');
+  const workLocationValue = checkedWorkLocationInput
+    ? checkedWorkLocationInput.value
+    : (fallbackWorkLocationInput ? fallbackWorkLocationInput.value : "remote");
+  return workLocationValue === "on_site" ? "On-Site" : "Remote";
 }
 
 function applyReviewSummaryPrefix(summaryText) {
@@ -275,6 +280,27 @@ function applyReviewSummaryPrefix(summaryText) {
   }
 
   return `${reviewSummaryPrefix()} ${safeSummaryText}`;
+}
+
+function replaceReviewSummaryPrefix(summaryText) {
+  const safeSummaryText = String(summaryText || "").trim();
+  if (!safeSummaryText) {
+    return safeSummaryText;
+  }
+
+  const prefixMatch = safeSummaryText.match(SUMMARY_WORK_LOCATION_PREFIX_PATTERN);
+  const summaryBody = prefixMatch ? String(prefixMatch[2] || "").trim() : safeSummaryText;
+  return summaryBody ? `${reviewSummaryPrefix()} ${summaryBody}` : reviewSummaryPrefix();
+}
+
+function syncReviewSummaryPrefixFromWorkLocation() {
+  const summaryTextarea = findReviewSummaryTextarea();
+  if (!summaryTextarea) {
+    return;
+  }
+
+  summaryTextarea.value = replaceReviewSummaryPrefix(summaryTextarea.value);
+  queueReviewAutosave(true);
 }
 
 function updateReviewSummaryFromTranscription(activeJobId, payload) {
@@ -828,7 +854,7 @@ function bindReviewAutosave() {
       continue;
     }
 
-    if (control.tagName === "SELECT" || control.type === "date") {
+    if (control.tagName === "SELECT" || control.type === "date" || control.type === "radio") {
       control.addEventListener("change", () => {
         queueReviewAutosave(true);
       });
@@ -840,6 +866,21 @@ function bindReviewAutosave() {
     });
     control.addEventListener("blur", () => {
       queueReviewAutosave(true);
+    });
+  }
+}
+
+function bindReviewWorkLocationControls() {
+  const workLocationInputs = document.querySelectorAll('input[name="work_location"]');
+  for (const workLocationInput of workLocationInputs) {
+    if (workLocationInput.disabled) {
+      continue;
+    }
+
+    workLocationInput.addEventListener("change", () => {
+      if (workLocationInput.checked) {
+        syncReviewSummaryPrefixFromWorkLocation();
+      }
     });
   }
 }
@@ -1088,6 +1129,7 @@ for (const reviewRow of reviewRows) {
 bindTimeStepButtons();
 bindTicketLookup();
 bindReviewAutosave();
+bindReviewWorkLocationControls();
 
 for (const aiCleanupButton of aiCleanupButtons) {
   aiCleanupButton.addEventListener("click", () => {

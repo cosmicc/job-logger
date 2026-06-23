@@ -2,6 +2,42 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## v1.1.3 - Review visibility and Work in Progress refinements
+
+- Advanced the source-controlled dev runtime version to `v1.1.3`, including
+  the Python package metadata and PWA service worker cache version.
+- Added Remote/On-Site work type to each row in the Review job list so
+  reviewers can scan location context before opening a job.
+- Added a Remote/On-Site switch to Review detail. Changing the switch updates
+  the visible `Remote` or `On-Site` prefix at the start of Summary notes, and
+  the existing review save, accept, retry, and submitted-entry update paths
+  continue to parse that prefix back into the stored work-location mode.
+- Changed Work in Progress active-job cards to use distinct slot shading for
+  Job 1 and Job 2, making concurrent active entries easier to distinguish.
+- Changed the full browser Work in Progress action order so **End Work** or
+  **Submit to Autotask** and **Delete** sit directly under **Record** and
+  optional **AI Cleanup**, with recording and cleanup status text below all
+  action buttons.
+- Changed service-call loading and service-call start verification to hide or
+  reject service-call tickets when the current managed web user already has a
+  local Job Logger time entry for the same ticket with ticket status
+  **Complete**, including unsubmitted review entries.
+- Changed the submitted Review detail update button text from **Edit Entry** to
+  **Submit changes** while keeping the existing external Autotask update route
+  and audit behavior.
+- Added nullable managed-user `last_login_at_utc` metadata, stamped on
+  successful password or Device sign-in login and shown in the `/users` table.
+  The new migration and full-backup restore compatibility default older backups
+  to no recorded last login.
+- Added green/red Device sign-in key icons to the super-admin `/users` table so
+  operators can see whether each managed web user has a registered passkey
+  without exposing credential details.
+- Added per-file **Download** buttons for retained automatic backups on
+  `/debug`, using the same strict filename validation and sensitive-backup
+  `no-store` response behavior as restore/download paths.
+- Added Docker/runtime `LOG_LEVEL` support for `${LOG_DIR}/app.log`, limited to
+  `DEBUG`, `INFO`, `WARNING`, or `ERROR`, with Docker defaulting to `INFO`.
+
 ## v1.1.2 - User management, ticket status, and Device sign-in updates
 
 - Advanced the source-controlled runtime version to `v1.1.2`, including the

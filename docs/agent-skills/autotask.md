@@ -40,9 +40,9 @@ owning/submitting managed user's resource ID. The provider omits
 `TimeEntries.billingCodeID` so Autotask
 inherits the selected ticket's Work Type on create. API credentials, ticket
 status IDs, time-entry type, and optional Autotask provider settings remain
-environment-backed. New time-entry submissions and submitted-entry Edit Entry
-resubmissions must patch `Tickets.status` to the selected local ticket status
-and require the mapped tenant status ID. Do not add a global
+environment-backed. New time-entry submissions and submitted-entry
+**Submit changes** resubmissions must patch `Tickets.status` to the selected
+local ticket status and require the mapped tenant status ID. Do not add a global
 Autotask impersonation resource setting; user-scoped workflows use the owning
 managed web user's resource ID in payloads and filters but do not send
 Autotask's optional `ImpersonationResourceId` header.
@@ -195,11 +195,15 @@ it needs several related Autotask entities:
 The browser must submit only `service_call_ticket_id`, `service_call_date`, and
 CSRF to `POST /jobs/start/service-call`. The route re-reads the provider's
 server-verified list for the selected local date and current managed web user's
-resource before creating a job. Never accept ticket number, ticket title, ticket
-description, client name, company ID, or work-location values from hidden fields
-for this path. Starting from a service call stores verified local job metadata
-and defaults local ticket status to In progress, but it must not patch Autotask
-ticket status or perform any other remote write before submission.
+resource, filters out tickets that already have a local Job Logger job for that
+user with ticket status Complete, and only then creates a job. Apply the same
+local Complete filter to `/home/service-calls` responses; this is local workflow
+state and should not be pushed into the provider query. Never accept ticket
+number, ticket title, ticket description, client name, company ID, or
+work-location values from hidden fields for this path. Starting from a service
+call stores verified local job metadata and defaults local ticket status to
+In progress, but it must not patch Autotask ticket status or perform any other
+remote write before submission.
 
 The `/home/service-calls` response may include a preformatted local
 start/end time range for display, such as `4:00pm-5:00pm`. Treat that range as
@@ -345,7 +349,7 @@ mode plus the reviewed summary text. The local `summary_notes` field stays
 unprefixed for mobile and persistence. Review detail displays the full
 Autotask-bound summary, including `Remote` or `On-Site`, so the operator can
 correct the prefix before submission or submitted-entry update. Save, accept,
-retry, and edit-entry handlers must parse that visible prefix back into
+retry, and submitted-entry update handlers must parse that visible prefix back into
 `work_location` before building the final payload.
 
 User-scoped live calls must use the owning managed web user's Autotask resource
@@ -366,12 +370,13 @@ After a provider reports successful submission, ticket identity and destructive
 workflow actions remain protected. Do not allow later review save, ticket
 selection, accept/resend, retry, or local **Delete time entry** actions for that
 job. Supported submitted-job mutations are limited to audited external-entry
-actions: **Edit Entry** validates one job date, start/end times, summary notes,
-and ticket status, then patches the existing Autotask `TimeEntries` row by its
-stored external ID and reasserts the selected local ticket status on
-`Tickets.status`. A previously submitted `Complete` ticket may be moved to
-`In progress` before patching `TimeEntries`, then moved to the selected final
-status after the time-entry patch when needed. **Delete From Autotask** deletes
+actions: **Submit changes** validates one job date, start/end times, summary
+notes, work location, and ticket status, then patches the existing Autotask
+`TimeEntries` row by its stored external ID and reasserts the selected local
+ticket status on `Tickets.status`. A previously submitted `Complete` ticket may
+be moved to `In progress` before patching `TimeEntries`, then moved to the
+selected final status after the time-entry patch when needed. **Delete From
+Autotask** deletes
 `TimeEntries/{id}` and
 returns the local job to review only after Autotask confirms the delete. If
 the delete fails, the selected review detail may offer a session-scoped,

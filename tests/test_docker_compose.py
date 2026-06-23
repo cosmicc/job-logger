@@ -16,3 +16,11 @@ def test_compose_does_not_gate_stack_creation_on_health_conditions() -> None:
     assert "The app entrypoint waits for real database connectivity" in compose_text
     assert "start_period: 60s" in compose_text
     assert "retries: 12" in compose_text
+
+
+def test_compose_exposes_log_level_setting() -> None:
+    """Docker Compose should pass the app log level into the container."""
+
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+
+    assert "LOG_LEVEL: ${LOG_LEVEL:-INFO}" in compose_text

@@ -105,7 +105,11 @@
       {% if active_jobs %}
         {% for active_job in active_jobs %}
           {% set job_label = active_job.job_slot if active_job.job_slot else loop.index %}
-          <section class="work-panel" data-active-job-card="{{ active_job.id }}">
+          <section
+            class="work-panel active-job-panel active-job-panel-slot-{{ job_label }}"
+            data-active-job-card="{{ active_job.id }}"
+            data-active-job-slot="{{ job_label }}"
+          >
             <p class="eyebrow-text">Active job {{ job_label }}</p>
             <h1>Work in progress</h1>
             <dl class="metric-grid">
@@ -393,77 +397,76 @@
                   </button>
                 {% endif %}
               </div>
+              <div class="button-grid">
+                <div class="work-finish-stack">
+                  <form
+                    method="post"
+                    action="/jobs/{{ active_job.id }}/end"
+                    class="end-job-form"
+                    data-job-id="{{ active_job.id }}"
+                    data-page-loading-form
+                    data-loading-message="{% if submit_from_work_in_progress_enabled %}Submitting to Autotask...{% else %}Ending work...{% endif %}"
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input
+                      type="hidden"
+                      class="end-client-name"
+                      name="client_name"
+                      value="{{ active_job.client_name or '' }}"
+                    >
+                    <input
+                      type="hidden"
+                      class="end-autotask-company-id"
+                      name="autotask_company_id"
+                      value="{{ active_job.autotask_company_id or '' }}"
+                    >
+                    <input
+                      type="hidden"
+                      class="end-work-location"
+                      name="work_location"
+                      value="{{ active_job.work_location.value if active_job.work_location else 'remote' }}"
+                    >
+                    <input
+                      type="hidden"
+                      class="end-ticket-status"
+                      name="ticket_status"
+                      value="{{ active_job.ticket_status.value if active_job.ticket_status else 'in_progress' }}"
+                    >
+                    <input type="hidden" class="end-summary-notes" name="summary_notes" value="">
+                    <button class="primary-button end-work-button" type="submit">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="6" y="6" width="12" height="12"></rect>
+                      </svg>
+                      {% if submit_from_work_in_progress_enabled %}Submit to Autotask{% else %}End Work{% endif %}
+                    </button>
+                  </form>
+                  <form
+                    method="post"
+                    action="/jobs/{{ active_job.id }}/delete"
+                    class="delete-active-job-form"
+                    data-page-loading-form
+                    data-loading-message="Deleting time entry..."
+                    data-confirm-message="Delete this time entry? This removes the in-progress entry without sending it to review."
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="danger-outline-button" type="submit">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6h18"></path>
+                        <path d="M8 6V4h8v2"></path>
+                        <path d="M10 11v6"></path>
+                        <path d="M14 11v6"></path>
+                      </svg>
+                      Delete
+                    </button>
+                  </form>
+                </div>
+              </div>
               <p class="recording-status" data-job-id="{{ active_job.id }}" aria-live="polite"></p>
               {% if active_job.transcription_error %}
                 <p class="error-text">{{ active_job.transcription_error }}</p>
               {% endif %}
             </div>
             <p class="muted-text" data-active-save-status data-job-id="{{ active_job.id }}" aria-live="polite"></p>
-
-            <div class="button-grid">
-              <div class="work-finish-stack">
-                <form
-                  method="post"
-                  action="/jobs/{{ active_job.id }}/end"
-                  class="end-job-form"
-                  data-job-id="{{ active_job.id }}"
-                  data-page-loading-form
-                  data-loading-message="{% if submit_from_work_in_progress_enabled %}Submitting to Autotask...{% else %}Ending work...{% endif %}"
-                >
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                  <input
-                    type="hidden"
-                    class="end-client-name"
-                    name="client_name"
-                    value="{{ active_job.client_name or '' }}"
-                  >
-                  <input
-                    type="hidden"
-                    class="end-autotask-company-id"
-                    name="autotask_company_id"
-                    value="{{ active_job.autotask_company_id or '' }}"
-                  >
-                  <input
-                    type="hidden"
-                    class="end-work-location"
-                    name="work_location"
-                    value="{{ active_job.work_location.value if active_job.work_location else 'remote' }}"
-                  >
-                  <input
-                    type="hidden"
-                    class="end-ticket-status"
-                    name="ticket_status"
-                    value="{{ active_job.ticket_status.value if active_job.ticket_status else 'in_progress' }}"
-                  >
-                  <input type="hidden" class="end-summary-notes" name="summary_notes" value="">
-                  <button class="primary-button end-work-button" type="submit">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <rect x="6" y="6" width="12" height="12"></rect>
-                    </svg>
-                    {% if submit_from_work_in_progress_enabled %}Submit to Autotask{% else %}End Work{% endif %}
-                  </button>
-                </form>
-                <form
-                  method="post"
-                  action="/jobs/{{ active_job.id }}/delete"
-                  class="delete-active-job-form"
-                  data-page-loading-form
-                  data-loading-message="Deleting time entry..."
-                  data-confirm-message="Delete this time entry? This removes the in-progress entry without sending it to review."
-                >
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                  <button class="danger-outline-button" type="submit">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M3 6h18"></path>
-                      <path d="M8 6V4h8v2"></path>
-                      <path d="M10 11v6"></path>
-                      <path d="M14 11v6"></path>
-                    </svg>
-                    Delete
-                  </button>
-                </form>
-              </div>
-            </div>
           </section>
         {% endfor %}
       {% else %}

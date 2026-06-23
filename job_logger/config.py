@@ -26,6 +26,8 @@ DEFAULT_AI_CLEANUP_INSTRUCTIONS = (
     "summary text with no markdown, title, explanation, or surrounding quotes."
 )
 
+VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR"}
+
 
 def _get_boolean(environment_variable_name: str, default_value: bool) -> bool:
     """Return a strict boolean value from an environment variable.
@@ -88,6 +90,15 @@ def _get_csv(environment_variable_name: str, default_value: str) -> list[str]:
     return [item.strip() for item in raw_value.split(",") if item.strip()]
 
 
+def _get_log_level() -> str:
+    """Return the validated app file logging level."""
+
+    log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
+    if log_level not in VALID_LOG_LEVELS:
+        raise ValueError("LOG_LEVEL must be DEBUG, INFO, WARNING, or ERROR.")
+    return log_level
+
+
 def _get_ai_cleanup_provider() -> str:
     """Return the normalized provider key used by the AI cleanup service."""
 
@@ -113,6 +124,9 @@ class Settings:
 
     # LOG_DIR stores host-mounted runtime logs inside the app container.
     log_dir: str
+
+    # LOG_LEVEL controls how verbose host-mounted app.log should be.
+    log_level: str
 
     # APP_USERNAME is the single local app account name.
     app_username: str
@@ -310,6 +324,7 @@ def load_settings() -> Settings:
             "postgresql+psycopg://job_logger:job_logger_password@db:5432/job_logger",
         ),
         log_dir=os.getenv("LOG_DIR", "logs"),
+        log_level=_get_log_level(),
         app_username=os.getenv("APP_USERNAME", "admin"),
         app_password=os.getenv("APP_PASSWORD") or None,
         login_failure_log_path=os.getenv(

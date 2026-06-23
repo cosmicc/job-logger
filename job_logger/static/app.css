@@ -1217,6 +1217,31 @@ a:focus-visible {
   padding: 24px;
 }
 
+.active-job-panel {
+  border: 1px solid var(--border);
+  box-shadow: inset 5px 0 0 var(--border);
+}
+
+.active-job-panel-slot-1 {
+  border-color: rgba(45, 212, 191, 0.34);
+  background:
+    linear-gradient(135deg, rgba(45, 212, 191, 0.11), transparent 42%),
+    var(--surface);
+  box-shadow:
+    inset 5px 0 0 var(--accent),
+    0 16px 36px rgba(45, 212, 191, 0.08);
+}
+
+.active-job-panel-slot-2 {
+  border-color: rgba(245, 158, 11, 0.36);
+  background:
+    linear-gradient(135deg, rgba(245, 158, 11, 0.12), transparent 42%),
+    var(--surface);
+  box-shadow:
+    inset 5px 0 0 var(--warning),
+    0 16px 36px rgba(245, 158, 11, 0.08);
+}
+
 .active-jobs-stack {
   display: grid;
   gap: 14px;
@@ -1471,6 +1496,13 @@ a:focus-visible {
   min-width: 0;
 }
 
+.review-work-location-card {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 7px;
+}
+
 .ticket-status-card label {
   display: grid;
   gap: 6px;
@@ -1622,6 +1654,10 @@ a:focus-visible {
   grid-template-columns: 1fr;
   gap: 12px;
   margin-top: 16px;
+}
+
+.description-box > .button-grid {
+  margin-top: 0;
 }
 
 .active-save-button {
@@ -1785,6 +1821,34 @@ a:focus-visible {
 .status-rejected {
   background: var(--danger-soft);
   color: var(--danger);
+}
+
+.review-location-chip {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid rgba(154, 168, 188, 0.28);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.review-location-remote {
+  border-color: rgba(45, 212, 191, 0.42);
+  background: rgba(45, 212, 191, 0.14);
+  color: var(--accent);
+}
+
+.review-location-on_site {
+  border-color: rgba(245, 158, 11, 0.42);
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--warning);
 }
 
 .review-header {
@@ -2033,7 +2097,7 @@ td a {
 
 .users-table {
   width: 100%;
-  min-width: 880px;
+  min-width: 1080px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -2059,41 +2123,51 @@ td a {
 
 .users-table th:nth-child(1),
 .users-table td:nth-child(1) {
-  width: 20%;
+  width: 15%;
 }
 
 .users-table th:nth-child(2),
 .users-table td:nth-child(2) {
-  width: 16%;
+  width: 11%;
 }
 
 .users-table th:nth-child(3),
 .users-table td:nth-child(3) {
-  width: 20%;
+  width: 17%;
 }
 
 .users-table th:nth-child(4),
 .users-table td:nth-child(4) {
-  width: 11%;
+  width: 9%;
 }
 
 .users-table th:nth-child(5),
 .users-table td:nth-child(5) {
-  width: 10%;
+  width: 8%;
 }
 
 .users-table th:nth-child(6),
 .users-table td:nth-child(6) {
-  width: 8%;
+  width: 11%;
 }
 
 .users-table th:nth-child(7),
 .users-table td:nth-child(7) {
-  width: 5%;
+  width: 7%;
 }
 
 .users-table th:nth-child(8),
 .users-table td:nth-child(8) {
+  width: 7%;
+}
+
+.users-table th:nth-child(9),
+.users-table td:nth-child(9) {
+  width: 5%;
+}
+
+.users-table th:nth-child(10),
+.users-table td:nth-child(10) {
   width: 10%;
 }
 
@@ -2154,6 +2228,40 @@ td a {
 }
 
 .user-status-disabled {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.user-passkey-cell {
+  text-align: center;
+}
+
+.passkey-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+}
+
+.passkey-status-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.passkey-status-registered {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.passkey-status-missing {
   background: var(--danger-soft);
   color: var(--danger);
 }
@@ -2738,6 +2846,10 @@ td a {
   align-items: end;
   gap: 8px;
   min-width: 220px;
+}
+
+.automatic-backup-action-form {
+  display: inline-flex;
 }
 
 .automatic-backup-restore-form input {

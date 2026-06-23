@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from job_logger.database import get_database_session
-from job_logger.models import Job, WebUser
+from job_logger.models import Job, WebAuthnCredential, WebUser
 from job_logger.security import add_flash_message, require_super_admin, validate_csrf_token
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider
@@ -31,13 +31,16 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @dataclass(frozen=True)
 class WebUserListRow:
-    """Template row for one managed web user and related job count."""
+    """Template row for one managed web user and related account metadata."""
 
     # user is the editable managed account.
     user: WebUser
 
     # job_count is used to explain whether delete will disable instead.
     job_count: int
+
+    # passkey_count is display-only Device sign-in setup metadata.
+    passkey_count: int
 
 
 def _job_counts_by_user(database_session: Session) -> dict[str, int]:
@@ -47,6 +50,21 @@ def _job_counts_by_user(database_session: Session) -> dict[str, int]:
     return {
         str(web_user_id): int(job_count)
         for web_user_id, job_count in rows
+        if web_user_id is not None
+    }
+
+
+def _passkey_counts_by_user(database_session: Session) -> dict[str, int]:
+    """Return passkey counts keyed by managed web-user ID."""
+
+    rows = database_session.execute(
+        select(WebAuthnCredential.web_user_id, func.count(WebAuthnCredential.id)).group_by(
+            WebAuthnCredential.web_user_id
+        )
+    ).all()
+    return {
+        str(web_user_id): int(passkey_count)
+        for web_user_id, passkey_count in rows
         if web_user_id is not None
     }
 
@@ -69,8 +87,13 @@ def users_page(request: Request, database_session: Session = Depends(get_databas
         return RedirectResponse(url="/login", status_code=303)
 
     job_counts = _job_counts_by_user(database_session)
+    passkey_counts = _passkey_counts_by_user(database_session)
     rows = [
-        WebUserListRow(user=user, job_count=job_counts.get(user.id, 0))
+        WebUserListRow(
+            user=user,
+            job_count=job_counts.get(user.id, 0),
+            passkey_count=passkey_counts.get(user.id, 0),
+        )
         for user in list_web_users(database_session)
     ]
     return templates.TemplateResponse(

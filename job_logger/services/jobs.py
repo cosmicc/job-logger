@@ -31,7 +31,7 @@ MAX_TICKET_DESCRIPTION_LENGTH = 8000
 ALLOWED_WORK_IN_PROGRESS_TIME_MINUTE_DELTA = {-15, 15}
 SUCCESSFUL_SUBMISSION_PROTECTED_MESSAGE = (
     "Submitted Autotask jobs cannot be deleted locally, resent, or have ticket identity changed. "
-    "Use Edit Entry for date, time, summary, or intentional ticket status changes, or Delete From Autotask "
+    "Use Submit changes for date, time, summary, or intentional ticket status changes, or Delete From Autotask "
     "to remove the external time entry."
 )
 RECORDABLE_JOB_STATUSES = {
@@ -175,7 +175,7 @@ def ensure_job_is_successfully_submitted(job: Job) -> None:
     """Require a job with an existing successful Autotask submission."""
 
     if not is_job_locked_after_successful_submission(job):
-        raise JobWorkflowError("Only submitted Autotask jobs can use Edit Entry.")
+        raise JobWorkflowError("Only submitted Autotask jobs can use Submit changes.")
 
 
 def ensure_job_can_record_description(job: Job) -> None:
@@ -278,6 +278,36 @@ def list_review_jobs(database_session: Session, web_user_id: str | None = None) 
     if web_user_id is not None:
         statement = statement.where(Job.web_user_id == web_user_id)
     return list(database_session.execute(statement).scalars())
+
+
+def completed_ticket_numbers_for_web_user(
+    database_session: Session,
+    *,
+    web_user_id: str,
+    ticket_numbers: set[str],
+) -> set[str]:
+    """Return local ticket numbers that have any Complete time entry for one user."""
+
+    normalized_ticket_numbers = {
+        ticket_number.strip().upper()
+        for ticket_number in ticket_numbers
+        if ticket_number and ticket_number.strip()
+    }
+    if not normalized_ticket_numbers:
+        return set()
+
+    rows = database_session.execute(
+        select(Job.ticket_number).where(
+            Job.web_user_id == web_user_id,
+            Job.ticket_status == TicketStatus.COMPLETE,
+            Job.ticket_number.in_(normalized_ticket_numbers),
+        )
+    ).scalars()
+    return {
+        ticket_number.strip().upper()
+        for ticket_number in rows
+        if ticket_number and ticket_number.strip()
+    }
 
 
 def normalize_ticket_number(ticket_number: str | None, *, required: bool) -> str | None:

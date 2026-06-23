@@ -13,7 +13,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from job_logger import database
 from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
-from job_logger.models import AuditEvent, Job, SubmissionAttempt
+from job_logger.models import AuditEvent, Job, SubmissionAttempt, WebUser
 from job_logger.services.ai_cleanup import AiCleanupResult
 from job_logger.services.autotask import AutotaskSubmissionResult
 from job_logger.services.jobs import get_active_job
@@ -455,7 +455,7 @@ def test_submitted_review_page_allows_controlled_entry_edits(authenticated_clien
 
     assert review_page_response.status_code == 200
     assert "Submitted Autotask entry" in review_html
-    assert "can be updated with Edit Entry" in review_html
+    assert "can be updated with Submit changes" in review_html
     assert 'class="review-form review-form-submitted"' in review_html
     assert 'class="review-action-stack"' in review_html
     assert 'class="button-pair-row review-action-row"' in review_html
@@ -463,8 +463,10 @@ def test_submitted_review_page_allows_controlled_entry_edits(authenticated_clien
     assert re.search(r'<select(?=[^>]*name="ticket_status")(?![^>]*disabled)', review_html)
     assert re.search(r'<input(?=[^>]*name="job_date")(?![^>]*disabled)', review_html)
     assert re.search(r'<input(?=[^>]*name="start_time")(?![^>]*disabled)', review_html)
+    assert re.search(r'<input(?=[^>]*name="work_location")(?=[^>]*value="remote")(?![^>]*disabled)', review_html)
     assert re.search(r'<textarea(?=[^>]*name="summary_notes")(?![^>]*disabled)', review_html)
     assert "Remote Locked submitted job notes" in review_html
+    assert "Submit changes" in review_html
     assert f'action="/review/{submitted_job_id}/edit-entry"' in review_html
     assert f'formaction="/review/{submitted_job_id}/edit-entry"' in review_html
     assert f'action="/review/{submitted_job_id}/delete-entry"' in review_html
@@ -912,6 +914,10 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".ai-cleanup-button,\n.summary-tool-row .ai-cleanup-button" in stylesheet
     assert ".summary-action-row" in stylesheet
     assert ".button-pair-row" in stylesheet
+    assert ".active-job-panel-slot-1" in stylesheet
+    assert ".active-job-panel-slot-2" in stylesheet
+    assert ".description-box > .button-grid" in stylesheet
+    assert ".review-location-chip" in stylesheet
     assert ".review-action-stack" in stylesheet
     assert ".review-summary-action-row" in stylesheet
     assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in stylesheet
@@ -940,6 +946,11 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     review_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
     assert mobile_template.index('class="summary-action-row recording-control-stack"') < mobile_template.index("data-ai-cleanup-button")
     assert mobile_template.index("data-record-audio-label") < mobile_template.index("data-ai-cleanup-button")
+    summary_action_index = mobile_template.index('class="summary-action-row recording-control-stack"')
+    active_button_grid_index = mobile_template.index('class="button-grid"', summary_action_index)
+    recording_status_index = mobile_template.index('class="recording-status"', active_button_grid_index)
+    assert summary_action_index < active_button_grid_index < recording_status_index
+    assert 'class="work-panel active-job-panel active-job-panel-slot-{{ job_label }}"' in mobile_template
     assert ">Record</span>" in mobile_template
     assert "Delete time entry" not in mobile_template
     assert re.search(r">\s*Delete\s*</button>", mobile_template)
@@ -1500,6 +1511,9 @@ def test_review_summary_prefix_is_editable_and_updates_work_location(authenticat
     review_html = review_page_response.text
     review_csrf_token = extract_csrf_token(review_html)
     assert "Remote Original remote work notes." in review_html
+    assert 'class="review-location-chip review-location-remote"' in review_html
+    assert "Remote" in review_html
+    assert 'data-review-work-location-toggle' in review_html
     assert 'name="work_location"' in review_html
 
     save_response = authenticated_client.post(
@@ -1524,6 +1538,11 @@ def test_review_summary_prefix_is_editable_and_updates_work_location(authenticat
         assert reviewed_job.summary_notes == "replaced the access point onsite."
         assert reviewed_job.description_text == "replaced the access point onsite."
         assert reviewed_job.work_location == WorkLocation.ON_SITE
+
+    updated_review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    updated_review_html = updated_review_page_response.text
+    assert 'class="review-location-chip review-location-on_site"' in updated_review_html
+    assert "On-Site replaced the access point onsite." in updated_review_html
 
 
 def test_review_save_active_job_without_stop_time(authenticated_client: TestClient) -> None:
@@ -2298,6 +2317,58 @@ def test_mobile_service_call_start_rejects_unlisted_selection(authenticated_clie
 
     with database.SessionLocal() as database_session:
         assert get_active_job(database_session) is None
+
+
+def test_completed_local_ticket_filters_service_call_options(authenticated_client: TestClient) -> None:
+    """A local Complete time entry should hide its matching service-call ticket."""
+
+    completed_at_utc = datetime(2026, 6, 20, 13, 0, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        database_session.add(
+            Job(
+                status=JobStatus.READY_FOR_REVIEW,
+                web_user_id=user.id,
+                ticket_number="T20260616.0001",
+                ticket_title="Completed service call ticket",
+                ticket_status=TicketStatus.COMPLETE,
+                client_name="Scheduled Service Client",
+                summary_notes="Completed locally in review.",
+                description_text="Completed locally in review.",
+                raw_start_utc=completed_at_utc,
+                raw_end_utc=completed_at_utc + timedelta(minutes=30),
+                rounded_start_utc=completed_at_utc,
+                rounded_end_utc=completed_at_utc + timedelta(minutes=30),
+                local_work_date=local_date_for(completed_at_utc),
+                work_location=WorkLocation.REMOTE,
+                transcription_status=TranscriptionStatus.NOT_REQUESTED,
+                idempotency_key="completed-service-call-filter-test",
+            )
+        )
+        database_session.commit()
+
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    service_calls_response = authenticated_client.get("/home/service-calls?date=2026-06-20")
+
+    assert service_calls_response.status_code == 200
+    service_call_ids = [
+        service_call["service_call_ticket_id"]
+        for service_call in service_calls_response.json()["service_calls"]
+    ]
+    assert service_call_ids == [6102]
+
+    filtered_start_response = authenticated_client.post(
+        "/jobs/start/service-call",
+        data={"csrf_token": csrf_token, "service_call_ticket_id": "6101", "service_call_date": "2026-06-20"},
+        follow_redirects=False,
+    )
+
+    assert filtered_start_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        active_jobs = list(database_session.scalars(select(Job).where(Job.status == JobStatus.ACTIVE)))
+        assert active_jobs == []
 
 
 def test_mobile_service_call_date_labels(authenticated_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

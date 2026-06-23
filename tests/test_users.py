@@ -10,7 +10,7 @@ from sqlalchemy import delete, select
 
 from job_logger import database
 from job_logger.enums import JobStatus, TranscriptionStatus, WorkLocation
-from job_logger.models import AuditEvent, Job, WebUser
+from job_logger.models import AuditEvent, Job, WebAuthnCredential, WebUser
 from job_logger.services.users import WebUserError, hash_password, suggested_username_from_full_name
 from job_logger.ui import static_asset_version
 from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as, login_as_super_admin, login_as_web_user
@@ -90,6 +90,25 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
         assert user is not None
         user.email = "tech@example.test"
         user.autotask_default_service_desk_role_id = 8
+        database_session.add(
+            WebAuthnCredential(
+                web_user_id=user.id,
+                credential_id="users-page-passkey",
+                credential_public_key="users-page-public-key",
+                sign_count=0,
+                credential_type="public-key",
+                backed_up=False,
+            )
+        )
+        database_session.add(
+            WebUser(
+                full_name="No Passkey User",
+                username="no-passkey",
+                username_normalized="no-passkey",
+                password_hash=hash_password("No-passkey-password1!"),
+                autotask_resource_id=78,
+            )
+        )
         database_session.commit()
 
     users_page = super_admin_client.get("/users")
@@ -98,8 +117,17 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert '<table class="users-table">' in users_page.text
     assert "<th scope=\"col\">Email</th>" in users_page.text
     assert "<th scope=\"col\">Role ID</th>" in users_page.text
+    assert "<th scope=\"col\">Last login</th>" in users_page.text
+    assert "<th scope=\"col\">Device</th>" in users_page.text
     assert 'data-label="Email"' in users_page.text
     assert 'data-label="Default role"' in users_page.text
+    assert 'data-label="Last login"' in users_page.text
+    assert 'data-label="Device sign-in"' in users_page.text
+    assert 'class="passkey-status-icon passkey-status-registered"' in users_page.text
+    assert 'class="passkey-status-icon passkey-status-missing"' in users_page.text
+    assert "Device sign-in set up" in users_page.text
+    assert "No device sign-in" in users_page.text
+    assert "Never" in users_page.text
     assert "tech@example.test" in users_page.text
     assert re.search(
         r'<td data-label="Default role">\s*<span class="mono-value user-default-role-value">8</span>\s*</td>',
@@ -123,6 +151,23 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert 'data-resource-results hidden' in users_page.text
     assert f"/static/users.js?v={static_asset_version()}" in users_page.text
     assert "The config super admin is intentionally not listed here." in users_page.text
+    assert 'colspan="10"' in users_page.text
+
+
+def test_successful_managed_user_login_updates_last_login(client: TestClient) -> None:
+    """Successful managed-user password login should update admin-visible metadata."""
+
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        assert user.last_login_at_utc is None
+
+    login_as_web_user(client)
+
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        assert user.last_login_at_utc is not None
 
 
 def test_super_admin_is_read_only_for_work_entries(super_admin_client: TestClient) -> None:
