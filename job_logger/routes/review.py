@@ -30,6 +30,7 @@ from job_logger.services.jobs import (
     JobWorkflowError,
     apply_review_fields,
     apply_selected_ticket_from_lookup,
+    apply_unset_review_client,
     delete_submitted_job_autotask_entry,
     ensure_job_is_not_locked_after_successful_submission,
     ensure_job_owned_by_web_user,
@@ -181,9 +182,18 @@ def _read_only_review_form_values(form_values: dict[str, str], job: object) -> d
     locked_form_values["ticket_number"] = getattr(job, "ticket_number", None) or ""
     locked_form_values["ticket_title"] = getattr(job, "ticket_title", None) or ""
     locked_form_values["ticket_description"] = getattr(job, "ticket_description", None) or ""
-    locked_form_values["client_name"] = getattr(job, "client_name", None) or ""
     autotask_company_id = getattr(job, "autotask_company_id", None)
-    locked_form_values["autotask_company_id"] = str(autotask_company_id) if autotask_company_id is not None else ""
+    has_locked_client_identity = bool(
+        getattr(job, "ticket_number", None)
+        or getattr(job, "client_name", None)
+        or autotask_company_id is not None
+    )
+    if has_locked_client_identity:
+        locked_form_values["client_name"] = getattr(job, "client_name", None) or ""
+        locked_form_values["autotask_company_id"] = str(autotask_company_id) if autotask_company_id is not None else ""
+    else:
+        locked_form_values["client_name"] = form_values.get("client_name", "")
+        locked_form_values["autotask_company_id"] = form_values.get("autotask_company_id", "")
     work_location = getattr(job, "work_location", None)
     locked_form_values["work_location"] = work_location.value if work_location is not None else "remote"
     return locked_form_values
@@ -459,6 +469,56 @@ async def edit_submitted_entry(
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
     return RedirectResponse(url=f"/review/{job_id}", status_code=303)
+
+
+@router.post("/{job_id}/client")
+async def save_unset_review_client(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Persist the first client selection for an unsubmitted review job."""
+
+    actor = require_authenticated_username(request)
+    validate_csrf_header(request)
+    payload = await request.json()
+    raw_client_name = payload.get("client_name")
+    submitted_client_name = "" if raw_client_name is None else str(raw_client_name)
+    raw_autotask_company_id = payload.get("autotask_company_id")
+    submitted_autotask_company_id = "" if raw_autotask_company_id is None else str(raw_autotask_company_id)
+
+    try:
+        web_user = _current_enabled_web_user(request, database_session)
+        job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(job, web_user.id)
+        apply_unset_review_client(
+            job,
+            client_name=submitted_client_name,
+            autotask_company_id=submitted_autotask_company_id,
+        )
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.review.client_selected",
+            job_id=job.id,
+            request=request,
+            details={
+                "client_name_present": bool(job.client_name),
+                "autotask_company_selected": job.autotask_company_id is not None,
+            },
+        )
+        database_session.commit()
+    except (HTTPException, JobWorkflowError, WebUserError) as exc:
+        database_session.rollback()
+        return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
+
+    return JSONResponse(
+        {
+            "job_id": job.id,
+            "client_name": job.client_name,
+            "autotask_company_id": job.autotask_company_id,
+        }
+    )
 
 
 @router.post("/{job_id}/delete-entry")

@@ -204,6 +204,7 @@ Audit-worthy actions include:
 - Managed web-user session invalidation from Diagnostics.
 - Job start.
 - Job active edit save.
+- First review client selection for an otherwise empty active job.
 - Active job delete.
 - Rounded start adjustment.
 - Job end.
@@ -301,6 +302,18 @@ Service-call starts and open-ticket selection may query Autotask for verified
 metadata, but they must not patch Autotask ticket status or perform another
 remote write. They only store local job metadata and default the editable local
 ticket status to In progress until the time entry is submitted.
+
+Review detail may save a first client/company selection only when an active job
+has no client name, company ID, or ticket number yet. That route must require
+managed-user authentication, CSRF, job ownership, and an audit event. Once any
+client/company/ticket identity exists, review save/accept/ticket routes must
+continue to use the database row as authoritative instead of trusting browser
+fields.
+Active Work in Progress saves and end-work requests must also treat client
+identity as locked after either an Autotask company or open ticket is selected.
+Readonly inputs and hidden client fields are only convenience values for normal
+form flow; crafted requests must not be able to change the stored client name
+or attach a different company ID after a ticket exists.
 
 Autotask ticket descriptions are remote provider data shown as read-only job
 context. Store only the bounded description returned by the server-side verified

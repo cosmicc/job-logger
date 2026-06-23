@@ -86,12 +86,16 @@ Active jobs support these updates before completion:
   read-only context after a ticket is chosen.
 - Open-ticket option work-location label inferred from ticket title/description
   text, displayed as Remote, On-Site, or Not specified in the picker.
-- Client name.
+- Client name while no Autotask company or open ticket has been selected for
+  the active job.
 - Selected Autotask company ID while the active job has not already locked an
-  Autotask company.
+  Autotask company or open ticket.
 - Summary notes.
 - Work location mode, either Remote or On-Site, which is stored separately from
   the visible notes.
+- Local job date through the Work in Progress **Job date** calendar field. The
+  selected date replaces the local date portion of the active rounded start
+  time while preserving its local time.
 - Rounded start time through server-validated mobile `-15` and `+15` minute
   buttons on either side of the displayed time.
 - Rounded stop time through server-validated mobile `-15` and `+15` minute
@@ -101,8 +105,9 @@ Active jobs support these updates before completion:
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job client and summary edits, not ticket
 selection from the open-ticket picker. The mobile page does not expose a manual
-active-save button; client, work-location, and summary edits are saved through
-CSRF-protected background requests as the user changes them.
+active-save button; client, work-location, ticket status, local job date, and
+summary edits are saved through CSRF-protected background requests as the user
+changes them.
 
 The mobile active-job ticket number is not a manual text entry. The open-ticket
 picker posts the clicked ticket number to `POST /jobs/{job_id}/ticket`. That
@@ -120,9 +125,10 @@ saves the current active client fields before querying Autotask and shows the
 shared spinner loading state while the request is in flight. A job that already
 has a saved client does not auto-load the picker on mobile page open; the user
 must click or press Enter/Space on the panel to start the lookup. After
-selection, the browser should immediately hide the open-ticket panel and show
-the selected ticket number, ticket title, and ticket description in Work in
-Progress without waiting for a page reload. Mobile and review open-ticket
+selection, the browser should immediately hide the open-ticket panel, make the
+current client input read-only, and show the selected ticket number, ticket
+title, and ticket description in Work in Progress without waiting for a page
+reload. Mobile and review open-ticket
 choices should use the same Remote/On-Site color treatment as service-call
 start cards, with `.ticket-option-button` location classes, a visible location
 badge, title, ticket status, and company metadata. This label is display
@@ -179,10 +185,10 @@ cap the visible description box at about 12 text lines, while wider layouts use
 about a 25-line cap.
 
 The active mobile card should expose only one client entry point for each job.
-After an Autotask company is selected, the active job displays that client as a
-read-only value and submits hidden copies only for normal form flow. The
-service layer still enforces the lock because hidden fields are not security
-controls.
+After an Autotask company or open ticket is selected, the active job displays
+that client as a read-only value and submits hidden copies only for normal form
+flow. The service layer still enforces the lock because hidden fields and
+readonly inputs are not security controls.
 
 Active jobs can be discarded through `POST /jobs/{job_id}/delete` from mobile
 or through the selected review detail **Delete time entry** action. Both routes
@@ -338,6 +344,9 @@ Review supports:
   and selected detail; normal managed users must not see owner fields.
 - Viewing the selected ticket number and client name as read-only Autotask
   identity fields.
+- Saving the first client/company selection for an active job that was opened
+  in Review before any client identity existed. This goes through
+  `POST /review/{job_id}/client` and becomes read-only once saved.
 - Editing ticket status, start date/time, end date/time, and summary notes
   before successful Autotask submission.
 - Recording additional audio notes on review detail before successful Autotask
@@ -377,7 +386,10 @@ pair **End Work** with **Delete time entry** for active jobs, pair **Submit
 changes** with **Delete From Autotask** for submitted entries, and pair **Accept
 and Submit** with **Delete time entry** for normal unsubmitted entries.
 Submission-failed jobs may use one row for **Retry** and **Accept and Submit**,
-with destructive local delete on its own following row.
+with destructive local delete on its own following row. Phone-sized Review
+detail should place recording and AI cleanup status text below the summary
+action row and the workflow action row so those messages are under all visible
+action buttons.
 
 Review ticket selection persists through `POST /review/{job_id}/ticket`. The
 route uses the recently loaded server-side open-ticket selection cache when it
@@ -388,7 +400,11 @@ to In progress, and records an audit event. It must not patch Autotask ticket
 status or perform any other remote write. Do not trust browser-supplied ticket
 title, ticket description, ticket number, client name, or company ID values on
 review save/accept; the route must overlay those fields from the stored job
-before validation.
+before validation. The empty-client active-job exception is
+`POST /review/{job_id}/client`, which may save only the first client/company
+while ticket number, client name, and company ID are all still unset. Once an
+open ticket has been selected, the client name is locked for the job even if it
+came from manually typed text and no Autotask company ID was stored.
 
 When a ticket is selected from Autotask lookup, store the ticket title with the
 job and use it as the selected-job detail heading. If no ticket has been

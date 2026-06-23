@@ -157,6 +157,10 @@ Recorded jobs follow this lifecycle:
    all jobs but cannot mutate them.
 5. The review page allows time, status, and notes to be edited before
    acceptance while keeping the selected Autotask client and ticket read-only.
+   If an active job is opened in Review before any client has been selected,
+   Review detail may save the first client/company through the authenticated
+   Autotask company search; after that selection, or after any open ticket is
+   chosen for the job, client identity is read-only.
 6. An accepted review job, or a directly submitted Work in Progress job, creates
    an Autotask time entry using the owning user's Autotask resource ID.
 7. A successfully submitted Autotask job keeps ticket and client identity
@@ -313,7 +317,10 @@ When two active jobs are present, their Work in Progress cards should use
 distinct slot shading so they are easier to tell apart. On full-browser Work in
 Progress cards, the End Work/Delete row belongs directly under the
 Record/AI Cleanup row, and recording/AI status text belongs below all action
-buttons.
+buttons. Active Work in Progress cards should show an editable **Job date**
+calendar field instead of the raw started timestamp; the selected local date
+must be saved server-side through the active-job workflow and carry into Review
+and Autotask submission.
 
 Managed web-user pages must respect the current user's saved theme preference.
 The default is the dark theme. Light theme support must cover mobile, review,
@@ -345,12 +352,20 @@ prefix. Saving review edits parses that prefix back into the stored
 that visible prefix, so the final payload can be corrected without exposing
 ticket or client identity to edits. The selected Autotask client name, company
 ID, ticket number, and ticket title are read-only identity fields populated from
-Autotask lookup and must not be editable on the review page.
+Autotask lookup and must not be editable on the review page. The only exception
+is the empty-identity active-job case, where Review detail may expose Autotask
+company search to save the first client/company before ticket lookup.
+Once an open ticket has been chosen, the stored client name becomes read-only
+everywhere for that job, even if the client was typed manually and no Autotask
+company ID was stored.
 Work in Progress and review detail action controls should stay compact and
 scannable on both phone and full browser layouts. Use paired button rows when
 two actions naturally belong together, such as **Record** with **AI Cleanup**,
 **End Work** with **Delete**, and review submit/edit actions with the matching
-delete action. Never place more than two action buttons in one row.
+delete action. Never place more than two action buttons in one row. On
+phone-sized Review detail, recording and AI cleanup status text belongs below
+the summary action row and the review workflow action row, not between those
+button groups.
 
 All state-changing actions must be explicit and auditable.
 
@@ -539,8 +554,9 @@ The application is a FastAPI project under `job_logger/`.
   unsubmitted review jobs, compatibility recording uploads, description text
   saves, and Autotask company autocomplete.
 - `job_logger/routes/review.py` handles review listing, edit/save/accept/retry,
-  updating or deleting existing submitted Autotask entries, ticket lookup for a
-  selected job, and explicit local **Delete time entry** cleanup.
+  saving the first client selection for an empty active review job, updating or
+  deleting existing submitted Autotask entries, ticket lookup for a selected
+  job, and explicit local **Delete time entry** cleanup.
 - `job_logger/routes/users.py` handles the super-admin managed web-user page,
   including add/edit/enable/disable/delete-as-disable behavior, Autotask
   Resource lookup, active service-desk role lookup, and session invalidation
@@ -638,9 +654,9 @@ The normal workflow is:
 6. User starts Job 1 or Job 2. Blank Start Work creates a local active job
    owned by that web user without first probing Autotask. At most two active
    jobs may exist at once per web user.
-7. After the job starts, the user enters/selects an Autotask company by client
-   name. Manual client text is allowed, but selected company IDs are preferred
-   for exact ticket lookup.
+7. After the job starts, the user may adjust the editable local **Job date** and
+   enters/selects an Autotask company by client name. Manual client text is
+   allowed, but selected company IDs are preferred for exact ticket lookup.
 8. User chooses an open Autotask ticket from the active-job ticket panel. If no
    tickets are loaded yet, the whole panel is the load control and shows a
    spinner while Autotask data is being queried. Ticket options show detected
@@ -654,7 +670,8 @@ The normal workflow is:
    In progress until the job's time entry is submitted. The selected ticket
    status is shown and editable on Work in Progress. Read-only ticket
    descriptions stay in short scrollable boxes on Work in Progress and review
-   detail.
+   detail. After ticket selection, the client name is locked for that job in
+   Work in Progress, Review, and server-side save/end handlers.
 9. User chooses whether the work is Remote or On-Site. The mode is stored on
    the job and appears as the leading prefix in the review summary textarea so
    it can be corrected before Autotask submission.
@@ -663,7 +680,9 @@ The normal workflow is:
    detail uses the same paired summary action row for unsubmitted jobs. On
    full-browser Work in Progress cards, the End Work/Delete row sits directly
    below Record/AI Cleanup, and recording/AI status text sits below all action
-   buttons. The record button becomes a stop button while audio chunks stream to
+   buttons. On phone-sized Review detail, recording and AI cleanup status text
+   also sits below the review workflow action buttons. The record button becomes
+   a stop button while audio chunks stream to
    the server over WebSocket. Recording, sending, and converting progress use
    plain status text, and stopping capture keeps the disabled record button in a
    loading state until the final transcript returns.
@@ -684,7 +703,11 @@ The normal workflow is:
     failed-submission review state with the safe error message.
 14. User reviews the job from `/review`, edits time/status/notes if needed,
     optionally records more audio notes before Autotask submission, and keeps
-    the selected client/ticket identity read-only. Review detail groups action
+    the selected client/ticket identity read-only once selected. Choosing an
+    open ticket locks the client name even when no Autotask company ID was
+    stored. If the job is still active and has no selected client, Review
+    detail can save the first client/company from the same server-backed
+    Autotask company search before ticket lookup. Review detail groups action
     controls into compact rows with at most two buttons per row; submitted
     entries pair **Submit changes** with **Delete From Autotask**, while local
     unsubmitted entries pair the submit action with **Delete time entry** when

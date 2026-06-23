@@ -77,6 +77,10 @@ def test_changelog_parser_reads_current_release() -> None:
             "Review detail can now switch Remote or On-Site and updates the Summary notes prefix.",
             "Work in Progress active job cards are easier to tell apart.",
             "Full browser Work in Progress actions now keep finish and delete buttons directly under Record and AI Cleanup.",
+            "Work in Progress now has an editable Job date calendar.",
+            "Review detail can choose a client when an active entry was opened before a client was selected.",
+            "Choosing an open ticket now locks that job's client name everywhere.",
+            "Mobile Review status messages now stay below the action buttons.",
             "Service-call starts now hide tickets already marked Complete in Job Logger.",
             "Submitted Review entries now use a clearer Submit changes button.",
         ),
@@ -112,6 +116,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Review detail can now switch Remote or On-Site and updates the Summary notes prefix." in response.text
     assert "Work in Progress active job cards are easier to tell apart." in response.text
     assert "Full browser Work in Progress actions now keep finish and delete buttons directly under Record and AI Cleanup." in response.text
+    assert "Work in Progress now has an editable Job date calendar." in response.text
+    assert "Review detail can choose a client when an active entry was opened before a client was selected." in response.text
+    assert "Choosing an open ticket now locks that job&#39;s client name everywhere." in response.text
+    assert "Mobile Review status messages now stay below the action buttons." in response.text
     assert "Service-call starts now hide tickets already marked Complete in Job Logger." in response.text
     assert "Submitted Review entries now use a clearer Submit changes button." in response.text
     assert "User management, ticket status, and Device sign-in updates" in response.text

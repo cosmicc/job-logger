@@ -114,9 +114,6 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
               const reviewAutosaveForm = {{
                 dataset: {{reviewSaveUrl: "/review/job-1/save"}},
                 querySelector(selector) {{
-                  if (selector === '[data-ai-cleanup-status]') {{
-                    return aiCleanupStatus;
-                  }}
                   if (selector === 'textarea[name="summary_notes"]') {{
                     return summaryTextarea;
                   }}
@@ -170,6 +167,9 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                   }}
                   if (selector === "[data-review-autosave-status]") {{
                     return reviewAutosaveStatus;
+                  }}
+                  if (selector === "[data-ai-cleanup-status]") {{
+                    return aiCleanupStatus;
                   }}
                   return null;
                 }},

@@ -171,18 +171,50 @@
                 name="ticket_description"
                 value="{{ selected_job.ticket_description or '' }}"
               >
-              <div class="readonly-field-card">
-                <span class="metric-label readonly-field-title">Client name</span>
-                <strong class="readonly-field-value">{{ selected_job.client_name or "No client selected" }}</strong>
-              </div>
-              <input
-                type="hidden"
-                name="client_name"
-                value="{{ selected_job.client_name or '' }}"
-              >
+              {% set review_client_is_unset = (
+                can_modify_selected_job
+                and not selected_job_submitted
+                and not selected_job.ticket_number
+                and not selected_job.client_name
+                and not selected_job.autotask_company_id
+              ) %}
+              {% if review_client_is_unset %}
+                <div class="metric-card client-name-card review-client-name-card">
+                  <label>
+                    <span class="metric-label">Client name</span>
+                    <input
+                      class="autotask-company-input"
+                      data-review-company-input
+                      data-review-client-name-input
+                      data-review-client-save-url="/review/{{ selected_job.id }}/client"
+                      name="client_name"
+                      value=""
+                      placeholder="Search Autotask company"
+                      maxlength="120"
+                      autocomplete="off"
+                      autocorrect="off"
+                      spellcheck="false"
+                    >
+                  </label>
+                  <div class="company-search-results" data-company-results></div>
+                  <p class="company-search-status muted-text" data-company-status aria-live="polite"></p>
+                </div>
+              {% else %}
+                <div class="readonly-field-card">
+                  <span class="metric-label readonly-field-title">Client name</span>
+                  <strong class="readonly-field-value" data-review-client-name-display>{{ selected_job.client_name or "No client selected" }}</strong>
+                </div>
+                <input
+                  type="hidden"
+                  data-review-client-name-input
+                  name="client_name"
+                  value="{{ selected_job.client_name or '' }}"
+                >
+              {% endif %}
               <input
                 type="hidden"
                 data-review-company-id-input
+                data-company-id-input
                 name="autotask_company_id"
                 value="{{ selected_job.autotask_company_id or '' }}"
               >
@@ -306,7 +338,7 @@
                 <div class="ticket-picker-header">
                   <div>
                     <h3>Open tickets</h3>
-                    <p class="muted-text">{{ selected_job.client_name or "No client name set" }}</p>
+                    <p class="muted-text" data-ticket-client-label>{{ selected_job.client_name or "No client name set" }}</p>
                   </div>
                 </div>
                 <p class="ticket-picker-status muted-text" data-ticket-lookup-status aria-live="polite">
@@ -363,20 +395,6 @@
                   </button>
                 {% endif %}
               </div>
-              {% if not selected_job_submitted %}
-                <p
-                  class="recording-status"
-                  data-review-recording-status
-                  data-job-id="{{ selected_job.id }}"
-                  aria-live="polite"
-                ></p>
-                {% if selected_job.transcription_error %}
-                  <p class="error-text">{{ selected_job.transcription_error }}</p>
-                {% endif %}
-              {% endif %}
-              {% if ai_cleanup_enabled %}
-                <p class="recording-status ai-cleanup-status" data-ai-cleanup-status aria-live="polite"></p>
-              {% endif %}
             {% endif %}
             </fieldset>
           </form>
@@ -561,6 +579,25 @@
                     </button>
                   </form>
                 </div>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          {% if can_modify_selected_job and (not selected_job_submitted or ai_cleanup_enabled) %}
+            <div class="review-status-stack" aria-live="polite">
+              {% if not selected_job_submitted %}
+                <p
+                  class="recording-status"
+                  data-review-recording-status
+                  data-job-id="{{ selected_job.id }}"
+                  aria-live="polite"
+                ></p>
+                {% if selected_job.transcription_error %}
+                  <p class="error-text">{{ selected_job.transcription_error }}</p>
+                {% endif %}
+              {% endif %}
+              {% if ai_cleanup_enabled %}
+                <p class="recording-status ai-cleanup-status" data-ai-cleanup-status aria-live="polite"></p>
               {% endif %}
             </div>
           {% endif %}

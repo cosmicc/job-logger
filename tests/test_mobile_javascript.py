@@ -37,7 +37,10 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
             const vm = require("vm");
 
             (async () => {
-              const mobileScript = fs.readFileSync(MOBILE_SCRIPT_PATH, "utf8");
+              const mobileScript = `${fs.readFileSync(MOBILE_SCRIPT_PATH, "utf8")}
+              ;this.__mobileTestApi = {
+                updateActiveTicketDisplay,
+              };`;
               const eventHandlers = {};
               const windowEventHandlers = {};
               const queuedTimers = [];
@@ -375,6 +378,78 @@ def test_mobile_ai_cleanup_failure_uses_recording_status_line(tmp_path: Path) ->
         assert.strictEqual(descriptionTextarea.value, "cleanup should fail");
         assert.strictEqual(recordingStatusElement.textContent, "AI cleanup failed: Gemini cleanup timed out. Try again.");
         assert.strictEqual(aiCleanupButton.disabled, false);
+        """,
+    )
+
+
+def test_mobile_ticket_selection_locks_client_input(tmp_path: Path) -> None:
+    """Selecting an open ticket should immediately make the active client read-only."""
+
+    run_mobile_javascript_harness(
+        tmp_path,
+        """
+        const ticketNumberCard = createFakeElement("div");
+        const ticketNumberDisplay = createFakeElement("dd");
+        const ticketTitleCard = createFakeElement("div");
+        const ticketTitleDisplay = createFakeElement("dd");
+        const ticketDescriptionCard = createFakeElement("div");
+        const ticketDescriptionDisplay = createFakeElement("dd");
+        const ticketStatusInput = createFakeElement("select");
+        const activeClientInput = createFakeElement("input");
+        activeClientInput.type = "text";
+        activeClientInput.value = "North Bay";
+
+        const activeTicketForm = createFakeElement("form");
+        activeTicketForm.id = "active-ticket-form-job-2";
+        activeTicketForm.dataset = {jobId: "job-2"};
+        activeTicketForm.querySelector = (selector) => {
+          if (selector === "[data-active-client-source]") {
+            return null;
+          }
+          return null;
+        };
+
+        const activeJobCard = createFakeElement("article");
+        activeJobCard.querySelector = (selector) => {
+          const elementsBySelector = {
+            "[data-active-ticket-number-card]": ticketNumberCard,
+            "[data-active-ticket-number-display]": ticketNumberDisplay,
+            "[data-active-ticket-title-card]": ticketTitleCard,
+            "[data-active-ticket-title-display]": ticketTitleDisplay,
+            "[data-active-ticket-description-card]": ticketDescriptionCard,
+            "[data-active-ticket-description-display]": ticketDescriptionDisplay,
+            "[data-active-ticket-status-input]": ticketStatusInput,
+          };
+          return elementsBySelector[selector] || null;
+        };
+
+        fakeDocument.querySelector = (selector) => {
+          if (selector === '[data-active-job-card="job-2"]') {
+            return activeJobCard;
+          }
+          if (selector === '.active-ticket-form[data-job-id="job-2"]') {
+            return activeTicketForm;
+          }
+          if (selector === '.active-client-name-source[form="active-ticket-form-job-2"]') {
+            return activeClientInput;
+          }
+          return null;
+        };
+
+        browserContext.__mobileTestApi.updateActiveTicketDisplay("job-2", {
+          ticket_number: "T20260616.0001",
+          ticket_title: "VPN access cleanup",
+          ticket_description: "Remote access ticket details.",
+          ticket_status: "in_progress",
+        });
+
+        assert.strictEqual(ticketNumberDisplay.textContent, "T20260616.0001");
+        assert.strictEqual(ticketTitleDisplay.textContent, "VPN access cleanup");
+        assert.strictEqual(ticketDescriptionDisplay.textContent, "Remote access ticket details.");
+        assert.strictEqual(ticketStatusInput.value, "in_progress");
+        assert.strictEqual(activeClientInput.readOnly, true);
+        assert.strictEqual(activeClientInput.getAttribute("aria-readonly"), "true");
+        assert.strictEqual(activeClientInput.classList.contains("is-locked-client-input"), true);
         """,
     )
 

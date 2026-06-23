@@ -951,6 +951,8 @@ async def save_ticket_number(
     submitted_work_location = str(raw_work_location) if raw_work_location is not None else None
     raw_ticket_status = form_data.get("ticket_status")
     submitted_ticket_status = str(raw_ticket_status) if raw_ticket_status is not None else None
+    raw_job_date = form_data.get("job_date")
+    submitted_job_date = str(raw_job_date) if raw_job_date is not None else None
 
     try:
         web_user = _current_enabled_web_user(request, database_session)
@@ -965,6 +967,7 @@ async def save_ticket_number(
             ticket_title=None,
             work_location=submitted_work_location,
             ticket_status=submitted_ticket_status,
+            job_date=submitted_job_date,
         )
         if raw_summary_text is not None:
             apply_manual_summary_to_job(database_session, job_id, str(raw_summary_text))
@@ -981,6 +984,7 @@ async def save_ticket_number(
                 "summary_present": bool(job.summary_notes),
                 "work_location": job.work_location.value,
                 "ticket_status": job.ticket_status.value if job.ticket_status else None,
+                "local_work_date": job.local_work_date.isoformat() if job.local_work_date else None,
             },
         )
         database_session.commit()
@@ -995,6 +999,7 @@ async def save_ticket_number(
                     "ticket_description": job.ticket_description,
                     "work_location": job.work_location.value,
                     "ticket_status": job.ticket_status.value if job.ticket_status else None,
+                    "job_date": job.local_work_date.isoformat() if job.local_work_date else None,
                 }
             )
         add_flash_message(request, "Active job changes saved.", "success")
@@ -1208,6 +1213,8 @@ async def end_work(
     submitted_work_location = str(raw_work_location) if raw_work_location is not None else None
     raw_ticket_status = form_data.get("ticket_status")
     submitted_ticket_status = str(raw_ticket_status) if raw_ticket_status is not None else None
+    raw_job_date = form_data.get("job_date")
+    submitted_job_date = str(raw_job_date) if raw_job_date is not None else None
     return_to = str(form_data.get("return_to", "")).strip().lower()
     redirect_url = f"/review/{job_id}" if return_to == "review" else "/home"
 
@@ -1223,6 +1230,7 @@ async def end_work(
             autotask_company_id=submitted_autotask_company_id,
             work_location=submitted_work_location,
             ticket_status=submitted_ticket_status,
+            job_date=submitted_job_date,
         )
         job = end_job(
             database_session,

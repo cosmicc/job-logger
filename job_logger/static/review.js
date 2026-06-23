@@ -1,5 +1,7 @@
 const TIME_STEP_MINUTES = 15;
 const REVIEW_AUTOSAVE_DELAY_MS = 650;
+const COMPANY_SEARCH_DELAY_MS = 400;
+const MIN_COMPANY_SEARCH_CHARACTERS = 3;
 const RECORDING_CHUNK_INTERVAL_MS = 2500;
 const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
 const SUMMARY_WORK_LOCATION_PREFIX_PATTERN = /^\s*(on[\s-]?site|remote)\b(?:\s*[:\-]\s*|\s+|$)([\s\S]*)$/i;
@@ -14,6 +16,7 @@ const reviewAutosaveForm = document.querySelector("[data-review-autosave-form]")
 const reviewAutosaveStatus = document.querySelector("[data-review-autosave-status]");
 const aiCleanupButtons = document.querySelectorAll("[data-ai-cleanup-button]");
 const reviewRecordButtons = document.querySelectorAll("[data-review-record-button]");
+const reviewCompanyInputs = document.querySelectorAll("[data-review-company-input]");
 const confirmationForms = document.querySelectorAll("[data-confirm-message]");
 const reviewTaskForms = document.querySelectorAll("[data-review-task-form]");
 const submittedDeleteFallbackDialog = document.querySelector("[data-submitted-delete-fallback-dialog]");
@@ -35,6 +38,7 @@ let reviewAudioStreamReady = false;
 let reviewAudioStreamFailed = false;
 let reviewStartingRecording = false;
 let reviewAudioStopRequested = false;
+const reviewCompanySearchTimers = new Map();
 
 function padTwo(value) {
   return String(value).padStart(2, "0");
@@ -126,8 +130,7 @@ function setInlineLoadingStatus(statusElement, message, {isError = false} = {}) 
 }
 
 function setAiCleanupStatus(button, message, isError = false, isLoading = false) {
-  const formElement = button ? button.closest("form") : null;
-  const statusElement = formElement ? formElement.querySelector("[data-ai-cleanup-status]") : null;
+  const statusElement = document.querySelector("[data-ai-cleanup-status]");
   setInlineLoadingStatus(statusElement, message, {isError, isLoading});
 }
 
@@ -143,6 +146,139 @@ function setAiCleanupButtonLoading(button, isLoading) {
 
 function toSafeMapString(value) {
   return String(value || "");
+}
+
+function getReviewCompanyPickerElements(companyInput) {
+  const parentForm = companyInput ? companyInput.closest("form") : null;
+  const pickerCard = companyInput ? companyInput.closest(".review-client-name-card") : null;
+  return {
+    companyIdInput: parentForm ? parentForm.querySelector("[data-review-company-id-input]") : null,
+    resultsElement: pickerCard ? pickerCard.querySelector("[data-company-results]") : null,
+    statusElement: pickerCard ? pickerCard.querySelector("[data-company-status]") : null,
+  };
+}
+
+function clearReviewCompanyResults(companyInput) {
+  const {resultsElement} = getReviewCompanyPickerElements(companyInput);
+  if (resultsElement) {
+    resultsElement.replaceChildren();
+  }
+}
+
+function setReviewCompanyStatus(companyInput, message, isError = false) {
+  const {statusElement} = getReviewCompanyPickerElements(companyInput);
+  if (!statusElement) {
+    return;
+  }
+
+  statusElement.textContent = message;
+  statusElement.classList.toggle("error-text", isError);
+}
+
+async function searchAutotaskCompanies(queryText) {
+  const response = await fetch(`/autotask/companies?query=${encodeURIComponent(queryText)}`, {
+    headers: {Accept: "application/json"},
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || "Autotask company search failed.");
+  }
+
+  return Array.isArray(payload.companies) ? payload.companies : [];
+}
+
+async function saveReviewClientSelection(companyInput, clientName, autotaskCompanyId) {
+  const saveUrl = companyInput.dataset.reviewClientSaveUrl || "";
+  if (!saveUrl) {
+    throw new Error("Review client save endpoint is not configured.");
+  }
+
+  const response = await fetch(saveUrl, {
+    method: "POST",
+    headers: {
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
+    body: JSON.stringify({
+      client_name: clientName,
+      autotask_company_id: autotaskCompanyId,
+    }),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || "Client selection could not be saved.");
+  }
+
+  return payload;
+}
+
+function renderReviewCompanyResults(companyInput, companies) {
+  const {companyIdInput, resultsElement} = getReviewCompanyPickerElements(companyInput);
+  if (!companyIdInput || !resultsElement) {
+    return;
+  }
+
+  resultsElement.replaceChildren();
+  for (const companyOption of companies) {
+    const optionButton = document.createElement("button");
+    optionButton.type = "button";
+    optionButton.className = "company-option-button";
+    optionButton.textContent = companyOption.company_name || "Unnamed company";
+    optionButton.addEventListener("click", async () => {
+      const selectedClientName = companyOption.company_name || "";
+      const selectedCompanyId = companyOption.company_id || "";
+      companyInput.value = selectedClientName;
+      companyIdInput.value = selectedCompanyId;
+      resultsElement.replaceChildren();
+      setReviewCompanyStatus(companyInput, "Saving client...");
+      optionButton.disabled = true;
+      try {
+        const savedClient = await saveReviewClientSelection(companyInput, selectedClientName, selectedCompanyId);
+        setReviewCompanyStatus(companyInput, "Client saved.");
+        document.dispatchEvent(new CustomEvent("reviewClientSelected", {detail: savedClient}));
+      } catch (error) {
+        optionButton.disabled = false;
+        setReviewCompanyStatus(companyInput, error.message || "Client selection could not be saved.", true);
+      }
+    });
+    resultsElement.append(optionButton);
+  }
+}
+
+function queueReviewCompanySearch(companyInput) {
+  const queryText = toSafeMapString(companyInput.value).trim();
+  const {companyIdInput} = getReviewCompanyPickerElements(companyInput);
+  if (companyIdInput) {
+    companyIdInput.value = "";
+  }
+
+  clearTimeout(reviewCompanySearchTimers.get(companyInput));
+  clearReviewCompanyResults(companyInput);
+
+  if (queryText.length < MIN_COMPANY_SEARCH_CHARACTERS) {
+    setReviewCompanyStatus(companyInput, "");
+    return;
+  }
+
+  reviewCompanySearchTimers.set(
+    companyInput,
+    setTimeout(async () => {
+      try {
+        setReviewCompanyStatus(companyInput, "Searching Autotask...");
+        const companies = await searchAutotaskCompanies(queryText);
+        if (companies.length === 0) {
+          setReviewCompanyStatus(companyInput, "No matching Autotask companies found.");
+          return;
+        }
+
+        setReviewCompanyStatus(companyInput, "");
+        renderReviewCompanyResults(companyInput, companies);
+      } catch (error) {
+        setReviewCompanyStatus(companyInput, error.message || "Autotask company search failed.", true);
+      }
+    }, COMPANY_SEARCH_DELAY_MS),
+  );
 }
 
 function findReviewRecordingStatus(jobId) {
@@ -942,9 +1078,10 @@ function bindTicketLookup() {
 
   const lookupUrl = ticketPicker.dataset.ticketLookupUrl;
   const ticketSelectUrl = ticketPicker.dataset.ticketSelectUrl;
-  const ticketClientName = (ticketPicker.dataset.ticketClientName || "").trim();
   const statusElement = ticketPicker.querySelector("[data-ticket-lookup-status]");
   const resultsElement = ticketPicker.querySelector("[data-ticket-lookup-results]");
+  const ticketClientLabel = ticketPicker.querySelector("[data-ticket-client-label]");
+  const reviewClientNameInput = document.querySelector("[data-review-client-name-input]");
   const ticketNumberInput = document.querySelector("[data-review-ticket-number-input]");
   const ticketNumberDisplay = document.querySelector("[data-review-ticket-number-display]");
   const ticketTitleInput = document.querySelector("[data-review-ticket-title-input]");
@@ -959,6 +1096,25 @@ function bindTicketLookup() {
 
   let hasLoadedTicketOptions = false;
   let isLookupInProgress = false;
+
+  function currentTicketClientName() {
+    const inputClientName = reviewClientNameInput ? toSafeMapString(reviewClientNameInput.value).trim() : "";
+    return inputClientName || toSafeMapString(ticketPicker.dataset.ticketClientName).trim();
+  }
+
+  function applySavedClientToPicker(savedClient) {
+    const savedClientName = toSafeMapString(savedClient.client_name).trim();
+    ticketPicker.dataset.ticketClientName = savedClientName;
+    if (reviewClientNameInput) {
+      reviewClientNameInput.value = savedClientName;
+    }
+    if (ticketClientLabel) {
+      ticketClientLabel.textContent = savedClientName || "No client name set";
+    }
+    hasLoadedTicketOptions = false;
+    resultsElement.replaceChildren();
+    setTicketPickerClickable(Boolean(savedClientName));
+  }
 
   function setTicketPickerClickable(isClickable) {
     ticketPicker.classList.toggle("is-clickable", isClickable);
@@ -1025,7 +1181,7 @@ function bindTicketLookup() {
       return;
     }
 
-    if (!ticketClientName) {
+    if (!currentTicketClientName()) {
       setTicketLookupStatus(statusElement, "Client name is required before open tickets can load.", {isError: true});
       return;
     }
@@ -1090,6 +1246,10 @@ function bindTicketLookup() {
   }
 
   setTicketPickerClickable(!hasLoadedTicketOptions);
+  document.addEventListener("reviewClientSelected", (event) => {
+    applySavedClientToPicker(event.detail || {});
+    loadReviewTicketOptions();
+  });
   ticketPicker.addEventListener("click", (event) => {
     if (event.target.closest("button, a, input, select, textarea")) {
       return;
@@ -1134,6 +1294,12 @@ bindReviewWorkLocationControls();
 for (const aiCleanupButton of aiCleanupButtons) {
   aiCleanupButton.addEventListener("click", () => {
     cleanupReviewSummary(aiCleanupButton);
+  });
+}
+
+for (const reviewCompanyInput of reviewCompanyInputs) {
+  reviewCompanyInput.addEventListener("input", () => {
+    queueReviewCompanySearch(reviewCompanyInput);
   });
 }
 

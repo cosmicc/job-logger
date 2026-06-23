@@ -22,6 +22,7 @@ const companyInputs = document.querySelectorAll("[data-company-input]");
 const activeTicketPickers = document.querySelectorAll("[data-active-ticket-picker]");
 const workLocationInputs = document.querySelectorAll("[data-work-location-input]");
 const activeTicketStatusInputs = document.querySelectorAll("[data-active-ticket-status-input]");
+const activeJobDateInputs = document.querySelectorAll("[data-active-job-date-input]");
 const serviceCallPanels = document.querySelectorAll("[data-service-call-panel]");
 const aiCleanupButtons = document.querySelectorAll("[data-ai-cleanup-button]");
 const roundedStopDisplays = document.querySelectorAll("[data-rounded-stop-display]");
@@ -1445,6 +1446,40 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   if (ticketStatusInput && selectedTicket.ticket_status) {
     ticketStatusInput.value = selectedTicket.ticket_status;
   }
+  if (ticketNumber) {
+    lockActiveClientInputForSelectedTicket(jobId);
+  }
+}
+
+function lockActiveClientInputForSelectedTicket(jobId) {
+  const activeTicketForm = findActiveTicketForm(jobId);
+  if (!activeTicketForm) {
+    return;
+  }
+
+  const companyResults = activeTicketForm.querySelector("[data-company-results]");
+  const companyStatus = activeTicketForm.querySelector("[data-company-status]");
+  if (companyResults) {
+    companyResults.replaceChildren();
+  }
+  if (companyStatus) {
+    companyStatus.textContent = "";
+    companyStatus.classList.remove("error-text");
+  }
+
+  const formClientInput = activeTicketForm.querySelector("[data-active-client-source]");
+  const formId = toSafeMapString(activeTicketForm.id);
+  const formLinkedClientInput = formId
+    ? document.querySelector(`.active-client-name-source[form="${formId}"]`)
+    : null;
+  const clientInputs = new Set([formClientInput, formLinkedClientInput].filter(Boolean));
+  for (const clientInput of clientInputs) {
+    if (clientInput.tagName === "INPUT" && clientInput.type !== "hidden") {
+      clientInput.readOnly = true;
+      clientInput.setAttribute("aria-readonly", "true");
+      clientInput.classList.add("is-locked-client-input");
+    }
+  }
 }
 
 async function loadActiveTicketOptions(ticketPicker, options = {}) {
@@ -1778,6 +1813,13 @@ for (const workLocationInput of workLocationInputs) {
 for (const activeTicketStatusInput of activeTicketStatusInputs) {
   activeTicketStatusInput.addEventListener("change", () => {
     const activeTicketForm = document.getElementById(activeTicketStatusInput.getAttribute("form") || "");
+    queueActiveJobFormSave(activeTicketForm, true);
+  });
+}
+
+for (const activeJobDateInput of activeJobDateInputs) {
+  activeJobDateInput.addEventListener("change", () => {
+    const activeTicketForm = document.getElementById(activeJobDateInput.getAttribute("form") || "");
     queueActiveJobFormSave(activeTicketForm, true);
   });
 }

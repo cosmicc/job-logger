@@ -113,9 +113,18 @@
             <p class="eyebrow-text">Active job {{ job_label }}</p>
             <h1>Work in progress</h1>
             <dl class="metric-grid">
-              <div class="metric-card">
-                <dt>Started</dt>
-                <dd>{{ active_job.raw_start_utc|local_display }}</dd>
+              <div class="metric-card job-date-card">
+                <label>
+                  <span class="metric-label">Job date</span>
+                  <input
+                    name="job_date"
+                    type="date"
+                    form="active-ticket-form-{{ active_job.id }}"
+                    data-active-job-date-input
+                    value="{{ active_job.local_work_date or active_job.rounded_start_utc|local_date }}"
+                    required
+                  >
+                </label>
               </div>
               <div class="metric-card">
                 <dt>Rounded start</dt>
@@ -239,7 +248,8 @@
                   </select>
                 </label>
               </div>
-              {% if not active_job.autotask_company_id %}
+              {% set active_client_identity_locked = active_job.autotask_company_id is not none or active_job.ticket_number %}
+              {% if not active_client_identity_locked %}
                 <div class="metric-card client-name-card">
                   <label>
                     <span class="metric-label">Client name</span>
@@ -260,7 +270,7 @@
                   </label>
                 </div>
               {% endif %}
-              {% if active_job.autotask_company_id %}
+              {% if active_client_identity_locked %}
                 <div class="metric-card client-name-card" data-locked-client-field>
                   <dt>Client name</dt>
                   <dd>{{ active_job.client_name or "Selected client" }}</dd>
@@ -297,7 +307,7 @@
               data-job-id="{{ active_job.id }}"
             >
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              {% if active_job.autotask_company_id %}
+              {% if active_client_identity_locked %}
                 <input
                   type="hidden"
                   class="active-client-name-source"

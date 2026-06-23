@@ -15,12 +15,14 @@ from job_logger.models import Job, SubmissionAttempt
 from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider, split_autotask_summary_notes
 from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
 from job_logger.time_utils import (
+    LOCAL_TIMEZONE,
     enforce_minimum_rounded_end,
     local_date_for,
     now_utc,
     parse_local_form_datetime,
     round_end_for_technician,
     round_start_for_technician,
+    to_local,
 )
 
 AUTOTASK_TICKET_NUMBER_PATTERN = re.compile(r"^T\d{8}\.\d{4}$")
@@ -412,28 +414,34 @@ def preserve_locked_active_autotask_client(
     client_name: str | None,
     autotask_company_id: int | str | None,
 ) -> bool:
-    """Validate submitted active-job client fields when an Autotask company is locked.
+    """Validate submitted active-job client fields once identity is locked.
 
-    Active mobile jobs lock the selected Autotask company after lookup so the
-    operator cannot accidentally drift the visible client name away from the
-    company ID used for ticket lookup. The UI submits hidden copies for normal
-    form flow, but this service-level check is the authoritative guard against
-    crafted requests that try to replace the selected company while the job is
-    still active.
+    Active mobile jobs lock client identity after an Autotask company or ticket
+    has been selected. The UI submits hidden copies for normal form flow, but
+    this service-level check is the authoritative guard against crafted
+    requests that try to replace the selected client while the job is still
+    active.
     """
 
-    if job.autotask_company_id is None:
+    client_identity_is_locked = (
+        job.autotask_company_id is not None
+        or bool(job.ticket_number)
+    )
+    if not client_identity_is_locked:
         return False
 
     submitted_autotask_company_id = normalize_autotask_company_id(autotask_company_id)
-    if submitted_autotask_company_id is not None and submitted_autotask_company_id != job.autotask_company_id:
-        raise JobWorkflowError("The selected Autotask company is locked for this active job.")
+    if job.autotask_company_id is not None:
+        if submitted_autotask_company_id is not None and submitted_autotask_company_id != job.autotask_company_id:
+            raise JobWorkflowError("The selected Autotask company is locked for this active job.")
+    elif submitted_autotask_company_id is not None:
+        raise JobWorkflowError("The selected Autotask client is locked for this active job.")
 
     submitted_client_name = normalize_client_name(client_name)
     if submitted_client_name is not None and job.client_name and submitted_client_name != job.client_name:
         raise JobWorkflowError("The selected Autotask client is locked for this active job.")
 
-    if submitted_client_name is not None and not job.client_name:
+    if submitted_client_name is not None and not job.client_name and job.autotask_company_id is not None:
         job.client_name = submitted_client_name
 
     return True
@@ -487,6 +495,7 @@ def update_active_job_ticket_number(
     ticket_description: str | None = None,
     work_location: WorkLocation | str | None = None,
     ticket_status: TicketStatus | str | None = None,
+    job_date: str | None = None,
 ) -> Job:
     """Update the optional Autotask ticket number and client while a job is active."""
 
@@ -528,7 +537,64 @@ def update_active_job_ticket_number(
     if ticket_status is not None:
         job.ticket_status = normalize_ticket_status(ticket_status)
 
+    if job_date is not None:
+        apply_active_job_local_work_date(job, job_date)
+
     return job
+
+
+def apply_active_job_local_work_date(job: Job, job_date: str) -> Job:
+    """Move an active job to a selected local work date while preserving local times."""
+
+    if job.status != JobStatus.ACTIVE:
+        raise JobWorkflowError("Job date can only be changed while a job is active.")
+
+    safe_job_date = str(job_date or "").strip()
+    if len(safe_job_date) > 10:
+        raise JobWorkflowError("Job date is invalid.")
+    try:
+        selected_local_date = date.fromisoformat(safe_job_date)
+    except ValueError as exc:
+        raise JobWorkflowError("Job date is invalid.") from exc
+
+    job.rounded_start_utc = _replace_timestamp_local_date(job.rounded_start_utc, selected_local_date)
+    if job.rounded_end_utc is not None:
+        job.rounded_end_utc = enforce_minimum_rounded_end(
+            job.rounded_start_utc,
+            _replace_timestamp_local_date(job.rounded_end_utc, selected_local_date),
+        )
+    job.local_work_date = selected_local_date
+    return job
+
+
+def apply_unset_review_client(
+    job: Job,
+    *,
+    client_name: str | None,
+    autotask_company_id: int | str | None,
+) -> Job:
+    """Attach a first review client before ticket identity has been selected."""
+
+    ensure_job_is_not_locked_after_successful_submission(job)
+    if job.ticket_number or job.client_name or job.autotask_company_id is not None:
+        raise JobWorkflowError("Client identity is already selected for this job.")
+
+    normalized_client_name = normalize_client_name_required(client_name)
+    job.client_name = normalized_client_name
+    job.autotask_company_id = normalize_autotask_company_id(autotask_company_id)
+    return job
+
+
+def _replace_timestamp_local_date(timestamp: datetime, selected_local_date: date) -> datetime:
+    """Return a UTC timestamp with the same local time on a different local date."""
+
+    local_timestamp = to_local(timestamp)
+    shifted_local_timestamp = datetime.combine(
+        selected_local_date,
+        local_timestamp.time().replace(second=0, microsecond=0),
+        tzinfo=LOCAL_TIMEZONE,
+    )
+    return shifted_local_timestamp.astimezone(UTC)
 
 
 def delete_active_job(database_session: Session, job: Job) -> Job:

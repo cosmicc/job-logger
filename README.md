@@ -695,7 +695,10 @@ only on a typed name. During active work, that selected Autotask client is shown
 as read-only for the job so the client name cannot drift away from the company
 ID used for ticket lookup. Client names can still be typed manually before an
 Autotask company is selected. Ticket numbers are populated from open-ticket
-selection instead of manual entry.
+selection instead of manual entry. If an active job is opened from Review before
+any client has been selected, Review detail shows the same authenticated
+Autotask company search and saves the first client/company choice before ticket
+lookup.
 
 Autotask company search results and selected-company metadata are cached
 in-process for two hours because company names rarely change. Empty company
@@ -717,10 +720,13 @@ The mobile and review pages can query open Autotask tickets from the selected
 job's stored company ID or stored client name. If no tickets have been loaded,
 the whole Open tickets panel is clickable and keyboard-activatable. On mobile,
 that panel saves the current active-job client fields before loading open
-tickets. Saved clients do not auto-load tickets when the Work in Progress card
-renders; click the panel to load them. Both mobile and review ticket lookup show
-the spinner loading state while Autotask data is being fetched or a selected
-ticket is being saved. Open-ticket choices show the ticket number, title,
+tickets. On Review, an empty-client active job can first save a selected
+Autotask company through `/review/{job_id}/client`; after that, the normal open
+ticket lookup uses the stored company or client. Saved clients do not auto-load
+tickets when the Work in Progress card renders; click the panel to load them.
+Both mobile and review ticket lookup show the spinner loading state while
+Autotask data is being fetched or a selected ticket is being saved.
+Open-ticket choices show the ticket number, title,
 ticket status, company name, and detected `Remote`, `On-Site`, or `Not
 specified` work-location label from the ticket title and description.
 Remote/On-Site choices use the same color treatment as service-call cards on
@@ -734,6 +740,9 @@ after selection. Selection does not update Autotask ticket status. It stores
 verified local ticket metadata and defaults the editable local ticket status to
 `In progress`; the first Autotask write waits until the full time entry is
 submitted or an already submitted entry is explicitly edited/deleted.
+After an open ticket is selected, the stored client name becomes read-only for
+that job everywhere, including Work in Progress and Review, even if the client
+was typed manually and no Autotask company ID was stored.
 Long ticket descriptions stay inside a scrollable read-only box instead of
 expanding the mobile page indefinitely; phone-sized layouts cap that visible
 box at about 12 lines, and wider layouts cap it at about 25 lines. On the
@@ -780,10 +789,14 @@ The shared page data is styled through `app.css`, then viewport-specific
 and desktop browsers get appropriately sized layouts. In a full browser view,
 the `/home` Home screen lays out Start Work beside the service-call list, and
 Work in Progress puts job details beside notes and finish actions for easier
-scanning. Active Work in Progress cards use distinct slot shading so two active
-jobs are easier to distinguish, and the full-browser active-card finish/delete
-row sits directly below the **Record** and **AI Cleanup** row with recording and
-cleanup status text below all action buttons. Phone-sized authenticated layouts
+scanning. Active Work in Progress cards show an editable **Job date** calendar
+instead of the raw started timestamp, and changing it saves the selected local
+work date before Review or submission. Active cards also use distinct slot
+shading so two active jobs are easier to distinguish, and the full-browser
+active-card finish/delete row sits directly below the **Record** and
+**AI Cleanup** row with recording and cleanup status text below all action
+buttons. On phone-sized Review detail, Record and AI Cleanup status text also
+stays below the Review action buttons. Phone-sized authenticated layouts
 hide the brand mark and desktop logout button, place left navigation
 icons on the left, center the version link, and put right-side actions on the
 right. Managed web users see Home and Review on the left, with Config and a

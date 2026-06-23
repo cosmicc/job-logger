@@ -18,6 +18,20 @@ All notable changes to Job Logger are documented in this file.
   **Submit to Autotask** and **Delete** sit directly under **Record** and
   optional **AI Cleanup**, with recording and cleanup status text below all
   action buttons.
+- Changed active Work in Progress cards to show an editable **Job date**
+  calendar field instead of the raw started timestamp. The selected local date
+  is saved through the existing active-job autosave path and carries into
+  Review and Autotask submission.
+- Changed phone-sized Review detail so Record Audio and AI Cleanup status text
+  appears below the Review action buttons instead of between the summary tools
+  and submit/delete controls.
+- Added an Autotask company search field on Review detail when an active job
+  has no client selected yet. The first saved client/company is audited and
+  then becomes the same locked ticket/client identity used by normal Review
+  ticket lookup.
+- Changed Work in Progress and Review client locking so choosing an open ticket
+  makes the stored client name read-only everywhere for that job, including
+  manually typed clients without a stored Autotask company ID.
 - Changed service-call loading and service-call start verification to hide or
   reject service-call tickets when the current managed web user already has a
   local Job Logger time entry for the same ticket with ticket status

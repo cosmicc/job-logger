@@ -8,6 +8,10 @@ Short release notes shown on the authenticated `/changelog` page.
 - Review detail can now switch Remote or On-Site and updates the Summary notes prefix.
 - Work in Progress active job cards are easier to tell apart.
 - Full browser Work in Progress actions now keep finish and delete buttons directly under Record and AI Cleanup.
+- Work in Progress now has an editable Job date calendar.
+- Review detail can choose a client when an active entry was opened before a client was selected.
+- Choosing an open ticket now locks that job's client name everywhere.
+- Mobile Review status messages now stay below the action buttons.
 - Service-call starts now hide tickets already marked Complete in Job Logger.
 - Submitted Review entries now use a clearer Submit changes button.
 

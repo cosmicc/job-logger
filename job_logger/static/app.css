@@ -1488,12 +1488,26 @@ a:focus-visible {
   outline-offset: -2px;
 }
 
+.job-date-card,
 .work-location-card,
 .ticket-status-card,
 .ticket-number-card,
 .ticket-title-card,
-.ticket-description-card {
+.ticket-description-card,
+.review-client-name-card {
   min-width: 0;
+}
+
+.job-date-card label,
+.review-client-name-card label {
+  display: grid;
+  gap: 6px;
+}
+
+.job-date-card input {
+  min-height: 38px;
+  padding: 7px 9px;
+  font-size: 14px;
 }
 
 .review-work-location-card {
@@ -2582,6 +2596,12 @@ td a {
   display: grid;
   gap: 10px;
   margin-top: 14px;
+}
+
+.review-status-stack {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
 }
 
 .review-summary-action-row {
