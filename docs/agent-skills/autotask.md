@@ -124,26 +124,28 @@ Important rules:
 - Require authentication.
 - Return only safe company options: ID and display name.
 - Do not expose raw Autotask API responses to the browser.
-- Manual client names remain allowed.
-- Selected Autotask company IDs are preferred for exact ticket lookup.
+- Saving a client requires a selected Autotask company option. The submitted
+  display name and company ID must verify against the provider by ID before
+  either value is persisted.
+- Typed-only client names, missing company IDs, and names that do not match the
+  selected Autotask company ID must be rejected and not saved.
 - On the active mobile card, a selected Autotask company or selected open
   ticket locks the client identity and should be shown as read-only so the
   visible client name cannot drift away from the identity used for ticket
-  lookup. Ticket selection must lock the client even when the client was typed
-  manually and no Autotask company ID was stored.
+  lookup.
 - On review, stored client name, company ID, ticket number, ticket title, and
   ticket description are read-only identity/context fields. Save/accept
   handlers must overlay those values from the database before validation so
   crafted form posts cannot change which Autotask ticket receives time or what
   ticket context is displayed. The only review exception is an active job with
   no client name, company ID, or ticket number yet; `POST /review/{job_id}/client`
-  may save that first client/company selection and audit it before normal
-  open-ticket lookup.
+  may save that first verified client/company selection and audit it before
+  normal open-ticket lookup. Review client search input must not be included in
+  generic review autosave.
 
 Ticket lookup uses `/review/{job_id}/tickets`.
 
-Ticket lookup should prefer the stored Autotask company ID. If no company ID is
-stored, it can fall back to client-name matching.
+Ticket lookup requires the stored Autotask company ID and verified client name.
 
 Ticket options returned to the browser include safe ticket number, title,
 bounded description, status label, company name, and display-only work-location
@@ -167,7 +169,7 @@ the local editable ticket status to In progress. This selection path must not
 patch Autotask ticket status or perform any other remote write. While no ticket
 options are loaded, the mobile open-ticket panel itself is clickable and
 keyboard-activatable; that action first saves the active job's current client
-fields through `POST /jobs/{job_id}/ticket-number` with a JSON response, shows
+selection through `POST /jobs/{job_id}/ticket-number` with a JSON response, shows
 the spinner loading state, then loads open tickets from the server-verified
 lookup endpoint. The review open-ticket panel uses the same click-to-load
 pattern. When Review is opened for an active job that has no client yet, the

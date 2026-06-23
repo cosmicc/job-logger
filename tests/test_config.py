@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from job_logger import database
+from job_logger.config import load_settings
 from job_logger.enums import ThemeMode
 from job_logger.models import AuditEvent, UserPreference, WebUser
 from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as, login_as_super_admin, login_as_web_user
@@ -78,6 +79,19 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
         assert preference is not None
         assert preference.theme == ThemeMode.LIGHT
         assert preference.submit_from_work_in_progress is True
+
+
+def test_dev_build_flag_uses_strict_boolean_environment_value(monkeypatch) -> None:
+    """DEV_BUILD should opt in only when the deployment explicitly enables it."""
+
+    monkeypatch.delenv("DEV_BUILD", raising=False)
+    assert load_settings().dev_build is False
+
+    monkeypatch.setenv("DEV_BUILD", "true")
+    assert load_settings().dev_build is True
+
+    monkeypatch.setenv("DEV_BUILD", "false")
+    assert load_settings().dev_build is False
 
 
 def test_super_admin_has_no_config_menu_or_theme_preferences(client: TestClient) -> None:

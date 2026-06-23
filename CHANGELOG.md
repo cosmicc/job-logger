@@ -14,6 +14,11 @@ All notable changes to Job Logger are documented in this file.
   continue to parse that prefix back into the stored work-location mode.
 - Changed Work in Progress active-job cards to use distinct slot shading for
   Job 1 and Job 2, making concurrent active entries easier to distinguish.
+- Added a Docker/runtime `DEV_BUILD=true` flag that shows a small yellow
+  `DEV` badge in the authenticated desktop and mobile header so dev instances
+  are visually distinct from production.
+- Changed shared status chips to use a consistent outlined, all-caps pill
+  treatment while preserving the existing status color meanings.
 - Changed the full browser Work in Progress action order so **End Work** or
   **Submit to Autotask** and **Delete** sit directly under **Record** and
   optional **AI Cleanup**, with recording and cleanup status text below all
@@ -26,12 +31,16 @@ All notable changes to Job Logger are documented in this file.
   appears below the Review action buttons instead of between the summary tools
   and submit/delete controls.
 - Added an Autotask company search field on Review detail when an active job
-  has no client selected yet. The first saved client/company is audited and
-  then becomes the same locked ticket/client identity used by normal Review
-  ticket lookup.
+  has no client selected yet. Review uses the same server-backed client search
+  rules as Work in Progress, verifies the selected Autotask company ID and
+  display name before saving, rejects typed-only or mismatched client names,
+  and audits the first saved client/company before normal Review ticket lookup.
 - Changed Work in Progress and Review client locking so choosing an open ticket
-  makes the stored client name read-only everywhere for that job, including
-  manually typed clients without a stored Autotask company ID.
+  makes the stored client name read-only everywhere for that job.
+- Fixed Review client search so typing a client no longer triggers generic
+  review autosave or shows the Summary notes required warning; that empty-note
+  warning is reserved for AI Cleanup or workflow actions that actually require
+  notes.
 - Changed service-call loading and service-call start verification to hide or
   reject service-call tickets when the current managed web user already has a
   local Job Logger time entry for the same ticket with ticket status
@@ -46,6 +55,9 @@ All notable changes to Job Logger are documented in this file.
 - Added green/red Device sign-in key icons to the super-admin `/users` table so
   operators can see whether each managed web user has a registered passkey
   without exposing credential details.
+- Changed the full-browser `/users` layout to give the managed-user table the
+  full panel width, tighter fixed columns, compact icon controls, and
+  ellipsized long values so each row fits cleanly.
 - Added per-file **Download** buttons for retained automatic backups on
   `/debug`, using the same strict filename validation and sensitive-backup
   `no-store` response behavior as restore/download paths.

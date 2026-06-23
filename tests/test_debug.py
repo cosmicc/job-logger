@@ -499,7 +499,7 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
         f"/jobs/{active_job_id}/ticket-number",
         data={
             "csrf_token": csrf_token,
-            "client_name": "Debug Client",
+            "client_name": "Acme Services",
             "autotask_company_id": "1001",
         },
         follow_redirects=False,
@@ -522,7 +522,7 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
 
     end_response = authenticated_client.post(
         f"/jobs/{active_job_id}/end",
-        data={"csrf_token": csrf_token, "client_name": "Debug Client"},
+        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
         follow_redirects=False,
     )
     assert end_response.status_code == 303

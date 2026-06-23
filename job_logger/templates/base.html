@@ -27,6 +27,9 @@
       {% if current_username %}
         <div class="header-status-group desktop-status-group" aria-label="Application version">
           <a class="app-version-link" href="/changelog" aria-label="View changelog for version {{ app_version }}">v{{ app_version }}</a>
+          {% if dev_build %}
+            <span class="dev-build-pill" aria-label="Development build">DEV</span>
+          {% endif %}
         </div>
         <nav class="top-nav" aria-label="Primary navigation">
           {% if not current_is_super_admin %}
@@ -73,6 +76,9 @@
         </nav>
         <div class="header-status-group mobile-version-group" aria-label="Application version">
           <a class="app-version-link" href="/changelog" aria-label="View changelog for version {{ app_version }}">v{{ app_version }}</a>
+          {% if dev_build %}
+            <span class="dev-build-pill" aria-label="Development build">DEV</span>
+          {% endif %}
         </div>
         <nav class="mobile-nav-actions mobile-nav-right" aria-label="Mobile quick actions">
           {% if not current_is_super_admin %}

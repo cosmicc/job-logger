@@ -43,6 +43,7 @@ from job_logger.services.jobs import (
     submit_job_to_autotask,
     update_submitted_job_autotask_entry,
     validate_review_fields,
+    verify_autotask_client_selection,
 )
 from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
 from job_logger.time_utils import format_local_date, format_local_time
@@ -135,8 +136,8 @@ def review_ticket_options(
         job = get_job_or_raise(database_session, job_id)
         ensure_job_owned_by_web_user(job, web_user.id)
         ensure_job_is_not_locked_after_successful_submission(job)
-        if not job.client_name:
-            raise JobWorkflowError("Client name is required before searching Autotask tickets.")
+        if not job.client_name or job.autotask_company_id is None:
+            raise JobWorkflowError("Select a client from Autotask search results before searching Autotask tickets.")
 
         ticket_options = get_autotask_provider().list_open_tickets_for_client(
             job.client_name,
@@ -183,17 +184,8 @@ def _read_only_review_form_values(form_values: dict[str, str], job: object) -> d
     locked_form_values["ticket_title"] = getattr(job, "ticket_title", None) or ""
     locked_form_values["ticket_description"] = getattr(job, "ticket_description", None) or ""
     autotask_company_id = getattr(job, "autotask_company_id", None)
-    has_locked_client_identity = bool(
-        getattr(job, "ticket_number", None)
-        or getattr(job, "client_name", None)
-        or autotask_company_id is not None
-    )
-    if has_locked_client_identity:
-        locked_form_values["client_name"] = getattr(job, "client_name", None) or ""
-        locked_form_values["autotask_company_id"] = str(autotask_company_id) if autotask_company_id is not None else ""
-    else:
-        locked_form_values["client_name"] = form_values.get("client_name", "")
-        locked_form_values["autotask_company_id"] = form_values.get("autotask_company_id", "")
+    locked_form_values["client_name"] = getattr(job, "client_name", None) or ""
+    locked_form_values["autotask_company_id"] = str(autotask_company_id) if autotask_company_id is not None else ""
     work_location = getattr(job, "work_location", None)
     locked_form_values["work_location"] = work_location.value if work_location is not None else "remote"
     return locked_form_values
@@ -491,10 +483,18 @@ async def save_unset_review_client(
         web_user = _current_enabled_web_user(request, database_session)
         job = get_job_or_raise(database_session, job_id)
         ensure_job_owned_by_web_user(job, web_user.id)
+        if job.ticket_number or job.client_name or job.autotask_company_id is not None:
+            raise JobWorkflowError("Client identity is already selected for this job.")
+        verified_client_name, verified_company_id = verify_autotask_client_selection(
+            submitted_client_name,
+            submitted_autotask_company_id,
+            resource_id=web_user.autotask_resource_id,
+            required=True,
+        )
         apply_unset_review_client(
             job,
-            client_name=submitted_client_name,
-            autotask_company_id=submitted_autotask_company_id,
+            client_name=verified_client_name,
+            autotask_company_id=verified_company_id,
         )
         record_audit_event(
             database_session,
@@ -508,7 +508,7 @@ async def save_unset_review_client(
             },
         )
         database_session.commit()
-    except (HTTPException, JobWorkflowError, WebUserError) as exc:
+    except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
 
@@ -724,8 +724,8 @@ async def select_review_ticket(
         job = get_job_or_raise(database_session, job_id)
         ensure_job_owned_by_web_user(job, web_user.id)
         ensure_job_is_not_locked_after_successful_submission(job)
-        if not job.client_name:
-            raise JobWorkflowError("Client name is required before selecting an Autotask ticket.")
+        if not job.client_name or job.autotask_company_id is None:
+            raise JobWorkflowError("Select a client from Autotask search results before selecting an Autotask ticket.")
 
         ticket_options = get_autotask_provider().list_open_tickets_for_client(
             job.client_name,

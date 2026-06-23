@@ -48,6 +48,9 @@ button must submit the normal `/logout` form with the rendered CSRF token. Do
 not wire mobile logout through `window.close()`, `about:blank`, a GET link, or
 another browser-only action. Keep the explicit desktop logout form available on
 non-mobile authenticated pages.
+When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
+a small yellow `DEV` badge near the version link. Keep the badge compact so it
+does not crowd the mobile navigation icons.
 
 New blank work starts through `POST /jobs/start`. A user can also start work
 from an Autotask service call selected in the mobile day navigator through
@@ -86,10 +89,10 @@ Active jobs support these updates before completion:
   read-only context after a ticket is chosen.
 - Open-ticket option work-location label inferred from ticket title/description
   text, displayed as Remote, On-Site, or Not specified in the picker.
-- Client name while no Autotask company or open ticket has been selected for
-  the active job.
-- Selected Autotask company ID while the active job has not already locked an
-  Autotask company or open ticket.
+- Verified Autotask client selection while no Autotask company or open ticket
+  has been selected for the active job. The client name and company ID must
+  both come from the server-backed company search result and must verify
+  together before they are saved.
 - Summary notes.
 - Work location mode, either Remote or On-Site, which is stored separately from
   the visible notes.
@@ -121,7 +124,7 @@ time entry is submitted or an already submitted entry is edited/deleted. When
 an active job has no ticket number, the mobile page shows the open-ticket panel
 under the client field. The panel itself is the ticket-loading control while no
 ticket options have been loaded; clicking or pressing Enter/Space on the panel
-saves the current active client fields before querying Autotask and shows the
+saves the current verified active client selection before querying Autotask and shows the
 shared spinner loading state while the request is in flight. A job that already
 has a saved client does not auto-load the picker on mobile page open; the user
 must click or press Enter/Space on the panel to start the lookup. After
@@ -202,6 +205,8 @@ When two active jobs are present, their Work in Progress panels should use
 distinct slot shading. In full-browser layout, keep End Work/Delete directly
 under the Record/AI Cleanup row and place recording or AI cleanup status below
 all action buttons.
+Status chips shown in review, user management, and diagnostics should use the
+shared outlined, all-caps pill style while keeping their status-specific colors.
 
 ## Ending Work
 
@@ -346,7 +351,9 @@ Review supports:
   identity fields.
 - Saving the first client/company selection for an active job that was opened
   in Review before any client identity existed. This goes through
-  `POST /review/{job_id}/client` and becomes read-only once saved.
+  `POST /review/{job_id}/client`, must verify the selected company ID and
+  display name through the Autotask provider, rejects typed-only or mismatched
+  names, and becomes read-only once saved.
 - Editing ticket status, start date/time, end date/time, and summary notes
   before successful Autotask submission.
 - Recording additional audio notes on review detail before successful Autotask
@@ -360,8 +367,8 @@ Review supports:
   submission fields are present.
 - Editing or deleting already submitted entries that may have been created by
   Review acceptance or by direct Work in Progress submission.
-- Looking up open Autotask tickets for the stored selected company ID or client
-  name.
+- Looking up open Autotask tickets for the stored selected company ID and
+  verified client name.
 
 Ticket number is intentionally required only before Autotask submission, not for
 ordinary save operations.
@@ -402,9 +409,12 @@ title, ticket description, ticket number, client name, or company ID values on
 review save/accept; the route must overlay those fields from the stored job
 before validation. The empty-client active-job exception is
 `POST /review/{job_id}/client`, which may save only the first client/company
-while ticket number, client name, and company ID are all still unset. Once an
-open ticket has been selected, the client name is locked for the job even if it
-came from manually typed text and no Autotask company ID was stored.
+while ticket number, client name, and company ID are all still unset, and only
+after the Autotask provider verifies the selected ID and display name. The
+review client search input must be excluded from generic review autosave so
+typing a client cannot save arbitrary text or surface summary-note validation
+before the user presses AI Cleanup or submits a workflow action. Once an open
+ticket has been selected, the client name is locked for the job.
 
 When a ticket is selected from Autotask lookup, store the ticket title with the
 job and use it as the selected-job detail heading. If no ticket has been

@@ -7,13 +7,18 @@ Short release notes shown on the authenticated `/changelog` page.
 - Review rows now show whether each job is Remote or On-Site.
 - Review detail can now switch Remote or On-Site and updates the Summary notes prefix.
 - Work in Progress active job cards are easier to tell apart.
+- Dev builds can now show a yellow DEV badge in the top bar.
+- Status pills now use a cleaner outlined all-caps style.
 - Full browser Work in Progress actions now keep finish and delete buttons directly under Record and AI Cleanup.
 - Work in Progress now has an editable Job date calendar.
 - Review detail can choose a client when an active entry was opened before a client was selected.
+- Client selection now requires choosing an Autotask search result on Work in Progress and Review.
+- Review client search no longer shows a Summary notes warning while typing.
 - Choosing an open ticket now locks that job's client name everywhere.
 - Mobile Review status messages now stay below the action buttons.
 - Service-call starts now hide tickets already marked Complete in Job Logger.
 - Submitted Review entries now use a clearer Submit changes button.
+- User management rows now fit better on full browser screens.
 
 ## v1.1.2 - User management, ticket status, and Device sign-in updates
 

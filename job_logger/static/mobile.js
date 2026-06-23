@@ -706,13 +706,8 @@ function renderCompanyResults(companyInput, companies) {
 function queueCompanySearch(companyInput) {
   const queryText = toSafeMapString(companyInput.value).trim();
   const {companyIdInput} = getCompanyPickerElements(companyInput);
-  const parentForm = resolveFormForControl(companyInput);
   if (companyIdInput) {
     companyIdInput.value = "";
-  }
-
-  if (parentForm && parentForm.classList.contains("active-ticket-form")) {
-    queueActiveJobFormSave(parentForm);
   }
 
   clearTimeout(companySearchTimers.get(companyInput));

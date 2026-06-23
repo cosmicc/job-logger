@@ -37,8 +37,10 @@ role ID selected from that resource's active Autotask `ResourceServiceDeskRoles`
 The `/users` page presents managed accounts in a table with visible stored email
 and default-role metadata, last successful managed-user login time, green/red
 Device sign-in passkey status icons, and icon-only row actions for edit,
-enable/disable, and delete-as-disable. The add form may suggest usernames from
-full names, such as `jblow` for `Joe Blow`, and add/edit forms may query
+enable/disable, and delete-as-disable. The full-browser user table should use
+the full panel width, compact fixed columns, and ellipsized long values so rows
+fit without wrapping into multiple lines. The add form may suggest usernames
+from full names, such as `jblow` for `Joe Blow`, and add/edit forms may query
 Autotask Resources and active service-desk roles for super-admin-only resource
 and role pickers. The role picker should show Autotask `Roles.name` labels when
 that metadata is readable while storing only the selected numeric `roleID` on
@@ -157,6 +159,9 @@ Recorded jobs follow this lifecycle:
    all jobs but cannot mutate them.
 5. The review page allows time, status, and notes to be edited before
    acceptance while keeping the selected Autotask client and ticket read-only.
+   Client identity must come from a selected Autotask company search result;
+   typed names that do not match the verified selected company ID must be
+   rejected and not saved.
    If an active job is opened in Review before any client has been selected,
    Review detail may save the first client/company through the authenticated
    Autotask company search; after that selection, or after any open ticket is
@@ -327,6 +332,9 @@ The default is the dark theme. Light theme support must cover mobile, review,
 user management, config, debug, and login surfaces through shared CSS variables
 instead of a separate unaudited template branch. Super-admin pages always use
 dark mode.
+When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
+must show a small yellow `DEV` badge near the version link so dev instances are
+visually distinct from production.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows only the discreet version link, compact
@@ -354,10 +362,13 @@ ticket or client identity to edits. The selected Autotask client name, company
 ID, ticket number, and ticket title are read-only identity fields populated from
 Autotask lookup and must not be editable on the review page. The only exception
 is the empty-identity active-job case, where Review detail may expose Autotask
-company search to save the first client/company before ticket lookup.
+company search to save the first verified client/company before ticket lookup.
+Review client searching must not run the generic review autosave or show
+summary-note validation while the user is typing a client; an empty summary
+warning should appear only when AI Cleanup is pressed without notes or when the
+user submits a workflow action that requires summary notes.
 Once an open ticket has been chosen, the stored client name becomes read-only
-everywhere for that job, even if the client was typed manually and no Autotask
-company ID was stored.
+everywhere for that job.
 Work in Progress and review detail action controls should stay compact and
 scannable on both phone and full browser layouts. Use paired button rows when
 two actions naturally belong together, such as **Record** with **AI Cleanup**,
@@ -366,6 +377,9 @@ delete action. Never place more than two action buttons in one row. On
 phone-sized Review detail, recording and AI cleanup status text belongs below
 the summary action row and the review workflow action row, not between those
 button groups.
+Status chips across review, diagnostics, and user management should use the
+shared outlined, all-caps pill treatment while preserving status-specific
+colors.
 
 All state-changing actions must be explicit and auditable.
 
@@ -527,7 +541,8 @@ The application is a FastAPI project under `job_logger/`.
   managed web-user sessions that were disabled or administratively invalidated.
 - `job_logger/config.py` loads every runtime setting from environment variables.
   Production must use `AUTOTASK_PROVIDER=autotask`; Autotask resource IDs are
-  stored on managed web users, not in config.
+  stored on managed web users, not in config. `DEV_BUILD=true` marks a dev
+  runtime with the authenticated header badge.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.
 - `job_logger/models.py` defines persistent tables for managed web users,
   managed-user session invalidation cutoffs, per-user preferences, jobs, audit
@@ -655,8 +670,9 @@ The normal workflow is:
    owned by that web user without first probing Autotask. At most two active
    jobs may exist at once per web user.
 7. After the job starts, the user may adjust the editable local **Job date** and
-   enters/selects an Autotask company by client name. Manual client text is
-   allowed, but selected company IDs are preferred for exact ticket lookup.
+   search Autotask companies by client name. The saved client must be selected
+   from a server-returned Autotask company option so the client display name and
+   company ID verify together; typed-only names must not be saved.
 8. User chooses an open Autotask ticket from the active-job ticket panel. If no
    tickets are loaded yet, the whole panel is the load control and shows a
    spinner while Autotask data is being queried. Ticket options show detected
@@ -693,19 +709,18 @@ The normal workflow is:
    during cleanup. The returned text replaces the summary textarea and remains
    subject to normal save/review behavior.
 12. User can save active job edits before ending work.
-13. User ends work with a mandatory client name. With the default workflow, the
+13. User ends work with a mandatory verified Autotask client. With the default workflow, the
     active-card **End Work** action shares a row with the destructive **Delete**
     action, and the job moves to review. If **Submit from Work in Progress** is
     enabled, the end-work action submits to Autotask immediately after
-    validating ticket number, ticket status, rounded end time, client, and
+    validating ticket number, ticket status, rounded end time, verified client, and
     summary notes. Missing local submission fields leave the job active so the
     user can fix them; Autotask provider failures move the job to the
     failed-submission review state with the safe error message.
 14. User reviews the job from `/review`, edits time/status/notes if needed,
     optionally records more audio notes before Autotask submission, and keeps
-    the selected client/ticket identity read-only once selected. Choosing an
-    open ticket locks the client name even when no Autotask company ID was
-    stored. If the job is still active and has no selected client, Review
+    the selected client/ticket identity read-only once selected. If the job is
+    still active and has no selected client, Review
     detail can save the first client/company from the same server-backed
     Autotask company search before ticket lookup. Review detail groups action
     controls into compact rows with at most two buttons per row; submitted

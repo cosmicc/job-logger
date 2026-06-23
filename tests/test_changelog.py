@@ -76,13 +76,18 @@ def test_changelog_parser_reads_current_release() -> None:
             "Review rows now show whether each job is Remote or On-Site.",
             "Review detail can now switch Remote or On-Site and updates the Summary notes prefix.",
             "Work in Progress active job cards are easier to tell apart.",
+            "Dev builds can now show a yellow DEV badge in the top bar.",
+            "Status pills now use a cleaner outlined all-caps style.",
             "Full browser Work in Progress actions now keep finish and delete buttons directly under Record and AI Cleanup.",
             "Work in Progress now has an editable Job date calendar.",
             "Review detail can choose a client when an active entry was opened before a client was selected.",
+            "Client selection now requires choosing an Autotask search result on Work in Progress and Review.",
+            "Review client search no longer shows a Summary notes warning while typing.",
             "Choosing an open ticket now locks that job's client name everywhere.",
             "Mobile Review status messages now stay below the action buttons.",
             "Service-call starts now hide tickets already marked Complete in Job Logger.",
             "Submitted Review entries now use a clearer Submit changes button.",
+            "User management rows now fit better on full browser screens.",
         ),
     )
 
@@ -115,13 +120,18 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Review rows now show whether each job is Remote or On-Site." in response.text
     assert "Review detail can now switch Remote or On-Site and updates the Summary notes prefix." in response.text
     assert "Work in Progress active job cards are easier to tell apart." in response.text
+    assert "Dev builds can now show a yellow DEV badge in the top bar." in response.text
+    assert "Status pills now use a cleaner outlined all-caps style." in response.text
     assert "Full browser Work in Progress actions now keep finish and delete buttons directly under Record and AI Cleanup." in response.text
     assert "Work in Progress now has an editable Job date calendar." in response.text
     assert "Review detail can choose a client when an active entry was opened before a client was selected." in response.text
+    assert "Client selection now requires choosing an Autotask search result on Work in Progress and Review." in response.text
+    assert "Review client search no longer shows a Summary notes warning while typing." in response.text
     assert "Choosing an open ticket now locks that job&#39;s client name everywhere." in response.text
     assert "Mobile Review status messages now stay below the action buttons." in response.text
     assert "Service-call starts now hide tickets already marked Complete in Job Logger." in response.text
     assert "Submitted Review entries now use a clearer Submit changes button." in response.text
+    assert "User management rows now fit better on full browser screens." in response.text
     assert "User management, ticket status, and Device sign-in updates" in response.text
     assert "User management rows are more compact and easier to scan." in response.text
     assert "Passkey setup and login buttons now use the clearer Device sign-in name." in response.text

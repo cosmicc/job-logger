@@ -38,6 +38,11 @@
   padding: 4px 9px;
 }
 
+.dev-build-pill {
+  min-height: 30px;
+  padding: 4px 8px;
+}
+
 .mobile-nav-actions {
   display: flex;
   gap: 6px;

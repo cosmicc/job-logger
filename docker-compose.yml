@@ -10,6 +10,7 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-job_logger}:${POSTGRES_PASSWORD:-job_logger_password}@db:5432/${POSTGRES_DB:-job_logger}
       APP_HOST: 0.0.0.0
       APP_ENV: ${APP_ENV:-development}
+      DEV_BUILD: ${DEV_BUILD:-false}
       APP_SECRET_KEY: ${APP_SECRET_KEY:-development-only-change-me}
       APP_USERNAME: ${APP_USERNAME:-admin}
       APP_PASSWORD: ${APP_PASSWORD:-admin}

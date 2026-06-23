@@ -59,6 +59,7 @@ from job_logger.services.jobs import (
     transcribe_active_job_audio,
     update_active_job_ticket_number,
     update_description_text,
+    verify_autotask_client_selection,
 )
 from job_logger.services.passkeys import passkey_credential_count_for_user
 from job_logger.services.preferences import (
@@ -832,7 +833,7 @@ async def start_work(
         )
         database_session.commit()
         add_flash_message(request, "Work started.", "success")
-    except (HTTPException, JobWorkflowError, WebUserError) as exc:
+    except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
@@ -958,6 +959,18 @@ async def save_ticket_number(
         web_user = _current_enabled_web_user(request, database_session)
         existing_job = get_job_or_raise(database_session, job_id)
         ensure_job_owned_by_web_user(existing_job, web_user.id)
+        if (
+            submitted_client_name is not None
+            and existing_job.autotask_company_id is None
+            and not existing_job.ticket_number
+        ):
+            verified_client_name, verified_company_id = verify_autotask_client_selection(
+                submitted_client_name,
+                submitted_autotask_company_id,
+                resource_id=web_user.autotask_resource_id,
+            )
+            submitted_client_name = verified_client_name
+            submitted_autotask_company_id = str(verified_company_id) if verified_company_id is not None else None
         job = update_active_job_ticket_number(
             database_session,
             job_id,
@@ -1003,7 +1016,7 @@ async def save_ticket_number(
                 }
             )
         add_flash_message(request, "Active job changes saved.", "success")
-    except (HTTPException, JobWorkflowError, WebUserError) as exc:
+    except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         if wants_json_response:
             return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
@@ -1030,8 +1043,8 @@ async def select_active_ticket(
         ensure_job_owned_by_web_user(job, web_user.id)
         if job.status != JobStatus.ACTIVE:
             raise JobWorkflowError("Tickets can only be selected from mobile during an active job.")
-        if not job.client_name:
-            raise JobWorkflowError("Client name is required before selecting an Autotask ticket.")
+        if not job.client_name or job.autotask_company_id is None:
+            raise JobWorkflowError("Select a client from Autotask search results before selecting a ticket.")
 
         ticket_options = get_autotask_provider().list_open_tickets_for_client(
             job.client_name,
@@ -1114,7 +1127,7 @@ async def delete_open_job(
         )
         database_session.commit()
         add_flash_message(request, "Open job deleted.", "success")
-    except (HTTPException, JobWorkflowError, WebUserError) as exc:
+    except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
@@ -1150,7 +1163,7 @@ async def adjust_start_time(
         )
         database_session.commit()
         add_flash_message(request, "Rounded start time adjusted.", "success")
-    except (HTTPException, JobWorkflowError, WebUserError) as exc:
+    except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
@@ -1186,7 +1199,7 @@ async def adjust_stop_time(
         )
         database_session.commit()
         add_flash_message(request, "Rounded stop time adjusted.", "success")
-    except (HTTPException, JobWorkflowError, WebUserError) as exc:
+    except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
@@ -1222,6 +1235,15 @@ async def end_work(
         web_user = _current_enabled_web_user(request, database_session)
         existing_job = get_job_or_raise(database_session, job_id)
         ensure_job_owned_by_web_user(existing_job, web_user.id)
+        if existing_job.autotask_company_id is None and not existing_job.ticket_number:
+            verified_client_name, verified_company_id = verify_autotask_client_selection(
+                submitted_client_name,
+                submitted_autotask_company_id,
+                resource_id=web_user.autotask_resource_id,
+                required=True,
+            )
+            submitted_client_name = verified_client_name
+            submitted_autotask_company_id = str(verified_company_id) if verified_company_id is not None else None
         update_active_job_ticket_number(
             database_session,
             job_id,
@@ -1281,7 +1303,7 @@ async def end_work(
                 add_flash_message(request, "Work ended and submitted to Autotask.", "success")
         else:
             add_flash_message(request, "Work ended and moved to review.", "success")
-    except (HTTPException, JobWorkflowError, WebUserError) as exc:
+    except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
@@ -148,6 +149,12 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert 'name="autotask_default_service_desk_role_id"' in users_page.text
     assert 'data-autotask-role-url="/users/autotask-resource-roles"' in users_page.text
     assert 'data-role-select' in users_page.text
+
+    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
+    assert ".users-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);" in stylesheet
+    assert ".users-table {\n  width: 100%;\n  min-width: 980px;" in stylesheet
+    assert "white-space: nowrap;" in stylesheet
+    assert ".add-user-panel {\n  position: static;" in stylesheet
     assert 'data-resource-results hidden' in users_page.text
     assert f"/static/users.js?v={static_asset_version()}" in users_page.text
     assert "The config super admin is intentionally not listed here." in users_page.text

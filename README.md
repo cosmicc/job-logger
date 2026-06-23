@@ -1,8 +1,8 @@
 # Job Logger
 
 Job Logger is a security-focused Dockerized Python web application for quickly
-recording work time from a phone, reviewing or directly submitting recorded
-jobs, and sending accepted work to Autotask.
+recording Autotask time entries from a phone or web browser, reviewing or directly submitting recorded
+jobs, and sending accepted time entries to your Autotask timesheet.
 
 ## Architecture
 
@@ -61,6 +61,8 @@ Autotask REST API references used by this app:
    ownership before it drops to the unprivileged `appuser`. Set `LOG_LEVEL` to
    `DEBUG`, `INFO`, `WARNING`, or `ERROR` to control how much detail is written
    to `${LOG_DIR}/app.log`; Docker defaults to `INFO`.
+   Set `DEV_BUILD=true` only for dev deployments that should show a yellow
+   `DEV` badge in the authenticated desktop and mobile top bar.
 
 5. Start the stack:
 
@@ -136,6 +138,8 @@ Keep the dev instance isolated from production:
   directory, and host log directory so dev cannot overwrite production data.
 - Use a different `NGINX_PUBLIC_PORT`, such as `11031`, if production and dev
   run on the same Docker host.
+- Set `DEV_BUILD=true` in the dev `.env` so the authenticated header clearly
+  marks the instance as dev.
 - Use real Autotask credentials only when the dev workflow intentionally needs
   live Autotask testing. Keep `AUTOTASK_PROVIDER=mock` for isolated UI or
   workflow-only checks.
@@ -146,6 +150,7 @@ Example same-host dev startup:
 COMPOSE_PROJECT_NAME=job_logger_dev \
 HOST_LOG_DIR=/var/log/job-logger-dev \
 NGINX_PUBLIC_PORT=11031 \
+DEV_BUILD=true \
 docker compose up -d --build
 ```
 
@@ -436,6 +441,8 @@ operators and agents. `WEB_CHANGELOG.md` is only for user-facing changes; keep
 diagnostics, debug-page, super-admin-only, operator-only, and agent-facing notes
 in `CHANGELOG.md` only. The changelog page uses the same authenticated session,
 dark/light theme variables, and responsive layout system as the rest of the app.
+When Docker/runtime `DEV_BUILD=true`, the same authenticated header also shows a
+small yellow `DEV` badge on desktop and phone layouts.
 
 ## Provider Modes
 
@@ -682,23 +689,24 @@ This option is off by default so existing accounts keep the review-first
 workflow. When enabled, the active Work in Progress finish button changes to
 **Submit to Autotask** and uses the same idempotent Autotask submission service
 as Review acceptance. Direct submission still requires the selected ticket
-number, ticket status, rounded end time, client, and summary notes. If those
-local fields are missing, the job stays active so the technician can correct
-it. If Autotask itself rejects the submission, the job moves to the failed
-submission review state with the safe error message and can be retried from
-Review.
+number, ticket status, rounded end time, verified Autotask client, and summary
+notes. If those local fields are missing, the job stays active so the
+technician can correct it. If Autotask itself rejects the submission, the job
+moves to the failed submission review state with the safe error message and can
+be retried from Review.
 
 The mobile page can search Autotask companies while entering the client name.
-Selecting a company stores the display name and Autotask company ID with the job
-so open-ticket lookup can target the exact selected company instead of relying
-only on a typed name. During active work, that selected Autotask client is shown
-as read-only for the job so the client name cannot drift away from the company
-ID used for ticket lookup. Client names can still be typed manually before an
-Autotask company is selected. Ticket numbers are populated from open-ticket
-selection instead of manual entry. If an active job is opened from Review before
-any client has been selected, Review detail shows the same authenticated
-Autotask company search and saves the first client/company choice before ticket
-lookup.
+Selecting a company stores the verified display name and Autotask company ID
+with the job so open-ticket lookup targets the exact selected company. Typed
+client text that was not selected from Autotask search results is rejected and
+not saved. During active work, that selected Autotask client is shown as
+read-only for the job so the client name cannot drift away from the company ID
+used for ticket lookup. Ticket numbers are populated from open-ticket selection
+instead of manual entry. If an active job is opened from Review before any
+client has been selected, Review detail shows the same authenticated Autotask
+company search and saves the first verified client/company choice before ticket
+lookup. Typing in that Review client search does not trigger review autosave or
+summary-note warnings.
 
 Autotask company search results and selected-company metadata are cached
 in-process for two hours because company names rarely change. Empty company
@@ -717,12 +725,13 @@ customer or ticket lists. For POST query pagination, Job Logger follows
 follow-up calls for those resources.
 
 The mobile and review pages can query open Autotask tickets from the selected
-job's stored company ID or stored client name. If no tickets have been loaded,
-the whole Open tickets panel is clickable and keyboard-activatable. On mobile,
-that panel saves the current active-job client fields before loading open
-tickets. On Review, an empty-client active job can first save a selected
+job's stored Autotask company ID and verified client name. If no tickets have
+been loaded, the whole Open tickets panel is clickable and
+keyboard-activatable. On mobile, that panel saves the current verified
+active-job client selection before loading open tickets. On Review, an
+empty-client active job can first save a selected
 Autotask company through `/review/{job_id}/client`; after that, the normal open
-ticket lookup uses the stored company or client. Saved clients do not auto-load
+ticket lookup uses the stored company selection. Saved clients do not auto-load
 tickets when the Work in Progress card renders; click the panel to load them.
 Both mobile and review ticket lookup show the spinner loading state while
 Autotask data is being fetched or a selected ticket is being saved.
@@ -741,8 +750,7 @@ verified local ticket metadata and defaults the editable local ticket status to
 `In progress`; the first Autotask write waits until the full time entry is
 submitted or an already submitted entry is explicitly edited/deleted.
 After an open ticket is selected, the stored client name becomes read-only for
-that job everywhere, including Work in Progress and Review, even if the client
-was typed manually and no Autotask company ID was stored.
+that job everywhere, including Work in Progress and Review.
 Long ticket descriptions stay inside a scrollable read-only box instead of
 expanding the mobile page indefinitely; phone-sized layouts cap that visible
 box at about 12 lines, and wider layouts cap it at about 25 lines. On the
@@ -987,9 +995,10 @@ a valid later end time on the same job date.
 ## Ticket Numbers
 
 The mobile page starts jobs without ticket or client fields. After work starts,
-select the client on the active job card, then choose an open Autotask ticket
-from the returned list. The ticket number is not manually editable on mobile;
-the open-ticket selection fills and saves it automatically.
+select a client from Autotask company search on the active job card, then choose
+an open Autotask ticket from the returned list. The ticket number is not
+manually editable on mobile; the open-ticket selection fills and saves it
+automatically.
 
 Open in-progress jobs also have a **Delete** action on the mobile work card.
 That action discards only the active job before it reaches review history and

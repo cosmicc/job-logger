@@ -355,6 +355,12 @@ class AutotaskSubmissionError(RuntimeError):
     """Raised for configuration or remote Autotask failures."""
 
 
+MOCK_COMPANY_OPTIONS = (
+    AutotaskCompanyOption(company_id=1001, company_name="Acme Services"),
+    AutotaskCompanyOption(company_id=1002, company_name="Acme Holdings"),
+)
+
+
 class BaseAutotaskProvider:
     """Interface implemented by all Autotask providers."""
 
@@ -406,6 +412,11 @@ class BaseAutotaskProvider:
 
     def search_companies(self, query_text: str, *, resource_id: int | None = None) -> list[AutotaskCompanyOption]:
         """Return matching Autotask companies for an autocomplete query."""
+
+        raise NotImplementedError
+
+    def get_company_by_id(self, company_id: int, *, resource_id: int | None = None) -> AutotaskCompanyOption | None:
+        """Return one active Autotask company by its selected ID."""
 
         raise NotImplementedError
 
@@ -813,10 +824,20 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         if len(safe_query_text) < MIN_COMPANY_SEARCH_CHARACTERS:
             raise AutotaskSubmissionError("Type at least 3 characters before searching Autotask companies.")
 
+        normalized_query_text = safe_query_text.casefold()
         return [
-            AutotaskCompanyOption(company_id=1001, company_name=f"{safe_query_text} Services"),
-            AutotaskCompanyOption(company_id=1002, company_name=f"{safe_query_text} Holdings"),
+            company_option
+            for company_option in MOCK_COMPANY_OPTIONS
+            if normalized_query_text in company_option.company_name.casefold()
         ]
+
+    def get_company_by_id(self, company_id: int, *, resource_id: int | None = None) -> AutotaskCompanyOption | None:
+        """Return deterministic selected-company records for local testing."""
+
+        for company_option in MOCK_COMPANY_OPTIONS:
+            if company_option.company_id == company_id:
+                return company_option
+        return None
 
     def search_resources(self, query_text: str) -> list[AutotaskResourceOption]:
         """Return deterministic resource options for local web-user setup."""
@@ -2018,6 +2039,18 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             )
             for company in companies
         ]
+
+    def get_company_by_id(self, company_id: int, *, resource_id: int | None = None) -> AutotaskCompanyOption | None:
+        """Return one active Autotask company by selected ID for server validation."""
+
+        with self._client() as client:
+            company = self._query_company_by_id(client, company_id)
+        if company is None:
+            return None
+        return AutotaskCompanyOption(
+            company_id=int(company["id"]),
+            company_name=str(company.get("companyName") or "Unnamed company")[:120],
+        )
 
     def search_resources(self, query_text: str) -> list[AutotaskResourceOption]:
         """Return likely Autotask resources for a managed web-user name."""

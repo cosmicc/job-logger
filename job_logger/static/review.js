@@ -108,6 +108,11 @@ function setReviewAutosaveStatus(message, isError = false) {
   reviewAutosaveStatus.classList.toggle("error-text", isError);
 }
 
+function shouldSuppressReviewAutosaveError(errorMessage) {
+  const summaryTextarea = findReviewSummaryTextarea();
+  return errorMessage === "Summary notes are required." && (!summaryTextarea || !summaryTextarea.value.trim());
+}
+
 function showReviewPageLoading(message) {
   if (!reviewPageLoadingOverlay) {
     return;
@@ -235,6 +240,9 @@ function renderReviewCompanyResults(companyInput, companies) {
       optionButton.disabled = true;
       try {
         const savedClient = await saveReviewClientSelection(companyInput, selectedClientName, selectedCompanyId);
+        companyInput.readOnly = true;
+        companyInput.setAttribute("aria-readonly", "true");
+        companyInput.classList.add("is-locked-client-input");
         setReviewCompanyStatus(companyInput, "Client saved.");
         document.dispatchEvent(new CustomEvent("reviewClientSelected", {detail: savedClient}));
       } catch (error) {
@@ -940,7 +948,12 @@ function persistReviewAutosaveSnapshot(queuedSnapshot) {
       queueReviewAutosave(true);
     })
     .catch((error) => {
-      setReviewAutosaveStatus(error.message || "Review changes could not be saved.", true);
+      const errorMessage = error.message || "Review changes could not be saved.";
+      if (shouldSuppressReviewAutosaveError(errorMessage)) {
+        setReviewAutosaveStatus("");
+        return;
+      }
+      setReviewAutosaveStatus(errorMessage, true);
     });
 }
 
@@ -987,6 +1000,9 @@ function bindReviewAutosave() {
   const autosaveControls = reviewAutosaveForm.querySelectorAll("input, select, textarea");
   for (const control of autosaveControls) {
     if (control.type === "hidden" || control.name === "csrf_token" || control.disabled) {
+      continue;
+    }
+    if (control.dataset && Object.prototype.hasOwnProperty.call(control.dataset, "reviewCompanyInput")) {
       continue;
     }
 
@@ -1098,8 +1114,7 @@ function bindTicketLookup() {
   let isLookupInProgress = false;
 
   function currentTicketClientName() {
-    const inputClientName = reviewClientNameInput ? toSafeMapString(reviewClientNameInput.value).trim() : "";
-    return inputClientName || toSafeMapString(ticketPicker.dataset.ticketClientName).trim();
+    return toSafeMapString(ticketPicker.dataset.ticketClientName).trim();
   }
 
   function applySavedClientToPicker(savedClient) {
@@ -1107,6 +1122,9 @@ function bindTicketLookup() {
     ticketPicker.dataset.ticketClientName = savedClientName;
     if (reviewClientNameInput) {
       reviewClientNameInput.value = savedClientName;
+      reviewClientNameInput.readOnly = true;
+      reviewClientNameInput.setAttribute("aria-readonly", "true");
+      reviewClientNameInput.classList.add("is-locked-client-input");
     }
     if (ticketClientLabel) {
       ticketClientLabel.textContent = savedClientName || "No client name set";

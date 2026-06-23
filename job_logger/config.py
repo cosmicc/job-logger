@@ -116,6 +116,9 @@ class Settings:
     # APP_ENV controls production-only safety checks and diagnostic verbosity.
     app_environment: str
 
+    # DEV_BUILD marks a Docker/dev deployment with a visible yellow header badge.
+    dev_build: bool
+
     # APP_SECRET_KEY signs session cookies and CSRF state.
     app_secret_key: str
 
@@ -318,6 +321,7 @@ def load_settings() -> Settings:
 
     return Settings(
         app_environment=os.getenv("APP_ENV", "development"),
+        dev_build=_get_boolean("DEV_BUILD", False),
         app_secret_key=os.getenv("APP_SECRET_KEY", "development-only-change-me"),
         database_url=os.getenv(
             "DATABASE_URL",

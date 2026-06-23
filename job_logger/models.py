@@ -282,15 +282,16 @@ class Job(Base):
         comment="Mobile concurrent job slot (1 for job 1, 2 for job 2).",
     )
 
-    # client_name stores user-provided client context for quick reference at review time.
+    # client_name stores the verified Autotask company display name selected
+    # from company lookup, not arbitrary typed reference text.
     client_name: Mapped[str | None] = mapped_column(
         String(120),
         nullable=True,
-        comment="Client reference typed when work starts.",
+        comment="Verified Autotask company display name selected from lookup.",
     )
 
-    # autotask_company_id stores the selected Autotask company/account ID when a
-    # user chooses a company from server-side Autotask search results.
+    # autotask_company_id stores the matching Autotask company/account ID for
+    # the selected company name.
     autotask_company_id: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,

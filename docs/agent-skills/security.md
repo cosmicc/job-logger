@@ -153,6 +153,8 @@ limited to `DEBUG`, `INFO`, `WARNING`, or `ERROR`. `/debug` may also show disk
 usage for app-visible storage paths such as `/`, `${LOG_DIR}`, and
 `${AUTOMATIC_BACKUP_DIR}`. Keep disk diagnostics read-only and limited to path,
 usage, and warning/critical metadata.
+`DEV_BUILD=true` is a display-only runtime marker for the authenticated header;
+do not use it as an authorization, environment-isolation, or safety boundary.
 
 ## CSRF Rules
 
@@ -305,15 +307,20 @@ ticket status to In progress until the time entry is submitted.
 
 Review detail may save a first client/company selection only when an active job
 has no client name, company ID, or ticket number yet. That route must require
-managed-user authentication, CSRF, job ownership, and an audit event. Once any
-client/company/ticket identity exists, review save/accept/ticket routes must
-continue to use the database row as authoritative instead of trusting browser
-fields.
+managed-user authentication, CSRF, job ownership, provider verification that
+the submitted display name matches the selected Autotask company ID, and an
+audit event. Typed-only client names, missing company IDs, and mismatched names
+must be rejected without persistence. Review client search must not reuse the
+generic review autosave path because typed search text is not trusted client
+identity. Once any client/company/ticket identity exists, review
+save/accept/ticket routes must continue to use the database row as authoritative
+instead of trusting browser fields.
 Active Work in Progress saves and end-work requests must also treat client
-identity as locked after either an Autotask company or open ticket is selected.
-Readonly inputs and hidden client fields are only convenience values for normal
-form flow; crafted requests must not be able to change the stored client name
-or attach a different company ID after a ticket exists.
+identity as a selected Autotask company before it can be saved or used for
+ticket lookup, and as locked after either an Autotask company or open ticket is
+selected. Readonly inputs and hidden client fields are only convenience values
+for normal form flow; crafted requests must not be able to change the stored
+client name or attach a different company ID after a ticket exists.
 
 Autotask ticket descriptions are remote provider data shown as read-only job
 context. Store only the bounded description returned by the server-side verified

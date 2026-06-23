@@ -81,7 +81,9 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
 
               function makeControl({{tagName = "INPUT", type = "text", name, value = "", disabled = false}}) {{
                 return {{
+                  attributes: {{}},
                   disabled,
+                  dataset: {{}},
                   name,
                   tagName,
                   type,
@@ -89,6 +91,43 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                   eventHandlers: {{}},
                   addEventListener(eventName, handler) {{
                     this.eventHandlers[eventName] = handler;
+                  }},
+                  getAttribute(attributeName) {{
+                    return this.attributes[attributeName] || "";
+                  }},
+                  setAttribute(attributeName, value) {{
+                    this.attributes[attributeName] = String(value);
+                  }},
+                }};
+              }}
+
+              function makeElement(tagName = "DIV") {{
+                return {{
+                  attributes: {{}},
+                  children: [],
+                  classList: noopClassList,
+                  className: "",
+                  disabled: false,
+                  eventHandlers: {{}},
+                  tagName,
+                  textContent: "",
+                  value: "",
+                  addEventListener(eventName, handler) {{
+                    this.eventHandlers[eventName] = handler;
+                  }},
+                  append(...children) {{
+                    this.children.push(...children);
+                    this.textContent = this.children.map((child) => child.textContent || "").join("");
+                  }},
+                  getAttribute(attributeName) {{
+                    return this.attributes[attributeName] || "";
+                  }},
+                  replaceChildren(...children) {{
+                    this.children = [...children];
+                    this.textContent = this.children.map((child) => child.textContent || "").join("");
+                  }},
+                  setAttribute(attributeName, value) {{
+                    this.attributes[attributeName] = String(value);
                   }},
                 }};
               }}
@@ -99,6 +138,36 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
               const startTimeInput = makeControl({{name: "start_time", value: "8:00 am"}});
               const endTimeInput = makeControl({{name: "end_time", value: "8:15 am"}});
               const summaryTextarea = makeControl({{tagName: "TEXTAREA", name: "summary_notes", value: "Initial review notes."}});
+              const companyIdInput = makeControl({{type: "hidden", name: "autotask_company_id", value: ""}});
+              companyIdInput.dataset = {{reviewCompanyIdInput: ""}};
+              const companyResults = makeElement("DIV");
+              const companyStatus = makeElement("P");
+              const reviewCompanyCard = {{
+                querySelector(selector) {{
+                  if (selector === "[data-company-results]") {{
+                    return companyResults;
+                  }}
+                  if (selector === "[data-company-status]") {{
+                    return companyStatus;
+                  }}
+                  return null;
+                }},
+              }};
+              const reviewCompanyInput = makeControl({{name: "client_name", value: ""}});
+              reviewCompanyInput.dataset = {{
+                reviewCompanyInput: "",
+                reviewClientNameInput: "",
+                reviewClientSaveUrl: "/review/job-1/client",
+              }};
+              reviewCompanyInput.closest = (selector) => {{
+                if (selector === "form") {{
+                  return reviewAutosaveForm;
+                }}
+                if (selector === ".review-client-name-card") {{
+                  return reviewCompanyCard;
+                }}
+                return null;
+              }};
               const reviewControls = [
                 csrfInput,
                 ticketStatusSelect,
@@ -106,6 +175,8 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                 startTimeInput,
                 endTimeInput,
                 summaryTextarea,
+                reviewCompanyInput,
+                companyIdInput,
               ];
               const aiCleanupStatus = {{
                 classList: noopClassList,
@@ -116,6 +187,9 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                 querySelector(selector) {{
                   if (selector === 'textarea[name="summary_notes"]') {{
                     return summaryTextarea;
+                  }}
+                  if (selector === "[data-review-company-id-input]") {{
+                    return companyIdInput;
                   }}
                   return null;
                 }},
@@ -177,7 +251,13 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                   if (arguments[0] === "[data-ai-cleanup-button]") {{
                     return [aiCleanupButton];
                   }}
+                  if (arguments[0] === "[data-review-company-input]") {{
+                    return [reviewCompanyInput];
+                  }}
                   return [];
+                }},
+                createElement(tagName) {{
+                  return makeElement(tagName.toUpperCase());
                 }},
               }};
 
@@ -186,6 +266,18 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                 console,
                 document: fakeDocument,
                 fetch: async (url, requestOptions) => {{
+                  if (url.startsWith("/autotask/companies?")) {{
+                    return {{
+                      ok: true,
+                      json: async () => ({{
+                        companies: [
+                          {{company_id: 1001, company_name: "Acme Services"}},
+                          {{company_id: 1002, company_name: "Acme Holdings"}},
+                        ],
+                      }}),
+                    }};
+                  }}
+
                   if (url.endsWith("/summary/cleanup")) {{
                     const submittedPayload = JSON.parse(requestOptions.body);
                     aiCleanupRequests.push(submittedPayload.summary_notes);
@@ -213,6 +305,21 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
               }};
 
               vm.runInNewContext(reviewScript, browserContext, {{filename: "review.js"}});
+
+              summaryTextarea.value = "";
+              reviewCompanyInput.value = "Acme";
+              reviewCompanyInput.eventHandlers.input();
+              runQueuedTimers();
+
+              await Promise.resolve();
+              await Promise.resolve();
+              await new Promise((resolve) => setImmediate(resolve));
+
+              assert.strictEqual(submittedRequests.length, 0);
+              assert.strictEqual(reviewAutosaveStatus.textContent, "");
+              assert.strictEqual(companyStatus.textContent, "");
+              assert.strictEqual(companyResults.children.length, 2);
+              assert.strictEqual(companyResults.children[0].textContent, "Acme Services");
 
               summaryTextarea.value = "Autosaved review notes.";
               summaryTextarea.eventHandlers.input();

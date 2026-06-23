@@ -76,10 +76,10 @@ class ReviewFields:
     # local_work_date is the reviewer-selected America/Detroit date.
     local_work_date: date
 
-    # client_name is the optional client reference captured and editable in review.
+    # client_name is the selected Autotask company display name.
     client_name: str | None
 
-    # autotask_company_id is the selected Autotask company when chosen from lookup.
+    # autotask_company_id is the selected Autotask company/account ID.
     autotask_company_id: int | None
 
 
@@ -367,7 +367,7 @@ def normalize_client_name(client_name: str | None) -> str | None:
 
 
 def normalize_autotask_company_id(autotask_company_id: int | str | None) -> int | None:
-    """Return a positive Autotask company ID or None for manual client names."""
+    """Return a positive selected Autotask company ID or None."""
 
     if autotask_company_id is None:
         return None
@@ -386,6 +386,67 @@ def normalize_autotask_company_id(autotask_company_id: int | str | None) -> int 
     return normalized_company_id
 
 
+def _normalized_autotask_company_name_key(company_name: str) -> str:
+    """Return a stable comparison key for Autotask company display names."""
+
+    return " ".join(company_name.split()).casefold()
+
+
+def normalize_autotask_client_selection(
+    client_name: str | None,
+    autotask_company_id: int | str | None,
+    *,
+    required: bool = False,
+) -> tuple[str | None, int | None]:
+    """Normalize a client selection that must come from Autotask company lookup."""
+
+    normalized_client_name = normalize_client_name(client_name)
+    normalized_autotask_company_id = normalize_autotask_company_id(autotask_company_id)
+    if normalized_client_name is None and normalized_autotask_company_id is None:
+        if required:
+            raise JobWorkflowError("Select a client from Autotask search results.")
+        return None, None
+
+    if normalized_client_name is None or normalized_autotask_company_id is None:
+        raise JobWorkflowError("Select a client from Autotask search results.")
+
+    return normalized_client_name, normalized_autotask_company_id
+
+
+def verify_autotask_client_selection(
+    client_name: str | None,
+    autotask_company_id: int | str | None,
+    *,
+    resource_id: int | None = None,
+    required: bool = False,
+) -> tuple[str | None, int | None]:
+    """Verify that a submitted client name matches a selected Autotask company."""
+
+    normalized_client_name, normalized_autotask_company_id = normalize_autotask_client_selection(
+        client_name,
+        autotask_company_id,
+        required=required,
+    )
+    if normalized_client_name is None or normalized_autotask_company_id is None:
+        return None, None
+
+    selected_company = get_autotask_provider().get_company_by_id(
+        normalized_autotask_company_id,
+        resource_id=resource_id,
+    )
+    if selected_company is None:
+        raise JobWorkflowError("Selected Autotask client could not be verified.")
+
+    verified_client_name = normalize_client_name(selected_company.company_name)
+    if verified_client_name is None:
+        raise JobWorkflowError("Selected Autotask client could not be verified.")
+
+    if _normalized_autotask_company_name_key(normalized_client_name) != _normalized_autotask_company_name_key(verified_client_name):
+        raise JobWorkflowError("Select a client from Autotask search results.")
+
+    return verified_client_name, selected_company.company_id
+
+
 def normalize_work_location(work_location: WorkLocation | str | None) -> WorkLocation:
     """Return a supported work-location mode for Autotask note prefixing."""
 
@@ -397,16 +458,6 @@ def normalize_work_location(work_location: WorkLocation | str | None) -> WorkLoc
         return WorkLocation(normalized_location)
     except ValueError as exc:
         raise JobWorkflowError("Work location must be Remote or On-Site.") from exc
-
-
-def normalize_client_name_required(client_name: str | None) -> str:
-    """Require a non-empty client name when transitioning a job to review."""
-
-    normalized_client_name = normalize_client_name(client_name)
-    if normalized_client_name is None:
-        raise JobWorkflowError("Client name is required when ending work.")
-
-    return normalized_client_name
 
 
 def preserve_locked_active_autotask_client(
@@ -461,8 +512,10 @@ def start_job(
     active_jobs = list_active_jobs_for_web_user(database_session, web_user_id) if web_user_id else list_active_jobs(database_session)
     job_slot = _next_active_job_slot(active_jobs)
     normalized_ticket_number = normalize_ticket_number(ticket_number, required=False)
-    normalized_client_name = normalize_client_name(client_name)
-    normalized_autotask_company_id = normalize_autotask_company_id(autotask_company_id)
+    normalized_client_name, normalized_autotask_company_id = normalize_autotask_client_selection(
+        client_name,
+        autotask_company_id,
+    )
     normalized_work_location = normalize_work_location(work_location)
     normalized_ticket_status = normalize_ticket_status(ticket_status)
     start_timestamp = now_utc()
@@ -528,8 +581,10 @@ def update_active_job_ticket_number(
                 job.ticket_description = None
 
     if client_name is not None and not locked_autotask_client_preserved:
-        job.client_name = normalize_client_name(client_name)
-        job.autotask_company_id = normalize_autotask_company_id(autotask_company_id)
+        job.client_name, job.autotask_company_id = normalize_autotask_client_selection(
+            client_name,
+            autotask_company_id,
+        )
 
     if work_location is not None:
         job.work_location = normalize_work_location(work_location)
@@ -579,9 +634,13 @@ def apply_unset_review_client(
     if job.ticket_number or job.client_name or job.autotask_company_id is not None:
         raise JobWorkflowError("Client identity is already selected for this job.")
 
-    normalized_client_name = normalize_client_name_required(client_name)
+    normalized_client_name, normalized_autotask_company_id = normalize_autotask_client_selection(
+        client_name,
+        autotask_company_id,
+        required=True,
+    )
     job.client_name = normalized_client_name
-    job.autotask_company_id = normalize_autotask_company_id(autotask_company_id)
+    job.autotask_company_id = normalized_autotask_company_id
     return job
 
 
@@ -679,11 +738,13 @@ def end_job(
     locked_autotask_client_preserved = preserve_locked_active_autotask_client(job, client_name, autotask_company_id)
     submitted_client_name = normalize_client_name(client_name)
     if submitted_client_name is not None and not locked_autotask_client_preserved:
-        job.client_name = submitted_client_name
-        job.autotask_company_id = normalize_autotask_company_id(autotask_company_id)
+        job.client_name, job.autotask_company_id = normalize_autotask_client_selection(
+            client_name,
+            autotask_company_id,
+            required=True,
+        )
     elif not job.client_name:
-        # Require an explicit name here if no name was previously captured.
-        job.client_name = normalize_client_name_required(job.client_name)
+        raise JobWorkflowError("Select a client from Autotask search results.")
 
     end_timestamp = now_utc()
     rounded_end_timestamp = job.rounded_end_utc or round_end_for_technician(end_timestamp)

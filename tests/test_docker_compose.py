@@ -24,3 +24,11 @@ def test_compose_exposes_log_level_setting() -> None:
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
 
     assert "LOG_LEVEL: ${LOG_LEVEL:-INFO}" in compose_text
+
+
+def test_compose_exposes_dev_build_setting() -> None:
+    """Docker Compose should pass the dev-build marker into the container."""
+
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+
+    assert "DEV_BUILD: ${DEV_BUILD:-false}" in compose_text
