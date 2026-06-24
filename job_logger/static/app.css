@@ -2837,6 +2837,13 @@ td a {
   font-size: 13px;
 }
 
+.disk-path-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 16px;
+}
+
 .debug-list {
   display: grid;
   gap: 12px;
@@ -3176,7 +3183,7 @@ td a {
 }
 
 .app-log-tail {
-  max-height: calc(20lh + 24px);
+  max-height: calc(10lh + 24px);
   overflow: auto;
   white-space: pre-wrap;
 }

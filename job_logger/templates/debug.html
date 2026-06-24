@@ -9,14 +9,6 @@
         <h1>Autotask debug</h1>
         <p class="muted-text">Review provider configuration and the most recent submission attempts.</p>
       </div>
-      <form
-        method="post"
-        action="/debug/autotask/test"
-        class="debug-test-form"
-      >
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button class="secondary-button" type="submit">Test Autotask API</button>
-      </form>
     </div>
 
     <section id="disk-space" class="table-panel disk-space-card disk-space-{{ disk_usage.severity }}" aria-label="Disk space monitor">
@@ -53,10 +45,31 @@
                   <dd>{{ volume.free_display }}</dd>
                 </div>
                 <div>
-                  <dt>Path</dt>
-                  <dd>{{ volume.configured_path }}</dd>
+                  <dt>{% if volume.configured_paths|length > 1 %}Paths{% else %}Path{% endif %}</dt>
+                  <dd>
+                    {% if volume.configured_paths|length > 1 %}
+                      <ul class="disk-path-list">
+                        {% for configured_path in volume.configured_paths %}
+                          <li>{{ configured_path }}</li>
+                        {% endfor %}
+                      </ul>
+                    {% else %}
+                      {{ volume.configured_path }}
+                    {% endif %}
+                  </dd>
                 </div>
-                {% if volume.measured_path != volume.configured_path %}
+                {% if volume.measured_paths|length > 1 %}
+                  <div>
+                    <dt>Measured paths</dt>
+                    <dd>
+                      <ul class="disk-path-list">
+                        {% for measured_path in volume.measured_paths %}
+                          <li>{{ measured_path }}</li>
+                        {% endfor %}
+                      </ul>
+                    </dd>
+                  </div>
+                {% elif volume.measured_path != volume.configured_path %}
                   <div>
                     <dt>Measured path</dt>
                     <dd>{{ volume.measured_path }}</dd>
@@ -198,13 +211,13 @@
 
           <nav class="debug-pagination" aria-label="Successful login pages">
             {% if login_successes.previous_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.previous_page }}&failure_page={{ login_failures.page }}#login-successes">Previous</a>
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.previous_page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.page }}#login-successes">Previous</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Previous</span>
             {% endif %}
             <span class="muted-text">Page {{ login_successes.page }} of {{ login_successes.total_pages }}</span>
             {% if login_successes.next_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.next_page }}&failure_page={{ login_failures.page }}#login-successes">Next</a>
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.next_page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.page }}#login-successes">Next</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Next</span>
             {% endif %}
@@ -405,13 +418,13 @@
 
           <nav class="debug-pagination" aria-label="Failed login pages">
             {% if login_failures.previous_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.previous_page }}#login-failures">Previous</a>
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.previous_page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.page }}#login-failures">Previous</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Previous</span>
             {% endif %}
             <span class="muted-text">Page {{ login_failures.page }} of {{ login_failures.total_pages }}</span>
             {% if login_failures.next_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.next_page }}#login-failures">Next</a>
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.next_page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.page }}#login-failures">Next</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Next</span>
             {% endif %}
@@ -487,13 +500,13 @@
 
           <nav class="debug-pagination" aria-label="Cloudflare blocked IP pages">
             {% if cloudflare_ip_blocks_page.previous_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.previous_page }}#cloudflare-blocked-ips">Previous</a>
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.previous_page }}&attempt_page={{ submission_attempts_page.page }}#cloudflare-blocked-ips">Previous</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Previous</span>
             {% endif %}
             <span class="muted-text">Page {{ cloudflare_ip_blocks_page.page }} of {{ cloudflare_ip_blocks_page.total_pages }}</span>
             {% if cloudflare_ip_blocks_page.next_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.next_page }}#cloudflare-blocked-ips">Next</a>
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.next_page }}&attempt_page={{ submission_attempts_page.page }}#cloudflare-blocked-ips">Next</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Next</span>
             {% endif %}
@@ -504,11 +517,13 @@
       </div>
     </section>
 
-    <section class="table-panel" aria-label="Recent Autotask submission attempts">
+    <section id="autotask-submission-attempts" class="table-panel" aria-label="Recent Autotask submission attempts">
       <div class="debug-panel-body">
         <div class="review-header">
           <h2>Autotask submission attempts</h2>
-          <p class="muted-text">Newest records first, max 200.</p>
+          <p class="muted-text">
+            Newest records first, {{ submission_attempts_page.total_records }} retained, {{ submission_attempt_page_size }} per page.
+          </p>
         </div>
 
         {% if submission_attempts %}
@@ -549,8 +564,22 @@
             </table>
           </div>
 
+          <nav class="debug-pagination" aria-label="Autotask submission attempt pages">
+            {% if submission_attempts_page.previous_page %}
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.previous_page }}#autotask-submission-attempts">Previous</a>
+            {% else %}
+              <span class="secondary-link-button disabled-link">Previous</span>
+            {% endif %}
+            <span class="muted-text">Page {{ submission_attempts_page.page }} of {{ submission_attempts_page.total_pages }}</span>
+            {% if submission_attempts_page.next_page %}
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.next_page }}#autotask-submission-attempts">Next</a>
+            {% else %}
+              <span class="secondary-link-button disabled-link">Next</span>
+            {% endif %}
+          </nav>
+
           <details class="debug-requests">
-            <summary>Show last 200 request snapshots</summary>
+            <summary>Show request snapshots for this page</summary>
             {% for attempt in submission_attempts %}
               <div class="debug-attempt">
                 <p>
@@ -567,9 +596,19 @@
       </div>
     </section>
 
-    <section class="table-panel" aria-label="Autotask configuration">
+    <section id="autotask-test" class="table-panel" aria-label="Autotask configuration">
       <div class="debug-panel-body">
-        <h2>Autotask configuration snapshot</h2>
+        <div class="review-header">
+          <h2>Autotask configuration snapshot</h2>
+          <form
+            method="post"
+            action="/debug/autotask/test"
+            class="debug-test-form"
+          >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="secondary-button" type="submit">Test Autotask API</button>
+          </form>
+        </div>
         <dl class="debug-list">
           <div>
             <dt>Application version</dt>
@@ -650,6 +689,81 @@
       </div>
     </section>
 
+    <section id="full-backup" class="table-panel" aria-label="Full data backup and restore">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <div>
+            <h2>Full data backup</h2>
+            <p class="muted-text">Download or restore all Job Logger database tables.</p>
+          </div>
+          <form method="post" action="/debug/backup" class="debug-test-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="secondary-button" type="submit">Download Full Backup</button>
+          </form>
+        </div>
+
+        <form
+          method="post"
+          action="/debug/restore"
+          enctype="multipart/form-data"
+          class="backup-restore-form"
+        >
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>
+            Backup file
+            <input
+              type="file"
+              name="backup_file"
+              accept=".json,.gz,.json.gz,application/json,application/gzip"
+              required
+            >
+          </label>
+          <label>
+            Confirmation
+            <input
+              type="text"
+              name="confirmation"
+              pattern="RESTORE"
+              placeholder="RESTORE"
+              autocomplete="off"
+              required
+            >
+          </label>
+          <button class="secondary-button danger-button" type="submit">Restore Full Backup</button>
+        </form>
+
+        <dl class="debug-list compact-debug-list backup-details">
+          <div>
+            <dt>Upload limit</dt>
+            <dd>{{ backup_upload_max_mb }} MB</dd>
+          </div>
+          <div>
+            <dt>Restore scope</dt>
+            <dd>Jobs, submission attempts, and audit events are replaced with the uploaded backup contents.</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <section id="app-log-tail" class="table-panel" aria-label="Application Log">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <h2>Application Log</h2>
+          <p class="muted-text">
+            Newest lines first, last {{ app_log_tail_lines }} lines.
+            Source: {{ app_log_path }}
+          </p>
+        </div>
+
+        {% if app_log_lines %}
+          <pre class="debug-code app-log-tail">{% for log_line in app_log_lines %}{{ log_line }}
+{% endfor %}</pre>
+        {% else %}
+          <p class="muted-text">No app log lines are available yet.</p>
+        {% endif %}
+      </div>
+    </section>
+
     <section id="automatic-backups" class="table-panel" aria-label="Automatic database backups">
       <div class="debug-panel-body">
         <div class="review-header">
@@ -724,81 +838,6 @@
           </div>
         {% else %}
           <p class="muted-text">No automatic backups are available yet.</p>
-        {% endif %}
-      </div>
-    </section>
-
-    <section id="full-backup" class="table-panel" aria-label="Full data backup and restore">
-      <div class="debug-panel-body">
-        <div class="review-header">
-          <div>
-            <h2>Full data backup</h2>
-            <p class="muted-text">Download or restore all Job Logger database tables.</p>
-          </div>
-          <form method="post" action="/debug/backup" class="debug-test-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <button class="secondary-button" type="submit">Download Full Backup</button>
-          </form>
-        </div>
-
-        <form
-          method="post"
-          action="/debug/restore"
-          enctype="multipart/form-data"
-          class="backup-restore-form"
-        >
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <label>
-            Backup file
-            <input
-              type="file"
-              name="backup_file"
-              accept=".json,.gz,.json.gz,application/json,application/gzip"
-              required
-            >
-          </label>
-          <label>
-            Confirmation
-            <input
-              type="text"
-              name="confirmation"
-              pattern="RESTORE"
-              placeholder="RESTORE"
-              autocomplete="off"
-              required
-            >
-          </label>
-          <button class="secondary-button danger-button" type="submit">Restore Full Backup</button>
-        </form>
-
-        <dl class="debug-list compact-debug-list backup-details">
-          <div>
-            <dt>Upload limit</dt>
-            <dd>{{ backup_upload_max_mb }} MB</dd>
-          </div>
-          <div>
-            <dt>Restore scope</dt>
-            <dd>Jobs, submission attempts, and audit events are replaced with the uploaded backup contents.</dd>
-          </div>
-        </dl>
-      </div>
-    </section>
-
-    <section id="app-log-tail" class="table-panel" aria-label="Application Log">
-      <div class="debug-panel-body">
-        <div class="review-header">
-          <h2>Application Log</h2>
-          <p class="muted-text">
-            Newest lines first, last {{ app_log_tail_lines }} lines.
-            Source: {{ app_log_path }}
-          </p>
-        </div>
-
-        {% if app_log_lines %}
-          <pre class="debug-code app-log-tail">{% for log_line in app_log_lines %}{{ log_line }}
-{% endfor %}</pre>
-        {% else %}
-          <p class="muted-text">No app log lines are available yet.</p>
         {% endif %}
       </div>
     </section>

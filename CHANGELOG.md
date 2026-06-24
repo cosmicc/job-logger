@@ -26,6 +26,15 @@ All notable changes to Job Logger are documented in this file.
   listener so the host-networked Cloudflare Tunnel connector can target a
   loopback origin on a chosen port; `NGINX_PUBLIC_PORT` remains a
   backward-compatible fallback.
+- Changed the super-admin Diagnostics disk-space card to combine monitored
+  paths when used space and total space match exactly, reducing duplicate
+  storage rows on single-drive installs.
+- Changed the Diagnostics app log preview to show the newest 10 sanitized lines
+  and moved Automatic database backups below the app log card.
+- Added 10-row pagination for Autotask submission attempts, matching the
+  existing paginated login-failure and Cloudflare blocked-IP tables.
+- Moved the **Test Autotask API** action into the lower Autotask configuration
+  card so the test control lives next to the related result and settings.
 
 ## v1.1.3 - Review visibility and Work in Progress refinements
 

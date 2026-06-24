@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile
 
@@ -49,9 +49,11 @@ from job_logger.version import APP_VERSION
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/debug", tags=["debug"])
-LOGIN_ATTEMPT_PAGE_SIZE = 10
-CLOUDFLARE_BLOCK_PAGE_SIZE = 10
-APP_LOG_TAIL_LINES = 200
+DIAGNOSTIC_TABLE_PAGE_SIZE = 10
+LOGIN_ATTEMPT_PAGE_SIZE = DIAGNOSTIC_TABLE_PAGE_SIZE
+CLOUDFLARE_BLOCK_PAGE_SIZE = DIAGNOSTIC_TABLE_PAGE_SIZE
+SUBMISSION_ATTEMPT_PAGE_SIZE = DIAGNOSTIC_TABLE_PAGE_SIZE
+APP_LOG_TAIL_LINES = 10
 MAX_APP_LOG_LINE_CHARS = 2000
 DISK_SPACE_WARNING_USED_PERCENT = 85.0
 DISK_SPACE_CRITICAL_USED_PERCENT = 95.0
@@ -73,6 +75,11 @@ class DebugDiskUsageVolume:
     used_percent_display: str
     severity: str
     status_label: str
+    total_bytes: int = 0
+    used_bytes: int = 0
+    free_bytes: int = 0
+    configured_paths: tuple[str, ...] = ()
+    measured_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -123,6 +130,19 @@ class DebugSubmissionAttempt:
 
 
 @dataclass(frozen=True)
+class DebugSubmissionAttemptPage:
+    """One bounded page of sanitized Autotask submission attempts."""
+
+    records: list[DebugSubmissionAttempt]
+    page: int
+    page_size: int
+    total_records: int
+    total_pages: int
+    previous_page: int | None
+    next_page: int | None
+
+
+@dataclass(frozen=True)
 class DebugAutomaticBackup:
     """Automatic backup metadata rendered on the debug page."""
 
@@ -169,7 +189,7 @@ def _safe_autotask_config() -> dict[str, object]:
         "billing_code_source": "selected ticket inheritance",
         "time_entry_type": settings.autotask_time_entry_type,
         "status_id_map": settings.autotask_status_id_map,
-        "max_attempt_rows": 200,
+        "submission_attempt_page_size": SUBMISSION_ATTEMPT_PAGE_SIZE,
     }
 
 
@@ -282,7 +302,70 @@ def _serialize_disk_usage_volume(label: str, configured_path: str) -> DebugDiskU
         used_percent_display=f"{used_percent:.1f}%",
         severity=severity,
         status_label=status_label,
+        total_bytes=usage.total,
+        used_bytes=usage.used,
+        free_bytes=usage.free,
+        configured_paths=(f"{label}: {configured_path}",),
+        measured_paths=(str(measured_path),),
     )
+
+
+def _combine_disk_usage_volumes(volumes: tuple[DebugDiskUsageVolume, ...]) -> tuple[DebugDiskUsageVolume, ...]:
+    """Combine monitored paths that report identical used and total storage."""
+
+    combined_volumes: list[DebugDiskUsageVolume] = []
+    volume_indexes_by_usage: dict[tuple[int | str, int | str], int] = {}
+
+    for volume in volumes:
+        usage_key = (
+            (volume.used_bytes, volume.total_bytes)
+            if volume.total_bytes > 0
+            else (volume.used_display, volume.total_display)
+        )
+
+        existing_index = volume_indexes_by_usage.get(usage_key)
+        if existing_index is None:
+            volume_indexes_by_usage[usage_key] = len(combined_volumes)
+            combined_volumes.append(volume)
+            continue
+
+        existing_volume = combined_volumes[existing_index]
+        labels = tuple(dict.fromkeys((*existing_volume.label.split(", "), volume.label)))
+        configured_paths = tuple(
+            dict.fromkeys(
+                (
+                    *(existing_volume.configured_paths or (existing_volume.configured_path,)),
+                    *(volume.configured_paths or (volume.configured_path,)),
+                )
+            )
+        )
+        measured_paths = tuple(
+            dict.fromkeys(
+                (
+                    *(existing_volume.measured_paths or (existing_volume.measured_path,)),
+                    *(volume.measured_paths or (volume.measured_path,)),
+                )
+            )
+        )
+        combined_volumes[existing_index] = DebugDiskUsageVolume(
+            label=", ".join(labels),
+            configured_path=", ".join(configured_paths),
+            measured_path=", ".join(measured_paths),
+            total_display=existing_volume.total_display,
+            used_display=existing_volume.used_display,
+            free_display=existing_volume.free_display,
+            used_percent=existing_volume.used_percent,
+            used_percent_display=existing_volume.used_percent_display,
+            severity=existing_volume.severity,
+            status_label=existing_volume.status_label,
+            total_bytes=existing_volume.total_bytes,
+            used_bytes=existing_volume.used_bytes,
+            free_bytes=existing_volume.free_bytes,
+            configured_paths=configured_paths,
+            measured_paths=measured_paths,
+        )
+
+    return tuple(combined_volumes)
 
 
 def _collect_disk_usage_snapshot() -> DebugDiskUsageSnapshot:
@@ -297,8 +380,9 @@ def _collect_disk_usage_snapshot() -> DebugDiskUsageSnapshot:
         _serialize_disk_usage_volume(label, configured_path)
         for label, configured_path in monitored_paths
     )
+    combined_volumes = _combine_disk_usage_volumes(volumes)
     severity_rank = {"ok": 0, "warning": 1, "critical": 2}
-    worst_volume = max(volumes, key=lambda volume: severity_rank[volume.severity])
+    worst_volume = max(combined_volumes, key=lambda volume: severity_rank[volume.severity])
     status_label = "Disk space OK"
     if worst_volume.severity == "warning":
         status_label = "Disk space nearing full"
@@ -308,7 +392,7 @@ def _collect_disk_usage_snapshot() -> DebugDiskUsageSnapshot:
     return DebugDiskUsageSnapshot(
         severity=worst_volume.severity,
         status_label=status_label,
-        volumes=volumes,
+        volumes=combined_volumes,
     )
 
 
@@ -346,6 +430,43 @@ def _paginate_cloudflare_blocks(
                 created_at_display=format_local_display(block.created_at_utc),
             )
             for block in records[start_index : start_index + bounded_page_size]
+        ],
+        page=bounded_page,
+        page_size=bounded_page_size,
+        total_records=total_records,
+        total_pages=total_pages,
+        previous_page=bounded_page - 1 if bounded_page > 1 else None,
+        next_page=bounded_page + 1 if bounded_page < total_pages else None,
+    )
+
+
+def _paginate_submission_attempts(
+    database_session: Session,
+    *,
+    page: int,
+    page_size: int,
+) -> DebugSubmissionAttemptPage:
+    """Return one bounded page of newest Autotask submission attempts."""
+
+    bounded_page_size = max(1, min(page_size, 100))
+    total_records = database_session.scalar(select(func.count(SubmissionAttempt.id))) or 0
+    total_pages = max(1, (total_records + bounded_page_size - 1) // bounded_page_size)
+    bounded_page = max(1, min(page, total_pages))
+    attempt_rows = list(
+        database_session.execute(
+            select(SubmissionAttempt, Job.ticket_number, WebUser.full_name)
+            .join(Job, SubmissionAttempt.job_id == Job.id, isouter=True)
+            .join(WebUser, Job.web_user_id == WebUser.id, isouter=True)
+            .order_by(desc(SubmissionAttempt.created_at_utc))
+            .offset((bounded_page - 1) * bounded_page_size)
+            .limit(bounded_page_size)
+        ).all()
+    )
+
+    return DebugSubmissionAttemptPage(
+        records=[
+            _serialize_submission_attempt(attempt, job_ticket_number, job_owner_name)
+            for attempt, job_ticket_number, job_owner_name in attempt_rows
         ],
         page=bounded_page,
         page_size=bounded_page_size,
@@ -402,6 +523,7 @@ def debug_page(
     success_page: int = Query(1, ge=1),
     failure_page: int = Query(1, ge=1),
     cloudflare_blocks_page: int = Query(1, ge=1),
+    attempt_page: int = Query(1, ge=1),
 ) -> Response:
     """Render authenticated diagnostics, submission attempts, and login failures."""
 
@@ -410,20 +532,11 @@ def debug_page(
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
-    attempt_rows = list(
-        database_session.execute(
-            select(SubmissionAttempt, Job.ticket_number, WebUser.full_name)
-            .join(Job, SubmissionAttempt.job_id == Job.id, isouter=True)
-            .join(WebUser, Job.web_user_id == WebUser.id, isouter=True)
-            .order_by(desc(SubmissionAttempt.created_at_utc))
-            .limit(200)
-        ).all()
+    submission_attempts_page = _paginate_submission_attempts(
+        database_session,
+        page=attempt_page,
+        page_size=SUBMISSION_ATTEMPT_PAGE_SIZE,
     )
-
-    debug_submission_attempts = [
-        _serialize_submission_attempt(attempt, job_ticket_number, job_owner_name)
-        for attempt, job_ticket_number, job_owner_name in attempt_rows
-    ]
     hidden_login_failure_ids = set(database_session.scalars(select(HiddenLoginFailure.entry_id)))
     login_failures = read_login_failures_page(
         page=failure_page,
@@ -471,7 +584,9 @@ def debug_page(
             cloudflare_ip_blocks_page=cloudflare_ip_blocks_page,
             cloudflare_ip_blocking_configured=cloudflare_ip_blocking_configured(),
             disk_usage=_collect_disk_usage_snapshot(),
-            submission_attempts=debug_submission_attempts,
+            submission_attempts=submission_attempts_page.records,
+            submission_attempts_page=submission_attempts_page,
+            submission_attempt_page_size=SUBMISSION_ATTEMPT_PAGE_SIZE,
             automatic_backups=[
                 _serialize_automatic_backup(backup_file)
                 for backup_file in list_automatic_backup_files(settings.automatic_backup_dir)

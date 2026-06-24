@@ -8,7 +8,7 @@ import os
 import re
 import tomllib
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -281,6 +281,75 @@ def test_debug_disk_usage_serializer_uses_existing_parent_for_missing_path(tmp_p
     assert volume.used_percent_display == "96.0%"
     assert volume.severity == "critical"
     assert volume.status_label == "Critical"
+
+
+def test_debug_disk_usage_combines_paths_on_same_storage() -> None:
+    """Diagnostics should combine monitored paths with identical used and total space."""
+
+    gibibyte = 1024 * 1024 * 1024
+    first_volume = debug_routes.DebugDiskUsageVolume(
+        label="App filesystem",
+        configured_path="/",
+        measured_path="/",
+        total_display="100.0 GB",
+        used_display="40.0 GB",
+        free_display="60.0 GB",
+        used_percent=40.0,
+        used_percent_display="40.0%",
+        severity="ok",
+        status_label="OK",
+        total_bytes=100 * gibibyte,
+        used_bytes=40 * gibibyte,
+        free_bytes=60 * gibibyte,
+        configured_paths=("App filesystem: /",),
+        measured_paths=("/",),
+    )
+    second_volume = debug_routes.DebugDiskUsageVolume(
+        label="Log directory",
+        configured_path="/data/logs",
+        measured_path="/data/logs",
+        total_display="100.0 GB",
+        used_display="40.0 GB",
+        free_display="60.0 GB",
+        used_percent=40.0,
+        used_percent_display="40.0%",
+        severity="ok",
+        status_label="OK",
+        total_bytes=100 * gibibyte,
+        used_bytes=40 * gibibyte,
+        free_bytes=60 * gibibyte,
+        configured_paths=("Log directory: /data/logs",),
+        measured_paths=("/data/logs",),
+    )
+    separate_volume = debug_routes.DebugDiskUsageVolume(
+        label="Backup directory",
+        configured_path="/backups",
+        measured_path="/backups",
+        total_display="50.0 GB",
+        used_display="10.0 GB",
+        free_display="40.0 GB",
+        used_percent=20.0,
+        used_percent_display="20.0%",
+        severity="ok",
+        status_label="OK",
+        total_bytes=50 * gibibyte,
+        used_bytes=10 * gibibyte,
+        free_bytes=40 * gibibyte,
+        configured_paths=("Backup directory: /backups",),
+        measured_paths=("/backups",),
+    )
+
+    combined_volumes = debug_routes._combine_disk_usage_volumes(
+        (first_volume, second_volume, separate_volume)
+    )
+
+    assert len(combined_volumes) == 2
+    assert combined_volumes[0].label == "App filesystem, Log directory"
+    assert combined_volumes[0].configured_paths == (
+        "App filesystem: /",
+        "Log directory: /data/logs",
+    )
+    assert combined_volumes[1].label == "Backup directory"
 
 
 def test_openapi_schema_route_is_disabled(client: TestClient) -> None:
@@ -784,7 +853,7 @@ def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient)
     assert debug_response.status_code == 200
     assert "Page 2 of 2" in debug_response.text
     assert "Application Log" in debug_response.text
-    assert "last 200 lines" in debug_response.text
+    assert "last 10 lines" in debug_response.text
     assert "failure-1" in debug_response.text
     assert "failure-0" in debug_response.text
     assert "success-1" in debug_response.text
@@ -792,8 +861,8 @@ def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient)
     assert "failure-11" not in debug_response.text
     assert "success-11" not in debug_response.text
     assert debug_response.text.index("line-204") < debug_response.text.index("line-203")
-    assert "line-5 " in debug_response.text
-    assert "line-4 " not in debug_response.text
+    assert "line-195 " in debug_response.text
+    assert "line-194 " not in debug_response.text
     assert "password=***" in debug_response.text
     assert "raw-secret" not in debug_response.text
 
@@ -806,10 +875,45 @@ def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient)
     assert ".login-attempt-extra" in stylesheet
     assert "position: absolute;" in stylesheet
     assert "width: min(760px, calc(100vw - 96px));" in stylesheet
-    assert "max-height: calc(20lh + 24px);" in stylesheet
+    assert "max-height: calc(10lh + 24px);" in stylesheet
     assert ".disk-space-card.disk-space-warning" in stylesheet
     assert ".disk-space-card.disk-space-critical" in stylesheet
     assert ".disk-meter-critical" in stylesheet
+
+
+def test_debug_paginates_autotask_submission_attempts(super_admin_client: TestClient) -> None:
+    """Diagnostics should limit Autotask submission attempts to 10 rows per page."""
+
+    job_id = _add_temporary_job()
+    created_at = datetime(2026, 6, 21, 12, 0, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        for index in range(12):
+            database_session.add(
+                SubmissionAttempt(
+                    job_id=job_id,
+                    provider="mock",
+                    idempotency_key=f"submission-page-test-{index}",
+                    succeeded=True,
+                    external_id=f"mock-entry-{index}",
+                    request_snapshot={"index": index},
+                    created_at_utc=created_at + timedelta(minutes=index),
+                )
+            )
+        database_session.commit()
+
+    debug_response = super_admin_client.get("/debug?attempt_page=2")
+
+    assert debug_response.status_code == 200
+    assert "Autotask submission attempts" in debug_response.text
+    assert "12 retained, 10 per page" in debug_response.text
+    assert "Page 2 of 2" in debug_response.text
+    assert "mock-entry-1" in debug_response.text
+    assert "mock-entry-0" in debug_response.text
+    assert "mock-entry-11" not in debug_response.text
+    assert "mock-entry-10" not in debug_response.text
+    assert "Show request snapshots for this page" in debug_response.text
+    assert "&#34;index&#34;: 1" in debug_response.text
+    assert "&#34;index&#34;: 11" not in debug_response.text
 
 
 def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -> None:
@@ -897,10 +1001,12 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert debug_response.text.index("Login failures") < debug_response.text.index("Cloudflare Blocked IPs")
     assert debug_response.text.index("Cloudflare Blocked IPs") < debug_response.text.index("Autotask submission attempts")
     assert debug_response.text.index("Autotask submission attempts") < debug_response.text.index("Autotask configuration snapshot")
-    assert debug_response.text.index("Autotask configuration snapshot") < debug_response.text.index("Automatic database backups")
-    assert debug_response.text.index("Automatic database backups") < debug_response.text.index("Full data backup")
+    assert debug_response.text.index("Autotask configuration snapshot") < debug_response.text.index("Test Autotask API")
+    assert debug_response.text.index("Autotask configuration snapshot") < debug_response.text.index("Full data backup")
     assert debug_response.text.index("Full data backup") < debug_response.text.index("Application Log")
+    assert debug_response.text.index("Application Log") < debug_response.text.index("Automatic database backups")
     assert '<table class="debug-submission-table">' in debug_response.text
+    assert "1 retained, 10 per page" in debug_response.text
     assert "<th>User</th>" in debug_response.text
     assert "Test Technician" in debug_response.text
     assert attempt_id in debug_response.text

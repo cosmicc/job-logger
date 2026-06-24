@@ -116,7 +116,9 @@ honor `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, use the logged `client_ip` value, and
 reset `login_failure_counters` to zero after any successful local login from
 that IP. The successful-login window may visually distinguish config
 super-admin account-kind chips from managed web-user chips, but must not expose
-extra sensitive metadata to do so.
+extra sensitive metadata to do so. Login failure, Cloudflare blocked-IP, and
+Autotask submission-attempt diagnostics must stay paginated at 10 rows per
+page.
 
 Prefer secure defaults. Cookies must be HTTP-only, secure when served over HTTPS,
 and SameSite-protected. Forms and state-changing requests must use CSRF
@@ -816,6 +818,10 @@ In production:
   from the same displayed client IP unless that IP matches
   `CLOUDFLARE_IP_BLOCK_ALLOWLIST`; successful local password or Device sign-in
   login resets that IP's failure counter to zero.
+- The `/debug` disk-space card combines monitored paths when used bytes and
+  total bytes match exactly. The app log preview shows only the newest 10
+  sanitized lines, and the automatic-backup card belongs below the app-log
+  card.
 - Mock Autotask mode is only for tests and isolated development.
 
 ## Documentation Maintenance Rules For Agents

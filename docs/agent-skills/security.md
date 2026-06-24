@@ -153,13 +153,16 @@ that IP. When Cloudflare blocking is enabled, the app may create/delete only
 zone IP Access Rules tracked in `cloudflare_ip_blocks`, must honor
 `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, and must not mutate unrelated Cloudflare
 rules. The successful-login table may use a yellow account-kind chip for config
-super-admin rows so they are easy to distinguish from managed web users. The
-bottom of `/debug` may show a
-sanitized newest-first tail of `${LOG_DIR}/app.log`; keep that bounded,
-scrollable, and redacted. `LOG_LEVEL` controls app-log verbosity and must be
-limited to `DEBUG`, `INFO`, `WARNING`, or `ERROR`. `/debug` may also show disk
-usage for app-visible storage paths such as `/`, `${LOG_DIR}`, and
-`${AUTOMATIC_BACKUP_DIR}`. Keep disk diagnostics read-only and limited to path,
+super-admin rows so they are easy to distinguish from managed web users. Near
+the bottom of `/debug`, the page may show a
+sanitized newest-first tail of `${LOG_DIR}/app.log`; keep that bounded to the
+newest 10 displayed lines and redacted. Login failure, Cloudflare blocked-IP,
+and Autotask submission-attempt diagnostics must stay paginated at 10 rows per
+page. `LOG_LEVEL` controls app-log verbosity and must be limited to `DEBUG`,
+`INFO`, `WARNING`, or `ERROR`. `/debug` may also show disk usage for
+app-visible storage paths such as `/`, `${LOG_DIR}`, and
+`${AUTOMATIC_BACKUP_DIR}`. Combine monitored paths when used bytes and total
+bytes match exactly, and keep disk diagnostics read-only and limited to path,
 usage, and warning/critical metadata.
 `DEV_BUILD=true` is a display-only runtime marker for the authenticated header;
 do not use it as an authorization, environment-isolation, or safety boundary.

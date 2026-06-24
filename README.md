@@ -891,10 +891,11 @@ configuration and the live Companies/Tickets API calls used by the app. The
 debug button is manual and always runs a fresh live check. It is not used by the
 initial mobile page or blank Start Work route.
 
-The same `/debug` page also shows compact, paginated successful-login and
-failed-login windows. Failed local app login attempts are appended as JSON Lines
-to `/data/logs/job-logger-login-failures.log`, and successful attempts are
-appended to `/data/logs/job-logger-login-successes.log` inside the app
+The same `/debug` page also shows compact, paginated successful-login,
+failed-login, Cloudflare blocked-IP, and Autotask submission-attempt windows,
+with 10 rows per page. Failed local app login attempts are appended as JSON
+Lines to `/data/logs/job-logger-login-failures.log`, and successful attempts
+are appended to `/data/logs/job-logger-login-successes.log` inside the app
 container. Docker Compose bind-mounts that directory from
 `${HOST_LOG_DIR:-/var/log/job-logger}`, so the default host-readable files are
 under `/var/log/job-logger/`. The logs and debug page include timestamp, client
@@ -921,16 +922,17 @@ Device sign-in login from that IP resets the counter to zero first.
 commas or whitespace so home/admin addresses are never app-blocked.
 
 The `/debug` page also includes a **Disk space** card for the app-visible root
-filesystem, `LOG_DIR`, and `AUTOMATIC_BACKUP_DIR`. The card warns at 85% used
-or under 5 GB free, and becomes critical at 95% used or under 1 GB free. In
-Docker this reflects storage visible from the app container, including the
-mounted log and backup paths; monitor the PostgreSQL volume separately unless
-that volume is also exposed to the app container.
+filesystem, `LOG_DIR`, and `AUTOMATIC_BACKUP_DIR`. Paths with exactly matching
+used and total space are combined into one row because they are reporting the
+same underlying storage. The card warns at 85% used or under 5 GB free, and
+becomes critical at 95% used or under 1 GB free. In Docker this reflects
+storage visible from the app container, including the mounted log and backup
+paths; monitor the PostgreSQL volume separately unless that volume is also
+exposed to the app container.
 
-At the bottom of `/debug`, the **Application Log** card shows the newest 200
+Near the bottom of `/debug`, the **Application Log** card shows the newest 10
 lines first from `${LOG_DIR}/app.log`, normally
-`/var/log/job-logger/app.log` on the Docker host. The card's viewport shows
-about 20 lines at a time and scrolls for the rest; use the host log files for
+`/var/log/job-logger/app.log` on the Docker host. Use the host log files for
 longer history. `LOG_LEVEL` controls this file's verbosity and must be one of
 `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
 
@@ -942,13 +944,14 @@ keeps the newest 6 hourly backups plus one daily backup for today and one for
 each of the prior 2 days; expired automatic backups are purged after each
 successful automatic backup.
 
-The `/debug` page also includes **Automatic database backups**, **Download Full
-Backup**, and **Restore Full Backup** controls. Each retained automatic backup
-also has a per-file **Download** button. Backups are sensitive `.json.gz` files
-containing all Job Logger database tables, including managed web-user password
-hashes and email metadata, jobs, submission attempts, and audit events. Store
-backup files somewhere private because they contain account, customer, ticket,
-and work-summary history.
+The `/debug` page also includes **Download Full Backup** and **Restore Full
+Backup** controls, with **Automatic database backups** shown below the
+Application Log. Each retained automatic backup also has a per-file
+**Download** button. Backups are sensitive `.json.gz` files containing all Job
+Logger database tables, including managed web-user password hashes and email
+metadata, jobs, submission attempts, and audit events. Store backup files
+somewhere private because they contain account, customer, ticket, and
+work-summary history.
 
 To restore, upload a Job Logger full-backup file on `/debug` and type
 `RESTORE`. Restore validates the archive format, required tables, and columns
