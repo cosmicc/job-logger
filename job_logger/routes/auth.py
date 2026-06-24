@@ -20,7 +20,8 @@ from job_logger.security import (
     verify_password,
 )
 from job_logger.services.audit import record_audit_event
-from job_logger.services.login_failures import log_failed_login_attempt, log_successful_login_attempt
+from job_logger.services.login_failures import log_successful_login_attempt, reset_login_failure_counter
+from job_logger.services.login_protection import record_failed_login_attempt_and_maybe_block
 from job_logger.services.users import authenticate_web_user_with_status, mark_web_user_login_succeeded
 from job_logger.ui import template_context, templates
 
@@ -51,6 +52,7 @@ async def login(
     submitted_username = str(form_data.get("username", "")).strip()
     submitted_password = str(form_data.get("password", ""))
     if authenticate_username(submitted_username) and verify_password(submitted_password):
+        reset_login_failure_counter(database_session, request)
         login_session(request, submitted_username)
         log_successful_login_attempt(
             request,
@@ -76,6 +78,7 @@ async def login(
     )
     web_user = web_user_authentication.user
     if web_user is not None:
+        reset_login_failure_counter(database_session, request)
         mark_web_user_login_succeeded(web_user)
         login_web_user_session(request, username=web_user.username, web_user_id=web_user.id)
         log_successful_login_attempt(
@@ -110,7 +113,8 @@ async def login(
                 "reason": "account_disabled",
             },
         )
-        log_failed_login_attempt(
+        record_failed_login_attempt_and_maybe_block(
+            database_session,
             request,
             submitted_username=submitted_username,
             submitted_password=submitted_password,
@@ -127,10 +131,12 @@ async def login(
         request=request,
         details={"username": submitted_username, "reason": "invalid_credentials"},
     )
-    log_failed_login_attempt(
+    record_failed_login_attempt_and_maybe_block(
+        database_session,
         request,
         submitted_username=submitted_username,
         submitted_password=submitted_password,
+        reason="invalid_credentials",
     )
     database_session.commit()
     add_flash_message(request, "Invalid username or password.", "error")

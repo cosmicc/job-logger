@@ -65,6 +65,11 @@ _BACKWARD_COMPATIBLE_EMPTY_TABLES = {
     # v1.1.0 added passkeys after full backup support. Older backups should
     # restore with no passkeys instead of blocking recovery.
     "webauthn_credentials",
+    # v1.1.3 added app-managed Cloudflare login-block state after full backup
+    # support. Older backups restore with no hidden rows, counters, or blocks.
+    "cloudflare_ip_blocks",
+    "hidden_login_failures",
+    "login_failure_counters",
 }
 
 

@@ -233,6 +233,7 @@
                 <tr>
                   <th>Date/time</th>
                   <th>Client IP</th>
+                  <th>Actions</th>
                   <th>Username</th>
                   <th>Password length</th>
                   <th>Web client</th>
@@ -243,9 +244,69 @@
               </thead>
               <tbody>
                 {% for failure in login_failures.records %}
+                  {% set ip_status = login_failure_ip_statuses.get(failure.entry_id) %}
                   <tr>
                     <td class="login-time-cell">{{ failure.created_at_display }}</td>
-                    <td class="login-client-ip-cell">{{ failure.client_ip }}</td>
+                    <td class="login-client-ip-cell">
+                      {{ failure.client_ip }}
+                      {% if ip_status and ip_status.allowlisted %}
+                        <span class="status-chip login-ip-allowlisted">Allowlisted</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <div class="login-row-actions" aria-label="Actions for failed login from {{ failure.client_ip }}">
+                        <form method="post" action="/debug/login-failures/hide">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                          <input type="hidden" name="entry_id" value="{{ failure.entry_id }}">
+                          <input type="hidden" name="client_ip" value="{{ failure.client_ip }}">
+                          <input type="hidden" name="created_at_utc" value="{{ failure.created_at_utc }}">
+                          <button class="login-action-button login-hide-button" type="submit" title="Hide failed-login row" aria-label="Hide failed-login row">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M3 6h18"></path>
+                              <path d="M8 6V4h8v2"></path>
+                              <path d="M10 11v6"></path>
+                              <path d="M14 11v6"></path>
+                              <path d="M6 6l1 15h10l1-15"></path>
+                            </svg>
+                          </button>
+                        </form>
+                        {% if ip_status and ip_status.blocked %}
+                          <form method="post" action="/debug/cloudflare-blocks/unblock">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="ip_address" value="{{ ip_status.ip_address }}">
+                            <button
+                              class="login-action-button cloudflare-block-toggle is-on"
+                              type="submit"
+                              title="Cloudflare block is on; click to unblock"
+                              aria-label="Unblock IP at Cloudflare"
+                              {% if not cloudflare_ip_blocking_configured %}disabled{% endif %}
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path>
+                                <path d="m9 12 2 2 4-5"></path>
+                              </svg>
+                            </button>
+                          </form>
+                        {% else %}
+                          <form method="post" action="/debug/cloudflare-blocks/block">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="ip_address" value="{{ ip_status.ip_address if ip_status else failure.client_ip }}">
+                            <button
+                              class="login-action-button cloudflare-block-toggle is-off"
+                              type="submit"
+                              title="Cloudflare block is off; click to block"
+                              aria-label="Block IP at Cloudflare"
+                              {% if not cloudflare_ip_blocking_configured or not ip_status or not ip_status.valid or ip_status.allowlisted %}disabled{% endif %}
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path>
+                                <path d="M9 12h6"></path>
+                              </svg>
+                            </button>
+                          </form>
+                        {% endif %}
+                      </div>
+                    </td>
                     <td class="login-username-cell">
                       {{ failure.username or "blank" }}{% if failure.username_truncated %}...{% endif %}
                     </td>
@@ -357,6 +418,88 @@
           </nav>
         {% else %}
           <p class="muted-text">No failed application login attempts have been logged yet.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section id="cloudflare-blocked-ips" class="table-panel login-attempt-panel" aria-label="Cloudflare Blocked IPs">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <h2>Cloudflare Blocked IPs</h2>
+          <p class="muted-text">
+            Newest app-managed zone IP Access Rule blocks first, {{ cloudflare_ip_blocks_page.total_records }} retained, {{ cloudflare_ip_blocks_page.page_size }} per page.
+          </p>
+        </div>
+
+        {% if not cloudflare_ip_blocking_configured %}
+          <p class="muted-text">Cloudflare IP blocking is not fully configured.</p>
+        {% endif %}
+
+        {% if cloudflare_ip_blocks %}
+          <div class="table-wrap login-attempt-window cloudflare-block-window">
+            <table class="login-attempt-table cloudflare-block-table">
+              <thead>
+                <tr>
+                  <th>IP address</th>
+                  <th>Source</th>
+                  <th>Reason</th>
+                  <th>Failures</th>
+                  <th>Created</th>
+                  <th>Rule ID</th>
+                  <th>Remove</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for block in cloudflare_ip_blocks %}
+                  <tr>
+                    <td class="login-client-ip-cell">{{ block.ip_address }}</td>
+                    <td>{{ block.source.replace("_", " ").title() }}</td>
+                    <td class="login-cloudflare-reason-cell">{{ block.reason or "-" }}</td>
+                    <td>{{ block.failure_count if block.failure_count is not none else "-" }}</td>
+                    <td class="login-time-cell">{{ block.created_at_display }}</td>
+                    <td class="login-cloudflare-rule-cell" title="{{ block.cloudflare_rule_id }}">{{ block.cloudflare_rule_id }}</td>
+                    <td>
+                      <form method="post" action="/debug/cloudflare-blocks/unblock">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="ip_address" value="{{ block.ip_address }}">
+                        <button
+                          class="login-action-button login-hide-button"
+                          type="submit"
+                          title="Remove Cloudflare block"
+                          aria-label="Remove Cloudflare block"
+                          {% if not cloudflare_ip_blocking_configured %}disabled{% endif %}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 6h18"></path>
+                            <path d="M8 6V4h8v2"></path>
+                            <path d="M10 11v6"></path>
+                            <path d="M14 11v6"></path>
+                            <path d="M6 6l1 15h10l1-15"></path>
+                          </svg>
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <nav class="debug-pagination" aria-label="Cloudflare blocked IP pages">
+            {% if cloudflare_ip_blocks_page.previous_page %}
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.previous_page }}#cloudflare-blocked-ips">Previous</a>
+            {% else %}
+              <span class="secondary-link-button disabled-link">Previous</span>
+            {% endif %}
+            <span class="muted-text">Page {{ cloudflare_ip_blocks_page.page }} of {{ cloudflare_ip_blocks_page.total_pages }}</span>
+            {% if cloudflare_ip_blocks_page.next_page %}
+              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.next_page }}#cloudflare-blocked-ips">Next</a>
+            {% else %}
+              <span class="secondary-link-button disabled-link">Next</span>
+            {% endif %}
+          </nav>
+        {% else %}
+          <p class="muted-text">No app-managed Cloudflare IP blocks found.</p>
         {% endif %}
       </div>
     </section>

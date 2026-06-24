@@ -22,7 +22,8 @@ from job_logger.security import (
     validate_csrf_token,
 )
 from job_logger.services.audit import record_audit_event
-from job_logger.services.login_failures import log_failed_login_attempt, log_successful_login_attempt
+from job_logger.services.login_failures import log_successful_login_attempt, reset_login_failure_counter
+from job_logger.services.login_protection import record_failed_login_attempt_and_maybe_block
 from job_logger.services.passkeys import (
     PasskeyError,
     begin_passkey_authentication,
@@ -194,6 +195,7 @@ async def passkey_login_verify(
         credential_payload = await _json_payload(request)
         authentication = finish_passkey_authentication(database_session, request, credential_payload)
         web_user = authentication.web_user
+        reset_login_failure_counter(database_session, request)
         mark_web_user_login_succeeded(web_user)
         login_web_user_session(
             request,
@@ -230,7 +232,8 @@ async def passkey_login_verify(
             request=request,
             details={"error": str(getattr(exc, "detail", exc))},
         )
-        log_failed_login_attempt(
+        record_failed_login_attempt_and_maybe_block(
+            database_session,
             request,
             submitted_username="passkey",
             submitted_password="",

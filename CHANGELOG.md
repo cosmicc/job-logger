@@ -2,6 +2,31 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## v1.1.4 - Login protection, Cloudflare blocks, and tunnel binding
+
+- Advanced the source-controlled dev runtime version to `v1.1.4`, including
+  the Python package metadata and PWA service worker cache version.
+- Added super-admin `/debug` controls to hide individual failed-login rows
+  while preserving the raw JSONL audit download.
+- Added app-managed Cloudflare zone IP Access Rule blocking for failed-login
+  client IPs, including per-row block/unblock buttons, a Cloudflare blocked IP
+  card, an allowlist for trusted IPs/CIDRs, and automatic blocking after the
+  configured consecutive-failure threshold.
+- Added persistent failed-login counters that reset to zero after a successful
+  password or Device sign-in login from the same displayed client IP.
+- Added Docker/runtime configuration for app-managed Cloudflare blocking:
+  `CLOUDFLARE_IP_BLOCKING_ENABLED`, `CLOUDFLARE_API_TOKEN`,
+  `CLOUDFLARE_ZONE_ID`, `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, and
+  `CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS`.
+- Added database tables and migration coverage for app-managed Cloudflare
+  blocks, hidden failed-login rows, and login-failure counters, with
+  full-backup restore compatibility for older backups that do not contain
+  those tables.
+- Added Docker/runtime `BIND_ADDRESS` and `HTTP_PORT` support for the nginx
+  listener so the host-networked Cloudflare Tunnel connector can target a
+  loopback origin on a chosen port; `NGINX_PUBLIC_PORT` remains a
+  backward-compatible fallback.
+
 ## v1.1.3 - Review visibility and Work in Progress refinements
 
 - Advanced the source-controlled dev runtime version to `v1.1.3`, including

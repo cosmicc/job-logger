@@ -5,23 +5,38 @@ from __future__ import annotations
 import gzip
 import json
 import os
+import re
 import tomllib
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from job_logger import database
+from job_logger.config import settings
 from job_logger.enums import JobStatus, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
-from job_logger.models import AuditEvent, Job, SubmissionAttempt, UserPreference, WebAuthnCredential, WebUser
+from job_logger.models import (
+    AuditEvent,
+    CloudflareIPBlock,
+    HiddenLoginFailure,
+    Job,
+    LoginFailureCounter,
+    SubmissionAttempt,
+    UserPreference,
+    WebAuthnCredential,
+    WebUser,
+)
 from job_logger.routes import debug as debug_routes
 from job_logger.services.backups import (
     automatic_backup_filename,
     create_automatic_backup,
     list_automatic_backup_files,
 )
+from job_logger.services.cloudflare_blocks import create_cloudflare_ip_block, ip_is_allowlisted
 from job_logger.services.jobs import get_active_job
 from job_logger.time_utils import format_local_display
 from job_logger.version import APP_VERSION
@@ -133,6 +148,9 @@ def test_debug_routes_are_super_admin_only(client: TestClient) -> None:
         ("GET", "/debug/logs/login-successes"),
         ("POST", "/debug/autotask/test"),
         ("POST", "/debug/sessions/logout-web-users"),
+        ("POST", "/debug/login-failures/hide"),
+        ("POST", "/debug/cloudflare-blocks/block"),
+        ("POST", "/debug/cloudflare-blocks/unblock"),
         ("POST", "/debug/backup"),
         ("POST", "/debug/restore"),
         ("POST", "/debug/automatic-backups/download"),
@@ -315,6 +333,8 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
     assert log_payload["password_supplied"] is True
     assert log_payload["password_length"] == len(failed_password)
     assert log_payload["user_agent"] == "Failed Login Test"
+    assert log_payload["failed_count"] == 1
+    assert log_payload["max_attempts"] == 5
     assert log_payload["lockout_applied"] is False
     assert "created_at_utc" in log_payload
 
@@ -348,12 +368,16 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
     assert "bad-user" in debug_response.text
     assert "198.51.100.7" in debug_response.text
     assert "203.0.113.9, 10.0.0.2" in debug_response.text
-    assert "<td class=\"login-client-ip-cell\">203.0.113.9</td>" in debug_response.text
+    assert re.search(r'<td class="login-client-ip-cell">\s*203\.0\.113\.9', debug_response.text)
     assert "login-details-button" in debug_response.text
     assert "Extra info" in debug_response.text
     assert "Failed Login Test" in debug_response.text
     assert "Invalid Credentials" in debug_response.text
     assert ">12<" in debug_response.text
+    assert "1 / 5" in debug_response.text
+    assert 'aria-label="Hide failed-login row"' in debug_response.text
+    assert 'aria-label="Block IP at Cloudflare"' in debug_response.text
+    assert "Cloudflare Blocked IPs" in debug_response.text
     assert os.environ["LOGIN_FAILURE_LOG_PATH"] in debug_response.text
     assert os.environ["LOGIN_SUCCESS_LOG_PATH"] in debug_response.text
     assert failed_password not in debug_response.text
@@ -370,6 +394,316 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
     assert "web_login_succeeded" in success_download_response.text
     assert "job-logger-login-successes.log" in success_download_response.headers["content-disposition"]
     assert success_download_response.headers["cache-control"] == "no-store"
+
+    entry_id_match = re.search(r'name="entry_id" value="([a-f0-9]{64})"', debug_response.text)
+    assert entry_id_match is not None
+    hide_response = client.post(
+        "/debug/login-failures/hide",
+        data={
+            "csrf_token": extract_csrf_token(debug_response.text),
+            "entry_id": entry_id_match.group(1),
+            "client_ip": "203.0.113.9",
+            "created_at_utc": log_payload["created_at_utc"],
+        },
+        follow_redirects=False,
+    )
+    assert hide_response.status_code == 303
+    assert hide_response.headers["location"] == "/debug#login-failures"
+
+    hidden_debug_response = client.get("/debug")
+    assert "bad-user" not in hidden_debug_response.text
+    assert client.get("/debug/logs/login-failures").text == download_response.text
+    with database.SessionLocal() as database_session:
+        hidden_entry = database_session.scalar(select(HiddenLoginFailure))
+        assert hidden_entry is not None
+        assert hidden_entry.entry_id == entry_id_match.group(1)
+        assert hidden_entry.client_ip == "203.0.113.9"
+
+
+def test_cloudflare_ip_block_allowlist_matches_ips_and_cidrs() -> None:
+    """Trusted IPs and CIDRs should be protected from app-managed blocks."""
+
+    cloudflare_settings = replace(
+        settings,
+        cloudflare_ip_block_allowlist="198.51.100.20, 203.0.113.0/24",
+    )
+
+    assert ip_is_allowlisted("198.51.100.20", cloudflare_settings)
+    assert ip_is_allowlisted("203.0.113.44", cloudflare_settings)
+    assert not ip_is_allowlisted("198.51.100.21", cloudflare_settings)
+
+
+def test_create_cloudflare_ip_block_sends_zone_access_rule_payload(monkeypatch) -> None:
+    """Cloudflare blocks should be zone-level IP Access Rules with block mode."""
+
+    cloudflare_settings = replace(
+        settings,
+        cloudflare_ip_blocking_enabled=True,
+        cloudflare_api_token="test-token",
+        cloudflare_zone_id="test-zone",
+    )
+    captured_request = {}
+
+    class FakeResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"success": True, "result": {"id": "rule-123"}}
+
+    def fake_post(url, *, headers, json, timeout):
+        captured_request["url"] = url
+        captured_request["headers"] = headers
+        captured_request["json"] = json
+        captured_request["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr("job_logger.services.cloudflare_blocks.httpx.post", fake_post)
+
+    result = create_cloudflare_ip_block(
+        "203.0.113.44",
+        note="Job Logger manual block",
+        application_settings=cloudflare_settings,
+    )
+
+    assert result.rule_id == "rule-123"
+    assert captured_request["url"].endswith("/zones/test-zone/firewall/access_rules/rules")
+    assert captured_request["headers"]["Authorization"] == "Bearer test-token"
+    assert captured_request["json"] == {
+        "mode": "block",
+        "configuration": {"target": "ip", "value": "203.0.113.44"},
+        "notes": "Job Logger manual block",
+    }
+
+
+def test_failed_login_auto_blocks_cloudflare_ip_after_five_consecutive_failures(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    """Five consecutive local login failures from one IP should create an app-managed block."""
+
+    created_blocks: list[tuple[str, str, int | None]] = []
+
+    def fake_create_app_cloudflare_block(
+        database_session: Session,
+        ip_address: str,
+        *,
+        source: str,
+        reason: str,
+        failure_count: int | None = None,
+        application_settings=settings,
+    ) -> CloudflareIPBlock:
+        created_blocks.append((ip_address, source, failure_count))
+        block = CloudflareIPBlock(
+            ip_address=ip_address,
+            cloudflare_rule_id="cf-auto-rule",
+            source=source,
+            reason=reason,
+            failure_count=failure_count,
+            notes="Job Logger automatic block",
+        )
+        database_session.add(block)
+        database_session.flush()
+        return block
+
+    monkeypatch.setattr(
+        "job_logger.services.login_protection.cloudflare_ip_blocking_configured",
+        lambda application_settings=settings: True,
+    )
+    monkeypatch.setattr(
+        "job_logger.services.login_protection.create_app_cloudflare_block",
+        fake_create_app_cloudflare_block,
+    )
+
+    for _ in range(5):
+        login_page_response = client.get("/login")
+        csrf_token = extract_csrf_token(login_page_response.text)
+        failed_response = client.post(
+            "/login",
+            headers={"X-Forwarded-For": "198.51.100.55", "User-Agent": "Auto Block Test"},
+            data={"csrf_token": csrf_token, "username": "bad-user", "password": "bad-password"},
+            follow_redirects=False,
+        )
+        assert failed_response.status_code == 303
+
+    assert created_blocks == [("198.51.100.55", "automatic", 5)]
+    with database.SessionLocal() as database_session:
+        counter = database_session.scalar(select(LoginFailureCounter).where(LoginFailureCounter.client_ip == "198.51.100.55"))
+        assert counter is not None
+        assert counter.failed_count == 5
+        block = database_session.scalar(select(CloudflareIPBlock))
+        assert block is not None
+        assert block.ip_address == "198.51.100.55"
+        assert block.cloudflare_rule_id == "cf-auto-rule"
+        assert block.source == "automatic"
+        audit_event = database_session.scalar(select(AuditEvent).where(AuditEvent.action == "debug.cloudflare_ip_block.created"))
+        assert audit_event is not None
+        assert audit_event.details["failure_count"] == 5
+
+    failure_payloads = [
+        json.loads(line)
+        for line in Path(os.environ["LOGIN_FAILURE_LOG_PATH"]).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert failure_payloads[-1]["failed_count"] == 5
+    assert failure_payloads[-1]["max_attempts"] == 5
+
+
+def test_successful_login_resets_consecutive_failures_before_auto_block(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    """A successful login before the threshold should reset that IP's failed count."""
+
+    def fail_create_app_cloudflare_block(*args, **kwargs):
+        raise AssertionError("Cloudflare block should not be created after a reset.")
+
+    monkeypatch.setattr(
+        "job_logger.services.login_protection.cloudflare_ip_blocking_configured",
+        lambda application_settings=settings: True,
+    )
+    monkeypatch.setattr(
+        "job_logger.services.login_protection.create_app_cloudflare_block",
+        fail_create_app_cloudflare_block,
+    )
+
+    for _ in range(4):
+        login_page_response = client.get("/login")
+        csrf_token = extract_csrf_token(login_page_response.text)
+        failed_response = client.post(
+            "/login",
+            headers={"X-Forwarded-For": "198.51.100.60"},
+            data={"csrf_token": csrf_token, "username": "bad-user", "password": "bad-password"},
+            follow_redirects=False,
+        )
+        assert failed_response.status_code == 303
+
+    login_page_response = client.get("/login")
+    csrf_token = extract_csrf_token(login_page_response.text)
+    success_response = client.post(
+        "/login",
+        headers={"X-Forwarded-For": "198.51.100.60"},
+        data={"csrf_token": csrf_token, "username": "admin", "password": "test-password"},
+        follow_redirects=False,
+    )
+    assert success_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        counter = database_session.scalar(select(LoginFailureCounter).where(LoginFailureCounter.client_ip == "198.51.100.60"))
+        assert counter is not None
+        assert counter.failed_count == 0
+
+    client.cookies.clear()
+    login_page_response = client.get("/login")
+    csrf_token = extract_csrf_token(login_page_response.text)
+    failed_response = client.post(
+        "/login",
+        headers={"X-Forwarded-For": "198.51.100.60"},
+        data={"csrf_token": csrf_token, "username": "bad-user", "password": "bad-password"},
+        follow_redirects=False,
+    )
+    assert failed_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        counter = database_session.scalar(select(LoginFailureCounter).where(LoginFailureCounter.client_ip == "198.51.100.60"))
+        assert counter is not None
+        assert counter.failed_count == 1
+        assert database_session.scalar(select(CloudflareIPBlock)) is None
+
+
+def test_debug_cloudflare_block_buttons_create_and_remove_app_managed_block(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    """The failed-login row block toggle should create and remove app-managed blocks."""
+
+    login_page_response = client.get("/login")
+    csrf_token = extract_csrf_token(login_page_response.text)
+    failed_response = client.post(
+        "/login",
+        headers={"X-Forwarded-For": "203.0.113.20", "User-Agent": "Manual Block Test"},
+        data={"csrf_token": csrf_token, "username": "bad-user", "password": "bad-password"},
+        follow_redirects=False,
+    )
+    assert failed_response.status_code == 303
+
+    login_page_response = client.get("/login")
+    csrf_token = extract_csrf_token(login_page_response.text)
+    success_response = client.post(
+        "/login",
+        data={"csrf_token": csrf_token, "username": "admin", "password": "test-password"},
+        follow_redirects=False,
+    )
+    assert success_response.status_code == 303
+
+    deleted_rule_ids: list[str] = []
+
+    def fake_cloudflare_ip_blocking_configured() -> bool:
+        return True
+
+    def fake_create_app_cloudflare_block(
+        database_session: Session,
+        ip_address: str,
+        *,
+        source: str,
+        reason: str,
+        failure_count: int | None = None,
+        application_settings=settings,
+    ) -> CloudflareIPBlock:
+        assert ip_address == "203.0.113.20"
+        assert "Diagnostics failed-login row block button" in reason
+        block = CloudflareIPBlock(
+            ip_address=ip_address,
+            cloudflare_rule_id="cf-manual-rule",
+            source=source,
+            reason=reason,
+            failure_count=failure_count,
+            notes="Job Logger manual block",
+        )
+        database_session.add(block)
+        database_session.flush()
+        return block
+
+    def fake_remove_app_cloudflare_block(database_session: Session, block: CloudflareIPBlock) -> None:
+        deleted_rule_ids.append(block.cloudflare_rule_id)
+        database_session.delete(block)
+
+    monkeypatch.setattr(debug_routes, "cloudflare_ip_blocking_configured", fake_cloudflare_ip_blocking_configured)
+    monkeypatch.setattr(debug_routes, "create_app_cloudflare_block", fake_create_app_cloudflare_block)
+    monkeypatch.setattr(debug_routes, "remove_app_cloudflare_block", fake_remove_app_cloudflare_block)
+
+    initial_response = client.get("/debug")
+    assert initial_response.status_code == 200
+    assert 'aria-label="Block IP at Cloudflare"' in initial_response.text
+    block_response = client.post(
+        "/debug/cloudflare-blocks/block",
+        data={"csrf_token": extract_csrf_token(initial_response.text), "ip_address": "203.0.113.20"},
+        follow_redirects=False,
+    )
+    assert block_response.status_code == 303
+    assert block_response.headers["location"] == "/debug#login-failures"
+    with database.SessionLocal() as database_session:
+        block = database_session.scalar(select(CloudflareIPBlock))
+        assert block is not None
+        assert block.ip_address == "203.0.113.20"
+        assert block.cloudflare_rule_id == "cf-manual-rule"
+        assert block.source == "manual"
+
+    blocked_response = client.get("/debug")
+    assert "Cloudflare Blocked IPs" in blocked_response.text
+    assert "cf-manual-rule" in blocked_response.text
+    assert 'aria-label="Unblock IP at Cloudflare"' in blocked_response.text
+
+    unblock_response = client.post(
+        "/debug/cloudflare-blocks/unblock",
+        data={"csrf_token": extract_csrf_token(blocked_response.text), "ip_address": "203.0.113.20"},
+        follow_redirects=False,
+    )
+    assert unblock_response.status_code == 303
+    assert unblock_response.headers["location"] == "/debug#cloudflare-blocked-ips"
+    assert deleted_rule_ids == ["cf-manual-rule"]
+    with database.SessionLocal() as database_session:
+        assert database_session.scalar(select(CloudflareIPBlock)) is None
 
 
 def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient) -> None:
@@ -560,7 +894,8 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert debug_response.text.index("Disk space") < debug_response.text.index("Session controls")
     assert debug_response.text.index("Session controls") < debug_response.text.index("Successful logins")
     assert debug_response.text.index("Successful logins") < debug_response.text.index("Login failures")
-    assert debug_response.text.index("Login failures") < debug_response.text.index("Autotask submission attempts")
+    assert debug_response.text.index("Login failures") < debug_response.text.index("Cloudflare Blocked IPs")
+    assert debug_response.text.index("Cloudflare Blocked IPs") < debug_response.text.index("Autotask submission attempts")
     assert debug_response.text.index("Autotask submission attempts") < debug_response.text.index("Autotask configuration snapshot")
     assert debug_response.text.index("Autotask configuration snapshot") < debug_response.text.index("Automatic database backups")
     assert debug_response.text.index("Automatic database backups") < debug_response.text.index("Full data backup")
@@ -1016,6 +1351,81 @@ def test_debug_restore_defaults_missing_passkey_table_to_empty(
     assert restore_response.status_code == 303
     with database.SessionLocal() as database_session:
         assert database_session.scalar(select(func.count(WebAuthnCredential.id))) == 0
+
+
+def test_debug_restore_defaults_missing_cloudflare_security_tables_to_empty(
+    super_admin_client: TestClient,
+) -> None:
+    """Restore backups that predate app-managed Cloudflare block tables."""
+
+    _seed_full_backup_data()
+    with database.SessionLocal() as database_session:
+        database_session.add(
+            LoginFailureCounter(
+                client_ip="198.51.100.77",
+                failed_count=3,
+                created_at_utc=datetime(2026, 6, 24, 12, 0, tzinfo=UTC),
+                updated_at_utc=datetime(2026, 6, 24, 12, 0, tzinfo=UTC),
+            )
+        )
+        database_session.add(
+            CloudflareIPBlock(
+                ip_address="198.51.100.77",
+                cloudflare_rule_id="cf-backup-rule",
+                source="automatic",
+                reason="backup compatibility seed",
+                failure_count=3,
+                notes="Job Logger automatic block",
+                created_at_utc=datetime(2026, 6, 24, 12, 0, tzinfo=UTC),
+                updated_at_utc=datetime(2026, 6, 24, 12, 0, tzinfo=UTC),
+            )
+        )
+        database_session.add(
+            HiddenLoginFailure(
+                entry_id="a" * 64,
+                client_ip="198.51.100.77",
+                occurred_at_utc="2026-06-24T12:00:00+00:00",
+                hidden_at_utc=datetime(2026, 6, 24, 12, 0, tzinfo=UTC),
+            )
+        )
+        database_session.commit()
+
+    debug_page_response = super_admin_client.get("/debug")
+    csrf_token = extract_csrf_token(debug_page_response.text)
+    backup_response = super_admin_client.post(
+        "/debug/backup",
+        data={"csrf_token": csrf_token},
+    )
+    payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
+    for table_name in ("cloudflare_ip_blocks", "hidden_login_failures", "login_failure_counters"):
+        payload["tables"].pop(table_name, None)
+        payload["schema"].pop(table_name, None)
+        payload["table_counts"].pop(table_name, None)
+    legacy_backup_content = gzip.compress(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+        mtime=0,
+    )
+
+    restore_page_response = super_admin_client.get("/debug")
+    restore_csrf_token = extract_csrf_token(restore_page_response.text)
+    restore_response = super_admin_client.post(
+        "/debug/restore",
+        data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
+        files={
+            "backup_file": (
+                "job-logger-pre-cloudflare-blocks-full-backup.json.gz",
+                legacy_backup_content,
+                "application/gzip",
+            )
+        },
+        follow_redirects=False,
+    )
+
+    assert restore_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        assert database_session.scalar(select(func.count(CloudflareIPBlock.id))) == 0
+        assert database_session.scalar(select(func.count(HiddenLoginFailure.id))) == 0
+        assert database_session.scalar(select(func.count(LoginFailureCounter.id))) == 0
 
 
 def test_debug_restore_requires_confirmation(super_admin_client: TestClient) -> None:

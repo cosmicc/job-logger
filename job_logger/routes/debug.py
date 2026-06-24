@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 from collections import deque
 from dataclasses import dataclass
@@ -18,7 +19,7 @@ from starlette.datastructures import UploadFile
 from job_logger.config import settings
 from job_logger.database import get_database_session
 from job_logger.logging_config import redact_sensitive_text
-from job_logger.models import Job, SubmissionAttempt, WebUser
+from job_logger.models import CloudflareIPBlock, HiddenLoginFailure, Job, SubmissionAttempt, WebUser
 from job_logger.security import add_flash_message, require_super_admin, validate_csrf_token
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
@@ -31,6 +32,15 @@ from job_logger.services.backups import (
     read_automatic_backup_content,
     restore_full_backup,
 )
+from job_logger.services.cloudflare_blocks import (
+    CloudflareBlockError,
+    cloudflare_block_for_ip,
+    cloudflare_ip_blocking_configured,
+    create_app_cloudflare_block,
+    ip_is_allowlisted,
+    normalize_ip_address,
+    remove_app_cloudflare_block,
+)
 from job_logger.services.login_failures import read_login_failures_page, read_login_successes_page
 from job_logger.services.session_control import invalidate_all_web_user_sessions
 from job_logger.time_utils import format_local_display
@@ -40,6 +50,7 @@ from job_logger.version import APP_VERSION
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/debug", tags=["debug"])
 LOGIN_ATTEMPT_PAGE_SIZE = 10
+CLOUDFLARE_BLOCK_PAGE_SIZE = 10
 APP_LOG_TAIL_LINES = 200
 MAX_APP_LOG_LINE_CHARS = 2000
 DISK_SPACE_WARNING_USED_PERCENT = 85.0
@@ -118,6 +129,31 @@ class DebugAutomaticBackup:
     filename: str
     created_at_display: str
     size_display: str
+
+
+@dataclass(frozen=True)
+class DebugCloudflareBlock:
+    """Display-safe app-managed Cloudflare block row."""
+
+    ip_address: str
+    cloudflare_rule_id: str
+    source: str
+    reason: str
+    failure_count: int | None
+    created_at_display: str
+
+
+@dataclass(frozen=True)
+class DebugCloudflareBlockPage:
+    """One bounded page of app-managed Cloudflare IP block rows."""
+
+    records: list[DebugCloudflareBlock]
+    page: int
+    page_size: int
+    total_records: int
+    total_pages: int
+    previous_page: int | None
+    next_page: int | None
 
 
 def _safe_autotask_config() -> dict[str, object]:
@@ -286,6 +322,40 @@ def _serialize_automatic_backup(backup_file: AutomaticBackupFile) -> DebugAutoma
     )
 
 
+def _paginate_cloudflare_blocks(
+    records: list[CloudflareIPBlock],
+    *,
+    page: int,
+    page_size: int,
+) -> DebugCloudflareBlockPage:
+    """Return one bounded page of app-managed Cloudflare block rows."""
+
+    bounded_page_size = max(1, min(page_size, 100))
+    total_records = len(records)
+    total_pages = max(1, (total_records + bounded_page_size - 1) // bounded_page_size)
+    bounded_page = max(1, min(page, total_pages))
+    start_index = (bounded_page - 1) * bounded_page_size
+    return DebugCloudflareBlockPage(
+        records=[
+            DebugCloudflareBlock(
+                ip_address=block.ip_address,
+                cloudflare_rule_id=block.cloudflare_rule_id,
+                source=block.source,
+                reason=block.reason,
+                failure_count=block.failure_count,
+                created_at_display=format_local_display(block.created_at_utc),
+            )
+            for block in records[start_index : start_index + bounded_page_size]
+        ],
+        page=bounded_page,
+        page_size=bounded_page_size,
+        total_records=total_records,
+        total_pages=total_pages,
+        previous_page=bounded_page - 1 if bounded_page > 1 else None,
+        next_page=bounded_page + 1 if bounded_page < total_pages else None,
+    )
+
+
 def _read_app_log_tail(log_dir: str, *, line_count: int = APP_LOG_TAIL_LINES) -> list[str]:
     """Return newest-first sanitized app log lines for the debug page."""
 
@@ -319,12 +389,19 @@ def _redirect_anonymous_or_raise(exc: HTTPException) -> RedirectResponse:
     raise exc
 
 
+def _debug_redirect(fragment: str) -> RedirectResponse:
+    """Redirect back to one diagnostics section after a state-changing action."""
+
+    return RedirectResponse(url=f"/debug#{fragment}", status_code=303)
+
+
 @router.get("", response_class=HTMLResponse)
 def debug_page(
     request: Request,
     database_session: Session = Depends(get_database_session),
     success_page: int = Query(1, ge=1),
     failure_page: int = Query(1, ge=1),
+    cloudflare_blocks_page: int = Query(1, ge=1),
 ) -> Response:
     """Render authenticated diagnostics, submission attempts, and login failures."""
 
@@ -347,6 +424,32 @@ def debug_page(
         _serialize_submission_attempt(attempt, job_ticket_number, job_owner_name)
         for attempt, job_ticket_number, job_owner_name in attempt_rows
     ]
+    hidden_login_failure_ids = set(database_session.scalars(select(HiddenLoginFailure.entry_id)))
+    login_failures = read_login_failures_page(
+        page=failure_page,
+        page_size=LOGIN_ATTEMPT_PAGE_SIZE,
+        hidden_entry_ids=hidden_login_failure_ids,
+    )
+    all_cloudflare_ip_blocks = list(
+        database_session.scalars(
+            select(CloudflareIPBlock).order_by(desc(CloudflareIPBlock.created_at_utc))
+        )
+    )
+    cloudflare_ip_blocks_page = _paginate_cloudflare_blocks(
+        all_cloudflare_ip_blocks,
+        page=cloudflare_blocks_page,
+        page_size=CLOUDFLARE_BLOCK_PAGE_SIZE,
+    )
+    blocked_ip_addresses = {block.ip_address for block in all_cloudflare_ip_blocks}
+    login_failure_ip_statuses = {}
+    for failure in login_failures.records:
+        normalized_ip = normalize_ip_address(failure.client_ip)
+        login_failure_ip_statuses[failure.entry_id] = {
+            "ip_address": normalized_ip or failure.client_ip,
+            "valid": normalized_ip is not None,
+            "blocked": normalized_ip in blocked_ip_addresses if normalized_ip else False,
+            "allowlisted": ip_is_allowlisted(normalized_ip) if normalized_ip else False,
+        }
 
     return templates.TemplateResponse(
         request,
@@ -362,7 +465,11 @@ def debug_page(
             login_failure_debug_rows=settings.login_failure_debug_rows,
             login_attempt_page_size=LOGIN_ATTEMPT_PAGE_SIZE,
             login_successes=read_login_successes_page(page=success_page, page_size=LOGIN_ATTEMPT_PAGE_SIZE),
-            login_failures=read_login_failures_page(page=failure_page, page_size=LOGIN_ATTEMPT_PAGE_SIZE),
+            login_failures=login_failures,
+            login_failure_ip_statuses=login_failure_ip_statuses,
+            cloudflare_ip_blocks=cloudflare_ip_blocks_page.records,
+            cloudflare_ip_blocks_page=cloudflare_ip_blocks_page,
+            cloudflare_ip_blocking_configured=cloudflare_ip_blocking_configured(),
             disk_usage=_collect_disk_usage_snapshot(),
             submission_attempts=debug_submission_attempts,
             automatic_backups=[
@@ -423,6 +530,154 @@ def download_login_success_log(request: Request) -> Response:
             "Cache-Control": "no-store",
         },
     )
+
+
+@router.post("/login-failures/hide")
+async def hide_login_failure_entry(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Hide one failed-login row from Diagnostics without editing the raw log."""
+
+    try:
+        actor = require_super_admin(request)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
+
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+    cleaned_entry_id = str(form_data.get("entry_id", "")).strip().lower()
+    if not re.fullmatch(r"[a-f0-9]{64}", cleaned_entry_id):
+        raise HTTPException(status_code=400, detail="Invalid failed-login entry ID.")
+
+    existing = database_session.scalar(
+        select(HiddenLoginFailure)
+        .where(HiddenLoginFailure.entry_id == cleaned_entry_id)
+        .limit(1)
+    )
+    if existing is None:
+        hidden_entry = HiddenLoginFailure(
+            entry_id=cleaned_entry_id,
+            client_ip=str(form_data.get("client_ip", "")).strip()[:64],
+            occurred_at_utc=str(form_data.get("created_at_utc", "")).strip()[:40],
+        )
+        database_session.add(hidden_entry)
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="debug.login_failure.hidden",
+            request=request,
+            details={
+                "entry_id": cleaned_entry_id,
+                "client_ip": hidden_entry.client_ip,
+            },
+        )
+        database_session.commit()
+        add_flash_message(request, "Failed-login row hidden from Diagnostics.", "success")
+    else:
+        add_flash_message(request, "Failed-login row is already hidden.", "info")
+    return _debug_redirect("login-failures")
+
+
+@router.post("/cloudflare-blocks/block")
+async def block_login_ip_form(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Create an app-managed Cloudflare block for a failed-login IP."""
+
+    try:
+        actor = require_super_admin(request)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
+
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+    ip_address = str(form_data.get("ip_address", "")).strip()
+    normalized_ip = normalize_ip_address(ip_address)
+    if normalized_ip is None:
+        add_flash_message(request, "Cannot block an invalid IP address.", "error")
+        return _debug_redirect("login-failures")
+
+    existing_block = cloudflare_block_for_ip(database_session, normalized_ip)
+    if existing_block is not None:
+        add_flash_message(request, "Cloudflare IP block is already active.", "info")
+        return _debug_redirect("login-failures")
+
+    try:
+        block = create_app_cloudflare_block(
+            database_session,
+            normalized_ip,
+            source="manual",
+            reason="Diagnostics failed-login row block button",
+        )
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="debug.cloudflare_ip_block.created",
+            request=request,
+            details={
+                "ip_address": block.ip_address,
+                "cloudflare_rule_id": block.cloudflare_rule_id,
+                "source": block.source,
+            },
+        )
+        database_session.commit()
+    except CloudflareBlockError as exc:
+        database_session.rollback()
+        add_flash_message(request, str(exc), "error")
+        return _debug_redirect("login-failures")
+
+    add_flash_message(request, "Cloudflare IP block is active.", "success")
+    return _debug_redirect("login-failures")
+
+
+@router.post("/cloudflare-blocks/unblock")
+async def unblock_login_ip_form(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Remove one app-managed Cloudflare block and its local block-list row."""
+
+    try:
+        actor = require_super_admin(request)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
+
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+    ip_address = str(form_data.get("ip_address", "")).strip()
+    normalized_ip = normalize_ip_address(ip_address)
+    if normalized_ip is None:
+        add_flash_message(request, "Cannot unblock an invalid IP address.", "error")
+        return _debug_redirect("cloudflare-blocked-ips")
+
+    block = cloudflare_block_for_ip(database_session, normalized_ip)
+    if block is None:
+        add_flash_message(request, "IP address is not in the app-managed block list.", "info")
+        return _debug_redirect("cloudflare-blocked-ips")
+
+    cloudflare_rule_id = block.cloudflare_rule_id
+    try:
+        remove_app_cloudflare_block(database_session, block)
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="debug.cloudflare_ip_block.removed",
+            request=request,
+            details={
+                "ip_address": normalized_ip,
+                "cloudflare_rule_id": cloudflare_rule_id,
+            },
+        )
+        database_session.commit()
+    except CloudflareBlockError as exc:
+        database_session.rollback()
+        add_flash_message(request, str(exc), "error")
+        return _debug_redirect("cloudflare-blocked-ips")
+
+    add_flash_message(request, "Cloudflare IP block was removed.", "success")
+    return _debug_redirect("cloudflare-blocked-ips")
 
 
 @router.post("/backup")

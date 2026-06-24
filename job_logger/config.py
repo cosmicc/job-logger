@@ -54,6 +54,15 @@ def _get_integer(environment_variable_name: str, default_value: int) -> int:
     return int(raw_value)
 
 
+def _get_positive_integer(environment_variable_name: str, default_value: int) -> int:
+    """Return a positive integer setting, failing fast for unsafe values."""
+
+    value = _get_integer(environment_variable_name, default_value)
+    if value <= 0:
+        raise ValueError(f"{environment_variable_name} must be greater than zero.")
+    return value
+
+
 def _get_float(environment_variable_name: str, default_value: float) -> float:
     """Return a float setting with a clear fallback for empty variables."""
 
@@ -160,6 +169,21 @@ class Settings:
 
     # CLOUDFLARE_ACCESS_REQUIRED optionally requires a Cloudflare Access identity header.
     cloudflare_access_required: bool
+
+    # CLOUDFLARE_IP_BLOCKING_ENABLED gates app-managed Cloudflare IP Access Rule writes.
+    cloudflare_ip_blocking_enabled: bool
+
+    # CLOUDFLARE_API_TOKEN authorizes zone-level IP Access Rule changes.
+    cloudflare_api_token: str
+
+    # CLOUDFLARE_ZONE_ID selects the Cloudflare zone where app-managed blocks live.
+    cloudflare_zone_id: str
+
+    # CLOUDFLARE_IP_BLOCK_ALLOWLIST protects trusted IPs/CIDRs from auto/manual app blocks.
+    cloudflare_ip_block_allowlist: str
+
+    # CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS is the consecutive-failure threshold.
+    cloudflare_auto_block_failed_login_attempts: int
 
     # TRANSCRIPTION_PROVIDER selects the audio transcription backend.
     transcription_provider: str
@@ -344,6 +368,14 @@ def load_settings() -> Settings:
         session_timeout_hours=_get_positive_float("APP_SESSION_TIMEOUT_HOURS", 12.0),
         allowed_hosts=_get_csv("APP_ALLOWED_HOSTS", "localhost,127.0.0.1,app"),
         cloudflare_access_required=_get_boolean("CLOUDFLARE_ACCESS_REQUIRED", False),
+        cloudflare_ip_blocking_enabled=_get_boolean("CLOUDFLARE_IP_BLOCKING_ENABLED", False),
+        cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN", ""),
+        cloudflare_zone_id=os.getenv("CLOUDFLARE_ZONE_ID", ""),
+        cloudflare_ip_block_allowlist=os.getenv("CLOUDFLARE_IP_BLOCK_ALLOWLIST", ""),
+        cloudflare_auto_block_failed_login_attempts=_get_positive_integer(
+            "CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS",
+            5,
+        ),
         transcription_provider=os.getenv("TRANSCRIPTION_PROVIDER", "mock").strip().lower(),
         max_audio_upload_bytes=_get_integer("MAX_AUDIO_UPLOAD_BYTES", 10 * 1024 * 1024),
         max_backup_restore_bytes=_get_integer("MAX_BACKUP_RESTORE_BYTES", 250 * 1024 * 1024),

@@ -136,7 +136,7 @@ Keep the dev instance isolated from production:
 - Use a separate Cloudflare Tunnel and public hostname for dev testing.
 - Use a separate Docker Compose project name, PostgreSQL volume, backup
   directory, and host log directory so dev cannot overwrite production data.
-- Use a different `NGINX_PUBLIC_PORT`, such as `11031`, if production and dev
+- Use a different `HTTP_PORT`, such as `11031`, if production and dev
   run on the same Docker host.
 - Set `DEV_BUILD=true` in the dev `.env` so the authenticated header clearly
   marks the instance as dev.
@@ -149,7 +149,7 @@ Example same-host dev startup:
 ```bash
 COMPOSE_PROJECT_NAME=job_logger_dev \
 HOST_LOG_DIR=/var/log/job-logger-dev \
-NGINX_PUBLIC_PORT=11031 \
+HTTP_PORT=11031 \
 DEV_BUILD=true \
 docker compose up -d --build
 ```
@@ -196,7 +196,7 @@ tunnel connector all come up with one `docker compose up -d --build` command.
    docker compose up -d --build
    ```
 
-   After changing `APP_ALLOWED_HOSTS`, `NGINX_PUBLIC_PORT`, or the nginx proxy
+   After changing `APP_ALLOWED_HOSTS`, `BIND_ADDRESS`, `HTTP_PORT`, or the nginx proxy
    config, recreate the app-facing services so Docker applies the new container
    environment and rendered nginx config:
 
@@ -207,22 +207,26 @@ tunnel connector all come up with one `docker compose up -d --build` command.
 Nginx is the web front end for this deployment. Public mobile and review
 traffic should enter through the Cloudflare Tunnel hostname, reach the host-exposed
 Nginx endpoint on `127.0.0.1:11030` from the Compose-managed connector by
-default (or `127.0.0.1:<NGINX_PUBLIC_PORT>` after you change it), and then
+default (or `<BIND_ADDRESS>:<HTTP_PORT>` after you change it), and then
 proxy to FastAPI at `http://app:8000`.
 
 The app container is exposed only to the private Compose network. The local
 troubleshooting URL reaches Nginx on `127.0.0.1`, not the app container
 directly.
 
-Nginx binds `NGINX_PUBLIC_PORT` on host interfaces so the Compose-managed
-tunnel can reach the origin through host networking. If you intentionally point
-a remotely-managed tunnel at a LAN/server IP instead of `127.0.0.1`, keep host
-firewall rules limited to trusted networks or the tunnel connector path because
-direct LAN access to this port bypasses Cloudflare Access. Application login
-still protects the app itself.
+Nginx binds `HTTP_PORT` on `BIND_ADDRESS` so the Compose-managed tunnel can
+reach the origin through host networking. If `BIND_ADDRESS=127.0.0.1` and
+`HTTP_PORT=2082`, set the Cloudflare Tunnel service route to
+`http://127.0.0.1:2082`. If you intentionally bind to `0.0.0.0` or point a
+remotely managed tunnel at a LAN/server IP, keep host firewall rules limited to
+trusted networks or the tunnel connector path because direct LAN access to this
+port bypasses Cloudflare Access. Application login still protects the app
+itself.
 
-`NGINX_PUBLIC_PORT` is the only configurable host-facing port. All other service
-ports are fixed internally and are not intended to be changed via environment:
+`HTTP_PORT` is the configurable host-facing port. `NGINX_PUBLIC_PORT` remains a
+backward-compatible fallback for older `.env` files when `HTTP_PORT` is unset.
+All other service ports are fixed internally and are not intended to be changed
+via environment:
 
 - Nginx listens on container port `80`.
 - App listens on container port `8000`.
@@ -231,7 +235,7 @@ ports are fixed internally and are not intended to be changed via environment:
 If the local troubleshooting URL is changed to a different port, update only:
 
 ```env
-NGINX_PUBLIC_PORT=<your-host-port>
+HTTP_PORT=<your-host-port>
 ```
 
 If `cloudflared` is not running in this Compose stack, it will not be able to
@@ -314,7 +318,7 @@ Check these items first:
 - Confirm `.env` exists and contains a real `CLOUDFLARE_TUNNEL_TOKEN`.
 - Confirm the Cloudflare tunnel origin (what your Cloudflare connector is configured
   to reach) is `http://127.0.0.1:11030` by default, or your configured
-  `NGINX_PUBLIC_PORT`. If the tunnel is configured to a LAN address, verify that
+  `http://<BIND_ADDRESS>:<HTTP_PORT>`. If the tunnel is configured to a LAN address, verify that
   the address is still assigned to this host before looking for app problems.
 - Confirm the public web path reaches the app login from the Docker host:
 
@@ -904,6 +908,17 @@ a green chip for managed web users.
 The raw submitted password is never stored or displayed. The `/debug/logs/login-failures` and
 `/debug/logs/login-successes` endpoints download the raw JSONL files for
 authenticated diagnostics.
+
+Failed-login rows can be hidden from the `/debug` table without changing the
+raw JSONL download. When `CLOUDFLARE_IP_BLOCKING_ENABLED=true` and
+`CLOUDFLARE_API_TOKEN` plus `CLOUDFLARE_ZONE_ID` are configured, `/debug` can
+create and remove app-managed Cloudflare zone IP Access Rules for failed-login
+client IPs. Job Logger automatically creates a Cloudflare block after
+`CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS` consecutive failed local logins
+from the same displayed client IP, defaulting to 5; a successful password or
+Device sign-in login from that IP resets the counter to zero first.
+`CLOUDFLARE_IP_BLOCK_ALLOWLIST` accepts trusted IPs or CIDRs separated by
+commas or whitespace so home/admin addresses are never app-blocked.
 
 The `/debug` page also includes a **Disk space** card for the app-visible root
 filesystem, `LOG_DIR`, and `AUTOMATIC_BACKUP_DIR`. The card warns at 85% used

@@ -7,13 +7,17 @@ import logging
 from collections import deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
 from fastapi import Request
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from job_logger.config import Settings, settings
 from job_logger.logging_config import redact_sensitive_text
+from job_logger.models import LoginFailureCounter
 from job_logger.time_utils import format_local_display
 
 LOGGER = logging.getLogger(__name__)
@@ -27,6 +31,7 @@ MAX_TEXT_FIELD_CHARS = 512
 class LoginFailureRecord:
     """One sanitized failed-login record parsed from the JSONL log file."""
 
+    entry_id: str
     created_at_utc: str
     created_at_display: str
     client_ip: str
@@ -147,6 +152,12 @@ def _payload_integer(payload: dict[str, Any], key: str) -> int:
         return 0
 
 
+def _entry_id_from_line(line: str) -> str:
+    """Return a stable identifier for one raw failed-login JSONL line."""
+
+    return sha256(line.encode("utf-8", errors="replace")).hexdigest()
+
+
 def _created_at_display_from_payload(payload: dict[str, Any]) -> tuple[str, str]:
     """Return raw UTC and local display timestamps from a log payload."""
 
@@ -166,6 +177,7 @@ def _record_from_payload(payload: dict[str, Any]) -> LoginFailureRecord | None:
     created_at_utc, created_at_display = _created_at_display_from_payload(payload)
 
     return LoginFailureRecord(
+        entry_id=_bounded_text(str(payload.get("_entry_id", "")), 64),
         created_at_utc=created_at_utc,
         created_at_display=created_at_display,
         client_ip=_bounded_text(str(payload.get("client_ip", "unknown")), MAX_CLIENT_IP_LOG_CHARS),
@@ -251,6 +263,10 @@ def log_failed_login_attempt(
     submitted_username: str,
     submitted_password: str,
     reason: str = "invalid_credentials",
+    failed_count: int = 0,
+    max_attempts: int = 0,
+    lockout_applied: bool = False,
+    lockout_remaining_seconds: int = 0,
     application_settings: Settings = settings,
 ) -> None:
     """Append one failed-login attempt to the host-mounted JSONL log file.
@@ -269,13 +285,10 @@ def log_failed_login_attempt(
         "password_length": len(submitted_password),
         "next_url": "",
         "reason": _bounded_text(reason, 64),
-        # Job Logger currently records failed login attempts but does not apply
-        # an application-level lockout. Keep these explicit for diagnostics so
-        # the table schema matches Mileage Logger without implying enforcement.
-        "failed_count": 0,
-        "max_attempts": 0,
-        "lockout_applied": False,
-        "lockout_remaining_seconds": 0,
+        "failed_count": max(int(failed_count), 0),
+        "max_attempts": max(int(max_attempts), 0),
+        "lockout_applied": bool(lockout_applied),
+        "lockout_remaining_seconds": max(int(lockout_remaining_seconds), 0),
     }
     _append_jsonl_payload(log_path, payload, log_description="login failure log")
 
@@ -326,8 +339,60 @@ def _read_recent_payloads(log_path: Path, row_limit: int) -> list[dict[str, Any]
         except json.JSONDecodeError:
             continue
         if isinstance(payload, dict):
+            payload["_entry_id"] = _entry_id_from_line(raw_line)
             payloads.append(payload)
     return payloads
+
+
+def increment_login_failure_counter(
+    database_session: Session,
+    request: Request,
+) -> int:
+    """Increment and return the consecutive failed-login count for the request IP."""
+
+    client_ip = client_ip_from_request(request)
+    counter = database_session.scalar(
+        select(LoginFailureCounter)
+        .where(LoginFailureCounter.client_ip == client_ip)
+        .limit(1)
+    )
+    current_time = datetime.now(UTC)
+    if counter is None:
+        counter = LoginFailureCounter(
+            client_ip=client_ip,
+            failed_count=0,
+            created_at_utc=current_time,
+            updated_at_utc=current_time,
+        )
+        database_session.add(counter)
+
+    counter.failed_count += 1
+    counter.last_failed_at_utc = current_time
+    counter.updated_at_utc = current_time
+    database_session.flush()
+    return counter.failed_count
+
+
+def reset_login_failure_counter(
+    database_session: Session,
+    request: Request,
+) -> None:
+    """Reset consecutive failed-login state after a successful local login."""
+
+    client_ip = client_ip_from_request(request)
+    counter = database_session.scalar(
+        select(LoginFailureCounter)
+        .where(LoginFailureCounter.client_ip == client_ip)
+        .limit(1)
+    )
+    if counter is None:
+        return
+
+    current_time = datetime.now(UTC)
+    counter.failed_count = 0
+    counter.last_success_at_utc = current_time
+    counter.updated_at_utc = current_time
+    database_session.flush()
 
 
 def _paginate_login_records(
@@ -359,15 +424,19 @@ def read_recent_login_failures(
     *,
     application_settings: Settings = settings,
     limit: int | None = None,
+    hidden_entry_ids: set[str] | None = None,
 ) -> list[LoginFailureRecord]:
     """Return newest failed-login records parsed from the configured JSONL file."""
 
     log_path = Path(application_settings.login_failure_log_path)
     row_limit = limit if limit is not None else application_settings.login_failure_debug_rows
+    hidden_ids = hidden_entry_ids or set()
     records: list[LoginFailureRecord] = []
     for payload in _read_recent_payloads(log_path, row_limit):
         record = _record_from_payload(payload)
         if record is not None:
+            if record.entry_id in hidden_ids:
+                continue
             records.append(record)
     return records
 
@@ -394,11 +463,15 @@ def read_login_failures_page(
     application_settings: Settings = settings,
     page: int = 1,
     page_size: int = 10,
+    hidden_entry_ids: set[str] | None = None,
 ) -> LoginRecordPage:
     """Return one diagnostics page of newest failed-login records."""
 
     return _paginate_login_records(
-        read_recent_login_failures(application_settings=application_settings),
+        read_recent_login_failures(
+            application_settings=application_settings,
+            hidden_entry_ids=hidden_entry_ids,
+        ),
         page=page,
         page_size=page_size,
     )

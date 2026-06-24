@@ -15,7 +15,7 @@ from tests.conftest import extract_csrf_token
 def test_app_version_matches_current_release() -> None:
     """The source-controlled version should match the current release."""
 
-    assert APP_VERSION == "1.1.3"
+    assert APP_VERSION == "1.1.4"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -25,6 +25,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
+    assert "## v1.1.4 - Login protection, Cloudflare blocks, and tunnel binding" in changelog_text
     assert "## v1.1.3 - Review visibility and Work in Progress refinements" in changelog_text
     assert "## v1.1.2 - User management, ticket status, and Device sign-in updates" in changelog_text
     assert "## v1.1.1 - Review cleanup, Autotask roles, Docker startup, and diagnostics" in changelog_text
@@ -33,6 +34,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
+    assert "## v1.1.4 - Login protection and deployment safety" in web_changelog_text
     assert "## v1.1.3 - Review visibility and Work in Progress refinements" in web_changelog_text
     assert "## v1.1.2 - User management, ticket status, and Device sign-in updates" in web_changelog_text
     assert "## v1.1.1 - Review action cleanup and Autotask role fixes" in web_changelog_text
@@ -70,24 +72,12 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="v1.1.3",
-        title="Review visibility and Work in Progress refinements",
+        version="v1.1.4",
+        title="Login protection and deployment safety",
         changes=(
-            "Review rows now show whether each job is Remote or On-Site.",
-            "Review detail can now switch Remote or On-Site and updates the Summary notes prefix.",
-            "Work in Progress active job cards are easier to tell apart.",
-            "Dev builds can now show a yellow DEV badge in the top bar.",
-            "Status pills now use a cleaner outlined all-caps style.",
-            "Full browser Work in Progress actions now keep finish and delete buttons directly under Record and AI Cleanup.",
-            "Work in Progress now has an editable Job date calendar.",
-            "Review detail can choose a client when an active entry was opened before a client was selected.",
-            "Client selection now requires choosing an Autotask search result on Work in Progress and Review.",
-            "Review client search no longer shows a Summary notes warning while typing.",
-            "Choosing an open ticket now locks that job's client name everywhere.",
-            "Mobile Review status messages now stay below the action buttons.",
-            "Service-call starts now hide tickets already marked Complete in Job Logger.",
-            "Submitted Review entries now use a clearer Submit changes button.",
-            "User management rows now fit better on full browser screens.",
+            "Sign-in protection now handles repeated failed login attempts more defensively.",
+            "Cloudflare Tunnel deployments can now bind the web listener to a specific host address and port.",
+            "Normal Work in Progress and Review behavior is unchanged in this security-focused update.",
         ),
     )
 
@@ -109,6 +99,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
+    assert "v1.1.4" in response.text
     assert "v1.1.3" in response.text
     assert "v1.1.2" in response.text
     assert "v1.1.1" in response.text
@@ -116,6 +107,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
+    assert "Login protection and deployment safety" in response.text
+    assert "Sign-in protection now handles repeated failed login attempts more defensively." in response.text
+    assert "Cloudflare Tunnel deployments can now bind the web listener to a specific host address and port." in response.text
+    assert "Normal Work in Progress and Review behavior is unchanged in this security-focused update." in response.text
     assert "Review visibility and Work in Progress refinements" in response.text
     assert "Review rows now show whether each job is Remote or On-Site." in response.text
     assert "Review detail can now switch Remote or On-Site and updates the Summary notes prefix." in response.text
@@ -182,6 +177,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
+    v114_index = response.text.index("Login protection and deployment safety")
     v113_index = response.text.index("Review visibility and Work in Progress refinements")
     v112_index = response.text.index("User management, ticket status, and Device sign-in updates")
     v111_index = response.text.index("Review action cleanup")
@@ -189,13 +185,15 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     v102_index = response.text.index("Autotask workflow and desktop layout updates")
     v101_index = response.text.index("Mobile shell navigation and close behavior")
     v100_index = response.text.index("Initial release")
+    assert v114_index < v113_index
     assert v113_index < v112_index
     assert v112_index < v110_index
     assert v111_index < v110_index
     assert v110_index < v102_index
     assert v102_index < v101_index
     assert v101_index < v100_index
-    assert '<h2 id="current-version-heading">Review visibility and Work in Progress refinements</h2>' in response.text
+    assert '<h2 id="current-version-heading">Login protection and deployment safety</h2>' in response.text
+    assert '<span class="release-version">v1.1.4</span>' in response.text
     assert '<span class="release-version">v1.1.3</span>' in response.text
     assert '<span class="release-version">v1.1.2</span>' in response.text
     assert '<span class="release-version">v1.1.1</span>' in response.text
@@ -249,4 +247,4 @@ def test_super_admin_can_view_changelog_in_dark_theme(super_admin_client: TestCl
 
     assert response.status_code == 200
     assert 'class="theme-dark"' in response.text
-    assert "v1.1.3" in response.text
+    assert "v1.1.4" in response.text

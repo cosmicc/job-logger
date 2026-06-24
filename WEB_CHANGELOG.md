@@ -2,6 +2,12 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## v1.1.4 - Login protection and deployment safety
+
+- Sign-in protection now handles repeated failed login attempts more defensively.
+- Cloudflare Tunnel deployments can now bind the web listener to a specific host address and port.
+- Normal Work in Progress and Review behavior is unchanged in this security-focused update.
+
 ## v1.1.3 - Review visibility and Work in Progress refinements
 
 - Review rows now show whether each job is Remote or On-Site.

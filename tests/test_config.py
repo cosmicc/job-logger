@@ -94,6 +94,37 @@ def test_dev_build_flag_uses_strict_boolean_environment_value(monkeypatch) -> No
     assert load_settings().dev_build is False
 
 
+def test_cloudflare_block_settings_load_from_environment(monkeypatch) -> None:
+    """Cloudflare block settings should stay environment-only and validated."""
+
+    monkeypatch.setenv("CLOUDFLARE_IP_BLOCKING_ENABLED", "true")
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "token-value")
+    monkeypatch.setenv("CLOUDFLARE_ZONE_ID", "zone-value")
+    monkeypatch.setenv("CLOUDFLARE_IP_BLOCK_ALLOWLIST", "198.51.100.1, 203.0.113.0/24")
+    monkeypatch.setenv("CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS", "7")
+
+    loaded_settings = load_settings()
+
+    assert loaded_settings.cloudflare_ip_blocking_enabled is True
+    assert loaded_settings.cloudflare_api_token == "token-value"
+    assert loaded_settings.cloudflare_zone_id == "zone-value"
+    assert loaded_settings.cloudflare_ip_block_allowlist == "198.51.100.1, 203.0.113.0/24"
+    assert loaded_settings.cloudflare_auto_block_failed_login_attempts == 7
+
+
+def test_cloudflare_auto_block_threshold_must_be_positive(monkeypatch) -> None:
+    """A zero auto-block threshold would make every failure block immediately."""
+
+    monkeypatch.setenv("CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS", "0")
+
+    try:
+        load_settings()
+    except ValueError as exc:
+        assert "CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS must be greater than zero." in str(exc)
+    else:
+        raise AssertionError("Expected a validation error for a zero Cloudflare auto-block threshold.")
+
+
 def test_super_admin_has_no_config_menu_or_theme_preferences(client: TestClient) -> None:
     """The config super admin should stay dark and have no user config page."""
 

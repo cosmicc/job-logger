@@ -235,6 +235,151 @@ class WebAuthnCredential(Base):
     )
 
 
+class LoginFailureCounter(Base):
+    """Persistent consecutive failed-login count for one displayed client IP."""
+
+    __tablename__ = "login_failure_counters"
+
+    # id is a UUID so counter rows are portable across PostgreSQL and SQLite tests.
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string, comment="Stable counter UUID.")
+
+    # client_ip is the sanitized login diagnostics IP, usually the first X-Forwarded-For value.
+    client_ip: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        unique=True,
+        comment="Displayed login client IP whose consecutive failures are counted.",
+    )
+
+    # failed_count resets to zero after a successful local login from this IP.
+    failed_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+        comment="Consecutive failed local app logins from this client IP.",
+    )
+
+    last_failed_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="UTC timestamp for the most recent failed login from this client IP.",
+    )
+    last_success_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="UTC timestamp for the most recent successful login that reset this counter.",
+    )
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    __table_args__ = (Index("ix_login_failure_counters_client_ip", "client_ip"),)
+
+
+class CloudflareIPBlock(Base):
+    """App-managed Cloudflare zone IP Access Rule block for a failed-login IP."""
+
+    __tablename__ = "cloudflare_ip_blocks"
+
+    # id is a UUID for portable backup/restore and local audit references.
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string, comment="Stable Cloudflare block UUID.")
+
+    # ip_address is the normalized IPv4/IPv6 address this app asked Cloudflare to block.
+    ip_address: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        unique=True,
+        comment="Normalized IP address in an app-managed Cloudflare block.",
+    )
+
+    # cloudflare_rule_id identifies only the rule created by this app.
+    cloudflare_rule_id: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+        unique=True,
+        comment="Cloudflare zone IP Access Rule ID created by this app.",
+    )
+
+    source: Mapped[str] = mapped_column(
+        String(40),
+        nullable=False,
+        default="manual",
+        server_default="manual",
+        comment="Whether the app-managed Cloudflare block was manual or automatic.",
+    )
+    reason: Mapped[str] = mapped_column(
+        String(180),
+        nullable=False,
+        default="",
+        server_default="",
+        comment="Safe reason for the app-managed Cloudflare block.",
+    )
+    failure_count: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Consecutive failed-login count that created an automatic block.",
+    )
+    notes: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="",
+        server_default="",
+        comment="Note submitted to Cloudflare for this app-managed block.",
+    )
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    __table_args__ = (
+        Index("ix_cloudflare_ip_blocks_ip_address", "ip_address"),
+        Index("ix_cloudflare_ip_blocks_created_at", "created_at_utc"),
+    )
+
+
+class HiddenLoginFailure(Base):
+    """Failed-login log entry hidden from `/debug` while preserving raw JSONL logs."""
+
+    __tablename__ = "hidden_login_failures"
+
+    # id is a UUID for backup portability.
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string, comment="Stable hidden login-failure UUID.")
+
+    # entry_id is the SHA-256 hash of the raw JSONL line shown on `/debug`.
+    entry_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        unique=True,
+        comment="Stable hash of the raw failed-login JSONL line hidden from diagnostics.",
+    )
+
+    client_ip: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+        server_default="",
+        comment="Displayed client IP from the hidden failed-login row.",
+    )
+    occurred_at_utc: Mapped[str] = mapped_column(
+        String(40),
+        nullable=False,
+        default="",
+        server_default="",
+        comment="Raw UTC timestamp string from the hidden failed-login log row.",
+    )
+    hidden_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    __table_args__ = (Index("ix_hidden_login_failures_entry_id", "entry_id"),)
+
+
 class Job(Base):
     """A locally recorded work session awaiting review and Autotask submission."""
 

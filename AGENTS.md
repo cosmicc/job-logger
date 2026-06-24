@@ -108,9 +108,15 @@ account kind, authentication method, user agent, request/proxy details, failure
 reason, and password-present/length for failures. Never write or display the raw
 submitted password. For login diagnostics, prefer the first `X-Forwarded-For`
 address as the displayed client IP when present, while retaining the direct
-socket peer and proxy headers as supporting metadata. The successful-login
-window may visually distinguish config super-admin account-kind chips from
-managed web-user chips, but must not expose extra sensitive metadata to do so.
+socket peer and proxy headers as supporting metadata. The failed-login table may
+hide individual rows through `hidden_login_failures`, but the raw JSONL download
+must remain append-only. Cloudflare IP blocking on `/debug` may create or remove
+only app-managed zone IP Access Rules tracked in `cloudflare_ip_blocks`; it must
+honor `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, use the logged `client_ip` value, and
+reset `login_failure_counters` to zero after any successful local login from
+that IP. The successful-login window may visually distinguish config
+super-admin account-kind chips from managed web-user chips, but must not expose
+extra sensitive metadata to do so.
 
 Prefer secure defaults. Cookies must be HTTP-only, secure when served over HTTPS,
 and SameSite-protected. Forms and state-changing requests must use CSRF
@@ -406,6 +412,11 @@ The project must support Docker-based deployment.
 
 Docker Compose should include the Python application, PostgreSQL, and
 `cloudflared` when practical.
+Nginx host publishing should use `BIND_ADDRESS` plus `HTTP_PORT`, with
+`NGINX_PUBLIC_PORT` kept only as a backward-compatible fallback. The bundled
+`cloudflared` service uses host networking, so a loopback bind such as
+`BIND_ADDRESS=127.0.0.1` and `HTTP_PORT=2082` should pair with the tunnel
+origin URL `http://127.0.0.1:2082`.
 
 The application container should not run as root unless there is a specific,
 documented reason.
@@ -506,7 +517,7 @@ deployment readiness unless the user explicitly asks for that release step.
 The dev deployment should run as a separate instance from production, with its
 own checkout or worktree, Docker Compose project name, `.env`, database volume,
 backup path, host log path, Cloudflare Tunnel token, public hostname, allowed
-host setting, WebAuthn origin, and host-facing `NGINX_PUBLIC_PORT`. This keeps
+host setting, WebAuthn origin, and host-facing `HTTP_PORT`. This keeps
 dev testing from sharing production sessions, logs, backups, database state, or
 tunnel credentials.
 
@@ -620,6 +631,13 @@ The application is a FastAPI project under `job_logger/`.
   `job-logger-login-successes.log` and `job-logger-login-failures.log` inside
   Docker's `/data/logs` mount. `LOG_LEVEL` controls how verbose `${LOG_DIR}/app.log`
   is and must be one of `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
+- `job_logger/services/login_protection.py` increments persistent consecutive
+  failed-login counters, appends sanitized failed-login JSONL records, and
+  triggers Cloudflare auto-blocking at the configured threshold.
+- `job_logger/services/cloudflare_blocks.py` owns app-managed Cloudflare zone
+  IP Access Rule create/delete calls and allowlist checks. It must never list,
+  edit, or delete Cloudflare rules that are not tracked in Job Logger's
+  `cloudflare_ip_blocks` table.
 - `job_logger/templates/` contains Jinja pages for mobile, review, users,
   config, changelog, debug, and authentication views.
 - `job_logger/static/` contains browser-side JavaScript, CSS, PWA metadata, and
@@ -791,6 +809,13 @@ In production:
 - The `/debug` page provides a super-admin-only **Log out web users** action
   that invalidates all managed web-user sessions without ending the current
   super-admin session.
+- The `/debug` page provides per-row failed-login hide controls, per-row
+  Cloudflare block/unblock controls, and an app-managed Cloudflare blocked IP
+  card. Automatic Cloudflare blocking happens after
+  `CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS` consecutive failed local logins
+  from the same displayed client IP unless that IP matches
+  `CLOUDFLARE_IP_BLOCK_ALLOWLIST`; successful local password or Device sign-in
+  login resets that IP's failure counter to zero.
 - Mock Autotask mode is only for tests and isolated development.
 
 ## Documentation Maintenance Rules For Agents

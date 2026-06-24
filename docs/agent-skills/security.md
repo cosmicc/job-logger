@@ -144,9 +144,17 @@ password-present/length metadata for failures. They must never include the raw
 submitted password, session tokens, authentication headers, or Cloudflare
 Access JWTs. When `X-Forwarded-For` is present, the first forwarded address is
 the display `client_ip` for login diagnostics; retain the direct socket peer
-and other proxy headers as supporting metadata only. The successful-login table
-may use a yellow account-kind chip for config super-admin rows so they are easy
-to distinguish from managed web users. The bottom of `/debug` may show a
+and other proxy headers as supporting metadata only. Failed-login rows may be
+hidden from the `/debug` table by storing their raw-line hash in
+`hidden_login_failures`; never edit or truncate the raw JSONL audit download.
+`login_failure_counters` stores consecutive failures by displayed `client_ip`
+and must reset to zero after a successful password or Device sign-in login from
+that IP. When Cloudflare blocking is enabled, the app may create/delete only
+zone IP Access Rules tracked in `cloudflare_ip_blocks`, must honor
+`CLOUDFLARE_IP_BLOCK_ALLOWLIST`, and must not mutate unrelated Cloudflare
+rules. The successful-login table may use a yellow account-kind chip for config
+super-admin rows so they are easy to distinguish from managed web users. The
+bottom of `/debug` may show a
 sanitized newest-first tail of `${LOG_DIR}/app.log`; keep that bounded,
 scrollable, and redacted. `LOG_LEVEL` controls app-log verbosity and must be
 limited to `DEBUG`, `INFO`, `WARNING`, or `ERROR`. `/debug` may also show disk
@@ -414,7 +422,11 @@ Container health checks should use private Docker networking instead. Full
 restore uploads may have a larger nginx body limit, but that limit must stay
 scoped to `/debug/restore`.
 
-Cloudflare Tunnel tokens and app secrets must remain outside source control.
+Cloudflare Tunnel tokens, Cloudflare API tokens, and app secrets must remain
+outside source control. Docker nginx publishing uses `BIND_ADDRESS` plus
+`HTTP_PORT`, with `NGINX_PUBLIC_PORT` retained only as a compatibility fallback;
+when `BIND_ADDRESS=127.0.0.1`, the bundled host-networked `cloudflared`
+connector should target the same loopback origin URL.
 
 ## Tests To Consider
 
