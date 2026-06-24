@@ -25,7 +25,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert "## v1.1.4 - Login protection, Cloudflare blocks, and tunnel binding" in changelog_text
+    assert "## v1.1.4 - Login protection, Work in Progress controls, diagnostics, and deployment safety" in changelog_text
     assert "## v1.1.3 - Review visibility and Work in Progress refinements" in changelog_text
     assert "## v1.1.2 - User management, ticket status, and Device sign-in updates" in changelog_text
     assert "## v1.1.1 - Review cleanup, Autotask roles, Docker startup, and diagnostics" in changelog_text
@@ -34,7 +34,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
-    assert "## v1.1.4 - Login protection and deployment safety" in web_changelog_text
+    assert "## v1.1.4 - Login protection, Work in Progress controls, and deployment safety" in web_changelog_text
     assert "## v1.1.3 - Review visibility and Work in Progress refinements" in web_changelog_text
     assert "## v1.1.2 - User management, ticket status, and Device sign-in updates" in web_changelog_text
     assert "## v1.1.1 - Review action cleanup and Autotask role fixes" in web_changelog_text
@@ -73,11 +73,14 @@ def test_changelog_parser_reads_current_release() -> None:
 
     assert current_entry == ChangelogEntry(
         version="v1.1.4",
-        title="Login protection and deployment safety",
+        title="Login protection, Work in Progress controls, and deployment safety",
         changes=(
             "Sign-in protection now handles repeated failed login attempts more defensively.",
+            "The login page now puts Device sign-in first and uses a simpler centered JL header.",
+            "Work in Progress rounded start and rounded stop are now editable like Review time fields.",
+            "Remote and On-Site switches are a little larger.",
+            "Tickets with no description now show a clear no-description message.",
             "Cloudflare Tunnel deployments can now bind the web listener to a specific host address and port.",
-            "Normal Work in Progress and Review behavior is unchanged in this security-focused update.",
         ),
     )
 
@@ -107,10 +110,13 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
-    assert "Login protection and deployment safety" in response.text
+    assert "Login protection, Work in Progress controls, and deployment safety" in response.text
     assert "Sign-in protection now handles repeated failed login attempts more defensively." in response.text
+    assert "The login page now puts Device sign-in first and uses a simpler centered JL header." in response.text
+    assert "Work in Progress rounded start and rounded stop are now editable like Review time fields." in response.text
+    assert "Remote and On-Site switches are a little larger." in response.text
+    assert "Tickets with no description now show a clear no-description message." in response.text
     assert "Cloudflare Tunnel deployments can now bind the web listener to a specific host address and port." in response.text
-    assert "Normal Work in Progress and Review behavior is unchanged in this security-focused update." in response.text
     assert "Review visibility and Work in Progress refinements" in response.text
     assert "Review rows now show whether each job is Remote or On-Site." in response.text
     assert "Review detail can now switch Remote or On-Site and updates the Summary notes prefix." in response.text
@@ -177,7 +183,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
-    v114_index = response.text.index("Login protection and deployment safety")
+    v114_index = response.text.index("Login protection, Work in Progress controls, and deployment safety")
     v113_index = response.text.index("Review visibility and Work in Progress refinements")
     v112_index = response.text.index("User management, ticket status, and Device sign-in updates")
     v111_index = response.text.index("Review action cleanup")
@@ -192,7 +198,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert v110_index < v102_index
     assert v102_index < v101_index
     assert v101_index < v100_index
-    assert '<h2 id="current-version-heading">Login protection and deployment safety</h2>' in response.text
+    assert '<h2 id="current-version-heading">Login protection, Work in Progress controls, and deployment safety</h2>' in response.text
     assert '<span class="release-version">v1.1.4</span>' in response.text
     assert '<span class="release-version">v1.1.3</span>' in response.text
     assert '<span class="release-version">v1.1.2</span>' in response.text

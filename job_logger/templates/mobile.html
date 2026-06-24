@@ -131,27 +131,51 @@
                 <dd>
                   <form
                     method="post"
-                    action="/jobs/{{ active_job.id }}/start-time/adjust"
+                    action="/jobs/{{ active_job.id }}/start-time"
                     class="rounded-start-time-form active-time-step-controls"
+                    data-active-time-form
+                    data-active-time-kind="start"
+                    data-job-id="{{ active_job.id }}"
                   >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input
+                      type="hidden"
+                      name="job_date"
+                      value="{{ active_job.local_work_date or active_job.rounded_start_utc|local_date }}"
+                      data-active-time-job-date
+                    >
                     <button
                       type="submit"
+                      formaction="/jobs/{{ active_job.id }}/start-time/adjust"
                       class="secondary-button time-step-button"
                       name="delta_minutes"
                       value="-15"
+                      data-active-time-delta="-15"
                       aria-label="Decrease rounded start by 15 minutes"
                     >
                       -15
                     </button>
-                    <output class="time-field-input rounded-start-time-display" aria-label="Rounded start time">
-                      {{ active_job.rounded_start_utc|local_time }}
-                    </output>
+                    <input
+                      name="rounded_start_time"
+                      type="text"
+                      class="time-field-input rounded-start-time-display"
+                      value="{{ active_job.rounded_start_utc|local_time }}"
+                      inputmode="text"
+                      autocomplete="off"
+                      autocorrect="off"
+                      spellcheck="false"
+                      data-active-time-input
+                      data-active-time-kind="start"
+                      required
+                      aria-label="Rounded start time"
+                    >
                     <button
                       type="submit"
+                      formaction="/jobs/{{ active_job.id }}/start-time/adjust"
                       class="secondary-button time-step-button"
                       name="delta_minutes"
                       value="15"
+                      data-active-time-delta="15"
                       aria-label="Increase rounded start by 15 minutes"
                     >
                       +15
@@ -165,35 +189,56 @@
                 <dd>
                   <form
                     method="post"
-                    action="/jobs/{{ active_job.id }}/stop-time/adjust"
+                    action="/jobs/{{ active_job.id }}/stop-time"
                     class="rounded-stop-time-form active-time-step-controls"
+                    data-active-time-form
+                    data-active-time-kind="stop"
+                    data-job-id="{{ active_job.id }}"
                   >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input
+                      type="hidden"
+                      name="job_date"
+                      value="{{ active_job.local_work_date or active_job.rounded_start_utc|local_date }}"
+                      data-active-time-job-date
+                    >
                     <button
                       type="submit"
+                      formaction="/jobs/{{ active_job.id }}/stop-time/adjust"
                       class="secondary-button time-step-button"
                       name="delta_minutes"
                       value="-15"
+                      data-active-time-delta="-15"
                       aria-label="Decrease rounded stop by 15 minutes"
                     >
                       -15
                     </button>
-                    <output
+                    <input
+                      name="rounded_stop_time"
+                      type="text"
                       class="time-field-input rounded-stop-time-display"
-                      aria-label="Rounded stop time"
+                      value="{{ rounded_stop_utc|local_time }}"
+                      inputmode="text"
+                      autocomplete="off"
+                      autocorrect="off"
+                      spellcheck="false"
+                      data-active-time-input
+                      data-active-time-kind="stop"
                       data-rounded-stop-display
                       data-rounded-stop-overridden="{% if active_job.rounded_end_utc %}true{% else %}false{% endif %}"
                       data-rounded-start-utc="{{ active_job.rounded_start_utc|utc_iso }}"
                       data-initial-rounded-stop-utc="{{ rounded_stop_utc|utc_iso }}"
                       data-initial-rounded-stop-local-time="{{ rounded_stop_utc|local_time }}"
+                      required
+                      aria-label="Rounded stop time"
                     >
-                      {{ rounded_stop_utc|local_time }}
-                    </output>
                     <button
                       type="submit"
+                      formaction="/jobs/{{ active_job.id }}/stop-time/adjust"
                       class="secondary-button time-step-button"
                       name="delta_minutes"
                       value="15"
+                      data-active-time-delta="15"
                       aria-label="Increase rounded stop by 15 minutes"
                     >
                       +15
@@ -291,11 +336,13 @@
                 <dd class="active-ticket-title-display" data-active-ticket-title-display>{{ active_job.ticket_title or "" }}</dd>
               </div>
               <div
-                class="metric-card ticket-description-card {% if not active_job.ticket_description %}is-hidden{% endif %}"
+                class="metric-card ticket-description-card {% if not active_job.ticket_number %}is-hidden{% endif %}"
                 data-active-ticket-description-card
               >
                 <dt>Ticket description</dt>
-                <dd class="active-ticket-description-display" data-active-ticket-description-display>{{ active_job.ticket_description or "" }}</dd>
+                <dd class="active-ticket-description-display" data-active-ticket-description-display>
+                  {{ active_job.ticket_description or "No description exists for this ticket." }}
+                </dd>
               </div>
             </dl>
 

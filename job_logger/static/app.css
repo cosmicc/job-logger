@@ -182,6 +182,10 @@ svg {
   backdrop-filter: blur(10px);
 }
 
+.login-header {
+  justify-content: center;
+}
+
 @media (display-mode: standalone) {
   body {
     padding-bottom: env(safe-area-inset-bottom);
@@ -200,6 +204,10 @@ svg {
   align-items: center;
   gap: 10px;
   font-weight: 750;
+}
+
+.login-brand {
+  gap: 0;
 }
 
 .brand-mark {
@@ -373,8 +381,9 @@ svg {
 
 .login-shell {
   display: grid;
-  min-height: calc(100vh - 150px);
-  place-items: center;
+  min-height: calc(100dvh - 118px);
+  padding-top: clamp(24px, 8vh, 78px);
+  place-items: start center;
 }
 
 .login-panel,
@@ -391,6 +400,8 @@ svg {
 }
 
 .login-panel {
+  display: grid;
+  gap: 18px;
   width: min(420px, 100%);
   padding: 28px;
 }
@@ -398,16 +409,19 @@ svg {
 .passkey-login-panel {
   display: grid;
   gap: 10px;
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
 }
 
 .passkey-status {
-  min-height: 22px;
+  min-height: 0;
   margin: 0;
   font-size: 13px;
   font-weight: 750;
+}
+
+.passkey-status:empty {
+  display: none;
 }
 
 h1,
@@ -1433,7 +1447,7 @@ a:focus-visible {
 
 .work-location-card {
   display: grid;
-  min-height: 42px;
+  min-height: 48px;
   align-items: center;
   padding: 8px 10px;
 }
@@ -1449,7 +1463,7 @@ a:focus-visible {
 .work-location-toggle {
   width: fit-content;
   max-width: none;
-  min-height: 24px;
+  min-height: 30px;
   margin: 0;
   padding: 0;
   border: 1px solid rgba(154, 168, 188, 0.28);
@@ -1481,16 +1495,16 @@ a:focus-visible {
 .work-location-switch span,
 .work-location-toggle span {
   display: grid;
-  min-height: 22px;
-  min-width: 52px;
+  min-height: 28px;
+  min-width: 66px;
   place-items: center;
   border-radius: 999px;
   color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 800;
   line-height: 1;
   white-space: nowrap;
-  padding: 0 6px;
+  padding: 0 10px;
   pointer-events: none;
 }
 
@@ -1611,7 +1625,7 @@ a:focus-visible {
 .work-location-toggle {
   width: fit-content;
   max-width: none;
-  min-height: 24px;
+  min-height: 30px;
   margin: 0;
   padding: 0;
   border: 1px solid rgba(154, 168, 188, 0.28);
@@ -1643,16 +1657,16 @@ a:focus-visible {
 .work-location-switch span,
 .work-location-toggle span {
   display: grid;
-  min-height: 22px;
-  min-width: 52px;
+  min-height: 28px;
+  min-width: 66px;
   place-items: center;
   border-radius: 999px;
   color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 800;
   line-height: 1;
   white-space: nowrap;
-  padding: 0 6px;
+  padding: 0 10px;
   pointer-events: none;
 }
 

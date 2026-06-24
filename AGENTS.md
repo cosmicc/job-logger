@@ -74,6 +74,8 @@ password login available as fallback.
 `/config` is the persistent passkey management surface. User-facing buttons and
 prompts should call this **Device sign-in** so users understand it can use a
 phone, browser, biometric unlock, PIN, or another passkey-capable device.
+The login page shows the Device sign-in button above the username/password form
+while keeping that normal password form visible as the fallback.
 `/home` may show a device sign-in setup card only once after each successful
 login, and only while that managed user has no registered passkeys.
 
@@ -333,7 +335,10 @@ Record/AI Cleanup row, and recording/AI status text belongs below all action
 buttons. Active Work in Progress cards should show an editable **Job date**
 calendar field instead of the raw started timestamp; the selected local date
 must be saved server-side through the active-job workflow and carry into Review
-and Autotask submission.
+and Autotask submission. The active **Rounded start** and **Rounded stop**
+fields should use the same 12-hour editable time-field treatment as Review
+detail start/end times, keep the `-15` and `+15` controls, and save only
+through server-validated active-job routes.
 
 Managed web-user pages must respect the current user's saved theme preference.
 The default is the dark theme. Light theme support must cover mobile, review,
@@ -355,6 +360,8 @@ mobile logout button must post to `/logout` with the rendered CSRF token and
 must not use `window.close()` or a browser-only app close fallback. Full-width
 `/home`, review, debug, and other non-mobile authenticated views still expose
 the explicit desktop logout control.
+The unauthenticated login header centers a non-clickable `JL` brand mark on both
+phone and full-browser layouts and does not show the full Job Logger wordmark.
 
 The standard review interface must work well on a full computer screen.
 
@@ -706,8 +713,10 @@ The normal workflow is:
    In progress until the job's time entry is submitted. The selected ticket
    status is shown and editable on Work in Progress. Read-only ticket
    descriptions stay in short scrollable boxes on Work in Progress and review
-   detail. After ticket selection, the client name is locked for that job in
-   Work in Progress, Review, and server-side save/end handlers.
+   detail; if Autotask returns no description, keep the card visible with a
+   clear no-description message. After ticket selection, the client name is
+   locked for that job in Work in Progress, Review, and server-side save/end
+   handlers.
 9. User chooses whether the work is Remote or On-Site. The mode is stored on
    the job and appears as the leading prefix in the review summary textarea so
    it can be corrected before Autotask submission.
@@ -771,7 +780,8 @@ The normal workflow is:
     diagnostics.
 18. Managed users without a passkey see a Home prompt to set up device sign-in
     once after a successful login. `/config` always shows device sign-in
-    management backed by passkeys. Later device sign-in uses
+    management backed by passkeys. The login page places Device sign-in above
+    username/password fields. Later device sign-in uses
     `/login/passkey/options` and `/login/passkey/verify`; failed or canceled
     passkey login must leave the normal password form available.
 19. Authenticated users may open `/changelog` from the discreet header version

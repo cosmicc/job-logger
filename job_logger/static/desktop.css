@@ -60,17 +60,17 @@
 .work-location-toggle {
   width: fit-content;
   max-width: none;
-  min-height: 24px;
+  min-height: 30px;
   padding: 0;
 }
 
 .work-location-switch span,
 .work-location-toggle span {
-  min-height: 22px;
-  min-width: 52px;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 0 6px;
+  min-height: 28px;
+  min-width: 66px;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 0 10px;
 }
 
 .record-notes-button.is-recording,

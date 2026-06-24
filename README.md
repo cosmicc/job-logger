@@ -418,7 +418,8 @@ keeps the private key and performs the local unlock prompt.
 
 Device sign-in is intentionally a fallback-friendly option. If the browser does
 not support passkeys, the device cancels, or signature verification fails, the
-normal username/password login form remains available.
+normal username/password login form remains available below the Device sign-in
+button.
 
 Set these passkey variables for production when needed:
 
@@ -749,10 +750,12 @@ the selected ticket title for the review detail heading, stores the bounded
 ticket description for read-only context, and automatically saves the active-job
 changes or review ticket selection. The mobile Work in Progress card shows the
 selected ticket number, ticket name, ticket status, and ticket description
-after selection. Selection does not update Autotask ticket status. It stores
-verified local ticket metadata and defaults the editable local ticket status to
-`In progress`; the first Autotask write waits until the full time entry is
-submitted or an already submitted entry is explicitly edited/deleted.
+context after selection. If Autotask returns no ticket description, Work in
+Progress and Review still show the ticket description card with a clear
+no-description message. Selection does not update Autotask ticket status. It
+stores verified local ticket metadata and defaults the editable local ticket
+status to `In progress`; the first Autotask write waits until the full time
+entry is submitted or an already submitted entry is explicitly edited/deleted.
 After an open ticket is selected, the stored client name becomes read-only for
 that job everywhere, including Work in Progress and Review.
 Long ticket descriptions stay inside a scrollable read-only box instead of
@@ -1005,10 +1008,13 @@ time on the selected date are rejected.
 
 Start time, end time, and resulting duration are rounded to 15-minute intervals.
 The active mobile end-work path still protects against a zero-minute rounded
-duration. Review detail shows the active Work in Progress rounded stop preview
-when an active job is selected, but review save ignores that displayed end time
-until the user actually ends the job. Ended review edits must explicitly choose
-a valid later end time on the same job date.
+duration. Work in Progress rounded start and rounded stop use editable 12-hour
+time fields like Review detail start and end time, plus `-15` and `+15`
+controls; the server still rounds, validates, and saves those active-job edits.
+Review detail shows the active Work in Progress rounded stop preview when an
+active job is selected, but review save ignores that displayed end time until
+the user actually ends the job. Ended review edits must explicitly choose a
+valid later end time on the same job date.
 
 ## Ticket Numbers
 

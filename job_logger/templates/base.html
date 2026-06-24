@@ -19,12 +19,12 @@
     <script src="/static/pwa.js?v={{ static_asset_version }}" defer></script>
   </head>
   <body class="theme-{{ current_theme|default('dark') }}">
-    <header class="app-header">
-      <a class="brand" href="/home" aria-label="Job Logger home">
-        <span class="brand-mark" aria-hidden="true">JL</span>
-        <span>Job Logger</span>
-      </a>
+    <header class="app-header{% if not current_username %} login-header{% endif %}">
       {% if current_username %}
+        <a class="brand" href="/home" aria-label="Job Logger home">
+          <span class="brand-mark" aria-hidden="true">JL</span>
+          <span>Job Logger</span>
+        </a>
         <div class="header-status-group desktop-status-group" aria-label="Application version">
           <a class="app-version-link" href="/changelog" aria-label="View changelog for version {{ app_version }}">v{{ app_version }}</a>
           {% if dev_build %}
@@ -116,6 +116,10 @@
             </svg>
           </button>
         </form>
+      {% else %}
+        <div class="brand login-brand" aria-label="Job Logger">
+          <span class="brand-mark" aria-hidden="true">JL</span>
+        </div>
       {% endif %}
     </header>
 

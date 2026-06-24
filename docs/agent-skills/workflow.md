@@ -99,11 +99,14 @@ Active jobs support these updates before completion:
 - Local job date through the Work in Progress **Job date** calendar field. The
   selected date replaces the local date portion of the active rounded start
   time while preserving its local time.
-- Rounded start time through server-validated mobile `-15` and `+15` minute
-  buttons on either side of the displayed time.
-- Rounded stop time through server-validated mobile `-15` and `+15` minute
-  buttons on either side of the displayed time. These buttons must not use the
-  full-page status overlay because the adjustment should feel immediate.
+- Rounded start time through an editable 12-hour Work in Progress time field
+  that matches the Review detail start-time treatment, plus server-validated
+  `-15` and `+15` minute buttons on either side of the field.
+- Rounded stop time through an editable 12-hour Work in Progress time field
+  that matches the Review detail end-time treatment, plus server-validated
+  `-15` and `+15` minute buttons on either side of the field. These controls
+  must not use the full-page status overlay because the adjustment should feel
+  immediate.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job client and summary edits, not ticket
@@ -130,9 +133,10 @@ has a saved client does not auto-load the picker on mobile page open; the user
 must click or press Enter/Space on the panel to start the lookup. After
 selection, the browser should immediately hide the open-ticket panel, make the
 current client input read-only, and show the selected ticket number, ticket
-title, and ticket description in Work in Progress without waiting for a page
-reload. Mobile and review open-ticket
-choices should use the same Remote/On-Site color treatment as service-call
+title, and ticket description context in Work in Progress without waiting for a
+page reload. If the selected ticket has no description, keep the description
+card visible and show the standard no-description message. Mobile and review
+open-ticket choices should use the same Remote/On-Site color treatment as service-call
 start cards, with `.ticket-option-button` location classes, a visible location
 badge, title, ticket status, and company metadata. This label is display
 metadata only; do not trust it to override the active job's stored work-location
@@ -185,7 +189,8 @@ descriptions should stay escaped, bounded to an internal scroll area, and
 available in full through scrolling inside the description box instead of
 expanding the entire Work in Progress card indefinitely. Phone-sized layouts
 cap the visible description box at about 12 text lines, while wider layouts use
-about a 25-line cap.
+about a 25-line cap. A selected ticket with an empty description should still
+show the description card with the standard no-description message.
 
 The active mobile card should expose only one client entry point for each job.
 After an Autotask company or open ticket is selected, the active job displays
@@ -423,7 +428,8 @@ have a ticket number but no stored title may display the ticket number as a
 fallback. Once a job has a ticket number, hide the open-ticket lookup panel for
 that job. Review ticket selection should update the read-only ticket number,
 selected-job heading, and read-only ticket description card in place after the
-server verifies and stores the ticket.
+server verifies and stores the ticket. If the verified ticket has no
+description, keep the card visible with the standard no-description message.
 
 After a job is successfully submitted to Autotask, ticket/client identity and
 workflow actions remain protected. The UI must keep ticket selection,

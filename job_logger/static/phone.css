@@ -21,6 +21,12 @@
   display: none;
 }
 
+.login-header .login-brand {
+  display: inline-flex;
+  grid-column: 2;
+  justify-self: center;
+}
+
 .top-nav,
 .desktop-status-group {
   display: none;

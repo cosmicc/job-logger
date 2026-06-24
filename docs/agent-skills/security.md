@@ -54,8 +54,9 @@ config super admin.
 Managed web-user passkeys are optional login credentials. The config super
 admin must not register or use passkeys. Passkey registration is available only
 after a normal managed-user login from `/config`; login remains available from
-the password page through a separate passkey button. Failed, canceled, or
-unsupported passkey authentication must leave the username/password form usable.
+the password page through a separate passkey button above the username/password
+form. Failed, canceled, or unsupported passkey authentication must leave the
+username/password form usable.
 User-facing controls should call this feature **Device sign-in** even though the
 technical implementation remains WebAuthn/passkeys. The `/home` device sign-in
 setup card is only a one-time post-login prompt for managed users without a

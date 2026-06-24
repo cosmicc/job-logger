@@ -17,6 +17,7 @@ from job_logger.services.transcription import TranscriptionError, TranscriptionR
 from job_logger.time_utils import (
     LOCAL_TIMEZONE,
     enforce_minimum_rounded_end,
+    ensure_utc,
     local_date_for,
     now_utc,
     parse_local_form_datetime,
@@ -696,6 +697,40 @@ def adjust_active_job_rounded_start(database_session: Session, job_id: str, delt
     return job
 
 
+def set_active_job_rounded_start(
+    database_session: Session,
+    job_id: str,
+    *,
+    job_date: str,
+    start_time: str,
+) -> Job:
+    """Set an active job's rounded start time from user-facing local fields."""
+
+    job = get_job_or_raise(database_session, job_id)
+    if job.status != JobStatus.ACTIVE:
+        raise JobWorkflowError("Only active jobs can have rounded start times edited.")
+
+    safe_job_date = str(job_date or "").strip()
+    safe_start_time = str(start_time or "").strip()
+    if not safe_job_date or not safe_start_time:
+        raise JobWorkflowError("Job date and rounded start time are required.")
+
+    try:
+        requested_start_utc = parse_local_form_datetime(safe_job_date, safe_start_time)
+    except ValueError as exc:
+        raise JobWorkflowError("Job date or time is invalid.") from exc
+
+    rounded_start_utc = round_start_for_technician(requested_start_utc)
+    if str(local_date_for(rounded_start_utc)) != safe_job_date:
+        raise JobWorkflowError("Rounded start time must stay on the selected job date.")
+
+    job.rounded_start_utc = rounded_start_utc
+    if job.rounded_end_utc is not None:
+        job.rounded_end_utc = enforce_minimum_rounded_end(job.rounded_start_utc, job.rounded_end_utc)
+    job.local_work_date = local_date_for(job.rounded_start_utc)
+    return job
+
+
 def rounded_stop_for_active_job(job: Job, timestamp: datetime | None = None) -> datetime:
     """Return the current technician-favoring rounded stop for an active job."""
 
@@ -720,6 +755,41 @@ def adjust_active_job_rounded_stop(database_session: Session, job_id: str, delta
         current_rounded_stop + timedelta(minutes=normalized_delta)
     )
     job.rounded_end_utc = enforce_minimum_rounded_end(job.rounded_start_utc, requested_rounded_stop)
+    return job
+
+
+def set_active_job_rounded_stop(
+    database_session: Session,
+    job_id: str,
+    *,
+    job_date: str,
+    stop_time: str,
+) -> Job:
+    """Set an active job's rounded stop override from user-facing local fields."""
+
+    job = get_job_or_raise(database_session, job_id)
+    if job.status != JobStatus.ACTIVE:
+        raise JobWorkflowError("Only active jobs can have rounded stop times edited.")
+
+    safe_job_date = str(job_date or "").strip()
+    safe_stop_time = str(stop_time or "").strip()
+    if not safe_job_date or not safe_stop_time:
+        raise JobWorkflowError("Job date and rounded stop time are required.")
+    if str(local_date_for(job.rounded_start_utc)) != safe_job_date:
+        raise JobWorkflowError("Rounded stop time must use the active job date.")
+
+    try:
+        requested_stop_utc = parse_local_form_datetime(safe_job_date, safe_stop_time)
+    except ValueError as exc:
+        raise JobWorkflowError("Job date or time is invalid.") from exc
+
+    rounded_stop_utc = round_end_for_technician(requested_stop_utc)
+    if str(local_date_for(rounded_stop_utc)) != safe_job_date:
+        raise JobWorkflowError("Rounded stop time must stay on the selected job date.")
+    if rounded_stop_utc <= ensure_utc(job.rounded_start_utc):
+        raise JobWorkflowError("Rounded stop time must be after rounded start time.")
+
+    job.rounded_end_utc = rounded_stop_utc
     return job
 
 

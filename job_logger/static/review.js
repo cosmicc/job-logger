@@ -1170,6 +1170,7 @@ function bindTicketLookup() {
     const selectedTicketNumber = selectedTicket.ticket_number || "";
     const selectedTicketTitle = selectedTicket.ticket_title || "";
     const selectedTicketDescription = selectedTicket.ticket_description || "";
+    const selectedTicketDescriptionDisplayText = selectedTicketDescription || "No description exists for this ticket.";
     ticketNumberInput.value = selectedTicketNumber;
     if (ticketNumberDisplay) {
       ticketNumberDisplay.textContent = selectedTicketNumber || "Unassigned Ticket";
@@ -1181,10 +1182,10 @@ function bindTicketLookup() {
       ticketDescriptionInput.value = selectedTicketDescription;
     }
     if (ticketDescriptionDisplay) {
-      ticketDescriptionDisplay.textContent = selectedTicketDescription;
+      ticketDescriptionDisplay.textContent = selectedTicketDescriptionDisplayText;
     }
     if (ticketDescriptionCard) {
-      ticketDescriptionCard.classList.toggle("is-hidden", !selectedTicketDescription);
+      ticketDescriptionCard.classList.toggle("is-hidden", !selectedTicketNumber);
     }
     if (ticketHeading) {
       ticketHeading.textContent = selectedTicketTitle || selectedTicketNumber || "Unassigned Ticket";

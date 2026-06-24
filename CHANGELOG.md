@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## v1.1.4 - Login protection, Cloudflare blocks, and tunnel binding
+## v1.1.4 - Login protection, Work in Progress controls, diagnostics, and deployment safety
 
 - Advanced the source-controlled dev runtime version to `v1.1.4`, including
   the Python package metadata and PWA service worker cache version.
@@ -35,6 +35,17 @@ All notable changes to Job Logger are documented in this file.
   existing paginated login-failure and Cloudflare blocked-IP tables.
 - Moved the **Test Autotask API** action into the lower Autotask configuration
   card so the test control lives next to the related result and settings.
+- Changed the login page so **Device sign-in** appears above the
+  username/password form, removed the extra sign-in heading copy, and centered a
+  non-clickable `JL` mark in the unauthenticated header.
+- Changed Work in Progress **Rounded start** and **Rounded stop** controls to
+  use editable 12-hour time fields like Review detail, while keeping the `-15`
+  and `+15` controls and saving through server-validated active-job routes.
+- Enlarged the Remote/On-Site pill switch treatment across Work in Progress and
+  Review so the selected work-location control is easier to tap and scan.
+- Changed Work in Progress and Review ticket description cards to stay visible
+  for selected tickets that have no Autotask description, showing a clear
+  no-description message instead of hiding the card.
 
 ## v1.1.3 - Review visibility and Work in Progress refinements
 

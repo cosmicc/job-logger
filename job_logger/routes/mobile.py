@@ -54,6 +54,8 @@ from job_logger.services.jobs import (
     list_active_jobs_for_web_user,
     mark_job_transcription_failed,
     rounded_stop_for_active_job,
+    set_active_job_rounded_start,
+    set_active_job_rounded_stop,
     start_job,
     submit_job_to_autotask,
     transcribe_active_job_audio,
@@ -69,7 +71,7 @@ from job_logger.services.preferences import (
 )
 from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
 from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
-from job_logger.time_utils import format_local_compact_time_range, local_date_for, now_utc
+from job_logger.time_utils import format_local_compact_time_range, format_local_time, format_utc_iso, local_date_for, now_utc
 from job_logger.ui import template_context, templates
 
 router = APIRouter(tags=["mobile"])
@@ -104,6 +106,27 @@ def _find_matching_service_call_option(
             return service_call_option
 
     return None
+
+
+def _wants_json_response(request: Request) -> bool:
+    """Return whether the browser requested a JSON response."""
+
+    return "application/json" in request.headers.get("accept", "").lower()
+
+
+def _active_time_payload(job: object) -> dict[str, object]:
+    """Return normalized active-job time values after a browser time edit."""
+
+    rounded_stop_utc = job.rounded_end_utc or rounded_stop_for_active_job(job)
+    return {
+        "job_id": job.id,
+        "job_date": job.local_work_date.isoformat() if job.local_work_date else None,
+        "rounded_start_time": format_local_time(job.rounded_start_utc),
+        "rounded_start_utc": format_utc_iso(job.rounded_start_utc),
+        "rounded_stop_time": format_local_time(rounded_stop_utc),
+        "rounded_stop_utc": format_utc_iso(rounded_stop_utc),
+        "rounded_stop_overridden": job.rounded_end_utc is not None,
+    }
 
 
 def _service_call_start_work_location(service_call_option: AutotaskServiceCallOption) -> WorkLocation:
@@ -940,7 +963,7 @@ async def save_ticket_number(
     """Save active-job edits before completing work."""
 
     actor = require_authenticated_username(request)
-    wants_json_response = "application/json" in request.headers.get("accept", "").lower()
+    wants_json_response = _wants_json_response(request)
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
     raw_client_name = form_data.get("client_name")
@@ -1134,6 +1157,52 @@ async def delete_open_job(
     return RedirectResponse(url="/home", status_code=303)
 
 
+@router.post("/jobs/{job_id}/start-time")
+async def save_start_time(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> Response:
+    """Set the active rounded start time from an editable Work in Progress field."""
+
+    actor = require_authenticated_username(request)
+    wants_json_response = _wants_json_response(request)
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+    submitted_job_date = str(form_data.get("job_date", ""))
+    submitted_start_time = str(form_data.get("rounded_start_time") or form_data.get("start_time") or "")
+
+    try:
+        web_user = _current_enabled_web_user(request, database_session)
+        existing_job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(existing_job, web_user.id)
+        job = set_active_job_rounded_start(
+            database_session,
+            job_id=job_id,
+            job_date=submitted_job_date,
+            start_time=submitted_start_time,
+        )
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.rounded_start.set",
+            job_id=job.id,
+            request=request,
+            details={"local_work_date": job.local_work_date.isoformat() if job.local_work_date else None},
+        )
+        database_session.commit()
+        if wants_json_response:
+            return JSONResponse(_active_time_payload(job))
+        add_flash_message(request, "Rounded start time saved.", "success")
+    except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
+        database_session.rollback()
+        if wants_json_response:
+            return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
+
+    return RedirectResponse(url="/home", status_code=303)
+
+
 @router.post("/jobs/{job_id}/start-time/adjust")
 async def adjust_start_time(
     job_id: str,
@@ -1165,6 +1234,52 @@ async def adjust_start_time(
         add_flash_message(request, "Rounded start time adjusted.", "success")
     except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
+
+    return RedirectResponse(url="/home", status_code=303)
+
+
+@router.post("/jobs/{job_id}/stop-time")
+async def save_stop_time(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> Response:
+    """Set the active rounded stop override from an editable Work in Progress field."""
+
+    actor = require_authenticated_username(request)
+    wants_json_response = _wants_json_response(request)
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+    submitted_job_date = str(form_data.get("job_date", ""))
+    submitted_stop_time = str(form_data.get("rounded_stop_time") or form_data.get("end_time") or "")
+
+    try:
+        web_user = _current_enabled_web_user(request, database_session)
+        existing_job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(existing_job, web_user.id)
+        job = set_active_job_rounded_stop(
+            database_session,
+            job_id=job_id,
+            job_date=submitted_job_date,
+            stop_time=submitted_stop_time,
+        )
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.rounded_stop.set",
+            job_id=job.id,
+            request=request,
+            details={"local_work_date": submitted_job_date, "rounded_stop_overridden": True},
+        )
+        database_session.commit()
+        if wants_json_response:
+            return JSONResponse(_active_time_payload(job))
+        add_flash_message(request, "Rounded stop time saved.", "success")
+    except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
+        database_session.rollback()
+        if wants_json_response:
+            return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
     return RedirectResponse(url="/home", status_code=303)

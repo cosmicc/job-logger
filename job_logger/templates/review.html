@@ -349,12 +349,12 @@
             {% endif %}
 
             <section
-              class="ticket-description-card readonly-context-card {% if not selected_job.ticket_description %}is-hidden{% endif %}"
+              class="ticket-description-card readonly-context-card {% if not selected_job.ticket_number %}is-hidden{% endif %}"
               data-review-ticket-description-card
               aria-label="Selected ticket description"
             >
               <span class="metric-label readonly-field-title">Ticket description</span>
-              <p data-review-ticket-description-display>{{ selected_job.ticket_description or "" }}</p>
+              <p data-review-ticket-description-display>{{ selected_job.ticket_description or "No description exists for this ticket." }}</p>
             </section>
 
             <label class="wide-field">

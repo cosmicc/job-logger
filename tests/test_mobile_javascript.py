@@ -450,6 +450,17 @@ def test_mobile_ticket_selection_locks_client_input(tmp_path: Path) -> None:
         assert.strictEqual(activeClientInput.readOnly, true);
         assert.strictEqual(activeClientInput.getAttribute("aria-readonly"), "true");
         assert.strictEqual(activeClientInput.classList.contains("is-locked-client-input"), true);
+
+        ticketDescriptionCard.classList.add("is-hidden");
+        browserContext.__mobileTestApi.updateActiveTicketDisplay("job-2", {
+          ticket_number: "T20260616.0003",
+          ticket_title: "Ticket without description",
+          ticket_description: "",
+          ticket_status: "in_progress",
+        });
+
+        assert.strictEqual(ticketDescriptionDisplay.textContent, "No description exists for this ticket.");
+        assert.strictEqual(ticketDescriptionCard.classList.contains("is-hidden"), false);
         """,
     )
 

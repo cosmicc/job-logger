@@ -1,5 +1,6 @@
 const DESCRIPTION_SAVE_DELAY_MS = 650;
 const ACTIVE_FORM_SAVE_DELAY_MS = 650;
+const ACTIVE_TIME_SAVE_DELAY_MS = 650;
 const COMPANY_SEARCH_DELAY_MS = 400;
 const MIN_COMPANY_SEARCH_CHARACTERS = 3;
 const RECORDING_CHUNK_INTERVAL_MS = 2500;
@@ -23,6 +24,7 @@ const activeTicketPickers = document.querySelectorAll("[data-active-ticket-picke
 const workLocationInputs = document.querySelectorAll("[data-work-location-input]");
 const activeTicketStatusInputs = document.querySelectorAll("[data-active-ticket-status-input]");
 const activeJobDateInputs = document.querySelectorAll("[data-active-job-date-input]");
+const activeTimeForms = document.querySelectorAll("[data-active-time-form]");
 const serviceCallPanels = document.querySelectorAll("[data-service-call-panel]");
 const aiCleanupButtons = document.querySelectorAll("[data-ai-cleanup-button]");
 const roundedStopDisplays = document.querySelectorAll("[data-rounded-stop-display]");
@@ -32,6 +34,8 @@ const mobilePageLoadingMessage = document.querySelector("[data-mobile-page-loadi
 const descriptionSaveTimers = new Map();
 const activeFormSaveTimers = new WeakMap();
 const lastSavedActiveFormSnapshots = new WeakMap();
+const activeTimeSaveTimers = new WeakMap();
+const lastSavedActiveTimeSnapshots = new WeakMap();
 const companySearchTimers = new Map();
 const lastSavedDescriptions = new Map();
 const pendingDescriptionSaves = new Set();
@@ -242,8 +246,17 @@ function updateLiveRoundedStopDisplay(displayElement) {
   if (displayElement.dataset.roundedStopOverridden === "true") {
     return;
   }
+  if (document.activeElement === displayElement) {
+    return;
+  }
 
-  displayElement.textContent = formatRoundedStopDisplay(resolveLiveRoundedStop(displayElement), displayElement);
+  const nextDisplayText = formatRoundedStopDisplay(resolveLiveRoundedStop(displayElement), displayElement);
+  if ("value" in displayElement) {
+    displayElement.value = nextDisplayText;
+    return;
+  }
+
+  displayElement.textContent = nextDisplayText;
 }
 
 function initializeLiveRoundedStopDisplays() {
@@ -522,6 +535,162 @@ function queueActiveJobFormSave(activeTicketForm, immediate = false) {
       persistActiveJobFormSnapshot(activeTicketForm, nextSnapshot);
     }, immediate ? 0 : ACTIVE_FORM_SAVE_DELAY_MS),
   );
+}
+
+function syncActiveTimeFormJobDate(activeTimeForm) {
+  if (!activeTimeForm) {
+    return;
+  }
+
+  const hiddenJobDateInput = activeTimeForm.querySelector("[data-active-time-job-date]");
+  if (!hiddenJobDateInput) {
+    return;
+  }
+
+  const activeJobCard = activeTimeForm.closest ? activeTimeForm.closest("[data-active-job-card]") : null;
+  const visibleJobDateInput = activeJobCard ? activeJobCard.querySelector("[data-active-job-date-input]") : null;
+  if (visibleJobDateInput && visibleJobDateInput.value) {
+    hiddenJobDateInput.value = visibleJobDateInput.value;
+  }
+}
+
+function buildActiveTimeFormSnapshot(activeTimeForm) {
+  if (!activeTimeForm) {
+    return "";
+  }
+
+  syncActiveTimeFormJobDate(activeTimeForm);
+  return new URLSearchParams(new FormData(activeTimeForm)).toString();
+}
+
+async function saveActiveTimeFormInBackground(activeTimeForm) {
+  if (!activeTimeForm) {
+    throw new Error("Active time form was not found.");
+  }
+
+  syncActiveTimeFormJobDate(activeTimeForm);
+  const response = await fetch(activeTimeForm.action, {
+    method: "POST",
+    headers: {Accept: "application/json"},
+    body: new FormData(activeTimeForm),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || "Active time could not be saved.");
+  }
+
+  return payload;
+}
+
+function updateActiveTimeDisplays(activeTimeForm, payload) {
+  const jobId = toSafeMapString(activeTimeForm.dataset.jobId || payload.job_id);
+  const activeJobCard = document.querySelector(`[data-active-job-card="${jobId}"]`);
+  if (!activeJobCard) {
+    return null;
+  }
+
+  const startTimeInput = activeJobCard.querySelector('[data-active-time-input][data-active-time-kind="start"]');
+  const stopTimeInput = activeJobCard.querySelector('[data-active-time-input][data-active-time-kind="stop"]');
+  const visibleJobDateInput = activeJobCard.querySelector("[data-active-job-date-input]");
+  const hiddenJobDateInputs = activeJobCard.querySelectorAll("[data-active-time-job-date]");
+  const payloadJobDate = toSafeMapString(payload.job_date).trim();
+
+  if (payloadJobDate && visibleJobDateInput) {
+    visibleJobDateInput.value = payloadJobDate;
+  }
+  for (const hiddenJobDateInput of hiddenJobDateInputs) {
+    if (payloadJobDate) {
+      hiddenJobDateInput.value = payloadJobDate;
+    }
+  }
+  if (startTimeInput && payload.rounded_start_time) {
+    startTimeInput.value = payload.rounded_start_time;
+  }
+  if (stopTimeInput && payload.rounded_stop_time) {
+    stopTimeInput.value = payload.rounded_stop_time;
+    stopTimeInput.dataset.roundedStopOverridden = payload.rounded_stop_overridden ? "true" : "false";
+    stopTimeInput.dataset.roundedStartUtc = toSafeMapString(payload.rounded_start_utc);
+    stopTimeInput.dataset.initialRoundedStopUtc = toSafeMapString(payload.rounded_stop_utc);
+    stopTimeInput.dataset.initialRoundedStopLocalTime = toSafeMapString(payload.rounded_stop_time);
+  }
+
+  return activeJobCard;
+}
+
+function markActiveTimeFormsSaved(activeJobCard) {
+  if (!activeJobCard) {
+    return;
+  }
+
+  const savedActiveTimeForms = activeJobCard.querySelectorAll("[data-active-time-form]");
+  for (const savedActiveTimeForm of savedActiveTimeForms) {
+    lastSavedActiveTimeSnapshots.set(savedActiveTimeForm, buildActiveTimeFormSnapshot(savedActiveTimeForm));
+  }
+}
+
+function clearActiveTimeSaveTimer(activeTimeForm) {
+  const timerId = activeTimeSaveTimers.get(activeTimeForm);
+  if (timerId) {
+    clearTimeout(timerId);
+    activeTimeSaveTimers.delete(activeTimeForm);
+  }
+}
+
+function persistActiveTimeFormSnapshot(activeTimeForm, queuedSnapshot) {
+  const jobId = toSafeMapString(activeTimeForm.dataset.jobId);
+  setActiveSaveStatus(jobId, "Saving changes...");
+  saveActiveTimeFormInBackground(activeTimeForm)
+    .then((payload) => {
+      const currentSnapshot = buildActiveTimeFormSnapshot(activeTimeForm);
+      if (currentSnapshot !== queuedSnapshot) {
+        queueActiveTimeFormSave(activeTimeForm, true);
+        return;
+      }
+
+      const activeJobCard = updateActiveTimeDisplays(activeTimeForm, payload);
+      markActiveTimeFormsSaved(activeJobCard);
+      setActiveSaveStatus(jobId, "Changes saved.");
+    })
+    .catch((error) => {
+      setActiveSaveStatus(jobId, error.message || "Active time could not be saved.", true);
+    });
+}
+
+function queueActiveTimeFormSave(activeTimeForm, immediate = false) {
+  if (!activeTimeForm) {
+    return;
+  }
+
+  const nextSnapshot = buildActiveTimeFormSnapshot(activeTimeForm);
+  if (nextSnapshot === lastSavedActiveTimeSnapshots.get(activeTimeForm)) {
+    return;
+  }
+
+  clearActiveTimeSaveTimer(activeTimeForm);
+  activeTimeSaveTimers.set(
+    activeTimeForm,
+    setTimeout(() => {
+      activeTimeSaveTimers.delete(activeTimeForm);
+      persistActiveTimeFormSnapshot(activeTimeForm, nextSnapshot);
+    }, immediate ? 0 : ACTIVE_TIME_SAVE_DELAY_MS),
+  );
+}
+
+function adjustActiveTimeInput(activeTimeForm, deltaMinutes) {
+  const timeInput = activeTimeForm.querySelector("[data-active-time-input]");
+  if (!timeInput) {
+    return;
+  }
+
+  const currentTotalMinutes = parseLocalTimeDisplay(timeInput.value);
+  if (currentTotalMinutes === null) {
+    return;
+  }
+
+  timeInput.value = formatLocalMinutes(currentTotalMinutes + deltaMinutes);
+  if (timeInput.dataset.activeTimeKind === "stop") {
+    timeInput.dataset.roundedStopOverridden = "true";
+  }
 }
 
 function setRecordingStatus(jobId, message, isError = false, isLoading = false) {
@@ -1410,6 +1579,7 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   const ticketNumber = toSafeMapString(selectedTicket.ticket_number).trim().toUpperCase();
   const ticketTitle = toSafeMapString(selectedTicket.ticket_title || selectedTicket.title).trim();
   const ticketDescription = toSafeMapString(selectedTicket.ticket_description || selectedTicket.description).trim();
+  const ticketDescriptionDisplayText = ticketDescription || "No description exists for this ticket.";
   const ticketNumberCard = activeJobCard.querySelector("[data-active-ticket-number-card]");
   const ticketNumberDisplay = activeJobCard.querySelector("[data-active-ticket-number-display]");
   const ticketTitleCard = activeJobCard.querySelector("[data-active-ticket-title-card]");
@@ -1433,10 +1603,10 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   }
 
   if (ticketDescriptionCard) {
-    ticketDescriptionCard.classList.toggle("is-hidden", !ticketDescription);
+    ticketDescriptionCard.classList.toggle("is-hidden", !ticketNumber);
   }
   if (ticketDescriptionDisplay) {
-    ticketDescriptionDisplay.textContent = ticketDescription;
+    ticketDescriptionDisplay.textContent = ticketDescriptionDisplayText;
   }
   if (ticketStatusInput && selectedTicket.ticket_status) {
     ticketStatusInput.value = selectedTicket.ticket_status;
@@ -1803,6 +1973,42 @@ for (const workLocationInput of workLocationInputs) {
     const activeTicketForm = document.getElementById(workLocationInput.getAttribute("form") || "");
     queueActiveJobFormSave(activeTicketForm, true);
   });
+}
+
+for (const activeTimeForm of activeTimeForms) {
+  lastSavedActiveTimeSnapshots.set(activeTimeForm, buildActiveTimeFormSnapshot(activeTimeForm));
+
+  activeTimeForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    queueActiveTimeFormSave(activeTimeForm, true);
+  });
+
+  const timeInput = activeTimeForm.querySelector("[data-active-time-input]");
+  if (timeInput) {
+    timeInput.addEventListener("input", () => {
+      if (timeInput.dataset.activeTimeKind === "stop") {
+        timeInput.dataset.roundedStopOverridden = "true";
+      }
+      queueActiveTimeFormSave(activeTimeForm);
+    });
+    timeInput.addEventListener("blur", () => {
+      queueActiveTimeFormSave(activeTimeForm, true);
+    });
+  }
+
+  const timeStepButtons = activeTimeForm.querySelectorAll("[data-active-time-delta]");
+  for (const timeStepButton of timeStepButtons) {
+    timeStepButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      const deltaMinutes = Number(timeStepButton.dataset.activeTimeDelta || 0);
+      if (!Number.isFinite(deltaMinutes)) {
+        return;
+      }
+
+      adjustActiveTimeInput(activeTimeForm, deltaMinutes);
+      queueActiveTimeFormSave(activeTimeForm, true);
+    });
+  }
 }
 
 for (const activeTicketStatusInput of activeTicketStatusInputs) {
