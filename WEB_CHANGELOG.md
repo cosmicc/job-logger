@@ -5,10 +5,10 @@ Short release notes shown on the authenticated `/changelog` page.
 ## v1.1.4 - Login protection, Work in Progress controls, and deployment safety
 
 - Sign-in protection now handles repeated failed login attempts more defensively.
-- The login page now puts Device sign-in first and uses a simpler centered JL header.
+- The login page now keeps password sign-in first and puts Device sign-in under it.
 - Work in Progress rounded start and rounded stop are now editable like Review time fields.
 - Remote and On-Site switches are a little larger.
-- Tickets with no description now show a clear no-description message.
+- Tickets with no description now show a clear left-aligned message.
 - Cloudflare Tunnel deployments can now bind the web listener to a specific host address and port.
 
 ## v1.1.3 - Review visibility and Work in Progress refinements

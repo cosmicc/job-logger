@@ -1982,6 +1982,10 @@ def test_ticket_description_card_stays_visible_without_description(authenticated
     home_response = authenticated_client.get("/home")
     assert home_response.status_code == 200
     assert "No description exists for this ticket." in home_response.text
+    assert (
+        '<dd class="active-ticket-description-display" data-active-ticket-description-display>'
+        "No description exists for this ticket."
+    ) in home_response.text
     active_description_card = re.search(
         r'<div\s+class="metric-card ticket-description-card (?P<classes>[^"]*)"[^>]*data-active-ticket-description-card',
         home_response.text,

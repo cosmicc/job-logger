@@ -382,7 +382,7 @@ svg {
 .login-shell {
   display: grid;
   min-height: calc(100dvh - 118px);
-  padding-top: clamp(24px, 8vh, 78px);
+  padding-top: clamp(30px, 9vh, 84px);
   place-items: start center;
 }
 
@@ -409,8 +409,8 @@ svg {
 .passkey-login-panel {
   display: grid;
   gap: 10px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--border);
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
 }
 
 .passkey-status {

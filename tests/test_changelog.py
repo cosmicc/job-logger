@@ -76,10 +76,10 @@ def test_changelog_parser_reads_current_release() -> None:
         title="Login protection, Work in Progress controls, and deployment safety",
         changes=(
             "Sign-in protection now handles repeated failed login attempts more defensively.",
-            "The login page now puts Device sign-in first and uses a simpler centered JL header.",
+            "The login page now keeps password sign-in first and puts Device sign-in under it.",
             "Work in Progress rounded start and rounded stop are now editable like Review time fields.",
             "Remote and On-Site switches are a little larger.",
-            "Tickets with no description now show a clear no-description message.",
+            "Tickets with no description now show a clear left-aligned message.",
             "Cloudflare Tunnel deployments can now bind the web listener to a specific host address and port.",
         ),
     )
@@ -112,10 +112,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.0" in response.text
     assert "Login protection, Work in Progress controls, and deployment safety" in response.text
     assert "Sign-in protection now handles repeated failed login attempts more defensively." in response.text
-    assert "The login page now puts Device sign-in first and uses a simpler centered JL header." in response.text
+    assert "The login page now keeps password sign-in first and puts Device sign-in under it." in response.text
     assert "Work in Progress rounded start and rounded stop are now editable like Review time fields." in response.text
     assert "Remote and On-Site switches are a little larger." in response.text
-    assert "Tickets with no description now show a clear no-description message." in response.text
+    assert "Tickets with no description now show a clear left-aligned message." in response.text
     assert "Cloudflare Tunnel deployments can now bind the web listener to a specific host address and port." in response.text
     assert "Review visibility and Work in Progress refinements" in response.text
     assert "Review rows now show whether each job is Remote or On-Site." in response.text

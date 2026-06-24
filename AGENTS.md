@@ -74,8 +74,9 @@ password login available as fallback.
 `/config` is the persistent passkey management surface. User-facing buttons and
 prompts should call this **Device sign-in** so users understand it can use a
 phone, browser, biometric unlock, PIN, or another passkey-capable device.
-The login page shows the Device sign-in button above the username/password form
-while keeping that normal password form visible as the fallback.
+The login page shows the normal username/password form first and places the
+Device sign-in button under the password sign-in button as the alternate
+managed-user login path.
 `/home` may show a device sign-in setup card only once after each successful
 login, and only while that managed user has no registered passkeys.
 
@@ -780,8 +781,8 @@ The normal workflow is:
     diagnostics.
 18. Managed users without a passkey see a Home prompt to set up device sign-in
     once after a successful login. `/config` always shows device sign-in
-    management backed by passkeys. The login page places Device sign-in above
-    username/password fields. Later device sign-in uses
+    management backed by passkeys. The login page places Device sign-in under
+    the password sign-in button. Later device sign-in uses
     `/login/passkey/options` and `/login/passkey/verify`; failed or canceled
     passkey login must leave the normal password form available.
 19. Authenticated users may open `/changelog` from the discreet header version

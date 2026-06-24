@@ -881,6 +881,46 @@ def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient)
     assert ".disk-meter-critical" in stylesheet
 
 
+def test_debug_paginates_cloudflare_blocked_ips(super_admin_client: TestClient) -> None:
+    """Diagnostics should limit Cloudflare blocked IP rows to 10 per page."""
+
+    created_at = datetime(2026, 6, 21, 12, 0, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        for index in range(12):
+            database_session.add(
+                CloudflareIPBlock(
+                    ip_address=f"198.51.100.{index}",
+                    cloudflare_rule_id=f"cf-page-rule-{index:03d}",
+                    source="automatic",
+                    reason=f"pagination test block {index}",
+                    failure_count=index,
+                    notes="Job Logger pagination test block",
+                    created_at_utc=created_at + timedelta(minutes=index),
+                    updated_at_utc=created_at + timedelta(minutes=index),
+                )
+            )
+        database_session.commit()
+
+    debug_response = super_admin_client.get("/debug?cloudflare_blocks_page=2")
+
+    assert debug_response.status_code == 200
+    assert "Cloudflare Blocked IPs" in debug_response.text
+    assert "12 retained, 10 per page" in debug_response.text
+    assert "Page 2 of 2" in debug_response.text
+    cloudflare_section = re.search(
+        r'id="cloudflare-blocked-ips".*?id="autotask-submission-attempts"',
+        debug_response.text,
+        flags=re.DOTALL,
+    )
+    assert cloudflare_section is not None
+    cloudflare_html = cloudflare_section.group(0)
+    assert cloudflare_html.count('class="login-cloudflare-rule-cell"') == 2
+    assert "cf-page-rule-001" in cloudflare_html
+    assert "cf-page-rule-000" in cloudflare_html
+    assert "cf-page-rule-011" not in cloudflare_html
+    assert "cf-page-rule-010" not in cloudflare_html
+
+
 def test_debug_paginates_autotask_submission_attempts(super_admin_client: TestClient) -> None:
     """Diagnostics should limit Autotask submission attempts to 10 rows per page."""
 

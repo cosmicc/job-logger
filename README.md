@@ -418,7 +418,7 @@ keeps the private key and performs the local unlock prompt.
 
 Device sign-in is intentionally a fallback-friendly option. If the browser does
 not support passkeys, the device cancels, or signature verification fails, the
-normal username/password login form remains available below the Device sign-in
+normal username/password login form remains available above the Device sign-in
 button.
 
 Set these passkey variables for production when needed:
