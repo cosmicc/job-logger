@@ -44,6 +44,14 @@ AUTOMATIC_HOURLY_BACKUPS_TO_KEEP = 6
 AUTOMATIC_DAILY_BACKUP_DAYS_TO_KEEP = 3
 _BACKUP_RESTORE_LOCK = threading.RLock()
 _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
+    "jobs": {
+        # v1.1.5 added server-backed AI cleanup undo state. Older full backups
+        # restore with no pending cleanup revert available.
+        "ai_cleanup_original_summary": None,
+        "ai_cleanup_pending_summary": None,
+        "ai_cleanup_source": None,
+        "ai_cleanup_at_utc": None,
+    },
     "web_users": {
         # v1.1.1 added an optional explicit Autotask service-desk role fallback.
         # Older full backups should restore without forcing a role selection.

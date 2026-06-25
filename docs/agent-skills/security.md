@@ -154,8 +154,9 @@ that IP. When Cloudflare blocking is enabled, the app may create/delete only
 zone IP Access Rules tracked in `cloudflare_ip_blocks`, must honor
 `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, and must not mutate unrelated Cloudflare
 rules. The successful-login table may use a yellow account-kind chip for config
-super-admin rows so they are easy to distinguish from managed web users. Near
-the bottom of `/debug`, the page may show a
+super-admin rows so they are easy to distinguish from managed web users, and
+may show `Password` or `Passkey` method pills for the already-sanitized
+authentication method. Near the bottom of `/debug`, the page may show a
 sanitized newest-first tail of `${LOG_DIR}/app.log`; keep that bounded to the
 newest 10 displayed lines and redacted. Login failure, Cloudflare blocked-IP,
 and Autotask submission-attempt diagnostics must stay paginated at 10 rows per
@@ -260,6 +261,12 @@ Cleanup handling must:
 - Audit provider, model, source, status, and text lengths only.
 - Never write raw uncleaned summaries, cleaned summaries, API keys, or full
   provider payloads into audit events, logs, diagnostics, or templates.
+- Store pre-cleanup summary text only on the owning job for the explicit
+  **Revert cleanup** workflow, never in audit details or diagnostics. Clear the
+  stored undo text after the user reverts cleanup or the cleaned summary is
+  successfully finalized in Autotask. Also clear stale undo text after
+  `AI_CLEANUP_REVERT_RETENTION_HOURS`, defaulting to 24 hours, so customer/work
+  text is not retained indefinitely for an unused undo action.
 
 Gemini's free API tier may use submitted content and generated responses to
 improve Google products. GroqCloud does not retain inference customer data by
@@ -285,6 +292,11 @@ Audio stream or compatibility upload handling must:
 - Check content type.
 - Enforce maximum audio size.
 - Pass bytes to the transcription provider without writing persistent raw audio.
+- When `TRANSCRIPTION_PROVIDER=faster_whisper_remote`, send audio only to the
+  configured trusted transcription endpoint. HTTP endpoints must resolve to
+  loopback or private-network hosts; public remote transcription endpoints must
+  use HTTPS. Keep `FASTER_WHISPER_REMOTE_API_KEY` out of source control,
+  templates, logs, and diagnostics.
 
 If raw audio retention is ever added, it must be explicit, configurable,
 documented, access-controlled, and auditable.

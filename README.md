@@ -454,7 +454,10 @@ small yellow `DEV` badge on desktop and phone layouts.
 ### Speech To Text
 
 `TRANSCRIPTION_PROVIDER=faster_whisper` uses the local faster-whisper package to
-transcribe job notes inside the Docker app container.
+transcribe job notes inside the Docker app container. Use
+`TRANSCRIPTION_PROVIDER=faster_whisper_remote` to send the same browser audio
+to a trusted remote faster-whisper API while keeping local transcription
+available as an option.
 
 Set these variables for local transcription:
 
@@ -487,6 +490,18 @@ For reliable local transcription, run the Docker stack on a server with at least
 8 CPU cores and 10 GB of RAM so the app container can use its default 8-thread,
 8 GB faster-whisper allocation while leaving memory for PostgreSQL, Nginx, and
 the host operating system.
+
+For remote faster-whisper, set:
+
+- `FASTER_WHISPER_REMOTE_URL`
+- `FASTER_WHISPER_REMOTE_API_KEY` when the remote service requires a bearer token.
+- `FASTER_WHISPER_REMOTE_TIMEOUT_SECONDS`
+
+Job Logger posts multipart form data to `FASTER_WHISPER_REMOTE_URL` with an
+`audio` file field plus optional `model`, `language`, `beam_size`, and
+`initial_prompt` fields. The remote service should return JSON with a `text`
+field containing the transcript. HTTP remote URLs must stay on loopback or
+private-network hosts; public remote transcription endpoints must use HTTPS.
 
 `TRANSCRIPTION_PROVIDER=mock` proves the transcription path without loading a
 local model. `TRANSCRIPTION_PROVIDER=disabled` rejects transcription attempts.
@@ -599,6 +614,13 @@ progress, and cleanup waits until audio recording/transcription is finished. On
 review detail, the cleaned text replaces the textarea; non-submitted jobs
 autosave as usual, while submitted jobs still require **Submit changes** to
 patch the existing Autotask time entry.
+After a successful cleanup, the button changes to **Revert cleanup** and can
+restore the pre-cleanup notes after page reload or navigation. Submitted Review
+entries can keep a pending cleaned draft across reloads, but Autotask is still
+updated only through **Submit changes**. The app stores the pre-cleanup notes
+on the job only for that explicit revert workflow and clears them after revert
+or successful Autotask finalization. It also clears stale revert text after
+`AI_CLEANUP_REVERT_RETENTION_HOURS`, which defaults to `24`.
 
 AI cleanup requests require the local authenticated session and CSRF token. The
 server sends bounded summary text plus minimal job context to the selected
@@ -907,8 +929,9 @@ metadata, account kind, authentication method, failure reason, and
 password-present/length metadata for failures. When `X-Forwarded-For` is
 present, the first forwarded address is shown as the client IP so Cloudflare
 Tunnel deployments show the actual browser address instead of the tunnel peer.
-Successful-login rows use a yellow account chip for the config super admin and
-a green chip for managed web users.
+Successful-login rows use a yellow account chip for the config super admin, a
+green chip for managed web users, and colored `Password` or `Passkey` method
+pills.
 The raw submitted password is never stored or displayed. The `/debug/logs/login-failures` and
 `/debug/logs/login-successes` endpoints download the raw JSONL files for
 authenticated diagnostics.

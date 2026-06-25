@@ -2,12 +2,37 @@
 
 from __future__ import annotations
 
+import ipaddress
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from typing import Any
+from urllib.parse import urlparse
+
+import httpx
 
 from job_logger.config import Settings, settings
+
+PRIVATE_TRANSCRIPTION_HOSTNAMES = {
+    "localhost",
+    "host.docker.internal",
+    "gateway.docker.internal",
+    "host.containers.internal",
+}
+PRIVATE_TRANSCRIPTION_NETWORKS = tuple(
+    ipaddress.ip_network(network)
+    for network in (
+        "127.0.0.0/8",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "169.254.0.0/16",
+        "::1/128",
+        "fc00::/7",
+        "fe80::/10",
+    )
+)
 
 
 @dataclass(frozen=True)
@@ -144,6 +169,134 @@ class FasterWhisperTranscriptionProvider(BaseTranscriptionProvider):
         return TranscriptionResult(provider=self.provider_name, text=transcript_text)
 
 
+def _is_private_transcription_hostname(hostname: str | None) -> bool:
+    """Return whether a hostname points at loopback or private-network space."""
+
+    if hostname is None:
+        return False
+
+    normalized_hostname = hostname.strip().strip("[]").lower()
+    if normalized_hostname in PRIVATE_TRANSCRIPTION_HOSTNAMES:
+        return True
+
+    try:
+        ip_address = ipaddress.ip_address(normalized_hostname)
+    except ValueError:
+        return False
+
+    if ip_address.is_unspecified or ip_address.is_multicast:
+        return False
+
+    return any(ip_address in private_network for private_network in PRIVATE_TRANSCRIPTION_NETWORKS)
+
+
+def _validate_remote_faster_whisper_url(remote_url: str) -> str:
+    """Return a normalized remote faster-whisper URL or reject unsafe targets."""
+
+    normalized_url = (remote_url or "").strip().rstrip("/")
+    parsed_url = urlparse(normalized_url)
+    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+        raise TranscriptionError("Remote faster-whisper requires FASTER_WHISPER_REMOTE_URL with an HTTP endpoint.")
+
+    if parsed_url.scheme == "http" and not _is_private_transcription_hostname(parsed_url.hostname):
+        raise TranscriptionError(
+            "Remote faster-whisper HTTP endpoints must use loopback or private-network hosts. "
+            "Use HTTPS for public remote transcription endpoints."
+        )
+
+    return normalized_url
+
+
+def _safe_remote_error_message(response_payload: Any) -> str:
+    """Return a bounded remote transcription error without exposing internals."""
+
+    if isinstance(response_payload, dict):
+        for key in ("detail", "message", "error"):
+            error_value = response_payload.get(key)
+            if isinstance(error_value, str) and error_value.strip():
+                return error_value.strip()[:300]
+            if isinstance(error_value, dict):
+                nested_message = error_value.get("message")
+                if isinstance(nested_message, str) and nested_message.strip():
+                    return nested_message.strip()[:300]
+
+    return "Remote faster-whisper transcription failed."
+
+
+def _remote_transcript_text(response_payload: Any) -> str:
+    """Extract the transcript text from the documented remote response shape."""
+
+    if not isinstance(response_payload, dict):
+        return ""
+
+    for key in ("text", "transcript"):
+        transcript_text = response_payload.get(key)
+        if isinstance(transcript_text, str) and transcript_text.strip():
+            return transcript_text.strip()
+
+    return ""
+
+
+class RemoteFasterWhisperTranscriptionProvider(BaseTranscriptionProvider):
+    """HTTP-backed faster-whisper provider for a trusted remote transcription server."""
+
+    provider_name = "faster_whisper_remote"
+
+    def __init__(self, application_settings: Settings) -> None:
+        """Store remote faster-whisper settings."""
+
+        self.application_settings = application_settings
+
+    def transcribe(self, *, audio_bytes: bytes, filename: str, content_type: str) -> TranscriptionResult:
+        """Send audio to a configured remote faster-whisper API and return text."""
+
+        if not audio_bytes:
+            raise TranscriptionError("No audio bytes were submitted.")
+
+        remote_url = _validate_remote_faster_whisper_url(self.application_settings.faster_whisper_remote_url)
+        headers: dict[str, str] = {}
+        if self.application_settings.faster_whisper_remote_api_key:
+            headers["Authorization"] = f"Bearer {self.application_settings.faster_whisper_remote_api_key}"
+
+        form_data = {
+            "model": self.application_settings.faster_whisper_model,
+            "beam_size": str(self.application_settings.faster_whisper_beam_size),
+        }
+        if self.application_settings.faster_whisper_language:
+            form_data["language"] = self.application_settings.faster_whisper_language
+        if self.application_settings.faster_whisper_initial_prompt:
+            form_data["initial_prompt"] = self.application_settings.faster_whisper_initial_prompt
+
+        safe_filename = filename or "recording.webm"
+        safe_content_type = content_type or "application/octet-stream"
+        try:
+            with httpx.Client(timeout=self.application_settings.faster_whisper_remote_timeout_seconds) as client:
+                response = client.post(
+                    remote_url,
+                    headers=headers,
+                    data=form_data,
+                    files={"audio": (safe_filename, audio_bytes, safe_content_type)},
+                )
+        except httpx.TimeoutException as exc:
+            raise TranscriptionError("Remote faster-whisper transcription timed out. Try again.") from exc
+        except httpx.RequestError as exc:
+            raise TranscriptionError("Remote faster-whisper request could not be completed.") from exc
+
+        try:
+            response_payload = response.json()
+        except ValueError:
+            response_payload = {}
+
+        if response.status_code >= 400:
+            raise TranscriptionError(_safe_remote_error_message(response_payload))
+
+        transcript_text = _remote_transcript_text(response_payload)
+        if not transcript_text:
+            raise TranscriptionError("Remote faster-whisper transcription returned no text.")
+
+        return TranscriptionResult(provider=self.provider_name, text=transcript_text)
+
+
 def get_transcription_provider(application_settings: Settings = settings) -> BaseTranscriptionProvider:
     """Return the configured speech-to-text provider."""
 
@@ -152,6 +305,9 @@ def get_transcription_provider(application_settings: Settings = settings) -> Bas
 
     if application_settings.transcription_provider == "faster_whisper":
         return FasterWhisperTranscriptionProvider(application_settings)
+
+    if application_settings.transcription_provider == "faster_whisper_remote":
+        return RemoteFasterWhisperTranscriptionProvider(application_settings)
 
     if application_settings.transcription_provider == "disabled":
         return DisabledTranscriptionProvider()

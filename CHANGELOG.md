@@ -2,6 +2,35 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## v1.1.5 - AI cleanup revert, remote transcription, and login diagnostics
+
+- Advanced the source-controlled dev runtime version to `v1.1.5`, including
+  the Python package metadata and PWA service worker cache version.
+- Added a persistent **Revert cleanup** state for Work in Progress and Review
+  AI Cleanup. After cleanup succeeds, the button switches to **Revert cleanup**
+  and can restore the pre-cleanup notes after page reload or navigation.
+- Added `AI_CLEANUP_REVERT_RETENTION_HOURS`, defaulting to 24 hours, so stored
+  pre-cleanup notes and submitted Review cleanup drafts are minimized
+  automatically instead of being retained indefinitely.
+- Added job-level database fields and migration `0016_ai_cleanup_revert_state`
+  for AI cleanup undo state, with full-backup restore compatibility for older
+  backups that do not contain those columns.
+- Added a pending cleaned-summary draft for submitted Review entries so
+  cleaned text can survive reloads without patching Autotask until the user
+  clicks **Submit changes**.
+- Added metadata-only audit events for cleanup reverts without storing raw
+  summary text in audit details.
+- Added `TRANSCRIPTION_PROVIDER=faster_whisper_remote` for calling a trusted
+  remote faster-whisper API while keeping `faster_whisper` as the local
+  container-based option.
+- Added remote faster-whisper Docker/runtime settings:
+  `FASTER_WHISPER_REMOTE_URL`, `FASTER_WHISPER_REMOTE_API_KEY`, and
+  `FASTER_WHISPER_REMOTE_TIMEOUT_SECONDS`.
+- Restricted remote faster-whisper HTTP URLs to loopback or private-network
+  hosts; public remote transcription endpoints must use HTTPS.
+- Changed successful-login Diagnostics rows to show `Password` and `Passkey`
+  as colored status pills for quicker scanning.
+
 ## v1.1.4 - Login protection, Work in Progress controls, diagnostics, and deployment safety
 
 - Advanced the source-controlled dev runtime version to `v1.1.4`, including

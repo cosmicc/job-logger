@@ -6,13 +6,18 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, or_, select
 from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.orm import Session
 
 from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
 from job_logger.models import Job, SubmissionAttempt
-from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider, split_autotask_summary_notes
+from job_logger.services.autotask import (
+    AutotaskSubmissionError,
+    build_autotask_summary_notes,
+    get_autotask_provider,
+    split_autotask_summary_notes,
+)
 from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
 from job_logger.time_utils import (
     LOCAL_TIMEZONE,
@@ -32,6 +37,9 @@ MAX_CLIENT_NAME_LENGTH = 120
 MAX_TICKET_TITLE_LENGTH = 240
 MAX_TICKET_DESCRIPTION_LENGTH = 8000
 ALLOWED_WORK_IN_PROGRESS_TIME_MINUTE_DELTA = {-15, 15}
+AI_CLEANUP_SOURCE_MOBILE = "mobile"
+AI_CLEANUP_SOURCE_REVIEW = "review"
+ALLOWED_AI_CLEANUP_SOURCES = {AI_CLEANUP_SOURCE_MOBILE, AI_CLEANUP_SOURCE_REVIEW}
 SUCCESSFUL_SUBMISSION_PROTECTED_MESSAGE = (
     "Submitted Autotask jobs cannot be deleted locally, resent, or have ticket identity changed. "
     "Use Submit changes for date, time, summary, or intentional ticket status changes, or Delete From Autotask "
@@ -113,6 +121,172 @@ def _apply_summary_text(job: Job, summary_text: str | None) -> Job:
     job.transcription_provider = "browser"
     job.transcription_error = None
     return job
+
+
+def _normalize_ai_cleanup_summary(summary_text: str | None, *, field_name: str) -> str:
+    """Return a bounded cleanup summary value safe to persist for undo."""
+
+    safe_summary_text = (summary_text or "").strip()
+    if not safe_summary_text:
+        raise JobWorkflowError(f"{field_name} cannot be empty.")
+    if len(safe_summary_text) > 32000:
+        raise JobWorkflowError(f"{field_name} must be 32,000 characters or fewer.")
+    return safe_summary_text
+
+
+def _normalize_ai_cleanup_source(source: str) -> str:
+    """Return a known cleanup source for audit and UI state."""
+
+    normalized_source = str(source or "").strip().lower()
+    if normalized_source not in ALLOWED_AI_CLEANUP_SOURCES:
+        raise JobWorkflowError("AI cleanup source is invalid.")
+    return normalized_source
+
+
+def clear_ai_cleanup_revert_state(job: Job) -> Job:
+    """Clear stored cleanup undo text after revert or successful finalization."""
+
+    job.ai_cleanup_original_summary = None
+    job.ai_cleanup_pending_summary = None
+    job.ai_cleanup_source = None
+    job.ai_cleanup_at_utc = None
+    return job
+
+
+def _job_has_ai_cleanup_revert_state(job: Job) -> bool:
+    """Return whether a job contains any cleanup undo fields to minimize."""
+
+    return any(
+        (
+            bool((job.ai_cleanup_original_summary or "").strip()),
+            bool((job.ai_cleanup_pending_summary or "").strip()),
+            bool((job.ai_cleanup_source or "").strip()),
+            job.ai_cleanup_at_utc is not None,
+        )
+    )
+
+
+def expire_ai_cleanup_revert_state(
+    job: Job,
+    *,
+    retention_hours: float,
+    current_time: datetime | None = None,
+) -> bool:
+    """Clear one job's cleanup undo state when it is missing or past retention."""
+
+    if not _job_has_ai_cleanup_revert_state(job):
+        return False
+
+    cleanup_created_at = job.ai_cleanup_at_utc
+    if cleanup_created_at is None or not (job.ai_cleanup_original_summary or "").strip():
+        clear_ai_cleanup_revert_state(job)
+        return True
+
+    cutoff_utc = ensure_utc(current_time or now_utc()) - timedelta(hours=retention_hours)
+    if ensure_utc(cleanup_created_at) <= cutoff_utc:
+        clear_ai_cleanup_revert_state(job)
+        return True
+
+    return False
+
+
+def expire_stale_ai_cleanup_revert_states(
+    database_session: Session,
+    *,
+    retention_hours: float,
+    job_id: str | None = None,
+    web_user_id: str | None = None,
+    current_time: datetime | None = None,
+) -> int:
+    """Clear expired cleanup undo state for matching jobs and return the count."""
+
+    query = select(Job).where(
+        or_(
+            Job.ai_cleanup_original_summary.is_not(None),
+            Job.ai_cleanup_pending_summary.is_not(None),
+            Job.ai_cleanup_source.is_not(None),
+            Job.ai_cleanup_at_utc.is_not(None),
+        )
+    )
+    if job_id is not None:
+        query = query.where(Job.id == job_id)
+    if web_user_id is not None:
+        query = query.where(Job.web_user_id == web_user_id)
+
+    expired_count = 0
+    for job in database_session.execute(query).scalars():
+        if expire_ai_cleanup_revert_state(
+            job,
+            retention_hours=retention_hours,
+            current_time=current_time,
+        ):
+            expired_count += 1
+
+    return expired_count
+
+
+def store_ai_cleanup_revert_state(
+    job: Job,
+    *,
+    original_summary_text: str,
+    cleaned_summary_text: str,
+    source: str,
+) -> Job:
+    """Remember the latest AI cleanup state so the user can explicitly revert."""
+
+    normalized_source = _normalize_ai_cleanup_source(source)
+    original_summary = _normalize_ai_cleanup_summary(original_summary_text, field_name="Original summary")
+    cleaned_summary = _normalize_ai_cleanup_summary(cleaned_summary_text, field_name="Cleaned summary")
+
+    # Preserve the first pre-cleanup value in a cleanup cycle. This prevents a
+    # crafted or repeated cleanup request from replacing the true revert target.
+    if not (job.ai_cleanup_original_summary or "").strip():
+        job.ai_cleanup_original_summary = original_summary
+
+    # Submitted entries cannot autosave local notes because Autotask must be
+    # patched only through Submit changes. The pending text lets reloads keep
+    # showing the cleaned draft without changing the submitted local record.
+    job.ai_cleanup_pending_summary = cleaned_summary if is_job_locked_after_successful_submission(job) else None
+    job.ai_cleanup_source = normalized_source
+    job.ai_cleanup_at_utc = now_utc()
+    return job
+
+
+def revert_ai_cleanup_summary(job: Job, *, source: str) -> str:
+    """Restore the stored pre-cleanup summary and clear the undo state."""
+
+    normalized_source = _normalize_ai_cleanup_source(source)
+    original_summary = _normalize_ai_cleanup_summary(
+        job.ai_cleanup_original_summary,
+        field_name="Cleanup revert summary",
+    )
+
+    if normalized_source == AI_CLEANUP_SOURCE_MOBILE:
+        if job.status != JobStatus.ACTIVE:
+            raise JobWorkflowError("AI cleanup can only be reverted from Work in Progress for active jobs.")
+        _apply_summary_text(job, original_summary)
+    elif not is_job_locked_after_successful_submission(job):
+        work_location, summary_notes = split_autotask_summary_notes(original_summary, job.work_location)
+        if not summary_notes:
+            raise JobWorkflowError("Cleanup revert summary cannot be empty.")
+        _apply_summary_text(job, summary_notes)
+        job.work_location = work_location
+
+    clear_ai_cleanup_revert_state(job)
+    return original_summary
+
+
+def display_summary_notes_for_review(job: Job) -> str:
+    """Return the review textarea value, including pending submitted cleanup text."""
+
+    if (
+        is_job_locked_after_successful_submission(job)
+        and (job.ai_cleanup_original_summary or "").strip()
+        and (job.ai_cleanup_pending_summary or "").strip()
+    ):
+        return str(job.ai_cleanup_pending_summary).strip()
+
+    return build_autotask_summary_notes(job)
 
 
 def _normalize_active_time_delta_minutes(delta_minutes: int | str, *, field_name: str) -> int:
@@ -1152,6 +1326,7 @@ def update_submitted_job_autotask_entry(
         job.status = JobStatus.SUBMITTED
         job.autotask_external_id = submission_result.external_id or external_id
         job.autotask_error = None
+        clear_ai_cleanup_revert_state(job)
     else:
         for field_name, previous_value in previous_values.items():
             setattr(job, field_name, previous_value)
@@ -1345,6 +1520,7 @@ def submit_job_to_autotask(
         job.autotask_external_id = submission_result.external_id
         job.autotask_submitted_at_utc = datetime.now(UTC)
         job.autotask_error = None
+        clear_ai_cleanup_revert_state(job)
     else:
         job.status = JobStatus.SUBMISSION_FAILED
         job.autotask_error = submission_result.safe_error

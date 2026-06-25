@@ -227,6 +227,16 @@ class Settings:
     # FASTER_WHISPER_INITIAL_PROMPT guides local transcription formatting.
     faster_whisper_initial_prompt: str | None
 
+    # FASTER_WHISPER_REMOTE_URL is the exact multipart transcription endpoint
+    # used when TRANSCRIPTION_PROVIDER=faster_whisper_remote.
+    faster_whisper_remote_url: str
+
+    # FASTER_WHISPER_REMOTE_API_KEY is sent as a bearer token when configured.
+    faster_whisper_remote_api_key: str | None
+
+    # FASTER_WHISPER_REMOTE_TIMEOUT_SECONDS bounds remote transcription latency.
+    faster_whisper_remote_timeout_seconds: float
+
     # AI_CLEANUP_ENABLED gates external summary cleanup calls.
     ai_cleanup_enabled: bool
 
@@ -275,6 +285,9 @@ class Settings:
 
     # AI_CLEANUP_MAX_INPUT_CHARS limits user text sent to the selected provider.
     ai_cleanup_max_input_chars: int
+
+    # AI_CLEANUP_REVERT_RETENTION_HOURS limits how long pre-cleanup text is retained for undo.
+    ai_cleanup_revert_retention_hours: float
 
     # AUTOTASK_PROVIDER selects the live Autotask REST client; mock is for tests/development only.
     autotask_provider: str
@@ -376,7 +389,7 @@ def load_settings() -> Settings:
             "CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS",
             5,
         ),
-        transcription_provider=os.getenv("TRANSCRIPTION_PROVIDER", "mock").strip().lower(),
+        transcription_provider=os.getenv("TRANSCRIPTION_PROVIDER", "mock").strip().lower().replace("-", "_"),
         max_audio_upload_bytes=_get_integer("MAX_AUDIO_UPLOAD_BYTES", 10 * 1024 * 1024),
         max_backup_restore_bytes=_get_integer("MAX_BACKUP_RESTORE_BYTES", 250 * 1024 * 1024),
         automatic_backups_enabled=_get_boolean("AUTOMATIC_BACKUPS_ENABLED", True),
@@ -395,6 +408,9 @@ def load_settings() -> Settings:
         faster_whisper_initial_prompt=(
             os.getenv("FASTER_WHISPER_INITIAL_PROMPT", DEFAULT_FASTER_WHISPER_INITIAL_PROMPT).strip() or None
         ),
+        faster_whisper_remote_url=os.getenv("FASTER_WHISPER_REMOTE_URL", "").strip().rstrip("/"),
+        faster_whisper_remote_api_key=os.getenv("FASTER_WHISPER_REMOTE_API_KEY") or None,
+        faster_whisper_remote_timeout_seconds=_get_positive_float("FASTER_WHISPER_REMOTE_TIMEOUT_SECONDS", 120.0),
         ai_cleanup_enabled=_get_boolean("AI_CLEANUP_ENABLED", False),
         ai_cleanup_provider=_get_ai_cleanup_provider(),
         gemini_api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or None,
@@ -432,6 +448,7 @@ def load_settings() -> Settings:
         ),
         ai_cleanup_timeout_seconds=_get_float("AI_CLEANUP_TIMEOUT_SECONDS", 20.0),
         ai_cleanup_max_input_chars=_get_integer("AI_CLEANUP_MAX_INPUT_CHARS", 12000),
+        ai_cleanup_revert_retention_hours=_get_positive_float("AI_CLEANUP_REVERT_RETENTION_HOURS", 24.0),
         autotask_provider=os.getenv("AUTOTASK_PROVIDER", "autotask").strip().lower(),
         autotask_base_url=os.getenv("AUTOTASK_BASE_URL") or None,
         autotask_username=os.getenv("AUTOTASK_USERNAME") or None,

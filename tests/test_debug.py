@@ -434,6 +434,7 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
     assert "Login failures" in debug_response.text
     assert "admin" in debug_response.text
     assert 'class="status-chip login-account-chip login-account-super-admin">Super admin</span>' in debug_response.text
+    assert 'class="status-chip login-method-chip login-method-password">Password</span>' in debug_response.text
     assert "bad-user" in debug_response.text
     assert "198.51.100.7" in debug_response.text
     assert "203.0.113.9, 10.0.0.2" in debug_response.text
@@ -852,6 +853,8 @@ def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient)
     debug_response = super_admin_client.get("/debug?success_page=2&failure_page=2")
     assert debug_response.status_code == 200
     assert "Page 2 of 2" in debug_response.text
+    assert 'class="status-chip login-method-chip login-method-password">Password</span>' in debug_response.text
+    assert 'class="status-chip login-method-chip login-method-passkey">Passkey</span>' in debug_response.text
     assert "Application Log" in debug_response.text
     assert "last 10 lines" in debug_response.text
     assert "failure-1" in debug_response.text
@@ -1457,6 +1460,58 @@ def test_debug_restore_defaults_missing_web_user_last_login_column(
         restored_user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
         assert restored_user is not None
         assert restored_user.last_login_at_utc is None
+
+
+def test_debug_restore_defaults_missing_ai_cleanup_revert_columns(
+    super_admin_client: TestClient,
+) -> None:
+    """Restore backups that predate server-backed AI cleanup undo fields."""
+
+    original_job_id = _seed_full_backup_data()
+    debug_page_response = super_admin_client.get("/debug")
+    csrf_token = extract_csrf_token(debug_page_response.text)
+    backup_response = super_admin_client.post(
+        "/debug/backup",
+        data={"csrf_token": csrf_token},
+    )
+    payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
+    for column_name in (
+        "ai_cleanup_original_summary",
+        "ai_cleanup_pending_summary",
+        "ai_cleanup_source",
+        "ai_cleanup_at_utc",
+    ):
+        payload["schema"]["jobs"].remove(column_name)
+        for row in payload["tables"]["jobs"]:
+            row.pop(column_name, None)
+    legacy_backup_content = gzip.compress(
+        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+        mtime=0,
+    )
+
+    restore_page_response = super_admin_client.get("/debug")
+    restore_csrf_token = extract_csrf_token(restore_page_response.text)
+    restore_response = super_admin_client.post(
+        "/debug/restore",
+        data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
+        files={
+            "backup_file": (
+                "job-logger-pre-cleanup-revert-full-backup.json.gz",
+                legacy_backup_content,
+                "application/gzip",
+            )
+        },
+        follow_redirects=False,
+    )
+
+    assert restore_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        restored_job = database_session.get(Job, original_job_id)
+        assert restored_job is not None
+        assert restored_job.ai_cleanup_original_summary is None
+        assert restored_job.ai_cleanup_pending_summary is None
+        assert restored_job.ai_cleanup_source is None
+        assert restored_job.ai_cleanup_at_utc is None
 
 
 def test_debug_restore_defaults_missing_passkey_table_to_empty(

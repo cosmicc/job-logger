@@ -2,6 +2,13 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## v1.1.5 - AI cleanup revert and speech-to-text updates
+
+- AI Cleanup can now switch to Revert cleanup and restore the pre-cleanup notes after reloads.
+- Revert cleanup drafts now expire automatically instead of being kept forever.
+- Submitted Review entries can keep cleaned draft notes until Submit changes is clicked.
+- Speech-to-text can now use a trusted remote faster-whisper server.
+
 ## v1.1.4 - Login protection, Work in Progress controls, and deployment safety
 
 - Sign-in protection now handles repeated failed login attempts more defensively.

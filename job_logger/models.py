@@ -458,6 +458,35 @@ class Job(Base):
     # summary_notes become Autotask summaryNotes when the job is accepted.
     summary_notes: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Reviewer-approved time notes.")
 
+    # ai_cleanup_original_summary stores the exact editable notes value that
+    # existed before the latest successful AI cleanup so the user can revert it
+    # after navigation without relying on browser-only state.
+    ai_cleanup_original_summary: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Pre-cleanup summary text retained for the explicit Revert cleanup action.",
+    )
+
+    # ai_cleanup_pending_summary stores cleaned text only for submitted review
+    # entries, where the textarea can reload with pending text but Autotask is
+    # not patched until the user clicks Submit changes.
+    ai_cleanup_pending_summary: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Pending cleaned summary for submitted entries awaiting explicit Submit changes.",
+    )
+
+    ai_cleanup_source: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="UI surface that created the current AI cleanup revert state.",
+    )
+    ai_cleanup_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="UTC timestamp when the current AI cleanup revert state was created.",
+    )
+
     # work_location stores whether the final Autotask notes should be prefixed
     # with Remote or On-Site. The prefix is intentionally not written into
     # summary_notes so review text stays clean and editable.

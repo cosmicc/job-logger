@@ -137,7 +137,13 @@
                         <span class="status-chip login-account-chip status-submitted">Web user</span>
                       {% endif %}
                     </td>
-                    <td>{{ success.authentication_method.replace("_", " ").title() }}</td>
+                    <td>
+                      {% if success.authentication_method == "passkey" %}
+                        <span class="status-chip login-method-chip login-method-passkey">Passkey</span>
+                      {% else %}
+                        <span class="status-chip login-method-chip login-method-password">Password</span>
+                      {% endif %}
+                    </td>
                     <td class="login-user-agent-cell" title="{{ success.user_agent }}">{{ success.user_agent or "unknown" }}</td>
                     <td>
                       <details class="login-attempt-details">

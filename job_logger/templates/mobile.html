@@ -435,20 +435,22 @@
                   </svg>
                   <span data-record-audio-label>Record</span>
                 </button>
-                {% if ai_cleanup_enabled %}
+                {% if ai_cleanup_enabled or active_job.ai_cleanup_original_summary %}
                   <button
                     type="button"
                     class="secondary-button ai-cleanup-button"
                     data-ai-cleanup-button
                     data-job-id="{{ active_job.id }}"
                     data-cleanup-url="/jobs/{{ active_job.id }}/summary/cleanup"
+                    data-revert-url="/jobs/{{ active_job.id }}/summary/cleanup/revert"
+                    data-cleanup-mode="{% if active_job.ai_cleanup_original_summary %}revert{% else %}cleanup{% endif %}"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M12 3l1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3Z"></path>
                       <path d="M19 13l.7 2.3L22 16l-2.3.7L19 19l-.7-2.3L16 16l2.3-.7L19 13Z"></path>
                       <path d="M5 14l.8 2.2L8 17l-2.2.8L5 20l-.8-2.2L2 17l2.2-.8L5 14Z"></path>
                     </svg>
-                    <span>AI Cleanup</span>
+                    <span data-ai-cleanup-label>{% if active_job.ai_cleanup_original_summary %}Revert cleanup{% else %}AI Cleanup{% endif %}</span>
                   </button>
                 {% endif %}
               </div>

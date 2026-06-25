@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from job_logger.config import settings
 from job_logger.database import get_database_session
 from job_logger.enums import JobStatus, TicketStatus
 from job_logger.models import AuditEvent
@@ -32,14 +33,19 @@ from job_logger.services.jobs import (
     apply_selected_ticket_from_lookup,
     apply_unset_review_client,
     delete_submitted_job_autotask_entry,
+    display_summary_notes_for_review,
     ensure_job_is_not_locked_after_successful_submission,
     ensure_job_owned_by_web_user,
+    expire_ai_cleanup_revert_state,
+    expire_stale_ai_cleanup_revert_states,
     get_job_or_raise,
     is_job_locked_after_successful_submission,
     list_review_jobs,
     purge_job,
     purge_submitted_job_after_failed_autotask_delete,
+    revert_ai_cleanup_summary,
     rounded_stop_for_active_job,
+    store_ai_cleanup_revert_state,
     submit_job_to_autotask,
     update_submitted_job_autotask_entry,
     validate_review_fields,
@@ -285,6 +291,12 @@ def _render_review(
         can_modify_jobs = True
 
     try:
+        if expire_stale_ai_cleanup_revert_states(
+            database_session,
+            retention_hours=settings.ai_cleanup_revert_retention_hours,
+            web_user_id=web_user_id,
+        ):
+            database_session.commit()
         jobs = list_review_jobs(database_session, web_user_id=web_user_id)
         selected_job, audit_events = _selected_review_context(database_session, selected_job_id, web_user_id=web_user_id)
     except JobWorkflowError:
@@ -303,7 +315,7 @@ def _render_review(
                 is_job_locked_after_successful_submission(selected_job) if selected_job is not None else False
             ),
             selected_job_autotask_summary_notes=(
-                build_autotask_summary_notes(selected_job) if selected_job is not None else ""
+                display_summary_notes_for_review(selected_job) if selected_job is not None else ""
             ),
             selected_job_review_end_utc=_review_display_end_time_utc(selected_job),
             can_modify_selected_job=can_modify_jobs and selected_job is not None,
@@ -372,6 +384,11 @@ async def cleanup_review_summary(
         web_user = _current_enabled_web_user(request, database_session)
         job = get_job_or_raise(database_session, job_id)
         ensure_job_owned_by_web_user(job, web_user.id)
+        if expire_ai_cleanup_revert_state(
+            job,
+            retention_hours=settings.ai_cleanup_revert_retention_hours,
+        ):
+            database_session.commit()
         cleanup_result = cleanup_summary_text(
             summary_text=submitted_summary_text,
             cleanup_context=AiCleanupContext(
@@ -384,6 +401,12 @@ async def cleanup_review_summary(
                 work_location=job.work_location.value if job.work_location else None,
             ),
             actor=actor,
+        )
+        store_ai_cleanup_revert_state(
+            job,
+            original_summary_text=submitted_summary_text,
+            cleaned_summary_text=cleanup_result.cleaned_text,
+            source="review",
         )
         record_audit_event(
             database_session,
@@ -411,6 +434,54 @@ async def cleanup_review_summary(
             "description_text": cleanup_result.cleaned_text,
             "provider": cleanup_result.provider,
             "model": cleanup_result.model,
+        }
+    )
+
+
+@router.post("/{job_id}/summary/cleanup/revert")
+async def revert_review_summary_cleanup(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Restore the pre-cleanup summary text for the selected review detail."""
+
+    actor = require_authenticated_username(request)
+    validate_csrf_header(request)
+
+    try:
+        web_user = _current_enabled_web_user(request, database_session)
+        job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(job, web_user.id)
+        if expire_ai_cleanup_revert_state(
+            job,
+            retention_hours=settings.ai_cleanup_revert_retention_hours,
+        ):
+            database_session.commit()
+            raise JobWorkflowError("Cleanup revert has expired. Run AI Cleanup again if needed.")
+        restored_summary_text = revert_ai_cleanup_summary(job, source="review")
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="job.summary.ai_cleanup_reverted",
+            job_id=job.id,
+            request=request,
+            details={
+                "source": "review",
+                "job_status": job.status.value,
+                "restored_text_length": len(restored_summary_text),
+            },
+        )
+        database_session.commit()
+    except (HTTPException, JobWorkflowError, WebUserError) as exc:
+        database_session.rollback()
+        return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
+
+    return JSONResponse(
+        {
+            "summary_notes": restored_summary_text,
+            "description_text": restored_summary_text,
+            "reverted": True,
         }
     )
 

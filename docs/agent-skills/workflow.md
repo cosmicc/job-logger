@@ -280,6 +280,11 @@ Current behavior:
   render dictated punctuation words as symbols and paragraph breaks instead of
   spelling those words, but this remains a model-formatting hint rather than a
   guaranteed post-processing rule.
+- `TRANSCRIPTION_PROVIDER=faster_whisper_remote` sends the same submitted audio
+  to a trusted remote faster-whisper API. Keep the local `faster_whisper`
+  provider available. Remote transcription posts multipart `audio` plus safe
+  model/language/beam/prompt options, accepts JSON `text`, and must keep HTTP
+  endpoints on loopback/private networks or use HTTPS for public endpoints.
 - Recording, streaming, transcription, and cleanup progress messages are plain
   status text without inline spinners. The shared spinner belongs on the active
   button itself, such as the disabled record button after capture stops or the
@@ -339,6 +344,19 @@ the existing autosave path, and cleanup waits for review audio recording or
 transcription to finish. Submitted jobs do not patch Autotask automatically; the
 user must still click **Submit changes** to update the existing external Autotask
 time entry.
+
+After a successful cleanup, the browser switches the same button to **Revert
+cleanup** while the job has stored cleanup undo state. The server stores the
+pre-cleanup editable text on the job so the revert option survives reloads and
+navigation. Work in Progress reverts through
+`POST /jobs/{job_id}/summary/cleanup/revert`; Review reverts through
+`POST /review/{job_id}/summary/cleanup/revert`. Revert restores the original
+textarea value, clears the undo state, and records metadata-only audit details.
+Submitted Review entries may keep a pending cleaned draft for reloads, but
+Autotask is still updated only by **Submit changes**. Cleanup undo state expires
+after `AI_CLEANUP_REVERT_RETENTION_HOURS`, defaulting to 24 hours, and is
+cleared opportunistically before Home or Review render and before cleanup or
+revert routes act on a job.
 
 ## Review Flow
 

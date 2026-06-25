@@ -112,6 +112,14 @@ def test_cloudflare_block_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.cloudflare_auto_block_failed_login_attempts == 7
 
 
+def test_ai_cleanup_revert_retention_loads_from_environment(monkeypatch) -> None:
+    """Stored cleanup undo text should have a configurable positive retention window."""
+
+    monkeypatch.setenv("AI_CLEANUP_REVERT_RETENTION_HOURS", "6.5")
+
+    assert load_settings().ai_cleanup_revert_retention_hours == 6.5
+
+
 def test_cloudflare_auto_block_threshold_must_be_positive(monkeypatch) -> None:
     """A zero auto-block threshold would make every failure block immediately."""
 

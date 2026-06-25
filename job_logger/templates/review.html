@@ -361,7 +361,7 @@
               <span>Summary notes</span>
               <textarea name="summary_notes" rows="8" data-review-summary-textarea>{{ selected_job_autotask_summary_notes }}</textarea>
             </label>
-            {% if can_modify_selected_job and (not selected_job_submitted or ai_cleanup_enabled) %}
+            {% if can_modify_selected_job and (not selected_job_submitted or ai_cleanup_enabled or selected_job.ai_cleanup_original_summary) %}
               <div class="summary-action-row review-summary-action-row recording-control-stack">
                 {% if not selected_job_submitted %}
                   <button
@@ -379,19 +379,21 @@
                     <span data-record-audio-label>Record</span>
                   </button>
                 {% endif %}
-                {% if ai_cleanup_enabled %}
+                {% if ai_cleanup_enabled or selected_job.ai_cleanup_original_summary %}
                   <button
                     type="button"
                     class="secondary-button ai-cleanup-button"
                     data-ai-cleanup-button
                     data-cleanup-url="/review/{{ selected_job.id }}/summary/cleanup"
+                    data-revert-url="/review/{{ selected_job.id }}/summary/cleanup/revert"
+                    data-cleanup-mode="{% if selected_job.ai_cleanup_original_summary %}revert{% else %}cleanup{% endif %}"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M12 3l1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3Z"></path>
                       <path d="M19 13l.7 2.3L22 16l-2.3.7L19 19l-.7-2.3L16 16l2.3-.7L19 13Z"></path>
                       <path d="M5 14l.8 2.2L8 17l-2.2.8L5 20l-.8-2.2L2 17l2.2-.8L5 14Z"></path>
                     </svg>
-                    <span>AI Cleanup</span>
+                    <span data-ai-cleanup-label>{% if selected_job.ai_cleanup_original_summary %}Revert cleanup{% else %}AI Cleanup{% endif %}</span>
                   </button>
                 {% endif %}
               </div>
@@ -583,7 +585,7 @@
             </div>
           {% endif %}
 
-          {% if can_modify_selected_job and (not selected_job_submitted or ai_cleanup_enabled) %}
+          {% if can_modify_selected_job and (not selected_job_submitted or ai_cleanup_enabled or selected_job.ai_cleanup_original_summary) %}
             <div class="review-status-stack" aria-live="polite">
               {% if not selected_job_submitted %}
                 <p
@@ -596,7 +598,7 @@
                   <p class="error-text">{{ selected_job.transcription_error }}</p>
                 {% endif %}
               {% endif %}
-              {% if ai_cleanup_enabled %}
+              {% if ai_cleanup_enabled or selected_job.ai_cleanup_original_summary %}
                 <p class="recording-status ai-cleanup-status" data-ai-cleanup-status aria-live="polite"></p>
               {% endif %}
             </div>

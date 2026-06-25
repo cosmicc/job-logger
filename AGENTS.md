@@ -119,9 +119,10 @@ honor `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, use the logged `client_ip` value, and
 reset `login_failure_counters` to zero after any successful local login from
 that IP. The successful-login window may visually distinguish config
 super-admin account-kind chips from managed web-user chips, but must not expose
-extra sensitive metadata to do so. Login failure, Cloudflare blocked-IP, and
-Autotask submission-attempt diagnostics must stay paginated at 10 rows per
-page.
+extra sensitive metadata to do so. It may also show the safe successful-login
+authentication method as `Password` or `Passkey` status pills. Login failure,
+Cloudflare blocked-IP, and Autotask submission-attempt diagnostics must stay
+paginated at 10 rows per page.
 
 Prefer secure defaults. Cookies must be HTTP-only, secure when served over HTTPS,
 and SameSite-protected. Forms and state-changing requests must use CSRF
@@ -146,6 +147,13 @@ cleanup URLs to loopback or private-network endpoints, send configured cleanup
 instructions through the provider instruction field, and audit only metadata
 such as provider, model, source, and text lengths. Do not store raw cleanup
 prompts or full cleaned/uncleaned summaries in audit details.
+After a successful cleanup, the UI may store the pre-cleanup summary on the job
+only for the explicit **Revert cleanup** workflow. That stored customer/work
+text must not be copied into audit details or diagnostics, and it should be
+cleared when the user reverts cleanup or the cleaned notes are successfully
+finalized in Autotask. Stale cleanup undo text must also be cleared after
+`AI_CLEANUP_REVERT_RETENTION_HOURS`, defaulting to 24 hours, so the app does
+not retain extra customer/work text indefinitely.
 
 ## Core Workflow
 
@@ -306,11 +314,24 @@ The local faster-whisper provider may use `FASTER_WHISPER_INITIAL_PROMPT` to
 guide transcript formatting, including rendering dictated punctuation words as
 punctuation marks. Treat it as a best-effort model hint, not a validation or
 security control.
+`TRANSCRIPTION_PROVIDER=faster_whisper_remote` may call a trusted remote
+faster-whisper API while preserving the local `faster_whisper` option. Remote
+transcription sends raw audio to the configured server, so HTTP endpoints must
+stay on loopback or private-network hosts and public endpoints must use HTTPS.
+Keep the remote URL and optional bearer token in environment or Docker secrets,
+never in source control or templates.
 
 AI summary cleanup is separate from speech-to-text. It sends the current
 editable summary text to the configured server-side cleanup provider and
 replaces the summary textarea with the returned cleaned text. It must not
 submit to Autotask or bypass the configured finish/review workflow.
+After a successful cleanup, Work in Progress and Review switch the button to
+**Revert cleanup** while stored undo text exists. Revert restores the
+pre-cleanup editable notes and clears that undo state. Submitted Review entries
+may keep a pending cleaned draft across reloads, but Autotask must still be
+patched only by the explicit **Submit changes** action. Expired cleanup undo
+state should be cleared opportunistically before rendering or acting on those
+surfaces.
 
 The review page must allow the transcribed description to be edited or
 re-recorded before the job is accepted and submitted to Autotask.
@@ -562,8 +583,9 @@ The application is a FastAPI project under `job_logger/`.
   managed web-user sessions that were disabled or administratively invalidated.
 - `job_logger/config.py` loads every runtime setting from environment variables.
   Production must use `AUTOTASK_PROVIDER=autotask`; Autotask resource IDs are
-  stored on managed web users, not in config. `DEV_BUILD=true` marks a dev
-  runtime with the authenticated header badge.
+  stored on managed web users, not in config. Remote faster-whisper settings
+  live here as environment-backed values. `DEV_BUILD=true` marks a dev runtime
+  with the authenticated header badge.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.
 - `job_logger/models.py` defines persistent tables for managed web users,
   managed-user session invalidation cutoffs, per-user preferences, jobs, audit
@@ -578,6 +600,9 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/changelog.py` parses the source-controlled
   `WEB_CHANGELOG.md` into concise plain-text release entries for authenticated
   display.
+- `job_logger/services/transcription.py` owns local and remote speech-to-text
+  providers, including remote faster-whisper URL safety checks and bearer-token
+  handling.
 - `CHANGELOG.md` contains detailed release notes for operators and agents.
   `WEB_CHANGELOG.md` contains short user-facing release notes for `/changelog`.
 - `job_logger/routes/auth.py` handles config super-admin login, managed web-user

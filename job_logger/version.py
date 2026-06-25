@@ -9,4 +9,4 @@ from __future__ import annotations
 
 # APP_VERSION is intentionally source-controlled instead of environment-driven so
 # deployments cannot silently report different application versions.
-APP_VERSION = "1.1.4"
+APP_VERSION = "1.1.5"

@@ -413,6 +413,137 @@ def test_active_job_ai_cleanup_returns_replacement_text(
         assert "replaced bad power supply" not in str(audit_event.details)
 
 
+def test_active_job_ai_cleanup_can_be_reverted_from_persisted_state(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Work in Progress cleanup stores a server-backed original for Revert cleanup."""
+
+    monkeypatch.setattr(
+        "job_logger.routes.mobile.cleanup_summary_text",
+        lambda **_kwargs: AiCleanupResult(
+            provider="gemini",
+            model="test-cleanup-model",
+            cleaned_text="Remote cleaned up the firewall notes.",
+        ),
+    )
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    cleanup_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/summary/cleanup",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": "remote firewall notes"},
+    )
+    assert cleanup_response.status_code == 200
+
+    save_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/description/text",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": cleanup_response.json()["summary_notes"]},
+    )
+    assert save_response.status_code == 200
+
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, active_job_id)
+        assert job is not None
+        assert job.summary_notes == "Remote cleaned up the firewall notes."
+        assert job.ai_cleanup_original_summary == "remote firewall notes"
+        assert job.ai_cleanup_source == "mobile"
+
+    revert_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/summary/cleanup/revert",
+        headers={"X-CSRF-Token": csrf_token},
+        json={},
+    )
+
+    assert revert_response.status_code == 200
+    assert revert_response.json()["summary_notes"] == "remote firewall notes"
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, active_job_id)
+        assert job is not None
+        assert job.summary_notes == "remote firewall notes"
+        assert job.ai_cleanup_original_summary is None
+        assert job.ai_cleanup_pending_summary is None
+        reverted_event = database_session.query(AuditEvent).filter_by(action="job.summary.ai_cleanup_reverted").one()
+        assert reverted_event.details["source"] == "mobile"
+        assert reverted_event.details["restored_text_length"] == len("remote firewall notes")
+        assert "remote firewall notes" not in str(reverted_event.details)
+
+
+def test_active_job_ai_cleanup_revert_state_expires_on_home_render(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Old Work in Progress cleanup undo text should be minimized automatically."""
+
+    monkeypatch.setattr(
+        "job_logger.routes.mobile.cleanup_summary_text",
+        lambda **_kwargs: AiCleanupResult(
+            provider="gemini",
+            model="test-cleanup-model",
+            cleaned_text="Remote cleaned up old undo notes.",
+        ),
+    )
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    cleanup_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/summary/cleanup",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": "old undo notes"},
+    )
+    assert cleanup_response.status_code == 200
+
+    save_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/description/text",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": cleanup_response.json()["summary_notes"]},
+    )
+    assert save_response.status_code == 200
+
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, active_job_id)
+        assert job is not None
+        job.ai_cleanup_at_utc = datetime.now(UTC) - timedelta(hours=25)
+        database_session.commit()
+
+    refreshed_home_response = authenticated_client.get("/home")
+
+    assert refreshed_home_response.status_code == 200
+    assert "Revert cleanup" not in refreshed_home_response.text
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, active_job_id)
+        assert job is not None
+        assert job.summary_notes == "Remote cleaned up old undo notes."
+        assert job.ai_cleanup_original_summary is None
+        assert job.ai_cleanup_pending_summary is None
+        assert job.ai_cleanup_source is None
+        assert job.ai_cleanup_at_utc is None
+
+
 def test_review_ai_cleanup_allows_submitted_summary_replacement(
     authenticated_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -445,6 +576,105 @@ def test_review_ai_cleanup_allows_submitted_summary_replacement(
         audit_event = database_session.query(AuditEvent).filter_by(action="job.summary.ai_cleanup").one()
         assert audit_event.details["source"] == "review"
         assert audit_event.details["job_status"] == "submitted"
+
+
+def test_submitted_review_ai_cleanup_pending_text_survives_reload_and_reverts(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Submitted Review cleanup keeps pending text reloadable without patching Autotask."""
+
+    monkeypatch.setattr(ui, "settings", replace(ui.settings, ai_cleanup_enabled=True))
+    monkeypatch.setattr(
+        "job_logger.routes.review.cleanup_summary_text",
+        lambda **_kwargs: AiCleanupResult(
+            provider="grok",
+            model="test-cleanup-model",
+            cleaned_text="Remote cleaned submitted firewall notes.",
+        ),
+    )
+    submitted_job_id, review_csrf_token = create_submitted_mock_job(authenticated_client)
+
+    cleanup_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/summary/cleanup",
+        headers={"X-CSRF-Token": review_csrf_token},
+        json={"summary_notes": "Remote draft submitted firewall notes"},
+    )
+
+    assert cleanup_response.status_code == 200
+    reloaded_review_response = authenticated_client.get(f"/review/{submitted_job_id}")
+    assert reloaded_review_response.status_code == 200
+    assert "Remote cleaned submitted firewall notes." in reloaded_review_response.text
+    assert "Revert cleanup" in reloaded_review_response.text
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, submitted_job_id)
+        assert job is not None
+        assert job.status == JobStatus.SUBMITTED
+        assert job.summary_notes == "Locked submitted job notes"
+        assert job.ai_cleanup_original_summary == "Remote draft submitted firewall notes"
+        assert job.ai_cleanup_pending_summary == "Remote cleaned submitted firewall notes."
+
+    revert_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/summary/cleanup/revert",
+        headers={"X-CSRF-Token": review_csrf_token},
+        json={},
+    )
+
+    assert revert_response.status_code == 200
+    assert revert_response.json()["summary_notes"] == "Remote draft submitted firewall notes"
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, submitted_job_id)
+        assert job is not None
+        assert job.status == JobStatus.SUBMITTED
+        assert job.summary_notes == "Locked submitted job notes"
+        assert job.ai_cleanup_original_summary is None
+        assert job.ai_cleanup_pending_summary is None
+
+
+def test_submitted_review_ai_cleanup_revert_state_expires_on_review_render(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Old submitted Review cleanup drafts should not keep customer text forever."""
+
+    monkeypatch.setattr(ui, "settings", replace(ui.settings, ai_cleanup_enabled=True))
+    monkeypatch.setattr(
+        "job_logger.routes.review.cleanup_summary_text",
+        lambda **_kwargs: AiCleanupResult(
+            provider="grok",
+            model="test-cleanup-model",
+            cleaned_text="Remote cleaned submitted notes that should expire.",
+        ),
+    )
+    submitted_job_id, review_csrf_token = create_submitted_mock_job(authenticated_client)
+
+    cleanup_response = authenticated_client.post(
+        f"/review/{submitted_job_id}/summary/cleanup",
+        headers={"X-CSRF-Token": review_csrf_token},
+        json={"summary_notes": "Remote submitted notes before cleanup"},
+    )
+    assert cleanup_response.status_code == 200
+
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, submitted_job_id)
+        assert job is not None
+        job.ai_cleanup_at_utc = datetime.now(UTC) - timedelta(hours=25)
+        database_session.commit()
+
+    reloaded_review_response = authenticated_client.get(f"/review/{submitted_job_id}")
+
+    assert reloaded_review_response.status_code == 200
+    assert "Remote cleaned submitted notes that should expire." not in reloaded_review_response.text
+    assert "Remote Locked submitted job notes" in reloaded_review_response.text
+    assert "Revert cleanup" not in reloaded_review_response.text
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, submitted_job_id)
+        assert job is not None
+        assert job.summary_notes == "Locked submitted job notes"
+        assert job.ai_cleanup_original_summary is None
+        assert job.ai_cleanup_pending_summary is None
+        assert job.ai_cleanup_source is None
+        assert job.ai_cleanup_at_utc is None
 
 
 def test_submitted_review_page_allows_controlled_entry_edits(authenticated_client: TestClient) -> None:

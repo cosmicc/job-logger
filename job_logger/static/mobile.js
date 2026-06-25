@@ -438,6 +438,21 @@ function setAiCleanupButtonLoading(button, isLoading) {
   button.setAttribute("aria-busy", isLoading ? "true" : "false");
 }
 
+function setAiCleanupButtonMode(button, mode) {
+  if (!button) {
+    return;
+  }
+
+  const normalizedMode = mode === "revert" ? "revert" : "cleanup";
+  const labelElement = typeof button.querySelector === "function"
+    ? button.querySelector("[data-ai-cleanup-label]") || button.querySelector("span")
+    : null;
+  button.dataset.cleanupMode = normalizedMode;
+  if (labelElement) {
+    labelElement.textContent = normalizedMode === "revert" ? "Revert cleanup" : "AI Cleanup";
+  }
+}
+
 function populateActiveFormSummaryField(activeTicketForm) {
   if (!activeTicketForm) {
     return;
@@ -965,11 +980,74 @@ async function requestAiCleanup(cleanupUrl, summaryText) {
   return payload;
 }
 
+async function requestAiCleanupRevert(revertUrl) {
+  const response = await fetch(revertUrl, {
+    method: "POST",
+    headers: {
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrfToken,
+    },
+    body: JSON.stringify({}),
+  });
+
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch (error) {
+    payload = {};
+  }
+
+  if (!response.ok) {
+    throw new Error(payload.detail || `request failed with HTTP ${response.status || "error"}.`);
+  }
+
+  return payload;
+}
+
+async function revertMobileSummaryCleanup(button, jobId, descriptionElement) {
+  const revertUrl = button.dataset.revertUrl || "";
+  if (!revertUrl) {
+    return;
+  }
+
+  if (activeRecorder || isUploadingRecording || activeAudioCompletionInProgress || isStartingRecording) {
+    setAiCleanupStatus(jobId, "Finish audio recording before reverting cleanup.", true);
+    return;
+  }
+
+  clearDescriptionTimer(jobId);
+  pendingDescriptionSaves.delete(jobId);
+  setAiCleanupButtonLoading(button, true);
+  setAiCleanupStatus(jobId, "Reverting cleanup...", false, true);
+  try {
+    const payload = await requestAiCleanupRevert(revertUrl);
+    const restoredSummaryText = payload.summary_notes || payload.description_text || "";
+    if (!restoredSummaryText.trim()) {
+      throw new Error("Revert cleanup returned no summary text.");
+    }
+
+    descriptionElement.value = restoredSummaryText;
+    lastSavedDescriptions.set(jobId, restoredSummaryText);
+    setAiCleanupButtonMode(button, "cleanup");
+    setAiCleanupStatus(jobId, "Cleanup reverted.");
+  } catch (error) {
+    setAiCleanupStatus(jobId, `Revert cleanup failed: ${error.message || "Summary could not be restored."}`, true);
+  } finally {
+    setAiCleanupButtonLoading(button, false);
+  }
+}
+
 async function cleanupMobileSummary(button) {
   const jobId = toSafeMapString(button.dataset.jobId);
   const cleanupUrl = button.dataset.cleanupUrl || "";
   const descriptionElement = findDescriptionTextarea(jobId);
   if (!jobId || !cleanupUrl || !descriptionElement) {
+    return;
+  }
+
+  if (button.dataset.cleanupMode === "revert") {
+    await revertMobileSummaryCleanup(button, jobId, descriptionElement);
     return;
   }
 
@@ -999,6 +1077,7 @@ async function cleanupMobileSummary(button) {
     setAiCleanupStatus(jobId, "Saving cleaned summary...", false, true);
     await saveDescriptionText(jobId, cleanedSummaryText);
     lastSavedDescriptions.set(jobId, cleanedSummaryText);
+    setAiCleanupButtonMode(button, "revert");
     setAiCleanupStatus(jobId, "Summary cleaned up.");
   } catch (error) {
     setAiCleanupStatus(jobId, `AI cleanup failed: ${error.message || "AI cleanup could not finish."}`, true);
