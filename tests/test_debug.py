@@ -1048,6 +1048,12 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert debug_response.text.index("Autotask configuration snapshot") < debug_response.text.index("Full data backup")
     assert debug_response.text.index("Full data backup") < debug_response.text.index("Application Log")
     assert debug_response.text.index("Application Log") < debug_response.text.index("Automatic database backups")
+    assert 'class="autotask-config-list"' in debug_response.text
+    assert "Time entry type" not in debug_response.text
+    assert "Status mapping IDs" not in debug_response.text
+    assert "Use Test Autotask API to verify the mandatory Autotask dependency" not in debug_response.text
+    assert "Restore scope" not in debug_response.text
+    assert '<p class="muted-text backup-upload-limit">' in debug_response.text
     assert '<table class="debug-submission-table">' in debug_response.text
     assert "1 retained, 10 per page" in debug_response.text
     assert "<th>User</th>" in debug_response.text
@@ -1137,6 +1143,8 @@ def test_debug_lists_and_restores_automatic_backups(super_admin_client: TestClie
     assert debug_page_response.status_code == 200
     assert "Automatic database backups" in debug_page_response.text
     assert backup_result.backup_file.filename in debug_page_response.text
+    assert f'title="{backup_result.backup_file.filename}">20260620-160000Z</span>' in debug_page_response.text
+    assert '<col class="automatic-backup-file-col">' in debug_page_response.text
     assert '/debug/automatic-backups/download' in debug_page_response.text
     assert '/debug/automatic-backups/restore' in debug_page_response.text
     csrf_token = extract_csrf_token(debug_page_response.text)

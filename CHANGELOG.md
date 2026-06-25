@@ -20,6 +20,9 @@ All notable changes to Job Logger are documented in this file.
   clicks **Submit changes**.
 - Added metadata-only audit events for cleanup reverts without storing raw
   summary text in audit details.
+- Condensed the super-admin Diagnostics Autotask configuration snapshot,
+  tightened the full-backup and automatic-backup panels, and shortened visible
+  automatic-backup filenames while keeping full filenames available on hover.
 - Added `TRANSCRIPTION_PROVIDER=faster_whisper_remote` for calling a trusted
   remote faster-whisper API while keeping `faster_whisper` as the local
   container-based option.

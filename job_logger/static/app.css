@@ -1105,9 +1105,9 @@ a:focus-visible {
 
 .debug-connectivity-result {
   display: grid;
-  gap: 10px;
-  margin-top: 18px;
-  padding: 14px;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-strong);
@@ -2884,6 +2884,59 @@ td a {
   font-size: 14px;
 }
 
+.autotask-config-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 12px 0 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.autotask-config-item {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.autotask-config-item:nth-child(3n),
+.autotask-config-item:last-child {
+  border-right: 0;
+}
+
+.autotask-config-item:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.autotask-config-wide {
+  grid-column: span 2;
+}
+
+.autotask-config-item dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.autotask-config-item dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.autotask-config-item .status-chip {
+  min-height: 24px;
+  padding: 4px 8px;
+}
+
 .debug-code {
   margin: 10px 0 0;
   max-height: 360px;
@@ -2910,30 +2963,79 @@ td a {
   width: auto;
 }
 
+.backup-upload-limit {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
 .automatic-backup-table-wrap {
   margin-top: 14px;
 }
 
+.automatic-backup-table {
+  min-width: 820px;
+}
+
+.automatic-backup-table th,
+.automatic-backup-table td {
+  vertical-align: middle;
+}
+
+.automatic-backup-created-col {
+  width: 190px;
+}
+
+.automatic-backup-file-col {
+  width: 170px;
+}
+
+.automatic-backup-size-col {
+  width: 90px;
+}
+
+.automatic-backup-download-col {
+  width: 122px;
+}
+
+.automatic-backup-restore-col {
+  width: 248px;
+}
+
 .automatic-backup-table .backup-file-name {
-  max-width: 320px;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
 }
 
+.automatic-backup-table .backup-file-name span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .automatic-backup-restore-form {
   display: grid;
-  grid-template-columns: minmax(110px, 1fr) auto;
-  align-items: end;
+  grid-template-columns: 96px 92px;
+  align-items: center;
   gap: 8px;
-  min-width: 220px;
+  min-width: 0;
 }
 
 .automatic-backup-action-form {
   display: inline-flex;
 }
 
+.automatic-backup-action-form .secondary-button,
+.automatic-backup-restore-form .secondary-button {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
 .automatic-backup-restore-form input {
+  width: 96px;
   min-width: 0;
 }
 
@@ -3502,7 +3604,7 @@ td a {
   .metric-grid,
   .ticket-number-form,
   .form-grid,
-  .automatic-backup-restore-form,
+  .autotask-config-list,
   .backup-restore-form,
   .user-edit-grid,
   .add-user-fields-grid,
@@ -3533,6 +3635,23 @@ td a {
 
   .automatic-backup-restore-form {
     min-width: 0;
+  }
+
+  .autotask-config-wide {
+    grid-column: auto;
+  }
+
+  .autotask-config-item,
+  .autotask-config-item:nth-child(3n) {
+    border-right: 0;
+  }
+
+  .autotask-config-item:nth-last-child(-n + 2) {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .autotask-config-item:last-child {
+    border-bottom: 0;
   }
 
   .automatic-backup-restore-form .danger-button {

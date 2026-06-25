@@ -24,6 +24,8 @@ from job_logger.security import add_flash_message, require_super_admin, validate
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
 from job_logger.services.backups import (
+    AUTOMATIC_BACKUP_FILENAME_PREFIX,
+    AUTOMATIC_BACKUP_FILENAME_SUFFIX,
     BACKUP_MEDIA_TYPE,
     AutomaticBackupFile,
     BackupValidationError,
@@ -147,6 +149,7 @@ class DebugAutomaticBackup:
     """Automatic backup metadata rendered on the debug page."""
 
     filename: str
+    display_filename: str
     created_at_display: str
     size_display: str
 
@@ -185,11 +188,8 @@ def _safe_autotask_config() -> dict[str, object]:
         "has_username": bool(settings.autotask_username),
         "has_secret": bool(settings.autotask_secret),
         "has_api_integration_code": bool(settings.autotask_api_integration_code),
-        "time_entry_role_source": "selected ticket assignedResourceroleID, then ticket-assigned or managed-user service-desk role",
-        "billing_code_source": "selected ticket inheritance",
-        "time_entry_type": settings.autotask_time_entry_type,
-        "status_id_map": settings.autotask_status_id_map,
-        "submission_attempt_page_size": SUBMISSION_ATTEMPT_PAGE_SIZE,
+        "time_entry_role_source": "Ticket role, ticket-assigned resource role, then managed-user default",
+        "billing_code_source": "Ticket Work Type inheritance",
     }
 
 
@@ -253,6 +253,12 @@ def _format_file_size(size_bytes: int) -> str:
         size_value /= 1024
 
     return f"{size_bytes} B"
+
+
+def _short_automatic_backup_filename(filename: str) -> str:
+    """Return a compact display label while preserving the full backup filename."""
+
+    return filename.removeprefix(AUTOMATIC_BACKUP_FILENAME_PREFIX).removesuffix(AUTOMATIC_BACKUP_FILENAME_SUFFIX)
 
 
 def _existing_disk_probe_path(configured_path: str) -> Path:
@@ -401,6 +407,7 @@ def _serialize_automatic_backup(backup_file: AutomaticBackupFile) -> DebugAutoma
 
     return DebugAutomaticBackup(
         filename=backup_file.filename,
+        display_filename=_short_automatic_backup_filename(backup_file.filename),
         created_at_display=format_local_display(backup_file.created_at_utc),
         size_display=_format_file_size(backup_file.size_bytes),
     )

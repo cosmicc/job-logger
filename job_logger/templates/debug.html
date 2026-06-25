@@ -615,53 +615,52 @@
             <button class="secondary-button" type="submit">Test Autotask API</button>
           </form>
         </div>
-        <dl class="debug-list">
-          <div>
+        <dl class="autotask-config-list">
+          <div class="autotask-config-item">
             <dt>Application version</dt>
             <dd>{{ app_version }}</dd>
           </div>
-          <div>
+          <div class="autotask-config-item">
             <dt>Provider</dt>
             <dd>{{ autotask_settings.provider }}</dd>
           </div>
-          <div>
+          <div class="autotask-config-item autotask-config-url">
             <dt>Base URL</dt>
             <dd>{{ autotask_settings.base_url or "not configured" }}</dd>
           </div>
-          <div>
-            <dt>API user configured</dt>
+          <div class="autotask-config-item">
+            <dt>API user</dt>
             <dd>
-              {% if autotask_settings.has_username %}Yes{% else %}No{% endif %}
+              <span class="status-chip {% if autotask_settings.has_username %}status-submitted{% else %}status-submission_failed{% endif %}">
+                {% if autotask_settings.has_username %}Configured{% else %}Missing{% endif %}
+              </span>
             </dd>
           </div>
-          <div>
-            <dt>API secret configured</dt>
+          <div class="autotask-config-item">
+            <dt>API secret</dt>
             <dd>
-              {% if autotask_settings.has_secret %}Yes{% else %}No{% endif %}
+              <span class="status-chip {% if autotask_settings.has_secret %}status-submitted{% else %}status-submission_failed{% endif %}">
+                {% if autotask_settings.has_secret %}Configured{% else %}Missing{% endif %}
+              </span>
             </dd>
           </div>
-          <div>
-            <dt>API integration code configured</dt>
+          <div class="autotask-config-item">
+            <dt>Integration code</dt>
             <dd>
-              {% if autotask_settings.has_api_integration_code %}Yes{% else %}No{% endif %}
+              <span class="status-chip {% if autotask_settings.has_api_integration_code %}status-submitted{% else %}status-submission_failed{% endif %}">
+                {% if autotask_settings.has_api_integration_code %}Configured{% else %}Missing{% endif %}
+              </span>
             </dd>
           </div>
-          <div>
-            <dt>Time-entry role source</dt>
+          <div class="autotask-config-item autotask-config-wide">
+            <dt>Role source</dt>
             <dd>{{ autotask_settings.time_entry_role_source }}</dd>
           </div>
-          <div>
+          <div class="autotask-config-item">
             <dt>Billing code source</dt>
             <dd>{{ autotask_settings.billing_code_source }}</dd>
           </div>
-          <div>
-            <dt>Time entry type</dt>
-            <dd>{{ autotask_settings.time_entry_type }}</dd>
-          </div>
         </dl>
-
-        <p class="eyebrow-text">Status mapping IDs</p>
-        <pre class="debug-code">{{ autotask_settings.status_id_map | tojson }}</pre>
 
         {% if autotask_connectivity %}
           <section class="debug-connectivity-result" aria-label="Last Autotask API test result">
@@ -689,8 +688,6 @@
               </ul>
             {% endif %}
           </section>
-        {% else %}
-          <p class="muted-text">Use Test Autotask API to verify the mandatory Autotask dependency before starting new jobs.</p>
         {% endif %}
       </div>
     </section>
@@ -738,16 +735,7 @@
           <button class="secondary-button danger-button" type="submit">Restore Full Backup</button>
         </form>
 
-        <dl class="debug-list compact-debug-list backup-details">
-          <div>
-            <dt>Upload limit</dt>
-            <dd>{{ backup_upload_max_mb }} MB</dd>
-          </div>
-          <div>
-            <dt>Restore scope</dt>
-            <dd>Jobs, submission attempts, and audit events are replaced with the uploaded backup contents.</dd>
-          </div>
-        </dl>
+        <p class="muted-text backup-upload-limit">Upload limit: {{ backup_upload_max_mb }} MB</p>
       </div>
     </section>
 
@@ -798,6 +786,13 @@
         {% if automatic_backups %}
           <div class="debug-table-wrap automatic-backup-table-wrap">
             <table class="debug-submission-table automatic-backup-table">
+              <colgroup>
+                <col class="automatic-backup-created-col">
+                <col class="automatic-backup-file-col">
+                <col class="automatic-backup-size-col">
+                <col class="automatic-backup-download-col">
+                <col class="automatic-backup-restore-col">
+              </colgroup>
               <thead>
                 <tr>
                   <th>Created</th>
@@ -811,7 +806,9 @@
                 {% for backup in automatic_backups %}
                   <tr>
                     <td>{{ backup.created_at_display }}</td>
-                    <td class="backup-file-name">{{ backup.filename }}</td>
+                    <td class="backup-file-name">
+                      <span title="{{ backup.filename }}">{{ backup.display_filename }}</span>
+                    </td>
                     <td>{{ backup.size_display }}</td>
                     <td>
                       <form method="post" action="/debug/automatic-backups/download" class="automatic-backup-action-form">
