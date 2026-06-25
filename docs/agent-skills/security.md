@@ -407,12 +407,16 @@ backups. Failed confirmation, oversized upload, malformed JSON, wrong format,
 or unsupported schema mismatch must leave current database rows untouched.
 
 Automatic backups use the same full-backup content format and restore path.
-The scheduler writes hourly files under `AUTOMATIC_BACKUP_DIR`, defaulting to a
-host-mounted runtime backup directory in Docker. Keep the backup directory
+The scheduler writes one startup file and then hourly files under
+`AUTOMATIC_BACKUP_DIR`, defaulting to a host-mounted runtime backup directory in
+Docker. Keep the backup directory
 private: files must be written through owner-only temporary files when possible,
 directory listings and downloads must be super-admin-only, selected download or
 restore filenames must be strictly validated instead of trusting form paths, and
 retention must purge expired automatic backups after successful backup creation.
+Creation audit details may include safe source metadata so `/debug` can label a
+retained automatic backup as `Startup` or `Hourly`; do not infer or expose
+sensitive runtime state for older files that lack that metadata.
 
 ## Docker And Runtime Safety
 

@@ -32,9 +32,13 @@ from job_logger.models import (
 )
 from job_logger.routes import debug as debug_routes
 from job_logger.services.backups import (
+    AUTOMATIC_BACKUP_FILENAME_PREFIX,
+    AUTOMATIC_BACKUP_FILENAME_SUFFIX,
+    AUTOMATIC_BACKUP_TRIGGER_STARTUP,
     automatic_backup_filename,
     create_automatic_backup,
     list_automatic_backup_files,
+    run_automatic_backup_once,
 )
 from job_logger.services.cloudflare_blocks import create_cloudflare_ip_block, ip_is_allowlisted
 from job_logger.services.jobs import get_active_job
@@ -1135,11 +1139,11 @@ def test_automatic_backup_retention_keeps_hourly_and_recent_daily_backups(
 def test_debug_lists_and_restores_automatic_backups(super_admin_client: TestClient) -> None:
     """The super-admin debug page should restore retained automatic backup files."""
 
-    automatic_backup_dir = Path(os.environ["AUTOMATIC_BACKUP_DIR"])
     original_job_id = _seed_full_backup_data()
-    backup_time = datetime(2026, 6, 20, 16, 0, tzinfo=UTC)
-    with database.SessionLocal() as database_session:
-        backup_result = create_automatic_backup(database_session, automatic_backup_dir, now=backup_time)
+    backup_result = run_automatic_backup_once(settings, trigger=AUTOMATIC_BACKUP_TRIGGER_STARTUP)
+    short_backup_name = backup_result.backup_file.filename.removeprefix(
+        AUTOMATIC_BACKUP_FILENAME_PREFIX
+    ).removesuffix(AUTOMATIC_BACKUP_FILENAME_SUFFIX)
 
     debug_page_response = super_admin_client.get("/debug")
     assert debug_page_response.status_code == 200
@@ -1147,11 +1151,24 @@ def test_debug_lists_and_restores_automatic_backups(super_admin_client: TestClie
     assert "Retention" in debug_page_response.text
     assert "Newest 6 hourly backups, plus one daily backup for today and each of the prior 2 days." in debug_page_response.text
     assert backup_result.backup_file.filename in debug_page_response.text
-    assert f'title="{backup_result.backup_file.filename}">20260620-160000Z</span>' in debug_page_response.text
+    assert f'title="{backup_result.backup_file.filename}">{short_backup_name}</span>' in debug_page_response.text
     assert '<col class="automatic-backup-file-col">' in debug_page_response.text
+    assert '<col class="automatic-backup-source-col">' in debug_page_response.text
+    assert "<th>Source</th>" in debug_page_response.text
+    assert "Startup" in debug_page_response.text
     assert '/debug/automatic-backups/download' in debug_page_response.text
     assert '/debug/automatic-backups/restore' in debug_page_response.text
     csrf_token = extract_csrf_token(debug_page_response.text)
+
+    with database.SessionLocal() as database_session:
+        backup_event = database_session.scalar(
+            select(AuditEvent)
+            .where(AuditEvent.action == "debug.automatic_backup.created")
+            .order_by(AuditEvent.created_at_utc.desc())
+        )
+        assert backup_event is not None
+        assert backup_event.details["filename"] == backup_result.backup_file.filename
+        assert backup_event.details["trigger"] == AUTOMATIC_BACKUP_TRIGGER_STARTUP
 
     temporary_job_id = _add_temporary_job()
     restore_response = super_admin_client.post(

@@ -3004,7 +3004,7 @@ td a {
 }
 
 .automatic-backup-table {
-  min-width: 820px;
+  min-width: 920px;
 }
 
 .automatic-backup-table th,
@@ -3017,11 +3017,15 @@ td a {
 }
 
 .automatic-backup-file-col {
-  width: 170px;
+  width: 160px;
 }
 
 .automatic-backup-size-col {
   width: 90px;
+}
+
+.automatic-backup-source-col {
+  width: 104px;
 }
 
 .automatic-backup-download-col {
@@ -3045,6 +3049,33 @@ td a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.backup-source-cell {
+  text-align: center;
+}
+
+.backup-source-chip {
+  min-height: 24px;
+  padding: 4px 8px;
+}
+
+.backup-source-startup {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.backup-source-hourly {
+  border-color: rgba(45, 212, 191, 0.34);
+  background: rgba(45, 212, 191, 0.14);
+  color: var(--accent-strong);
+}
+
+.backup-source-empty {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 24px;
 }
 
 .automatic-backup-restore-form {

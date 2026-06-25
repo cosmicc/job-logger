@@ -19,7 +19,7 @@ from starlette.datastructures import UploadFile
 from job_logger.config import settings
 from job_logger.database import get_database_session
 from job_logger.logging_config import redact_sensitive_text
-from job_logger.models import CloudflareIPBlock, HiddenLoginFailure, Job, SubmissionAttempt, WebUser
+from job_logger.models import AuditEvent, CloudflareIPBlock, HiddenLoginFailure, Job, SubmissionAttempt, WebUser
 from job_logger.security import add_flash_message, require_super_admin, validate_csrf_token
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
@@ -61,6 +61,10 @@ DISK_SPACE_WARNING_USED_PERCENT = 85.0
 DISK_SPACE_CRITICAL_USED_PERCENT = 95.0
 DISK_SPACE_WARNING_FREE_BYTES = 5 * 1024 * 1024 * 1024
 DISK_SPACE_CRITICAL_FREE_BYTES = 1 * 1024 * 1024 * 1024
+AUTOMATIC_BACKUP_TRIGGER_LABELS = {
+    "startup": "Startup",
+    "scheduled": "Hourly",
+}
 
 
 @dataclass(frozen=True)
@@ -152,6 +156,7 @@ class DebugAutomaticBackup:
     display_filename: str
     created_at_display: str
     size_display: str
+    trigger_label: str | None
 
 
 @dataclass(frozen=True)
@@ -402,7 +407,44 @@ def _collect_disk_usage_snapshot() -> DebugDiskUsageSnapshot:
     )
 
 
-def _serialize_automatic_backup(backup_file: AutomaticBackupFile) -> DebugAutomaticBackup:
+def _automatic_backup_trigger_labels(
+    database_session: Session,
+    backup_files: tuple[AutomaticBackupFile, ...],
+) -> dict[str, str]:
+    """Return display labels for automatic backup triggers stored in audit details."""
+
+    backup_filenames = {backup_file.filename for backup_file in backup_files}
+    if not backup_filenames:
+        return {}
+
+    trigger_labels: dict[str, str] = {}
+    events = database_session.scalars(
+        select(AuditEvent)
+        .where(AuditEvent.action == "debug.automatic_backup.created")
+        .order_by(desc(AuditEvent.created_at_utc))
+        .limit(500)
+    )
+    for event in events:
+        if len(trigger_labels) == len(backup_filenames):
+            break
+        if not isinstance(event.details, dict):
+            continue
+        filename = str(event.details.get("filename") or "").strip()
+        if filename not in backup_filenames or filename in trigger_labels:
+            continue
+        trigger = str(event.details.get("trigger") or "").strip().lower()
+        label = AUTOMATIC_BACKUP_TRIGGER_LABELS.get(trigger)
+        if label is not None:
+            trigger_labels[filename] = label
+
+    return trigger_labels
+
+
+def _serialize_automatic_backup(
+    backup_file: AutomaticBackupFile,
+    *,
+    trigger_label: str | None = None,
+) -> DebugAutomaticBackup:
     """Return display-safe metadata for one automatic backup file."""
 
     return DebugAutomaticBackup(
@@ -410,6 +452,7 @@ def _serialize_automatic_backup(backup_file: AutomaticBackupFile) -> DebugAutoma
         display_filename=_short_automatic_backup_filename(backup_file.filename),
         created_at_display=format_local_display(backup_file.created_at_utc),
         size_display=_format_file_size(backup_file.size_bytes),
+        trigger_label=trigger_label,
     )
 
 
@@ -571,6 +614,9 @@ def debug_page(
             "allowlisted": ip_is_allowlisted(normalized_ip) if normalized_ip else False,
         }
 
+    automatic_backup_files = list_automatic_backup_files(settings.automatic_backup_dir)
+    automatic_backup_trigger_labels = _automatic_backup_trigger_labels(database_session, automatic_backup_files)
+
     return templates.TemplateResponse(
         request,
         "debug.html",
@@ -595,8 +641,11 @@ def debug_page(
             submission_attempts_page=submission_attempts_page,
             submission_attempt_page_size=SUBMISSION_ATTEMPT_PAGE_SIZE,
             automatic_backups=[
-                _serialize_automatic_backup(backup_file)
-                for backup_file in list_automatic_backup_files(settings.automatic_backup_dir)
+                _serialize_automatic_backup(
+                    backup_file,
+                    trigger_label=automatic_backup_trigger_labels.get(backup_file.filename),
+                )
+                for backup_file in automatic_backup_files
             ],
             automatic_backups_enabled=settings.automatic_backups_enabled,
             automatic_backup_dir=settings.automatic_backup_dir,

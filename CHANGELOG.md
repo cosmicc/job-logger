@@ -26,6 +26,8 @@ All notable changes to Job Logger are documented in this file.
 - Changed the Diagnostics backup metadata cards so full-backup upload limit
   and restore scope share one compact row, while automatic backups show the
   backup directory beside the retention policy.
+- Added automatic-backup source metadata so Diagnostics can label retained
+  backups created at app startup separately from hourly scheduler backups.
 - Added `TRANSCRIPTION_PROVIDER=faster_whisper_remote` for calling a trusted
   remote faster-whisper API while keeping `faster_whisper` as the local
   container-based option.

@@ -658,9 +658,10 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/transcription.py` owns speech-to-text provider behavior.
 - `job_logger/services/audit.py` records immutable audit events.
 - `job_logger/services/backups.py` creates and restores portable gzip JSON full
-  database backups, writes hourly automatic backup files, and enforces automatic
-  backup retention. `/debug` may download retained automatic backups only after
-  strict filename validation.
+  database backups, writes startup and hourly automatic backup files, and
+  enforces automatic backup retention. `/debug` may download retained automatic
+  backups only after strict filename validation, and labels retained automatic
+  backups as startup or hourly when creation audit metadata is available.
 - `job_logger/services/login_failures.py` writes and reads the host-mounted
   sanitized successful/failed login JSONL logs in `LOG_DIR`, defaulting to
   `job-logger-login-successes.log` and `job-logger-login-failures.log` inside

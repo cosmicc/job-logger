@@ -962,13 +962,15 @@ lines first from `${LOG_DIR}/app.log`, normally
 longer history. `LOG_LEVEL` controls this file's verbosity and must be one of
 `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
 
-The app also creates automatic full-database backups every hour when
-`AUTOMATIC_BACKUPS_ENABLED=true`, which is the default. Docker Compose stores
-them in `${AUTOMATIC_BACKUP_DIR:-/data/logs/backups}`, backed by the same
+The app also creates automatic full-database backups at startup and then every
+hour when `AUTOMATIC_BACKUPS_ENABLED=true`, which is the default. Docker Compose
+stores them in `${AUTOMATIC_BACKUP_DIR:-/data/logs/backups}`, backed by the same
 host-mounted `${HOST_LOG_DIR:-/var/log/job-logger}` runtime directory. Retention
 keeps the newest 6 hourly backups plus one daily backup for today and one for
 each of the prior 2 days; expired automatic backups are purged after each
-successful automatic backup.
+successful automatic backup. Diagnostics labels retained automatic backups as
+`Startup` or `Hourly` when that creation metadata is available; older retained
+files may show no source label.
 
 The `/debug` page also includes **Download Full Backup** and **Restore Full
 Backup** controls, with **Automatic database backups** shown below the

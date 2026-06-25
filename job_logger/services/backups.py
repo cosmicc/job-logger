@@ -40,6 +40,12 @@ BACKUP_TABLE_NAMES = tuple(table.name for table in BACKUP_TABLES)
 AUTOMATIC_BACKUP_FILENAME_PREFIX = "job-logger-auto-backup-"
 AUTOMATIC_BACKUP_FILENAME_SUFFIX = ".json.gz"
 AUTOMATIC_BACKUP_INTERVAL_SECONDS = 60 * 60
+AUTOMATIC_BACKUP_TRIGGER_SCHEDULED = "scheduled"
+AUTOMATIC_BACKUP_TRIGGER_STARTUP = "startup"
+AUTOMATIC_BACKUP_TRIGGERS = {
+    AUTOMATIC_BACKUP_TRIGGER_SCHEDULED,
+    AUTOMATIC_BACKUP_TRIGGER_STARTUP,
+}
 AUTOMATIC_HOURLY_BACKUPS_TO_KEEP = 6
 AUTOMATIC_DAILY_BACKUP_DAYS_TO_KEEP = 3
 _BACKUP_RESTORE_LOCK = threading.RLock()
@@ -281,8 +287,15 @@ def read_automatic_backup_content(
         raise BackupValidationError("Automatic backup file could not be read.") from exc
 
 
-def run_automatic_backup_once(application_settings: Settings) -> AutomaticBackupResult:
-    """Create one scheduled backup using an isolated database session."""
+def run_automatic_backup_once(
+    application_settings: Settings,
+    *,
+    trigger: str = AUTOMATIC_BACKUP_TRIGGER_SCHEDULED,
+) -> AutomaticBackupResult:
+    """Create one automatic backup using an isolated database session."""
+
+    if trigger not in AUTOMATIC_BACKUP_TRIGGERS:
+        raise ValueError(f"Unsupported automatic backup trigger: {trigger}")
 
     with database.SessionLocal() as database_session:
         result = create_automatic_backup(
@@ -295,6 +308,7 @@ def run_automatic_backup_once(application_settings: Settings) -> AutomaticBackup
             action="debug.automatic_backup.created",
             details={
                 "filename": result.backup_file.filename,
+                "trigger": trigger,
                 "size_bytes": result.backup_file.size_bytes,
                 "deleted_filenames": list(result.deleted_filenames),
             },
@@ -302,8 +316,9 @@ def run_automatic_backup_once(application_settings: Settings) -> AutomaticBackup
         database_session.commit()
 
     logger.info(
-        "Created automatic Job Logger backup filename=%s size_bytes=%s deleted=%s",
+        "Created automatic Job Logger backup filename=%s trigger=%s size_bytes=%s deleted=%s",
         result.backup_file.filename,
+        trigger,
         result.backup_file.size_bytes,
         len(result.deleted_filenames),
     )
@@ -313,14 +328,20 @@ def run_automatic_backup_once(application_settings: Settings) -> AutomaticBackup
 async def automatic_backup_scheduler(application_settings: Settings) -> None:
     """Run automatic full-data backups until the application shuts down."""
 
+    trigger = AUTOMATIC_BACKUP_TRIGGER_STARTUP
     while True:
         try:
-            await asyncio.to_thread(run_automatic_backup_once, application_settings)
+            await asyncio.to_thread(
+                run_automatic_backup_once,
+                application_settings,
+                trigger=trigger,
+            )
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.exception("Automatic Job Logger backup failed")
 
+        trigger = AUTOMATIC_BACKUP_TRIGGER_SCHEDULED
         await asyncio.sleep(AUTOMATIC_BACKUP_INTERVAL_SECONDS)
 
 

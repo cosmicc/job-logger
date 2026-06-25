@@ -773,7 +773,7 @@
           <div>
             <h2>Automatic database backups</h2>
             <p class="muted-text">
-              Hourly full-data backups retained for quick recovery.
+              Startup and hourly full-data backups retained for quick recovery.
             </p>
           </div>
           <span class="status-chip {% if automatic_backups_enabled %}status-submitted{% else %}status-submission_failed{% endif %}">
@@ -797,6 +797,7 @@
             <table class="debug-submission-table automatic-backup-table">
               <colgroup>
                 <col class="automatic-backup-created-col">
+                <col class="automatic-backup-source-col">
                 <col class="automatic-backup-file-col">
                 <col class="automatic-backup-size-col">
                 <col class="automatic-backup-download-col">
@@ -805,6 +806,7 @@
               <thead>
                 <tr>
                   <th>Created</th>
+                  <th>Source</th>
                   <th>File</th>
                   <th>Size</th>
                   <th>Download</th>
@@ -815,6 +817,15 @@
                 {% for backup in automatic_backups %}
                   <tr>
                     <td>{{ backup.created_at_display }}</td>
+                    <td class="backup-source-cell">
+                      {% if backup.trigger_label %}
+                        <span class="status-chip backup-source-chip {% if backup.trigger_label == 'Startup' %}backup-source-startup{% else %}backup-source-hourly{% endif %}">
+                          {{ backup.trigger_label }}
+                        </span>
+                      {% else %}
+                        <span class="muted-text backup-source-empty">&mdash;</span>
+                      {% endif %}
+                    </td>
                     <td class="backup-file-name">
                       <span title="{{ backup.filename }}">{{ backup.display_filename }}</span>
                     </td>
