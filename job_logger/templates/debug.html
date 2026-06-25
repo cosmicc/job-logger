@@ -735,7 +735,16 @@
           <button class="secondary-button danger-button" type="submit">Restore Full Backup</button>
         </form>
 
-        <p class="muted-text backup-upload-limit">Upload limit: {{ backup_upload_max_mb }} MB</p>
+        <dl class="backup-meta-grid">
+          <div class="backup-meta-card">
+            <dt>Upload limit</dt>
+            <dd>{{ backup_upload_max_mb }} MB</dd>
+          </div>
+          <div class="backup-meta-card">
+            <dt>Restore scope</dt>
+            <dd>Validated restores replace all Job Logger database tables with the backup contents.</dd>
+          </div>
+        </dl>
       </div>
     </section>
 
@@ -764,7 +773,7 @@
           <div>
             <h2>Automatic database backups</h2>
             <p class="muted-text">
-              Runs hourly and keeps the newest 6 hourly backups plus one daily backup for today and the prior 2 days.
+              Hourly full-data backups retained for quick recovery.
             </p>
           </div>
           <span class="status-chip {% if automatic_backups_enabled %}status-submitted{% else %}status-submission_failed{% endif %}">
@@ -772,14 +781,14 @@
           </span>
         </div>
 
-        <dl class="debug-list compact-debug-list backup-details">
-          <div>
+        <dl class="backup-meta-grid automatic-backup-meta-grid">
+          <div class="backup-meta-card">
             <dt>Backup directory</dt>
             <dd>{{ automatic_backup_dir }}</dd>
           </div>
-          <div>
-            <dt>Restore confirmation</dt>
-            <dd>Type RESTORE next to the selected backup before restoring.</dd>
+          <div class="backup-meta-card">
+            <dt>Retention</dt>
+            <dd>Newest 6 hourly backups, plus one daily backup for today and each of the prior 2 days.</dd>
           </div>
         </dl>
 

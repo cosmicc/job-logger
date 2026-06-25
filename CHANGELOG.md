@@ -23,6 +23,9 @@ All notable changes to Job Logger are documented in this file.
 - Condensed the super-admin Diagnostics Autotask configuration snapshot,
   tightened the full-backup and automatic-backup panels, and shortened visible
   automatic-backup filenames while keeping full filenames available on hover.
+- Changed the Diagnostics backup metadata cards so full-backup upload limit
+  and restore scope share one compact row, while automatic backups show the
+  backup directory beside the retention policy.
 - Added `TRANSCRIPTION_PROVIDER=faster_whisper_remote` for calling a trusted
   remote faster-whisper API while keeping `faster_whisper` as the local
   container-based option.

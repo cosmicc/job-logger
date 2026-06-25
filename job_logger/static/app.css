@@ -2963,13 +2963,44 @@ td a {
   width: auto;
 }
 
-.backup-upload-limit {
-  margin: 8px 0 0;
-  font-size: 13px;
-}
-
 .automatic-backup-table-wrap {
   margin-top: 14px;
+}
+
+.backup-meta-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 12px;
+  margin: 12px 0 0;
+}
+
+.automatic-backup-meta-grid {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+}
+
+.backup-meta-card {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.backup-meta-card dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.backup-meta-card dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .automatic-backup-table {
@@ -3605,6 +3636,7 @@ td a {
   .ticket-number-form,
   .form-grid,
   .autotask-config-list,
+  .backup-meta-grid,
   .backup-restore-form,
   .user-edit-grid,
   .add-user-fields-grid,
