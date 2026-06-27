@@ -17,10 +17,13 @@ All design and implementation decisions must prioritize security first.
 
 Security is the highest priority for this project.
 
-Use both Cloudflare Access and application-level authentication.
-Cloudflare Access protects the public hostname before traffic reaches the
-application. The Python application must still enforce its own authenticated
-server-side sessions and authorization checks.
+Use both Cloudflare Access and application-level authentication for
+internet-facing deployments when the Cloudflare Access application is
+configured. Cloudflare Access protects the public hostname before traffic
+reaches the application. The Python application must still enforce its own
+authenticated server-side sessions and authorization checks, and production
+startup must not depend on the optional Cloudflare Access header gate being
+enabled.
 
 `APP_USERNAME` and `APP_PASSWORD` define the config super admin. That account
 is for user management, diagnostics, backup/restore, and read-only job review;
@@ -459,8 +462,9 @@ Docker Compose should include the Python application, PostgreSQL, and
 Nginx host publishing should use `BIND_ADDRESS` plus `HTTP_PORT`, with
 `NGINX_PUBLIC_PORT` kept only as a backward-compatible fallback. Compose must
 fail closed when `APP_SECRET_KEY`, `APP_PASSWORD`, or `POSTGRES_PASSWORD` are
-missing instead of falling back to development secrets. Production startup must
-require Cloudflare Access, secure session cookies, non-default app/database
+missing instead of falling back to development secrets. Compose should default
+the optional Cloudflare Access header gate on for production, but production
+startup must only hard-require secure session cookies, non-default app/database
 secrets that are not copied placeholders, and `AUTOTASK_PROVIDER=autotask`. The
 bundled `cloudflared` service
 uses host networking, so a loopback bind such as `BIND_ADDRESS=127.0.0.1` and

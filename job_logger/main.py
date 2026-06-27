@@ -97,9 +97,6 @@ def validate_runtime_settings(application_settings: Settings) -> None:
     if not application_settings.session_cookie_secure:
         raise RuntimeError("APP_SESSION_COOKIE_SECURE=true is required in production.")
 
-    if not application_settings.cloudflare_access_required:
-        raise RuntimeError("CLOUDFLARE_ACCESS_REQUIRED=true is required in production.")
-
     if application_settings.autotask_provider != "autotask":
         raise RuntimeError("AUTOTASK_PROVIDER=autotask is required in production.")
 

@@ -146,7 +146,9 @@ Keep the dev instance isolated from production:
 - Set `DEV_BUILD=true` in the dev `.env` so the authenticated header clearly
   marks the instance as dev.
 - Set `APP_ENV=development` only for an isolated dev instance. Production keeps
-  `APP_ENV=production` and `CLOUDFLARE_ACCESS_REQUIRED=true`.
+  `APP_ENV=production`. Keep `CLOUDFLARE_ACCESS_REQUIRED=true` for
+  internet-facing deployments once the matching Cloudflare Access application
+  is configured.
 - Use real Autotask credentials only when the dev workflow intentionally needs
   live Autotask testing. Keep `AUTOTASK_PROVIDER=mock` for isolated UI or
   workflow-only checks.
@@ -188,9 +190,11 @@ tunnel connector all come up with one `docker compose up -d --build` command.
 5. Put the tunnel token in `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
    If this token is missing or invalid, Cloudflare will return a 502 and
    `cloudflared` will repeatedly restart.
-6. Keep `CLOUDFLARE_ACCESS_REQUIRED=true` for production. With
-   `APP_ENV=production`, the app refuses to start unless Cloudflare Access and
-   secure session cookies are enabled.
+6. Prefer `CLOUDFLARE_ACCESS_REQUIRED=true` for production when the matching
+   Cloudflare Access application is configured. Docker Compose defaults this
+   setting to true, but `APP_ENV=production` no longer refuses startup solely
+   because the optional Access header gate is disabled. Secure session cookies
+   are still required in production.
 7. Set `WEBAUTHN_ORIGIN` to the public HTTPS origin that phones see in the
    browser, such as `https://logger.example.com`, before using passkeys through
    Cloudflare Tunnel. The bundled nginx origin also preserves Cloudflare's

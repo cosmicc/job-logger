@@ -132,8 +132,8 @@ def test_local_login_lockout_duration_must_be_positive(monkeypatch) -> None:
         load_settings()
 
 
-def test_runtime_validation_requires_cloudflare_access_in_production() -> None:
-    """Production should fail closed unless Cloudflare Access is enforced."""
+def test_runtime_validation_allows_cloudflare_access_disabled_in_production() -> None:
+    """Production can start without Cloudflare Access while app auth remains enforced."""
 
     production_settings = replace(
         settings,
@@ -146,8 +146,7 @@ def test_runtime_validation_requires_cloudflare_access_in_production() -> None:
         autotask_provider="autotask",
     )
 
-    with pytest.raises(RuntimeError, match="CLOUDFLARE_ACCESS_REQUIRED=true is required in production."):
-        validate_runtime_settings(production_settings)
+    validate_runtime_settings(production_settings)
 
 
 def test_runtime_validation_rejects_production_development_defaults() -> None:

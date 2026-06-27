@@ -59,9 +59,13 @@ All notable changes to Job Logger are documented in this file.
 - Changed Docker Compose and runtime validation to fail closed for production:
   Compose now requires `APP_SECRET_KEY`, `APP_PASSWORD`, and
   `POSTGRES_PASSWORD`; defaults to loopback nginx binding, secure session
-  cookies, and Cloudflare Access required; and the app refuses production
-  startup when Access, secure cookies, non-default/non-placeholder secrets, or
-  live Autotask are missing.
+  cookies, and Cloudflare Access enabled; and the app refuses production
+  startup when secure cookies, non-default/non-placeholder secrets, or live
+  Autotask are missing.
+- Changed production startup validation so `CLOUDFLARE_ACCESS_REQUIRED=false`
+  no longer prevents the app from starting. Docker Compose still defaults the
+  optional Cloudflare Access header gate to enabled for internet-facing
+  deployments.
 - Added production `Strict-Transport-Security` response headers.
 
 ## v1.1.4 - Login protection, Work in Progress controls, diagnostics, and deployment safety
