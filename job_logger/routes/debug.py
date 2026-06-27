@@ -20,7 +20,7 @@ from job_logger.config import settings
 from job_logger.database import get_database_session
 from job_logger.logging_config import redact_sensitive_text
 from job_logger.models import AuditEvent, CloudflareIPBlock, HiddenLoginFailure, Job, SubmissionAttempt, WebUser
-from job_logger.security import add_flash_message, require_super_admin, validate_csrf_token
+from job_logger.security import add_flash_message, require_debug_access, validate_csrf_token
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
 from job_logger.services.backups import (
@@ -552,7 +552,7 @@ def _read_app_log_tail(log_dir: str, *, line_count: int = APP_LOG_TAIL_LINES) ->
 
 
 def _redirect_anonymous_or_raise(exc: HTTPException) -> RedirectResponse:
-    """Redirect anonymous users to login while preserving super-admin-only 403s."""
+    """Redirect anonymous users to login while preserving diagnostics 403s."""
 
     if exc.status_code == 401:
         return RedirectResponse(url="/login", status_code=303)
@@ -578,7 +578,7 @@ def debug_page(
     """Render authenticated diagnostics, submission attempts, and login failures."""
 
     try:
-        require_super_admin(request)
+        require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
@@ -658,11 +658,14 @@ def debug_page(
 
 
 @router.get("/logs/login-failures")
-def download_login_failure_log(request: Request) -> Response:
+def download_login_failure_log(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> Response:
     """Download the raw failed-login JSONL log for authenticated diagnostics."""
 
     try:
-        require_super_admin(request)
+        require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
@@ -681,11 +684,14 @@ def download_login_failure_log(request: Request) -> Response:
 
 
 @router.get("/logs/login-successes")
-def download_login_success_log(request: Request) -> Response:
+def download_login_success_log(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> Response:
     """Download the raw successful-login JSONL log for authenticated diagnostics."""
 
     try:
-        require_super_admin(request)
+        require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
@@ -711,7 +717,7 @@ async def hide_login_failure_entry(
     """Hide one failed-login row from Diagnostics without editing the raw log."""
 
     try:
-        actor = require_super_admin(request)
+        actor = require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
@@ -758,7 +764,7 @@ async def block_login_ip_form(
     """Create an app-managed Cloudflare block for a failed-login IP."""
 
     try:
-        actor = require_super_admin(request)
+        actor = require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
@@ -811,7 +817,7 @@ async def unblock_login_ip_form(
     """Remove one app-managed Cloudflare block and its local block-list row."""
 
     try:
-        actor = require_super_admin(request)
+        actor = require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
@@ -859,7 +865,7 @@ async def download_full_backup(
     """Download a CSRF-protected full application data backup."""
 
     try:
-        actor = require_super_admin(request)
+        actor = require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
@@ -904,7 +910,7 @@ async def restore_full_backup_form(
     """Restore a previously downloaded full application data backup."""
 
     try:
-        actor = require_super_admin(request)
+        actor = require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
@@ -965,7 +971,7 @@ async def restore_automatic_backup_form(
     """Restore a retained automatic backup selected from the debug page."""
 
     try:
-        actor = require_super_admin(request)
+        actor = require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
@@ -1022,7 +1028,7 @@ async def download_automatic_backup_form(
     """Download one retained automatic backup after strict filename validation."""
 
     try:
-        actor = require_super_admin(request)
+        actor = require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
@@ -1076,7 +1082,7 @@ async def test_autotask_api(
     """Test mandatory Autotask API connectivity from the debug page."""
 
     try:
-        actor = require_super_admin(request)
+        actor = require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
@@ -1114,7 +1120,7 @@ async def logout_all_web_users(
     """Force every managed web user to authenticate again."""
 
     try:
-        actor = require_super_admin(request)
+        actor = require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 

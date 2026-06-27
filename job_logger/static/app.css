@@ -2155,7 +2155,7 @@ td a {
 
 .users-table {
   width: 100%;
-  min-width: 980px;
+  min-width: 1040px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -2184,7 +2184,7 @@ td a {
 
 .users-table th:nth-child(1),
 .users-table td:nth-child(1) {
-  width: 16%;
+  width: 15%;
 }
 
 .users-table th:nth-child(2),
@@ -2194,7 +2194,7 @@ td a {
 
 .users-table th:nth-child(3),
 .users-table td:nth-child(3) {
-  width: 16%;
+  width: 15%;
 }
 
 .users-table th:nth-child(4),
@@ -2209,7 +2209,7 @@ td a {
 
 .users-table th:nth-child(6),
 .users-table td:nth-child(6) {
-  width: 13%;
+  width: 12%;
 }
 
 .users-table th:nth-child(7),
@@ -2219,17 +2219,22 @@ td a {
 
 .users-table th:nth-child(8),
 .users-table td:nth-child(8) {
-  width: 7%;
+  width: 6%;
 }
 
 .users-table th:nth-child(9),
 .users-table td:nth-child(9) {
-  width: 5%;
+  width: 7%;
 }
 
 .users-table th:nth-child(10),
 .users-table td:nth-child(10) {
-  width: 11%;
+  width: 5%;
+}
+
+.users-table th:nth-child(11),
+.users-table td:nth-child(11) {
+  width: 9%;
 }
 
 .user-display-row:hover,
@@ -2295,6 +2300,21 @@ td a {
   border-color: rgba(248, 113, 113, 0.5);
   background: var(--danger-soft);
   color: var(--danger);
+}
+
+.user-admin-chip {
+  min-width: 58px;
+  justify-content: center;
+}
+
+.user-admin-enabled {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(96, 165, 250, 0.14);
+  color: #93c5fd;
+}
+
+.user-admin-standard {
+  color: var(--muted);
 }
 
 .user-passkey-cell {

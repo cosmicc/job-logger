@@ -9,8 +9,10 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException, Request, status
+from sqlalchemy.orm import Session
 
 from job_logger.config import Settings, settings
+from job_logger.models import WebUser
 
 # Session keys are intentionally centralized to avoid typo-driven auth bugs.
 SESSION_USERNAME_KEY = "authenticated_username"
@@ -227,6 +229,32 @@ def require_super_admin(request: Request) -> str:
     username = require_authenticated_username(request)
     if not is_super_admin_session(request.session):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super admin access is required.")
+    return username
+
+
+def session_has_debug_access(session: Mapping[str, Any], database_session: Session) -> bool:
+    """Return whether the authenticated session may use Diagnostics routes."""
+
+    if is_super_admin_session(session):
+        return True
+
+    if current_user_kind_from_session(session) != WEB_USER_SESSION_KIND:
+        return False
+
+    web_user_id = current_web_user_id_from_session(session)
+    if web_user_id is None:
+        return False
+
+    web_user = database_session.get(WebUser, web_user_id)
+    return bool(web_user is not None and not web_user.disabled and web_user.is_admin)
+
+
+def require_debug_access(request: Request, database_session: Session) -> str:
+    """Return the authenticated actor allowed to use Diagnostics or raise 403."""
+
+    username = require_authenticated_username(request)
+    if not session_has_debug_access(request.session, database_session):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Diagnostics access is required.")
     return username
 
 

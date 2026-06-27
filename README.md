@@ -88,7 +88,8 @@ Autotask REST API references used by this app:
    enable/disable controls as compact icons, including any email address
    captured from Autotask Resource lookup, last successful login time, and a
    green or red Device sign-in key icon showing whether the account has any
-   registered passkeys. The disable action signs out that user's existing
+   registered passkeys. The table also shows whether a managed user has Admin
+   access to Diagnostics. The disable action signs out that user's existing
    sessions on their next request and blocks future login. The
    add-user form suggests a username from the name, such as `jblow` for
    `Joe Blow`, and add/edit forms can search Autotask Resources so you can
@@ -96,6 +97,8 @@ Autotask REST API references used by this app:
    load active service-desk roles for that resource, show role names when
    Autotask role metadata is readable, and save the selected numeric role ID as
    an optional default fallback for tickets that do not return usable role data.
+   Add/edit forms also include a default-off Admin checkbox that grants that
+   managed user full `/debug` Diagnostics access only.
    When Autotask returns an email for the selected resource, Job Logger saves it
    with that web-user account. Managed-user passwords must be at least 8
    characters and include lowercase, uppercase, number, and symbol characters.
@@ -905,15 +908,19 @@ user-scoped payloads and service-call filters, but live calls do not send the
 optional Autotask `ImpersonationResourceId` header. Super-admin Resource setup
 and debug connectivity checks run without a managed-user context.
 
-The `/debug` page is available only to the config super admin. Managed web
-users do not see the Debug menu item, and direct `/debug/*` requests from those
-sessions return 403. It shows the source-controlled application version and
-includes **Test Autotask API** and **Log out web users** buttons. The logout
-button forces all managed web users to sign in again while leaving the config
-super admin signed in. All authenticated pages also include a discreet version
-link to `/changelog`. The debug Autotask check verifies required workflow
-configuration and the live Companies/Tickets API calls used by the app. The
-debug button is manual and always runs a fresh live check. It is not used by the
+The `/debug` page is available to the config super admin and to managed web
+users marked Admin on `/users`. Managed admins get the same Diagnostics buttons
+and options, but no `/users` access, no super-admin review scope, and no extra
+job workflow permissions. Non-admin managed users do not see the Debug menu
+item, and direct `/debug/*` requests from those sessions return 403. It shows
+the source-controlled application version and includes **Test Autotask API**
+and **Log out web users** buttons. The logout button forces all managed web
+users to sign in again while leaving the config super admin signed in; a
+managed admin who clicks it is included because that account is a managed web
+user. All authenticated pages also include a discreet version link to
+`/changelog`. The debug Autotask check verifies required workflow configuration
+and the live Companies/Tickets API calls used by the app. The debug button is
+manual and always runs a fresh live check. It is not used by the
 initial mobile page or blank Start Work route.
 
 The same `/debug` page also shows compact, paginated successful-login,

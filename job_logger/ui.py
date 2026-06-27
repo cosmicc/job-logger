@@ -13,7 +13,14 @@ from sqlalchemy.orm import Session
 from job_logger import time_utils
 from job_logger.config import settings
 from job_logger.enums import ThemeMode
-from job_logger.security import csrf_token, current_user_kind, current_username, is_super_admin_session, pop_flash_messages
+from job_logger.security import (
+    csrf_token,
+    current_user_kind,
+    current_username,
+    is_super_admin_session,
+    pop_flash_messages,
+    session_has_debug_access,
+)
 from job_logger.services.preferences import THEME_META_COLORS, get_theme_for_session
 from job_logger.version import APP_VERSION
 
@@ -52,6 +59,9 @@ def template_context(
     current_theme = ThemeMode.DARK
     if database_session is not None and current_username(request):
         current_theme = get_theme_for_session(database_session, request.session)
+    current_can_access_debug = False
+    if database_session is not None and current_username(request):
+        current_can_access_debug = session_has_debug_access(request.session, database_session)
 
     context: dict[str, object] = {
         "request": request,
@@ -59,6 +69,7 @@ def template_context(
         "current_username": current_username(request),
         "current_user_kind": current_user_kind(request),
         "current_is_super_admin": is_super_admin_session(request.session),
+        "current_can_access_debug": current_can_access_debug,
         "current_theme": current_theme.value,
         "theme_color": THEME_META_COLORS[current_theme],
         "flash_messages": pop_flash_messages(request),

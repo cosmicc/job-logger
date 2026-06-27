@@ -193,6 +193,7 @@ async def add_user(
             autotask_default_service_desk_role_id=_validated_default_service_desk_role_id(form_values),
             email=form_values.get("autotask_resource_email"),
             disabled="disabled" in form_values,
+            is_admin="is_admin" in form_values,
         )
         record_audit_event(
             database_session,
@@ -203,6 +204,7 @@ async def add_user(
                 "web_user_id": result.user.id,
                 "username": result.user.username,
                 "disabled": result.user.disabled,
+                "is_admin": result.user.is_admin,
                 "autotask_resource_id": result.user.autotask_resource_id,
                 "autotask_default_service_desk_role_id": result.user.autotask_default_service_desk_role_id,
                 "email_saved": result.user.email is not None,
@@ -247,6 +249,7 @@ async def edit_user(
             autotask_default_service_desk_role_id=_validated_default_service_desk_role_id(form_values),
             email=form_values.get("autotask_resource_email"),
             disabled="disabled" in form_values,
+            is_admin="is_admin" in form_values,
         )
         record_audit_event(
             database_session,
@@ -257,6 +260,7 @@ async def edit_user(
                 "web_user_id": user.id,
                 "username": user.username,
                 "disabled": user.disabled,
+                "is_admin": user.is_admin,
                 "autotask_resource_id": user.autotask_resource_id,
                 "autotask_default_service_desk_role_id": user.autotask_default_service_desk_role_id,
                 "email_saved": user.email is not None,

@@ -27,8 +27,12 @@ is for user management, diagnostics, backup/restore, and read-only job review;
 it must not start, edit, submit, delete, record, or AI-cleanup work entries
 because it has no Autotask resource ID. Normal work must be performed through
 database-managed web users created on `/users`.
-Only the config super admin may see or access `/debug` and `/debug/*` routes;
-managed web users must receive 403 for direct debug requests.
+The config super admin and managed web users explicitly marked as Admin may see
+and use `/debug` and `/debug/*`, including all Diagnostics buttons and options.
+The managed-user Admin flag grants only Diagnostics access. It must not grant
+`/users`, super-admin review scope, or any extra job workflow permissions.
+Managed web users without the Admin flag must receive 403 for direct debug
+requests.
 
 Managed web users must have a full name, unique username, password hash, and
 Autotask resource ID. They may also store the email address returned by the
@@ -36,15 +40,16 @@ selected Autotask Resource lookup and an optional default active service-desk
 role ID selected from that resource's active Autotask `ResourceServiceDeskRoles`.
 The `/users` page presents managed accounts in a table with visible stored email
 and default-role metadata, last successful managed-user login time, green/red
-Device sign-in passkey status icons, and icon-only row actions for edit,
-enable/disable, and delete-as-disable. The full-browser user table should use
-the full panel width, compact fixed columns, and ellipsized long values so rows
-fit without wrapping into multiple lines. The add form may suggest usernames
-from full names, such as `jblow` for `Joe Blow`, and add/edit forms may query
-Autotask Resources and active service-desk roles for super-admin-only resource
-and role pickers. The role picker should show Autotask `Roles.name` labels when
-that metadata is readable while storing only the selected numeric `roleID` on
-the managed web-user row.
+Device sign-in passkey status icons, Admin status, and icon-only row actions
+for edit, enable/disable, and delete-as-disable. The full-browser user table
+should use the full panel width, compact fixed columns, and ellipsized long
+values so rows fit without wrapping into multiple lines. The add form may
+suggest usernames from full names, such as `jblow` for `Joe Blow`, and add/edit
+forms may query Autotask Resources and active service-desk roles for
+super-admin-only resource and role pickers. Add/edit forms also expose the
+default-off Admin checkbox that grants full Diagnostics access only. The role
+picker should show Autotask `Roles.name` labels when that metadata is readable
+while storing only the selected numeric `roleID` on the managed web-user row.
 Store only salted password verifiers, never raw managed user passwords.
 Managed-user passwords must be at least 8 characters and include lowercase,
 uppercase, number, and symbol characters.
@@ -58,9 +63,10 @@ Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`,
 measured in hours. The configured value controls both the signed session cookie
 lifetime and the server-side authenticated-at timestamp check. Expired sessions
 must be cleared and forced through login again.
-The super-admin Diagnostics page may also invalidate all managed web-user
-sessions with a CSRF-protected button. That action must not sign out the config
-super admin because the super admin is not a managed web user.
+Diagnostics may also invalidate all managed web-user sessions with a
+CSRF-protected button. That action must not sign out the config super admin
+because the super admin is not a managed web user. A managed Admin user who
+presses it is included because that account is a managed web user.
 
 Managed web users may register WebAuthn passkeys after a normal password login.
 Passkeys are user-owned public credentials, not super-admin credentials. The app
@@ -845,9 +851,10 @@ In production:
   Returned resource email metadata is optional and is stored only when a user
   selects a resource that includes one.
 - The `/debug` page provides the supported manual **Test Autotask API** action.
-- The `/debug` page provides a super-admin-only **Log out web users** action
-  that invalidates all managed web-user sessions without ending the current
-  super-admin session.
+- The `/debug` page provides a Diagnostics-admin **Log out web users** action
+  that invalidates all managed web-user sessions without ending the config
+  super-admin session. Managed Admin users are included in that invalidation
+  because they are managed web users.
 - The `/debug` page provides per-row failed-login hide controls, per-row
   Cloudflare block/unblock controls, and an app-managed Cloudflare blocked IP
   card. Automatic Cloudflare blocking happens after

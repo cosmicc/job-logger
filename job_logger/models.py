@@ -98,6 +98,16 @@ class WebUser(Base):
         comment="Whether this user is blocked from logging in.",
     )
 
+    # is_admin grants this managed user full Diagnostics access only. It does
+    # not grant config-super-admin-only user management or broader review scope.
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Whether this managed user may access /debug and /debug/* diagnostics.",
+    )
+
     # sessions_invalidated_at_utc forces existing signed sessions for this user
     # to log in again without storing session tokens server-side. New logins
     # after this timestamp remain valid until timeout or the next invalidation.

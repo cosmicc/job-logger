@@ -42,11 +42,13 @@ Phone-sized authenticated layouts hide the brand mark and desktop logout form.
 The visible top bar should place the left navigation icons on the left, the
 version link centered in the middle, and right-side action icons on the right.
 Managed web users see Home and Review on the left, with Config and logout on
-the right. The config super admin sees Users, Review, and Diagnostics on the
-left, with logout on the right, and must not see Config. The mobile logout
-button must submit the normal `/logout` form with the rendered CSRF token. Do
-not wire mobile logout through `window.close()`, `about:blank`, a GET link, or
-another browser-only action. Keep the explicit desktop logout form available on
+the right. Managed users marked as Admin also see Diagnostics on the right, but
+that flag must not remove Config or grant super-admin-only Users navigation.
+The config super admin sees Users, Review, and Diagnostics on the left, with
+logout on the right, and must not see Config. The mobile logout button must
+submit the normal `/logout` form with the rendered CSRF token. Do not wire
+mobile logout through `window.close()`, `about:blank`, a GET link, or another
+browser-only action. Keep the explicit desktop logout form available on
 non-mobile authenticated pages.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 a small yellow `DEV` badge near the version link. Keep the badge compact so it

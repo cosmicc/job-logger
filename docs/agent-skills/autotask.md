@@ -404,8 +404,9 @@ falling back to generic HTTP client exception text.
 
 ## Diagnostics And Scripts
 
-The debug page is a super-admin-only runtime visibility surface. It should show
-the source-controlled application version, sanitized config, connectivity test
+The debug page is a Diagnostics-authorized runtime visibility surface for the
+config super admin and managed web users marked Admin. It should show the
+source-controlled application version, sanitized config, connectivity test
 results, and submission attempts.
 
 The script `scripts/discover_autotask_ids.py` is for read-only tenant metadata

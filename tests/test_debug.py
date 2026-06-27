@@ -138,8 +138,8 @@ def test_debug_route_requires_login(client: TestClient) -> None:
     assert response.headers["location"] == "/login"
 
 
-def test_debug_routes_are_super_admin_only(client: TestClient) -> None:
-    """Managed web users must not see or access debug diagnostics."""
+def test_debug_routes_require_debug_access(client: TestClient) -> None:
+    """Ordinary managed web users must not see or access debug diagnostics."""
 
     login_as_web_user(client)
     mobile_response = client.get("/home")
@@ -171,6 +171,47 @@ def test_debug_routes_are_super_admin_only(client: TestClient) -> None:
     debug_response = client.get("/debug")
     assert debug_response.status_code == 200
     assert 'class="secondary-link-button" href="/review"' not in debug_response.text
+
+
+def test_managed_admin_can_use_debug_without_super_admin_permissions(client: TestClient) -> None:
+    """A checked managed admin should get Diagnostics but no other super-admin access."""
+
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user.is_admin = True
+        database_session.commit()
+
+    login_as_web_user(client)
+    home_response = client.get("/home")
+    assert home_response.status_code == 200
+    assert 'href="/debug"' in home_response.text
+    assert 'data-mobile-debug-link' in home_response.text
+    assert 'href="/users"' not in home_response.text
+    assert 'data-mobile-users-link' not in home_response.text
+    assert 'href="/config"' in home_response.text
+    assert 'data-mobile-config-link' in home_response.text
+
+    debug_response = client.get("/debug")
+    assert debug_response.status_code == 200
+    assert "Session controls" in debug_response.text
+    assert "Managed admins are included because they are managed web users." in debug_response.text
+
+    csrf_token = extract_csrf_token(debug_response.text)
+    autotask_response = client.post(
+        "/debug/autotask/test",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert autotask_response.status_code == 303
+    assert autotask_response.headers["location"] == "/debug"
+
+    with database.SessionLocal() as database_session:
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "debug.autotask_api.tested")
+        )
+        assert audit_event is not None
+        assert audit_event.actor == "tech"
 
 
 def test_debug_can_force_managed_web_users_to_sign_in_again(client: TestClient) -> None:
@@ -1489,6 +1530,54 @@ def test_debug_restore_defaults_missing_web_user_last_login_column(
         restored_user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
         assert restored_user is not None
         assert restored_user.last_login_at_utc is None
+
+
+def test_debug_restore_defaults_missing_web_user_admin_column(
+    super_admin_client: TestClient,
+) -> None:
+    """Restore backups that predate managed-user Diagnostics admin grants."""
+
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user.is_admin = True
+        database_session.commit()
+
+    debug_page_response = super_admin_client.get("/debug")
+    csrf_token = extract_csrf_token(debug_page_response.text)
+    backup_response = super_admin_client.post(
+        "/debug/backup",
+        data={"csrf_token": csrf_token},
+    )
+    payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
+    for row in payload["tables"]["web_users"]:
+        row.pop("is_admin", None)
+    payload["schema"]["web_users"].remove("is_admin")
+    legacy_backup_content = gzip.compress(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+        mtime=0,
+    )
+
+    restore_page_response = super_admin_client.get("/debug")
+    restore_csrf_token = extract_csrf_token(restore_page_response.text)
+    restore_response = super_admin_client.post(
+        "/debug/restore",
+        data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
+        files={
+            "backup_file": (
+                "job-logger-pre-debug-admin-full-backup.json.gz",
+                legacy_backup_content,
+                "application/gzip",
+            )
+        },
+        follow_redirects=False,
+    )
+
+    assert restore_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        restored_user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert restored_user is not None
+        assert restored_user.is_admin is False
 
 
 def test_debug_restore_defaults_missing_ai_cleanup_revert_columns(

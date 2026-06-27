@@ -73,6 +73,7 @@ def test_super_admin_adds_first_web_user_and_claims_existing_jobs(super_admin_cl
         assert user.autotask_resource_id == 42
         assert user.autotask_default_service_desk_role_id == 8
         assert user.email == "first.tech@example.test"
+        assert user.is_admin is False
         job = database_session.get(Job, legacy_job_id)
         assert job is not None
         assert job.web_user_id == user.id
@@ -91,6 +92,7 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
         assert user is not None
         user.email = "tech@example.test"
         user.autotask_default_service_desk_role_id = 8
+        user.is_admin = True
         database_session.add(
             WebAuthnCredential(
                 web_user_id=user.id,
@@ -120,10 +122,15 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert "<th scope=\"col\">Role ID</th>" in users_page.text
     assert "<th scope=\"col\">Last login</th>" in users_page.text
     assert "<th scope=\"col\">Device</th>" in users_page.text
+    assert "<th scope=\"col\">Admin</th>" in users_page.text
     assert 'data-label="Email"' in users_page.text
     assert 'data-label="Default role"' in users_page.text
     assert 'data-label="Last login"' in users_page.text
     assert 'data-label="Device sign-in"' in users_page.text
+    assert 'data-label="Admin"' in users_page.text
+    assert "Admin (Debug access)" in users_page.text
+    assert 'class="status-chip user-admin-chip user-admin-enabled">Admin</span>' in users_page.text
+    assert 'class="status-chip user-admin-chip user-admin-standard">User</span>' in users_page.text
     assert 'class="passkey-status-icon passkey-status-registered"' in users_page.text
     assert 'class="passkey-status-icon passkey-status-missing"' in users_page.text
     assert "Device sign-in set up" in users_page.text
@@ -147,18 +154,19 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert ">Delete<" not in users_page.text
     assert 'name="autotask_resource_email"' in users_page.text
     assert 'name="autotask_default_service_desk_role_id"' in users_page.text
+    assert 'name="is_admin"' in users_page.text
     assert 'data-autotask-role-url="/users/autotask-resource-roles"' in users_page.text
     assert 'data-role-select' in users_page.text
 
     stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
     assert ".users-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);" in stylesheet
-    assert ".users-table {\n  width: 100%;\n  min-width: 980px;" in stylesheet
+    assert ".users-table {\n  width: 100%;\n  min-width: 1040px;" in stylesheet
     assert "white-space: nowrap;" in stylesheet
     assert ".add-user-panel {\n  position: static;" in stylesheet
     assert 'data-resource-results hidden' in users_page.text
     assert f"/static/users.js?v={static_asset_version()}" in users_page.text
     assert "The config super admin is intentionally not listed here." in users_page.text
-    assert 'colspan="10"' in users_page.text
+    assert 'colspan="11"' in users_page.text
 
 
 def test_successful_managed_user_login_updates_last_login(client: TestClient) -> None:
@@ -345,6 +353,68 @@ def test_users_page_disables_user_with_job_history(
         user = database_session.get(WebUser, user_id)
         assert user is not None
         assert user.disabled is False
+
+
+def test_users_page_persists_debug_admin_flag(super_admin_client: TestClient) -> None:
+    """The existing add/edit panel should persist Diagnostics admin access."""
+
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user_id = user.id
+        assert user.is_admin is False
+
+    users_page = super_admin_client.get("/users")
+    csrf_token = extract_csrf_token(users_page.text)
+    update_response = super_admin_client.post(
+        f"/users/{user_id}/update",
+        data={
+            "csrf_token": csrf_token,
+            "full_name": "Test Technician",
+            "username": "tech",
+            "password": "",
+            "autotask_resource_id": "42",
+            "autotask_default_service_desk_role_id": "",
+            "autotask_resource_email": "tech@example.test",
+            "is_admin": "1",
+        },
+        follow_redirects=False,
+    )
+
+    assert update_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        user = database_session.get(WebUser, user_id)
+        assert user is not None
+        assert user.is_admin is True
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "user.web.updated")
+        )
+        assert audit_event is not None
+        assert audit_event.details["is_admin"] is True
+
+    users_page = super_admin_client.get("/users")
+    assert 'class="status-chip user-admin-chip user-admin-enabled">Admin</span>' in users_page.text
+
+    csrf_token = extract_csrf_token(users_page.text)
+    remove_response = super_admin_client.post(
+        f"/users/{user_id}/update",
+        data={
+            "csrf_token": csrf_token,
+            "full_name": "Test Technician",
+            "username": "tech",
+            "password": "",
+            "autotask_resource_id": "42",
+            "autotask_default_service_desk_role_id": "",
+            "autotask_resource_email": "tech@example.test",
+        },
+        follow_redirects=False,
+    )
+
+    assert remove_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        user = database_session.get(WebUser, user_id)
+        assert user is not None
+        assert user.is_admin is False
 
 
 def test_username_suggestion_uses_first_initial_and_last_name() -> None:

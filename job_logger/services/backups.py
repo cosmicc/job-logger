@@ -68,6 +68,9 @@ _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
         # v1.1.3 added a display-only last-login timestamp. Older full backups
         # should restore with the account shown as never logged in.
         "last_login_at_utc": None,
+        # v1.1.5 added Diagnostics admin grants. Older backups must restore
+        # with managed users lacking that elevated debug capability.
+        "is_admin": False,
     },
     "user_preferences": {
         # v1.1.0 added this preference as default-off. Older full backups should

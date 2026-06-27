@@ -354,6 +354,7 @@ def create_web_user(
     autotask_default_service_desk_role_id: int | str | None = None,
     email: str | None = None,
     disabled: bool = False,
+    is_admin: bool = False,
 ) -> WebUserCreateResult:
     """Create a managed user and assign legacy jobs when this is the first one."""
 
@@ -370,6 +371,7 @@ def create_web_user(
         autotask_default_service_desk_role_id=normalize_optional_autotask_role_id(autotask_default_service_desk_role_id),
         email=normalize_optional_email(email),
         disabled=disabled,
+        is_admin=is_admin,
     )
     database_session.add(user)
     database_session.flush()
@@ -397,6 +399,7 @@ def update_web_user(
     autotask_default_service_desk_role_id: int | str | None,
     email: str | None,
     disabled: bool,
+    is_admin: bool,
 ) -> WebUser:
     """Update editable managed-user fields, including optional password reset."""
 
@@ -412,6 +415,7 @@ def update_web_user(
     user.autotask_default_service_desk_role_id = normalize_optional_autotask_role_id(autotask_default_service_desk_role_id)
     user.email = normalize_optional_email(email)
     user.disabled = disabled
+    user.is_admin = is_admin
     if disabled and not was_disabled:
         invalidate_web_user_sessions(user)
     return user

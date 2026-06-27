@@ -31,7 +31,7 @@ database-managed `WebUser` rows created on `/users`; they store full name,
 username, salted password hash, required Autotask resource ID, optional email
 captured from Autotask Resource lookup, optional default service-desk role ID
 selected from that resource's active Autotask roles, last successful login time,
-and disabled state.
+Admin Diagnostics access, and disabled state.
 Disabled web users must be blocked from new logins and from old signed sessions.
 Managed-user passwords must be at least 8 characters and include lowercase,
 uppercase, number, and symbol characters. Enforce that rule server-side before
@@ -76,13 +76,18 @@ successful assertions, and block disabled managed users. Passkey audit events
 must contain only safe metadata such as user ID, username, credential row ID,
 credential ID prefix, and failure reason.
 
-The `/debug` page and all `/debug/*` actions are config-super-admin-only.
-Normal managed web users must not see a Debug navigation item, and direct
-requests from managed web-user sessions must receive 403 instead of being
-treated as anonymous login redirects.
+The `/debug` page and all `/debug/*` actions are available to the config super
+admin and to managed web users whose `web_users.is_admin` flag is enabled.
+That managed-user Admin flag grants full Diagnostics access only, including
+backup/restore, session invalidation, Autotask tests, failed-login hiding, and
+Cloudflare block controls. It must not grant `/users`, super-admin review
+scope, or any additional job workflow permissions. Normal managed web users
+must not see a Debug navigation item, and direct requests from those sessions
+must receive 403 instead of being treated as anonymous login redirects.
 The Diagnostics **Log out web users** action is CSRF-protected, audited, and
 must invalidate only managed web-user sessions. It must not clear the current
-config super-admin session.
+config super-admin session. If a managed Admin user triggers it, that user is
+included in the invalidation because the account is a managed web user.
 
 The `/users/autotask-resources` lookup endpoint is super-admin-only and must
 return only safe Autotask Resource metadata. Browser code can use it from
@@ -102,8 +107,9 @@ Config menu item or phone-sized Config icon, must receive 403 on direct
 `/config` access, and always renders in dark mode. Phone-sized super-admin
 navigation may show Users, Review, and Diagnostics icons; those links do not
 grant any capability beyond the server-side authorization checks on the target
-routes. Phone-sized managed-user navigation may show Home, Review, and Config,
-but must not show Debug. Phone-sized logout controls must submit the normal
+routes. Phone-sized managed-user navigation may show Home, Review, Config, and
+Diagnostics only when `web_users.is_admin` is enabled. Non-admin managed users
+must not show Debug. Phone-sized logout controls must submit the normal
 CSRF-protected `/logout` form rather than using browser-only close behavior.
 Theme and workflow preferences are not secrets, but autosaving them is still a
 state-changing action that must require
@@ -394,26 +400,28 @@ Delete From Autotask fails, and it must warn that the Autotask entry may still
 exist.
 
 The `/debug` full backup and restore actions are the supported whole-app data
-export/import path. They must remain super-admin-only and CSRF-protected. Backup
-files contain all Job Logger database rows, including managed web-user password
-hashes and customer/work history, and should be treated as sensitive. Restore
-must validate backup format, version, required tables, and expected columns
-before deleting current rows, must use the application backup service instead
-of ad hoc shell commands, and must record a post-restore audit event after the
-backup data has been restored. Narrow backward-compatible defaults are allowed
-for newly added safe columns, such as defaulting
-`user_preferences.submit_from_work_in_progress` to false when restoring v1.0.2
-backups. Failed confirmation, oversized upload, malformed JSON, wrong format,
-or unsupported schema mismatch must leave current database rows untouched.
+export/import path. They must remain limited to Diagnostics-authorized users
+and CSRF-protected. Backup files contain all Job Logger database rows,
+including managed web-user password hashes and customer/work history, and
+should be treated as sensitive. Restore must validate backup format, version,
+required tables, and expected columns before deleting current rows, must use the
+application backup service instead of ad hoc shell commands, and must record a
+post-restore audit event after the backup data has been restored. Narrow
+backward-compatible defaults are allowed for newly added safe columns, such as
+defaulting `user_preferences.submit_from_work_in_progress` to false when
+restoring v1.0.2 backups. Failed confirmation, oversized upload, malformed
+JSON, wrong format, or unsupported schema mismatch must leave current database
+rows untouched.
 
 Automatic backups use the same full-backup content format and restore path.
 The scheduler writes one startup file and then hourly files under
 `AUTOMATIC_BACKUP_DIR`, defaulting to a host-mounted runtime backup directory in
 Docker. Keep the backup directory
 private: files must be written through owner-only temporary files when possible,
-directory listings and downloads must be super-admin-only, selected download or
-restore filenames must be strictly validated instead of trusting form paths, and
-retention must purge expired automatic backups after successful backup creation.
+directory listings and downloads must be Diagnostics-authorized only, selected
+download or restore filenames must be strictly validated instead of trusting
+form paths, and retention must purge expired automatic backups after successful
+backup creation.
 Creation audit details may include safe source metadata so `/debug` can label a
 retained automatic backup as `Startup` or `Hourly`; do not infer or expose
 sensitive runtime state for older files that lack that metadata.

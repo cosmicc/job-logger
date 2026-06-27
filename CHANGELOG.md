@@ -38,6 +38,13 @@ All notable changes to Job Logger are documented in this file.
   hosts; public remote transcription endpoints must use HTTPS.
 - Changed successful-login Diagnostics rows to show `Password` and `Passkey`
   as colored status pills for quicker scanning.
+- Added a default-off managed web-user Admin flag on `/users` that grants full
+  `/debug` Diagnostics access, including existing buttons and options, without
+  granting `/users`, super-admin review scope, or extra job workflow
+  permissions.
+- Added migration `0017_web_user_debug_admin` and full-backup restore
+  compatibility so older backups restore managed users with Diagnostics admin
+  access disabled.
 
 ## v1.1.4 - Login protection, Work in Progress controls, diagnostics, and deployment safety
 

@@ -35,6 +35,7 @@
                   <th scope="col">Role ID</th>
                   <th scope="col">Last login</th>
                   <th scope="col">Device</th>
+                  <th scope="col">Admin</th>
                   <th scope="col">Status</th>
                   <th scope="col">Jobs</th>
                   <th scope="col">Actions</th>
@@ -102,6 +103,13 @@
                         </span>
                       {% endif %}
                     </td>
+                    <td data-label="Admin">
+                      {% if row.user.is_admin %}
+                        <span class="status-chip user-admin-chip user-admin-enabled">Admin</span>
+                      {% else %}
+                        <span class="status-chip user-admin-chip user-admin-standard">User</span>
+                      {% endif %}
+                    </td>
                     <td data-label="Status">
                       {% if row.user.disabled %}
                         <span class="status-chip user-status-chip user-status-disabled">Disabled</span>
@@ -137,6 +145,9 @@
                             <input type="hidden" name="password" value="">
                             <input type="hidden" name="autotask_resource_id" value="{{ row.user.autotask_resource_id }}">
                             <input type="hidden" name="autotask_resource_email" value="{{ row.user.email or '' }}">
+                            {% if row.user.is_admin %}
+                              <input type="hidden" name="is_admin" value="1">
+                            {% endif %}
                             <input
                               type="hidden"
                               name="autotask_default_service_desk_role_id"
@@ -183,7 +194,7 @@
                     data-user-id="{{ row.user.id }}"
                     hidden
                   >
-                    <td colspan="10">
+                    <td colspan="11">
                       <form
                         id="user-update-{{ row.user.id }}"
                         method="post"
@@ -282,6 +293,15 @@
                               {% if row.user.disabled %}checked{% endif %}
                             >
                             <span>Disabled account</span>
+                          </label>
+                          <label class="checkbox-label user-admin-toggle">
+                            <input
+                              name="is_admin"
+                              type="checkbox"
+                              value="1"
+                              {% if row.user.is_admin %}checked{% endif %}
+                            >
+                            <span>Admin (Debug access)</span>
                           </label>
                           <div class="user-edit-actions">
                             <button class="secondary-button" type="button" data-user-edit-cancel data-user-id="{{ row.user.id }}">
@@ -388,6 +408,10 @@
             <label class="checkbox-label">
               <input name="disabled" type="checkbox" value="1">
               <span>Disabled account</span>
+            </label>
+            <label class="checkbox-label">
+              <input name="is_admin" type="checkbox" value="1">
+              <span>Admin (Debug access)</span>
             </label>
             <button class="primary-button" type="submit">
               <svg viewBox="0 0 24 24" aria-hidden="true">
