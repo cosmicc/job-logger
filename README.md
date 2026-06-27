@@ -48,7 +48,9 @@ Autotask REST API references used by this app:
    super admin for diagnostics and user management; it does not create work
    entries because it has no Autotask resource ID.
 
-3. Replace `APP_SECRET_KEY` with a long random value.
+3. Replace `APP_SECRET_KEY` and `POSTGRES_PASSWORD` with long random values.
+   Docker Compose fails closed if these secrets are missing, and production
+   startup rejects the documented `replace-with-*` placeholders.
 
 4. Create the host-mounted log directory:
 
@@ -143,6 +145,8 @@ Keep the dev instance isolated from production:
   run on the same Docker host.
 - Set `DEV_BUILD=true` in the dev `.env` so the authenticated header clearly
   marks the instance as dev.
+- Set `APP_ENV=development` only for an isolated dev instance. Production keeps
+  `APP_ENV=production` and `CLOUDFLARE_ACCESS_REQUIRED=true`.
 - Use real Autotask credentials only when the dev workflow intentionally needs
   live Autotask testing. Keep `AUTOTASK_PROVIDER=mock` for isolated UI or
   workflow-only checks.
@@ -179,14 +183,14 @@ tunnel connector all come up with one `docker compose up -d --build` command.
    running on a different host, because those addresses can change and produce
    Cloudflare 502 errors.
 
-3. Optionally create a Cloudflare Access self-hosted application for that hostname.
+3. Create a Cloudflare Access self-hosted application for that hostname.
 4. Put the same hostname in `.env` under `APP_ALLOWED_HOSTS`.
 5. Put the tunnel token in `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
    If this token is missing or invalid, Cloudflare will return a 502 and
    `cloudflared` will repeatedly restart.
-6. Leave `CLOUDFLARE_ACCESS_REQUIRED=false` when using only the app's
-   `APP_USERNAME` and `APP_PASSWORD` login. Set it to `true` only after
-   Cloudflare Access is configured and verified for the public hostname.
+6. Keep `CLOUDFLARE_ACCESS_REQUIRED=true` for production. With
+   `APP_ENV=production`, the app refuses to start unless Cloudflare Access and
+   secure session cookies are enabled.
 7. Set `WEBAUTHN_ORIGIN` to the public HTTPS origin that phones see in the
    browser, such as `https://logger.example.com`, before using passkeys through
    Cloudflare Tunnel. The bundled nginx origin also preserves Cloudflare's
@@ -218,13 +222,12 @@ troubleshooting URL reaches Nginx on `127.0.0.1`, not the app container
 directly.
 
 Nginx binds `HTTP_PORT` on `BIND_ADDRESS` so the Compose-managed tunnel can
-reach the origin through host networking. If `BIND_ADDRESS=127.0.0.1` and
-`HTTP_PORT=2082`, set the Cloudflare Tunnel service route to
-`http://127.0.0.1:2082`. If you intentionally bind to `0.0.0.0` or point a
-remotely managed tunnel at a LAN/server IP, keep host firewall rules limited to
-trusted networks or the tunnel connector path because direct LAN access to this
-port bypasses Cloudflare Access. Application login still protects the app
-itself.
+reach the origin through host networking. The default bind is `127.0.0.1`. If
+`BIND_ADDRESS=127.0.0.1` and `HTTP_PORT=2082`, set the Cloudflare Tunnel service
+route to `http://127.0.0.1:2082`. Avoid binding to `0.0.0.0`; direct LAN access
+to this port bypasses Cloudflare Access. Application login still protects the
+app itself, but production is intended to enter through Cloudflare Tunnel plus
+Access.
 
 `HTTP_PORT` is the configurable host-facing port. `NGINX_PUBLIC_PORT` remains a
 backward-compatible fallback for older `.env` files when `HTTP_PORT` is unset.
@@ -933,9 +936,11 @@ container. Docker Compose bind-mounts that directory from
 under `/var/log/job-logger/`. The logs and debug page include timestamp, client
 IP, proxy header details, username, user agent, request path, host/proxy
 metadata, account kind, authentication method, failure reason, and
-password-present/length metadata for failures. When `X-Forwarded-For` is
-present, the first forwarded address is shown as the client IP so Cloudflare
-Tunnel deployments show the actual browser address instead of the tunnel peer.
+password-present/length metadata for failures. Nginx replaces incoming
+forwarded client headers with one sanitized client IP before proxying to the
+app. Diagnostics show that client IP plus the supporting proxy metadata, while
+local lockout and Cloudflare blocking use the trusted enforcement IP instead of
+display-only request headers.
 Successful-login rows use a yellow account chip for the config super admin, a
 green chip for managed web users, and colored `Password` or `Passkey` method
 pills.
@@ -949,8 +954,11 @@ raw JSONL download. When `CLOUDFLARE_IP_BLOCKING_ENABLED=true` and
 create and remove app-managed Cloudflare zone IP Access Rules for failed-login
 client IPs. Job Logger automatically creates a Cloudflare block after
 `CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS` consecutive failed local logins
-from the same displayed client IP, defaulting to 5; a successful password or
-Device sign-in login from that IP resets the counter to zero first.
+from the same trusted enforcement IP and submitted username, defaulting to 5.
+The same threshold locally blocks further password or Device sign-in
+verification for `LOGIN_LOCAL_LOCKOUT_MINUTES`, defaulting to 15. A successful
+password or Device sign-in login for that IP and username resets the counter to
+zero first.
 `CLOUDFLARE_IP_BLOCK_ALLOWLIST` accepts trusted IPs or CIDRs separated by
 commas or whitespace so home/admin addresses are never app-blocked.
 

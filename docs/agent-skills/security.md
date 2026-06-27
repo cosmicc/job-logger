@@ -149,17 +149,26 @@ username, account kind, authentication method, username length/truncation for
 failures, user agent, request path, host/proxy metadata, reason, and
 password-present/length metadata for failures. They must never include the raw
 submitted password, session tokens, authentication headers, or Cloudflare
-Access JWTs. When `X-Forwarded-For` is present, the first forwarded address is
-the display `client_ip` for login diagnostics; retain the direct socket peer
-and other proxy headers as supporting metadata only. Failed-login rows may be
-hidden from the `/debug` table by storing their raw-line hash in
-`hidden_login_failures`; never edit or truncate the raw JSONL audit download.
-`login_failure_counters` stores consecutive failures by displayed `client_ip`
-and must reset to zero after a successful password or Device sign-in login from
-that IP. When Cloudflare blocking is enabled, the app may create/delete only
-zone IP Access Rules tracked in `cloudflare_ip_blocks`, must honor
-`CLOUDFLARE_IP_BLOCK_ALLOWLIST`, and must not mutate unrelated Cloudflare
-rules. The successful-login table may use a yellow account-kind chip for config
+Access JWTs. The visible `client_ip` is diagnostics-only. In the bundled Docker
+path, nginx must overwrite forwarded client headers with a single sanitized
+Cloudflare Tunnel client IP, preferring `CF-Connecting-IP` and falling back to
+the direct nginx peer. Local login lockout and automatic Cloudflare block
+decisions must use the trusted enforcement IP from nginx-sanitized
+`X-Real-IP`/`X-Forwarded-For`, falling back to the direct app socket peer only
+outside the bundled proxy path. Retain direct socket and proxy headers as
+supporting metadata only. Failed-login rows may be hidden from the `/debug`
+table by storing their raw-line hash in `hidden_login_failures`; never edit or
+truncate the raw JSONL audit download. `login_failure_counters` stores
+consecutive failures by trusted enforcement IP and case-insensitive submitted
+username, and must reset to zero after a successful password or Device sign-in
+login for that same IP/username key. When the counter reaches
+`CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS`, the app must locally block
+additional password or Device sign-in verification for
+`LOGIN_LOCAL_LOCKOUT_MINUTES`, defaulting to 15. When Cloudflare blocking is
+enabled, the app may create/delete only zone IP Access Rules tracked in
+`cloudflare_ip_blocks`, must honor `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, and must
+not mutate unrelated Cloudflare rules. The successful-login table may use a
+yellow account-kind chip for config
 super-admin rows so they are easy to distinguish from managed web users, and
 may show `Password` or `Passkey` method pills for the already-sanitized
 authentication method. Near the bottom of `/debug`, the page may show a
@@ -451,10 +460,15 @@ restore uploads may have a larger nginx body limit, but that limit must stay
 scoped to `/debug/restore`.
 
 Cloudflare Tunnel tokens, Cloudflare API tokens, and app secrets must remain
-outside source control. Docker nginx publishing uses `BIND_ADDRESS` plus
-`HTTP_PORT`, with `NGINX_PUBLIC_PORT` retained only as a compatibility fallback;
-when `BIND_ADDRESS=127.0.0.1`, the bundled host-networked `cloudflared`
-connector should target the same loopback origin URL.
+outside source control. Docker Compose must not provide working default app,
+database, or session secrets. Production startup must fail unless
+`CLOUDFLARE_ACCESS_REQUIRED=true`, `APP_SESSION_COOKIE_SECURE=true`, non-default
+app/database secrets that are not copied placeholders are configured, and
+`AUTOTASK_PROVIDER=autotask` is used.
+Docker nginx publishing uses `BIND_ADDRESS` plus `HTTP_PORT`, with
+`NGINX_PUBLIC_PORT` retained only as a compatibility fallback; the default bind
+is `127.0.0.1` and the bundled host-networked `cloudflared` connector should
+target the same loopback origin URL.
 
 ## Tests To Consider
 

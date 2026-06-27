@@ -35,7 +35,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
-    assert "## v1.1.5 - AI cleanup revert and speech-to-text updates" in web_changelog_text
+    assert "## v1.1.5 - AI cleanup, speech-to-text, and sign-in updates" in web_changelog_text
     assert "## v1.1.4 - Login protection, Work in Progress controls, and deployment safety" in web_changelog_text
     assert "## v1.1.3 - Review visibility and Work in Progress refinements" in web_changelog_text
     assert "## v1.1.2 - User management, ticket status, and Device sign-in updates" in web_changelog_text
@@ -75,12 +75,13 @@ def test_changelog_parser_reads_current_release() -> None:
 
     assert current_entry == ChangelogEntry(
         version="v1.1.5",
-        title="AI cleanup revert and speech-to-text updates",
+        title="AI cleanup, speech-to-text, and sign-in updates",
         changes=(
             "AI Cleanup can now switch to Revert cleanup and restore the pre-cleanup notes after reloads.",
             "Revert cleanup drafts now expire automatically instead of being kept forever.",
             "Submitted Review entries can keep cleaned draft notes until Submit changes is clicked.",
             "Speech-to-text can now use a trusted remote faster-whisper server.",
+            "Sign-in now temporarily blocks repeated failed attempts before checking another password.",
         ),
     )
 
@@ -111,11 +112,12 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
-    assert "AI cleanup revert and speech-to-text updates" in response.text
+    assert "AI cleanup, speech-to-text, and sign-in updates" in response.text
     assert "AI Cleanup can now switch to Revert cleanup and restore the pre-cleanup notes after reloads." in response.text
     assert "Revert cleanup drafts now expire automatically instead of being kept forever." in response.text
     assert "Submitted Review entries can keep cleaned draft notes until Submit changes is clicked." in response.text
     assert "Speech-to-text can now use a trusted remote faster-whisper server." in response.text
+    assert "Sign-in now temporarily blocks repeated failed attempts before checking another password." in response.text
     assert "Login protection, Work in Progress controls, and deployment safety" in response.text
     assert "Review visibility and Work in Progress refinements" in response.text
     assert "Review rows now show whether each job is Remote or On-Site." in response.text
@@ -183,7 +185,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
-    v115_index = response.text.index("AI cleanup revert and speech-to-text updates")
+    v115_index = response.text.index("AI cleanup, speech-to-text, and sign-in updates")
     v114_index = response.text.index("Login protection, Work in Progress controls, and deployment safety")
     v113_index = response.text.index("Review visibility and Work in Progress refinements")
     v112_index = response.text.index("User management, ticket status, and Device sign-in updates")
@@ -200,7 +202,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert v110_index < v102_index
     assert v102_index < v101_index
     assert v101_index < v100_index
-    assert '<h2 id="current-version-heading">AI cleanup revert and speech-to-text updates</h2>' in response.text
+    assert '<h2 id="current-version-heading">AI cleanup, speech-to-text, and sign-in updates</h2>' in response.text
     assert '<span class="release-version">v1.1.5</span>' in response.text
     assert '<span class="release-version">v1.1.4</span>' in response.text
     assert '<span class="release-version">v1.1.3</span>' in response.text

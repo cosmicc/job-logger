@@ -45,6 +45,24 @@ All notable changes to Job Logger are documented in this file.
 - Added migration `0017_web_user_debug_admin` and full-backup restore
   compatibility so older backups restore managed users with Diagnostics admin
   access disabled.
+- Added local pre-authentication login lockout after
+  `CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS` failures for the same trusted
+  enforcement IP and submitted username. The lockout lasts
+  `LOGIN_LOCAL_LOCKOUT_MINUTES`, defaulting to 15, and applies even when
+  Cloudflare auto-blocking is disabled or the Cloudflare API is unavailable.
+- Added migration `0018_login_counter_lockout` so failed-login
+  counters are scoped by trusted enforcement IP plus username, with full-backup
+  restore compatibility for older counter rows.
+- Changed automatic and manual Cloudflare failed-login blocks to use the trusted
+  enforcement IP instead of the display-only client IP, and changed nginx to
+  replace incoming `X-Forwarded-For` with a sanitized tunnel client IP.
+- Changed Docker Compose and runtime validation to fail closed for production:
+  Compose now requires `APP_SECRET_KEY`, `APP_PASSWORD`, and
+  `POSTGRES_PASSWORD`; defaults to loopback nginx binding, secure session
+  cookies, and Cloudflare Access required; and the app refuses production
+  startup when Access, secure cookies, non-default/non-placeholder secrets, or
+  live Autotask are missing.
+- Added production `Strict-Transport-Security` response headers.
 
 ## v1.1.4 - Login protection, Work in Progress controls, diagnostics, and deployment safety
 

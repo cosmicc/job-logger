@@ -435,6 +435,7 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
     log_payload = json.loads(log_text.strip())
     assert log_payload["username"] == "bad-user"
     assert log_payload["client_ip"] == "203.0.113.9"
+    assert log_payload["enforcement_client_ip"] == "198.51.100.7"
     assert log_payload["x_real_ip"] == "198.51.100.7"
     assert log_payload["x_forwarded_for"] == "203.0.113.9, 10.0.0.2"
     assert log_payload["forwarded_proto"] == "https"
@@ -483,6 +484,7 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
     assert "bad-user" in debug_response.text
     assert "198.51.100.7" in debug_response.text
     assert "203.0.113.9, 10.0.0.2" in debug_response.text
+    assert "Enforcement IP" in debug_response.text
     assert re.search(r'<td class="login-client-ip-cell">\s*203\.0\.113\.9', debug_response.text)
     assert "login-details-button" in debug_response.text
     assert "Extra info" in debug_response.text
@@ -643,7 +645,12 @@ def test_failed_login_auto_blocks_cloudflare_ip_after_five_consecutive_failures(
 
     assert created_blocks == [("198.51.100.55", "automatic", 5)]
     with database.SessionLocal() as database_session:
-        counter = database_session.scalar(select(LoginFailureCounter).where(LoginFailureCounter.client_ip == "198.51.100.55"))
+        counter = database_session.scalar(
+            select(LoginFailureCounter).where(
+                LoginFailureCounter.client_ip == "198.51.100.55",
+                LoginFailureCounter.username == "bad-user",
+            )
+        )
         assert counter is not None
         assert counter.failed_count == 5
         block = database_session.scalar(select(CloudflareIPBlock))
@@ -662,6 +669,136 @@ def test_failed_login_auto_blocks_cloudflare_ip_after_five_consecutive_failures(
     ]
     assert failure_payloads[-1]["failed_count"] == 5
     assert failure_payloads[-1]["max_attempts"] == 5
+
+
+def test_cloudflare_auto_block_uses_enforcement_ip_not_display_xff(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    """Spoofed XFF display data should not control the Cloudflare block target."""
+
+    created_blocks: list[str] = []
+
+    def fake_create_app_cloudflare_block(
+        database_session: Session,
+        ip_address: str,
+        *,
+        source: str,
+        reason: str,
+        failure_count: int | None = None,
+        application_settings=settings,
+    ) -> CloudflareIPBlock:
+        created_blocks.append(ip_address)
+        block = CloudflareIPBlock(
+            ip_address=ip_address,
+            cloudflare_rule_id="cf-enforcement-rule",
+            source=source,
+            reason=reason,
+            failure_count=failure_count,
+            notes="Job Logger automatic block",
+        )
+        database_session.add(block)
+        database_session.flush()
+        return block
+
+    monkeypatch.setattr(
+        "job_logger.services.login_protection.cloudflare_ip_blocking_configured",
+        lambda application_settings=settings: True,
+    )
+    monkeypatch.setattr(
+        "job_logger.services.login_protection.create_app_cloudflare_block",
+        fake_create_app_cloudflare_block,
+    )
+
+    for _ in range(5):
+        login_page_response = client.get("/login")
+        csrf_token = extract_csrf_token(login_page_response.text)
+        failed_response = client.post(
+            "/login",
+            headers={
+                "X-Real-IP": "198.51.100.70",
+                "X-Forwarded-For": "203.0.113.250",
+            },
+            data={"csrf_token": csrf_token, "username": "admin", "password": "bad-password"},
+            follow_redirects=False,
+        )
+        assert failed_response.status_code == 303
+
+    assert created_blocks == ["198.51.100.70"]
+    failure_payloads = [
+        json.loads(line)
+        for line in Path(os.environ["LOGIN_FAILURE_LOG_PATH"]).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert failure_payloads[-1]["client_ip"] == "203.0.113.250"
+    assert failure_payloads[-1]["enforcement_client_ip"] == "198.51.100.70"
+
+    login_as_super_admin(client)
+    debug_response = client.get("/debug")
+    assert debug_response.status_code == 200
+    assert 'name="ip_address" value="198.51.100.70"' in debug_response.text
+    assert 'name="ip_address" value="203.0.113.250"' not in debug_response.text
+
+
+def test_local_login_lockout_blocks_before_password_verification(client: TestClient) -> None:
+    """The app should locally block more attempts after the failed-login threshold."""
+
+    for _ in range(5):
+        login_page_response = client.get("/login")
+        csrf_token = extract_csrf_token(login_page_response.text)
+        failed_response = client.post(
+            "/login",
+            headers={"X-Real-IP": "198.51.100.80"},
+            data={"csrf_token": csrf_token, "username": "admin", "password": "bad-password"},
+            follow_redirects=False,
+        )
+        assert failed_response.status_code == 303
+
+    login_page_response = client.get("/login")
+    csrf_token = extract_csrf_token(login_page_response.text)
+    locked_response = client.post(
+        "/login",
+        headers={"X-Real-IP": "198.51.100.80"},
+        data={"csrf_token": csrf_token, "username": "admin", "password": "test-password"},
+        follow_redirects=True,
+    )
+    assert locked_response.status_code == 200
+    assert "Too many failed sign-in attempts" in locked_response.text
+    assert client.get("/users", follow_redirects=False).headers["location"] == "/login"
+
+    failure_payloads = [
+        json.loads(line)
+        for line in Path(os.environ["LOGIN_FAILURE_LOG_PATH"]).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert failure_payloads[-1]["reason"] == "local_lockout"
+    assert failure_payloads[-1]["lockout_applied"] is True
+    assert failure_payloads[-1]["failed_count"] == 5
+    assert failure_payloads[-1]["password_length"] == len("test-password")
+    assert "test-password" not in Path(os.environ["LOGIN_FAILURE_LOG_PATH"]).read_text(encoding="utf-8")
+
+    with database.SessionLocal() as database_session:
+        counter = database_session.scalar(
+            select(LoginFailureCounter).where(
+                LoginFailureCounter.client_ip == "198.51.100.80",
+                LoginFailureCounter.username == "admin",
+            )
+        )
+        assert counter is not None
+        assert counter.failed_count == 5
+        counter.last_failed_at_utc = datetime.now(UTC) - timedelta(minutes=16)
+        database_session.commit()
+
+    login_page_response = client.get("/login")
+    csrf_token = extract_csrf_token(login_page_response.text)
+    unlocked_response = client.post(
+        "/login",
+        headers={"X-Real-IP": "198.51.100.80"},
+        data={"csrf_token": csrf_token, "username": "admin", "password": "test-password"},
+        follow_redirects=False,
+    )
+    assert unlocked_response.status_code == 303
+    assert unlocked_response.headers["location"] == "/users"
 
 
 def test_successful_login_resets_consecutive_failures_before_auto_block(
@@ -688,7 +825,7 @@ def test_successful_login_resets_consecutive_failures_before_auto_block(
         failed_response = client.post(
             "/login",
             headers={"X-Forwarded-For": "198.51.100.60"},
-            data={"csrf_token": csrf_token, "username": "bad-user", "password": "bad-password"},
+            data={"csrf_token": csrf_token, "username": "admin", "password": "bad-password"},
             follow_redirects=False,
         )
         assert failed_response.status_code == 303
@@ -704,7 +841,12 @@ def test_successful_login_resets_consecutive_failures_before_auto_block(
     assert success_response.status_code == 303
 
     with database.SessionLocal() as database_session:
-        counter = database_session.scalar(select(LoginFailureCounter).where(LoginFailureCounter.client_ip == "198.51.100.60"))
+        counter = database_session.scalar(
+            select(LoginFailureCounter).where(
+                LoginFailureCounter.client_ip == "198.51.100.60",
+                LoginFailureCounter.username == "admin",
+            )
+        )
         assert counter is not None
         assert counter.failed_count == 0
 
@@ -720,7 +862,12 @@ def test_successful_login_resets_consecutive_failures_before_auto_block(
     assert failed_response.status_code == 303
 
     with database.SessionLocal() as database_session:
-        counter = database_session.scalar(select(LoginFailureCounter).where(LoginFailureCounter.client_ip == "198.51.100.60"))
+        counter = database_session.scalar(
+            select(LoginFailureCounter).where(
+                LoginFailureCounter.client_ip == "198.51.100.60",
+                LoginFailureCounter.username == "bad-user",
+            )
+        )
         assert counter is not None
         assert counter.failed_count == 1
         assert database_session.scalar(select(CloudflareIPBlock)) is None
@@ -1682,6 +1829,7 @@ def test_debug_restore_defaults_missing_cloudflare_security_tables_to_empty(
         database_session.add(
             LoginFailureCounter(
                 client_ip="198.51.100.77",
+                username="admin",
                 failed_count=3,
                 created_at_utc=datetime(2026, 6, 24, 12, 0, tzinfo=UTC),
                 updated_at_utc=datetime(2026, 6, 24, 12, 0, tzinfo=UTC),
@@ -1745,6 +1893,63 @@ def test_debug_restore_defaults_missing_cloudflare_security_tables_to_empty(
         assert database_session.scalar(select(func.count(CloudflareIPBlock.id))) == 0
         assert database_session.scalar(select(func.count(HiddenLoginFailure.id))) == 0
         assert database_session.scalar(select(func.count(LoginFailureCounter.id))) == 0
+
+
+def test_debug_restore_defaults_missing_login_counter_username(
+    super_admin_client: TestClient,
+) -> None:
+    """Restore backups that predate username-scoped local login counters."""
+
+    with database.SessionLocal() as database_session:
+        database_session.add(
+            LoginFailureCounter(
+                client_ip="198.51.100.88",
+                username="admin",
+                failed_count=4,
+                created_at_utc=datetime(2026, 6, 27, 12, 0, tzinfo=UTC),
+                updated_at_utc=datetime(2026, 6, 27, 12, 0, tzinfo=UTC),
+            )
+        )
+        database_session.commit()
+
+    debug_page_response = super_admin_client.get("/debug")
+    csrf_token = extract_csrf_token(debug_page_response.text)
+    backup_response = super_admin_client.post(
+        "/debug/backup",
+        data={"csrf_token": csrf_token},
+    )
+    payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
+    for row in payload["tables"]["login_failure_counters"]:
+        row.pop("username", None)
+    payload["schema"]["login_failure_counters"].remove("username")
+    legacy_backup_content = gzip.compress(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+        mtime=0,
+    )
+
+    restore_page_response = super_admin_client.get("/debug")
+    restore_csrf_token = extract_csrf_token(restore_page_response.text)
+    restore_response = super_admin_client.post(
+        "/debug/restore",
+        data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
+        files={
+            "backup_file": (
+                "job-logger-pre-login-counter-username-full-backup.json.gz",
+                legacy_backup_content,
+                "application/gzip",
+            )
+        },
+        follow_redirects=False,
+    )
+
+    assert restore_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        counter = database_session.scalar(
+            select(LoginFailureCounter).where(LoginFailureCounter.client_ip == "198.51.100.88")
+        )
+        assert counter is not None
+        assert counter.username == ""
+        assert counter.failed_count == 4
 
 
 def test_debug_restore_requires_confirmation(super_admin_client: TestClient) -> None:

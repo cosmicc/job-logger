@@ -77,6 +77,12 @@ _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
         # restore into the safer review-first workflow instead of being rejected.
         "submit_from_work_in_progress": False,
     },
+    "login_failure_counters": {
+        # v1.1.5 scoped local lockout counters by username. Older backups had
+        # at most one counter per IP, so the empty username preserves restore
+        # compatibility without granting an active user-specific lockout.
+        "username": "",
+    },
 }
 _BACKWARD_COMPATIBLE_EMPTY_TABLES = {
     # v1.1.0 added passkeys after full backup support. Older backups should

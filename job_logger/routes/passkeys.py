@@ -23,7 +23,11 @@ from job_logger.security import (
 )
 from job_logger.services.audit import record_audit_event
 from job_logger.services.login_failures import log_successful_login_attempt, reset_login_failure_counter
-from job_logger.services.login_protection import record_failed_login_attempt_and_maybe_block
+from job_logger.services.login_protection import (
+    current_login_lockout,
+    record_failed_login_attempt_and_maybe_block,
+    record_local_login_lockout,
+)
 from job_logger.services.passkeys import (
     PasskeyError,
     begin_passkey_authentication,
@@ -191,11 +195,34 @@ async def passkey_login_verify(
     """Verify a passkey assertion and create a managed-user session."""
 
     validate_csrf_header(request)
+    lockout_state = current_login_lockout(
+        database_session,
+        request,
+        submitted_username="passkey",
+    )
+    if lockout_state.locked:
+        record_local_login_lockout(
+            database_session,
+            request,
+            submitted_username="passkey",
+            submitted_password="",
+            lockout_state=lockout_state,
+        )
+        database_session.commit()
+        return JSONResponse(
+            {
+                "detail": "Too many failed device sign-in attempts. Try again later.",
+                "fallback": "password",
+            },
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
     try:
         credential_payload = await _json_payload(request)
         authentication = finish_passkey_authentication(database_session, request, credential_payload)
         web_user = authentication.web_user
-        reset_login_failure_counter(database_session, request)
+        reset_login_failure_counter(database_session, request, submitted_username="passkey")
+        reset_login_failure_counter(database_session, request, submitted_username=web_user.username)
         mark_web_user_login_succeeded(web_user)
         login_web_user_session(
             request,

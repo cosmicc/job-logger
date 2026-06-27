@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from job_logger.database import Base
@@ -246,39 +246,47 @@ class WebAuthnCredential(Base):
 
 
 class LoginFailureCounter(Base):
-    """Persistent consecutive failed-login count for one displayed client IP."""
+    """Persistent consecutive failed-login count for one enforcement IP and username."""
 
     __tablename__ = "login_failure_counters"
 
     # id is a UUID so counter rows are portable across PostgreSQL and SQLite tests.
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string, comment="Stable counter UUID.")
 
-    # client_ip is the sanitized login diagnostics IP, usually the first X-Forwarded-For value.
+    # client_ip is the trusted enforcement IP from sanitized proxy headers or the socket peer.
     client_ip: Mapped[str] = mapped_column(
         String(64),
         nullable=False,
-        unique=True,
-        comment="Displayed login client IP whose consecutive failures are counted.",
+        comment="Trusted login enforcement IP whose consecutive failures are counted.",
     )
 
-    # failed_count resets to zero after a successful local login from this IP.
+    # username is case-folded so username case changes cannot bypass local lockout.
+    username: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        default="",
+        server_default="",
+        comment="Case-insensitive submitted username whose consecutive failures are counted.",
+    )
+
+    # failed_count resets to zero after a successful local login for this IP and username.
     failed_count: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=0,
         server_default="0",
-        comment="Consecutive failed local app logins from this client IP.",
+        comment="Consecutive failed local app logins for this client IP and username.",
     )
 
     last_failed_at_utc: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
-        comment="UTC timestamp for the most recent failed login from this client IP.",
+        comment="UTC timestamp for the most recent failed login for this client IP and username.",
     )
     last_success_at_utc: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
-        comment="UTC timestamp for the most recent successful login that reset this counter.",
+        comment="UTC timestamp for the most recent successful login that reset this IP and username counter.",
     )
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(
@@ -288,7 +296,10 @@ class LoginFailureCounter(Base):
         nullable=False,
     )
 
-    __table_args__ = (Index("ix_login_failure_counters_client_ip", "client_ip"),)
+    __table_args__ = (
+        UniqueConstraint("client_ip", "username", name="uq_login_failure_counters_client_ip_username"),
+        Index("ix_login_failure_counters_client_ip", "client_ip"),
+    )
 
 
 class CloudflareIPBlock(Base):

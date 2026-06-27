@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 from collections import deque
@@ -25,6 +26,7 @@ MAX_USERNAME_LOG_CHARS = 255
 MAX_CLIENT_IP_LOG_CHARS = 64
 MAX_USER_AGENT_LOG_CHARS = 255
 MAX_TEXT_FIELD_CHARS = 512
+MAX_COUNTER_USERNAME_CHARS = 255
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,7 @@ class LoginFailureRecord:
     created_at_utc: str
     created_at_display: str
     client_ip: str
+    enforcement_client_ip: str
     direct_client_ip: str
     x_real_ip: str
     x_forwarded_for: str
@@ -118,6 +121,56 @@ def client_ip_from_request(request: Request | None) -> str:
     return "unknown"
 
 
+def _normalized_ip_address(value: str) -> str | None:
+    """Return a canonical IP string for security decisions, or None."""
+
+    try:
+        return str(ipaddress.ip_address(value.strip()))
+    except ValueError:
+        return None
+
+
+def _first_forwarded_ip(request: Request | None) -> str:
+    """Return the first X-Forwarded-For value for trusted proxy contexts."""
+
+    if request is None:
+        return ""
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    return forwarded_for.split(",", maxsplit=1)[0].strip() if forwarded_for else ""
+
+
+def enforcement_client_ip_from_request(request: Request | None) -> str:
+    """Return the login-throttling IP from sanitized proxy headers or the socket peer.
+
+    The public diagnostics IP can include display-only forwarded data. This
+    value is the IP used for local lockout counters and Cloudflare block
+    decisions. In Docker deployments, nginx overwrites X-Real-IP and
+    X-Forwarded-For before the app sees the request.
+    """
+
+    if request is None:
+        return "unknown"
+
+    for candidate in (
+        request.headers.get("x-real-ip", "").strip(),
+        _first_forwarded_ip(request),
+    ):
+        normalized_ip = _normalized_ip_address(candidate)
+        if normalized_ip is not None:
+            return _bounded_text(normalized_ip, MAX_CLIENT_IP_LOG_CHARS)
+
+    if request.client is not None and request.client.host:
+        return _bounded_text(request.client.host, MAX_CLIENT_IP_LOG_CHARS)
+
+    return "unknown"
+
+
+def login_counter_username(submitted_username: str) -> str:
+    """Return the case-insensitive username key used by local login lockout."""
+
+    return _bounded_text(submitted_username.strip().casefold(), MAX_COUNTER_USERNAME_CHARS)
+
+
 def _direct_client_ip_from_request(request: Request | None) -> str:
     """Return the socket peer IP observed by the app server."""
 
@@ -181,6 +234,10 @@ def _record_from_payload(payload: dict[str, Any]) -> LoginFailureRecord | None:
         created_at_utc=created_at_utc,
         created_at_display=created_at_display,
         client_ip=_bounded_text(str(payload.get("client_ip", "unknown")), MAX_CLIENT_IP_LOG_CHARS),
+        enforcement_client_ip=_bounded_text(
+            str(payload.get("enforcement_client_ip", payload.get("client_ip", "unknown"))),
+            MAX_CLIENT_IP_LOG_CHARS,
+        ),
         direct_client_ip=_bounded_text(str(payload.get("direct_client_ip", "")), MAX_CLIENT_IP_LOG_CHARS),
         x_real_ip=_bounded_text(str(payload.get("x_real_ip", "")), MAX_CLIENT_IP_LOG_CHARS),
         x_forwarded_for=_bounded_text(str(payload.get("x_forwarded_for", ""))),
@@ -233,6 +290,7 @@ def _base_request_payload(request: Request, *, event: str, username: str) -> dic
         "event": event,
         "created_at_utc": datetime.now(UTC).isoformat(),
         "client_ip": client_ip_from_request(request),
+        "enforcement_client_ip": enforcement_client_ip_from_request(request),
         "direct_client_ip": _direct_client_ip_from_request(request),
         "x_real_ip": _request_header(request, "x-real-ip"),
         "x_forwarded_for": _request_header(request, "x-forwarded-for"),
@@ -347,19 +405,23 @@ def _read_recent_payloads(log_path: Path, row_limit: int) -> list[dict[str, Any]
 def increment_login_failure_counter(
     database_session: Session,
     request: Request,
+    *,
+    submitted_username: str,
 ) -> int:
-    """Increment and return the consecutive failed-login count for the request IP."""
+    """Increment and return the failed-login count for the enforcement IP and username."""
 
-    client_ip = client_ip_from_request(request)
+    client_ip = enforcement_client_ip_from_request(request)
+    username = login_counter_username(submitted_username)
     counter = database_session.scalar(
         select(LoginFailureCounter)
-        .where(LoginFailureCounter.client_ip == client_ip)
+        .where(LoginFailureCounter.client_ip == client_ip, LoginFailureCounter.username == username)
         .limit(1)
     )
     current_time = datetime.now(UTC)
     if counter is None:
         counter = LoginFailureCounter(
             client_ip=client_ip,
+            username=username,
             failed_count=0,
             created_at_utc=current_time,
             updated_at_utc=current_time,
@@ -376,13 +438,16 @@ def increment_login_failure_counter(
 def reset_login_failure_counter(
     database_session: Session,
     request: Request,
+    *,
+    submitted_username: str,
 ) -> None:
-    """Reset consecutive failed-login state after a successful local login."""
+    """Reset failed-login state for the successful enforcement IP and username."""
 
-    client_ip = client_ip_from_request(request)
+    client_ip = enforcement_client_ip_from_request(request)
+    username = login_counter_username(submitted_username)
     counter = database_session.scalar(
         select(LoginFailureCounter)
-        .where(LoginFailureCounter.client_ip == client_ip)
+        .where(LoginFailureCounter.client_ip == client_ip, LoginFailureCounter.username == username)
         .limit(1)
     )
     if counter is None:

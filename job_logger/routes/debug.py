@@ -606,9 +606,9 @@ def debug_page(
     blocked_ip_addresses = {block.ip_address for block in all_cloudflare_ip_blocks}
     login_failure_ip_statuses = {}
     for failure in login_failures.records:
-        normalized_ip = normalize_ip_address(failure.client_ip)
+        normalized_ip = normalize_ip_address(failure.enforcement_client_ip)
         login_failure_ip_statuses[failure.entry_id] = {
-            "ip_address": normalized_ip or failure.client_ip,
+            "ip_address": normalized_ip or failure.enforcement_client_ip,
             "valid": normalized_ip is not None,
             "blocked": normalized_ip in blocked_ip_addresses if normalized_ip else False,
             "allowlisted": ip_is_allowlisted(normalized_ip) if normalized_ip else False,

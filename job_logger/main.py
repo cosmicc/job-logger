@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.engine import make_url
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -17,18 +19,86 @@ from job_logger.routes import auth, changelog, configuration, debug, health, mob
 from job_logger.services.backups import automatic_backup_scheduler
 from job_logger.session_timeout import SessionTimeoutMiddleware
 
+# These are unsafe sentinel values used only so startup can reject them.
+DEVELOPMENT_APP_PASSWORD = "admin"  # nosec B105
+DEVELOPMENT_DATABASE_PASSWORD = "job_logger_password"  # nosec B105
+DEVELOPMENT_SECRET_KEY = "development-only-change-me"  # nosec B105
+HSTS_HEADER_VALUE = "max-age=15552000"
+PLACEHOLDER_SECRET_PREFIX = "replace-with-"  # nosec B105
+
+
+def _is_loopback_bind_address(bind_address: str) -> bool:
+    """Return whether the host-facing origin bind is limited to loopback."""
+
+    normalized_address = bind_address.strip().strip("[]").lower()
+    if normalized_address in {"", "localhost"}:
+        return True
+
+    try:
+        return ipaddress.ip_address(normalized_address).is_loopback
+    except ValueError:
+        return False
+
+
+def _database_password(database_url: str) -> str | None:
+    """Return the database password from DATABASE_URL when it can be parsed."""
+
+    try:
+        return make_url(database_url).password
+    except Exception:
+        return None
+
+
+def _is_placeholder_secret(value: str | None) -> bool:
+    """Return whether a configured secret still looks like a documented placeholder."""
+
+    return bool(value and value.strip().lower().startswith(PLACEHOLDER_SECRET_PREFIX))
+
+
+def _database_uses_unsafe_password(database_url: str) -> bool:
+    """Return whether DATABASE_URL still contains a default or placeholder password."""
+
+    parsed_password = _database_password(database_url)
+    if parsed_password is not None:
+        return parsed_password == DEVELOPMENT_DATABASE_PASSWORD or _is_placeholder_secret(parsed_password)
+
+    return f":{DEVELOPMENT_DATABASE_PASSWORD}@" in database_url or f":{PLACEHOLDER_SECRET_PREFIX}" in database_url.lower()
+
 
 def validate_runtime_settings(application_settings: Settings) -> None:
     """Fail fast when production settings would expose the app unsafely."""
 
+    bind_is_loopback = _is_loopback_bind_address(application_settings.bind_address)
+    uses_development_app_password = application_settings.app_password == DEVELOPMENT_APP_PASSWORD
+    uses_development_secret = application_settings.app_secret_key == DEVELOPMENT_SECRET_KEY
+    if not bind_is_loopback and (uses_development_app_password or uses_development_secret):
+        raise RuntimeError(
+            "Development app credentials or session secret cannot be used when BIND_ADDRESS is not loopback."
+        )
+
     if not application_settings.is_production:
         return
 
-    if application_settings.app_secret_key == "development-only-change-me":
+    if uses_development_secret or _is_placeholder_secret(application_settings.app_secret_key):
         raise RuntimeError("APP_SECRET_KEY must be replaced in production.")
+
+    if len(application_settings.app_secret_key) < 32:
+        raise RuntimeError("APP_SECRET_KEY must be at least 32 characters in production.")
 
     if not application_settings.app_password:
         raise RuntimeError("APP_PASSWORD must be configured in production.")
+
+    if uses_development_app_password or _is_placeholder_secret(application_settings.app_password):
+        raise RuntimeError("APP_PASSWORD must not use the development default or documented placeholder in production.")
+
+    if _database_uses_unsafe_password(application_settings.database_url):
+        raise RuntimeError("POSTGRES_PASSWORD/DATABASE_URL must not use the development default or documented placeholder in production.")
+
+    if not application_settings.session_cookie_secure:
+        raise RuntimeError("APP_SESSION_COOKIE_SECURE=true is required in production.")
+
+    if not application_settings.cloudflare_access_required:
+        raise RuntimeError("CLOUDFLARE_ACCESS_REQUIRED=true is required in production.")
 
     if application_settings.autotask_provider != "autotask":
         raise RuntimeError("AUTOTASK_PROVIDER=autotask is required in production.")
@@ -90,6 +160,8 @@ def create_app(application_settings: Settings = settings) -> FastAPI:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Permissions-Policy"] = "camera=(), geolocation=(), microphone=(self)"
+        if application_settings.is_production:
+            response.headers["Strict-Transport-Security"] = HSTS_HEADER_VALUE
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self'; "

@@ -9,15 +9,16 @@ from sqlalchemy.orm import Session
 
 from job_logger.models import AuditEvent
 from job_logger.security import sanitize_for_audit
+from job_logger.services.login_failures import enforcement_client_ip_from_request
 
 
 def _client_ip_from_request(request: Request | None) -> str | None:
-    """Return the most useful client IP without trusting it for authorization."""
+    """Return the same trusted client IP used by login enforcement."""
 
-    if request is None or request.client is None:
+    if request is None:
         return None
 
-    return request.client.host
+    return enforcement_client_ip_from_request(request)
 
 
 def _user_agent_from_request(request: Request | None) -> str | None:
@@ -54,4 +55,3 @@ def record_audit_event(
     )
     database_session.add(audit_event)
     return audit_event
-

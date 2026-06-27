@@ -52,3 +52,15 @@ def test_nginx_preserves_forwarded_https_scheme_for_app_origin() -> None:
     assert '"" $scheme;' in template_text
     assert "proxy_set_header X-Forwarded-Proto $job_logger_forwarded_proto;" in template_text
     assert "proxy_set_header X-Forwarded-Proto $scheme;" not in template_text
+
+
+def test_nginx_replaces_spoofable_forwarded_for_with_tunnel_client_ip() -> None:
+    """Nginx should not pass through attacker-supplied X-Forwarded-For chains."""
+
+    template_text = NGINX_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "map $http_cf_connecting_ip $job_logger_client_ip" in template_text
+    assert '"" $remote_addr;' in template_text
+    assert "proxy_set_header X-Forwarded-For $job_logger_client_ip;" in template_text
+    assert "proxy_set_header X-Real-IP $job_logger_client_ip;" in template_text
+    assert "$proxy_add_x_forwarded_for" not in template_text

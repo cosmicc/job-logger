@@ -21,7 +21,11 @@ from job_logger.security import (
 )
 from job_logger.services.audit import record_audit_event
 from job_logger.services.login_failures import log_successful_login_attempt, reset_login_failure_counter
-from job_logger.services.login_protection import record_failed_login_attempt_and_maybe_block
+from job_logger.services.login_protection import (
+    current_login_lockout,
+    record_failed_login_attempt_and_maybe_block,
+    record_local_login_lockout,
+)
 from job_logger.services.users import authenticate_web_user_with_status, mark_web_user_login_succeeded
 from job_logger.ui import template_context, templates
 
@@ -51,8 +55,30 @@ async def login(
 
     submitted_username = str(form_data.get("username", "")).strip()
     submitted_password = str(form_data.get("password", ""))
+    lockout_state = current_login_lockout(
+        database_session,
+        request,
+        submitted_username=submitted_username,
+    )
+    if lockout_state.locked:
+        record_local_login_lockout(
+            database_session,
+            request,
+            submitted_username=submitted_username,
+            submitted_password=submitted_password,
+            lockout_state=lockout_state,
+        )
+        database_session.commit()
+        remaining_minutes = max((lockout_state.remaining_seconds + 59) // 60, 1)
+        add_flash_message(
+            request,
+            f"Too many failed sign-in attempts. Try again in about {remaining_minutes} minutes.",
+            "error",
+        )
+        return RedirectResponse(url="/login", status_code=303)
+
     if authenticate_username(submitted_username) and verify_password(submitted_password):
-        reset_login_failure_counter(database_session, request)
+        reset_login_failure_counter(database_session, request, submitted_username=submitted_username)
         login_session(request, submitted_username)
         log_successful_login_attempt(
             request,
@@ -78,7 +104,7 @@ async def login(
     )
     web_user = web_user_authentication.user
     if web_user is not None:
-        reset_login_failure_counter(database_session, request)
+        reset_login_failure_counter(database_session, request, submitted_username=web_user.username)
         mark_web_user_login_succeeded(web_user)
         login_web_user_session(request, username=web_user.username, web_user_id=web_user.id)
         log_successful_login_attempt(

@@ -147,6 +147,9 @@ class Settings:
     # It must be provided through a secret environment file or secret store.
     app_password: str | None
 
+    # BIND_ADDRESS is the host-facing nginx bind used by the bundled tunnel origin.
+    bind_address: str
+
     # LOGIN_FAILURE_LOG_PATH is a JSONL file for failed app-login attempts.
     # It should live in a host-mounted log directory for Docker deployments.
     login_failure_log_path: str
@@ -184,6 +187,9 @@ class Settings:
 
     # CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS is the consecutive-failure threshold.
     cloudflare_auto_block_failed_login_attempts: int
+
+    # LOGIN_LOCAL_LOCKOUT_MINUTES is the app-enforced lockout after the threshold.
+    login_local_lockout_minutes: int
 
     # TRANSCRIPTION_PROVIDER selects the audio transcription backend.
     transcription_provider: str
@@ -368,6 +374,7 @@ def load_settings() -> Settings:
         log_level=_get_log_level(),
         app_username=os.getenv("APP_USERNAME", "admin"),
         app_password=os.getenv("APP_PASSWORD") or None,
+        bind_address=os.getenv("BIND_ADDRESS", "127.0.0.1").strip() or "127.0.0.1",
         login_failure_log_path=os.getenv(
             "LOGIN_FAILURE_LOG_PATH",
             f"{os.getenv('LOG_DIR', 'logs').rstrip('/')}/job-logger-login-failures.log",
@@ -389,6 +396,7 @@ def load_settings() -> Settings:
             "CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS",
             5,
         ),
+        login_local_lockout_minutes=_get_positive_integer("LOGIN_LOCAL_LOCKOUT_MINUTES", 15),
         transcription_provider=os.getenv("TRANSCRIPTION_PROVIDER", "mock").strip().lower().replace("-", "_"),
         max_audio_upload_bytes=_get_integer("MAX_AUDIO_UPLOAD_BYTES", 10 * 1024 * 1024),
         max_backup_restore_bytes=_get_integer("MAX_BACKUP_RESTORE_BYTES", 250 * 1024 * 1024),

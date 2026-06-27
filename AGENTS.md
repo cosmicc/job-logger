@@ -115,15 +115,22 @@ written to host-mounted JSONL login-attempt logs and shown on `/debug`, but only
 with sanitized metadata such as timestamp, client IP, submitted username,
 account kind, authentication method, user agent, request/proxy details, failure
 reason, and password-present/length for failures. Never write or display the raw
-submitted password. For login diagnostics, prefer the first `X-Forwarded-For`
-address as the displayed client IP when present, while retaining the direct
-socket peer and proxy headers as supporting metadata. The failed-login table may
-hide individual rows through `hidden_login_failures`, but the raw JSONL download
-must remain append-only. Cloudflare IP blocking on `/debug` may create or remove
-only app-managed zone IP Access Rules tracked in `cloudflare_ip_blocks`; it must
-honor `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, use the logged `client_ip` value, and
-reset `login_failure_counters` to zero after any successful local login from
-that IP. The successful-login window may visually distinguish config
+submitted password. For login diagnostics, display the sanitized proxy client IP
+provided by nginx while retaining the direct socket peer and proxy headers as
+supporting metadata. Do not use display-only request headers as authorization or
+blocking decisions. Local login lockout and automatic Cloudflare blocking must
+use the trusted enforcement IP from nginx-sanitized `X-Real-IP`/`X-Forwarded-For`
+or, outside the bundled proxy path, the direct socket peer. The failed-login
+table may hide individual rows through `hidden_login_failures`, but the raw
+JSONL download must remain append-only. Cloudflare IP blocking on `/debug` may
+create or remove only app-managed zone IP Access Rules tracked in
+`cloudflare_ip_blocks`; it must honor `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, use the
+trusted enforcement IP, and reset `login_failure_counters` to zero after a
+successful local login for the same enforcement IP and submitted username. After
+`CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS` consecutive failures, local
+password and Device sign-in verification must be blocked for
+`LOGIN_LOCAL_LOCKOUT_MINUTES`, defaulting to 15. The successful-login window
+may visually distinguish config
 super-admin account-kind chips from managed web-user chips, but must not expose
 extra sensitive metadata to do so. It may also show the safe successful-login
 authentication method as `Password` or `Passkey` status pills. Login failure,
@@ -450,10 +457,15 @@ The project must support Docker-based deployment.
 Docker Compose should include the Python application, PostgreSQL, and
 `cloudflared` when practical.
 Nginx host publishing should use `BIND_ADDRESS` plus `HTTP_PORT`, with
-`NGINX_PUBLIC_PORT` kept only as a backward-compatible fallback. The bundled
-`cloudflared` service uses host networking, so a loopback bind such as
-`BIND_ADDRESS=127.0.0.1` and `HTTP_PORT=2082` should pair with the tunnel
-origin URL `http://127.0.0.1:2082`.
+`NGINX_PUBLIC_PORT` kept only as a backward-compatible fallback. Compose must
+fail closed when `APP_SECRET_KEY`, `APP_PASSWORD`, or `POSTGRES_PASSWORD` are
+missing instead of falling back to development secrets. Production startup must
+require Cloudflare Access, secure session cookies, non-default app/database
+secrets that are not copied placeholders, and `AUTOTASK_PROVIDER=autotask`. The
+bundled `cloudflared` service
+uses host networking, so a loopback bind such as `BIND_ADDRESS=127.0.0.1` and
+`HTTP_PORT=2082` should pair with the tunnel origin URL
+`http://127.0.0.1:2082`; loopback is the default.
 
 The application container should not run as root unless there is a specific,
 documented reason.
@@ -673,9 +685,10 @@ The application is a FastAPI project under `job_logger/`.
   `job-logger-login-successes.log` and `job-logger-login-failures.log` inside
   Docker's `/data/logs` mount. `LOG_LEVEL` controls how verbose `${LOG_DIR}/app.log`
   is and must be one of `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
-- `job_logger/services/login_protection.py` increments persistent consecutive
-  failed-login counters, appends sanitized failed-login JSONL records, and
-  triggers Cloudflare auto-blocking at the configured threshold.
+- `job_logger/services/login_protection.py` enforces local pre-authentication
+  lockout, increments persistent consecutive failed-login counters by trusted
+  enforcement IP and username, appends sanitized failed-login JSONL records,
+  and triggers Cloudflare auto-blocking at the configured threshold.
 - `job_logger/services/cloudflare_blocks.py` owns app-managed Cloudflare zone
   IP Access Rule create/delete calls and allowlist checks. It must never list,
   edit, or delete Cloudflare rules that are not tracked in Job Logger's
@@ -859,9 +872,11 @@ In production:
   Cloudflare block/unblock controls, and an app-managed Cloudflare blocked IP
   card. Automatic Cloudflare blocking happens after
   `CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS` consecutive failed local logins
-  from the same displayed client IP unless that IP matches
-  `CLOUDFLARE_IP_BLOCK_ALLOWLIST`; successful local password or Device sign-in
-  login resets that IP's failure counter to zero.
+  from the same trusted enforcement IP and submitted username unless that IP
+  matches `CLOUDFLARE_IP_BLOCK_ALLOWLIST`; successful local password or Device
+  sign-in login resets that enforcement IP and username failure counter to
+  zero. The same threshold also starts the local
+  `LOGIN_LOCAL_LOCKOUT_MINUTES` pre-authentication lockout.
 - The `/debug` disk-space card combines monitored paths when used bytes and
   total bytes match exactly. The app log preview shows only the newest 10
   sanitized lines, and the automatic-backup card belongs below the app-log

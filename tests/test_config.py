@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from job_logger import database
-from job_logger.config import load_settings
+from job_logger.config import load_settings, settings
 from job_logger.enums import ThemeMode
+from job_logger.main import create_app, validate_runtime_settings
 from job_logger.models import AuditEvent, UserPreference, WebUser
 from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as, login_as_super_admin, login_as_web_user
 
@@ -110,6 +113,114 @@ def test_cloudflare_block_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.cloudflare_zone_id == "zone-value"
     assert loaded_settings.cloudflare_ip_block_allowlist == "198.51.100.1, 203.0.113.0/24"
     assert loaded_settings.cloudflare_auto_block_failed_login_attempts == 7
+
+
+def test_local_login_lockout_duration_loads_from_environment(monkeypatch) -> None:
+    """Local lockout duration should be configurable and positive."""
+
+    monkeypatch.setenv("LOGIN_LOCAL_LOCKOUT_MINUTES", "20")
+
+    assert load_settings().login_local_lockout_minutes == 20
+
+
+def test_local_login_lockout_duration_must_be_positive(monkeypatch) -> None:
+    """Disabling local lockout through a zero duration would reopen brute-force risk."""
+
+    monkeypatch.setenv("LOGIN_LOCAL_LOCKOUT_MINUTES", "0")
+
+    with pytest.raises(ValueError, match="LOGIN_LOCAL_LOCKOUT_MINUTES must be greater than zero."):
+        load_settings()
+
+
+def test_runtime_validation_requires_cloudflare_access_in_production() -> None:
+    """Production should fail closed unless Cloudflare Access is enforced."""
+
+    production_settings = replace(
+        settings,
+        app_environment="production",
+        app_secret_key="x" * 32,
+        app_password="not-the-default-password",
+        database_url="postgresql+psycopg://job_logger:not-default@db:5432/job_logger",
+        session_cookie_secure=True,
+        cloudflare_access_required=False,
+        autotask_provider="autotask",
+    )
+
+    with pytest.raises(RuntimeError, match="CLOUDFLARE_ACCESS_REQUIRED=true is required in production."):
+        validate_runtime_settings(production_settings)
+
+
+def test_runtime_validation_rejects_production_development_defaults() -> None:
+    """Production should reject secrets and database passwords from development examples."""
+
+    production_settings = replace(
+        settings,
+        app_environment="production",
+        app_secret_key="development-only-change-me",
+        app_password="admin",
+        database_url="postgresql+psycopg://job_logger:job_logger_password@db:5432/job_logger",
+        session_cookie_secure=True,
+        cloudflare_access_required=True,
+        autotask_provider="autotask",
+    )
+
+    with pytest.raises(RuntimeError, match="APP_SECRET_KEY must be replaced in production."):
+        validate_runtime_settings(production_settings)
+
+
+def test_runtime_validation_rejects_production_placeholder_secrets() -> None:
+    """Copying .env.example without replacing placeholders should not start production."""
+
+    production_settings = replace(
+        settings,
+        app_environment="production",
+        app_secret_key="replace-with-at-least-32-random-characters",
+        app_password="replace-with-a-long-random-app-password",
+        database_url="postgresql+psycopg://job_logger:replace-with-a-long-random-database-password@db:5432/job_logger",
+        session_cookie_secure=True,
+        cloudflare_access_required=True,
+        autotask_provider="autotask",
+    )
+
+    with pytest.raises(RuntimeError, match="APP_SECRET_KEY must be replaced in production."):
+        validate_runtime_settings(production_settings)
+
+
+def test_runtime_validation_rejects_development_defaults_on_non_loopback_bind() -> None:
+    """Development credentials should not be usable on a direct LAN-facing origin bind."""
+
+    unsafe_settings = replace(
+        settings,
+        app_environment="development",
+        app_secret_key="development-only-change-me",
+        app_password="admin",
+        bind_address="0.0.0.0",
+    )
+
+    with pytest.raises(RuntimeError, match="BIND_ADDRESS is not loopback"):
+        validate_runtime_settings(unsafe_settings)
+
+
+def test_production_security_headers_include_hsts() -> None:
+    """Production responses should include app-side HSTS for HTTPS deployments."""
+
+    production_settings = replace(
+        settings,
+        app_environment="production",
+        app_secret_key="x" * 32,
+        app_password="not-the-default-password",
+        database_url="postgresql+psycopg://job_logger:not-default@db:5432/job_logger",
+        session_cookie_secure=True,
+        cloudflare_access_required=True,
+        autotask_provider="autotask",
+        automatic_backups_enabled=False,
+    )
+    test_app = create_app(production_settings)
+    with TestClient(test_app) as test_client:
+        response = test_client.get("/health/live")
+
+    assert response.status_code == 200
+    assert response.headers["strict-transport-security"] == "max-age=15552000"
 
 
 def test_ai_cleanup_revert_retention_loads_from_environment(monkeypatch) -> None:
