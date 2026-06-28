@@ -51,8 +51,9 @@ mobile logout through `window.close()`, `about:blank`, a GET link, or another
 browser-only action. Keep the explicit desktop logout form available on
 non-mobile authenticated pages.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
-a small yellow `DEV` badge near the version link. Keep the badge compact so it
-does not crowd the mobile navigation icons.
+one yellow version badge with `DEV` folded into the version text, such as
+`v1.1.6 DEV`. Keep the badge compact so it does not crowd the mobile
+navigation icons.
 
 New blank work starts through `POST /jobs/start`. A user can also start work
 from an Autotask service call selected in the mobile day navigator through
@@ -146,11 +147,13 @@ or ticket-status values.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
-prefix `summaryNotes` with `Remote` or `On-Site`. Review detail is the
+prefix `summaryNotes` with `Remote. ` or `On-Site. `. Review detail is the
 exception: it displays the complete Autotask summary with that prefix so the
 reviewer can correct Remote versus On-Site before accepting or editing an
 existing Autotask entry. Save/accept handlers must parse the visible prefix back
-into `work_location` and keep stored local notes unprefixed.
+into `work_location` and keep stored local notes unprefixed. Keep legacy
+`Remote`, `Remote:`, `Remote -`, and matching On-Site prefixes parseable for
+older review text.
 
 The mobile start panels show Autotask service calls for a selected local date
 when an active job slot is available. The page should render immediately with a
@@ -158,7 +161,10 @@ when an active job slot is available. The page should render immediately with a
 window `load` event, `job_logger/static/mobile.js` loads `/home/service-calls`
 to fetch safe card data for the current selected date. The panel has compact
 previous/next day buttons with the displayed day between them; clicking that day
-opens the native calendar picker. Service-call options are provided by
+opens the native calendar picker. Today, yesterday, and tomorrow labels put the
+relative day first, such as `Today (Saturday)`. Other date labels use the full
+month, ordinal day, and weekday, such as `June 19th (Friday)`, without the year.
+Service-call options are provided by
 `list_todays_service_calls_for_resource(resource_id=..., local_service_date=...)`,
 which derives Remote/On-Site from the service-call details text. The resource ID
 must come from the enabled managed web user, not config or browser input. Each
@@ -399,9 +405,9 @@ Ticket number is intentionally required only before Autotask submission, not for
 ordinary save operations.
 
 The review summary textarea displays the complete Autotask `summaryNotes`
-string, including the leading Remote or On-Site prefix. Review save, accept,
-retry, and submitted-entry update handlers must parse that prefix back into the
-stored work-location mode and keep the persisted note body clean. The review
+string, including the leading `Remote. ` or `On-Site. ` prefix. Review save,
+accept, retry, and submitted-entry update handlers must parse that prefix back
+into the stored work-location mode and keep the persisted note body clean. The review
 list must show each row's Remote or On-Site mode, and the review detail
 work-location control must rewrite the visible summary prefix when it changes.
 This allows the operator to correct the final Autotask notes without making
@@ -454,8 +460,10 @@ description, keep the card visible with the standard no-description message.
 After a job is successfully submitted to Autotask, ticket/client identity and
 workflow actions remain protected. The UI must keep ticket selection,
 accept/resend, retry, and local **Delete time entry** controls hidden or
-blocked. Date, start time, end time, summary notes, work location, and ticket
-status can stay editable only when the submitted detail shows **Submit changes**.
+blocked, and it should not show the stored Autotask `TimeEntries` external ID
+in the selected detail. Date, start time, end time, summary notes, work
+location, and ticket status can stay editable only when the submitted detail
+shows **Submit changes**.
 That button must call the submitted-entry update route so the existing Autotask
 `TimeEntries` row is patched before local values are kept. Submit changes must
 also reassert the selected local ticket status on `Tickets.status`; a previously

@@ -2,6 +2,35 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## v1.1.6 - Cloudflare block controls, Review polish, and Home polish
+
+- Advanced the source-controlled dev runtime version to `v1.1.6`, including
+  the Python package metadata and PWA service worker cache version.
+- Added a Diagnostics Cloudflare blocked-IP form so authorized debug users can
+  manually enter an IP address and reason for an app-managed Cloudflare block.
+- Changed failed-login row Cloudflare block actions to carry a safe reason into
+  the local `cloudflare_ip_blocks` row, Cloudflare rule note, and audit event.
+- Changed automatic Cloudflare failed-login blocks to include their stored
+  reason in the matching audit event.
+- Changed Autotask-bound Review summary prefixes to use `Remote. ` and
+  `On-Site. ` while keeping older `Remote`, `Remote:`, and `Remote -` style
+  prefixes parseable when saving existing review text.
+- Changed the Home blank-start button label to **Start Work** so the main
+  action matches the rest of the work-entry workflow language.
+- Changed both Home service-call date selectors to show relative labels like
+  `Today (Saturday)` for today, yesterday, and tomorrow, while other dates show
+  the full month, ordinal day, and weekday without the year.
+- Changed dev-build headers to merge the separate `DEV` pill into the version
+  badge, rendering the combined version marker as one yellow badge.
+- Changed Review to use the **Work Review** page title, tightened selected-job
+  work-type/status spacing, and stopped showing the Autotask time-entry ID on
+  submitted job details.
+- Changed mobile Diagnostics Autotask submission-attempt and automatic-backup
+  tables to keep full-width rows inside horizontal scrollers, and tightened the
+  automatic-backup enabled/disabled status spacing.
+- Renamed the authenticated header debug navigation item to **Diag** and
+  retitled the debug page to **Diagnostics** with a broader page summary.
+
 ## v1.1.5 - AI cleanup revert, remote transcription, and login diagnostics
 
 - Advanced the source-controlled dev runtime version to `v1.1.5`, including

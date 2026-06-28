@@ -26,10 +26,7 @@
           <span>Job Logger</span>
         </a>
         <div class="header-status-group desktop-status-group" aria-label="Application version">
-          <a class="app-version-link" href="/changelog" aria-label="View changelog for version {{ app_version }}">v{{ app_version }}</a>
-          {% if dev_build %}
-            <span class="dev-build-pill" aria-label="Development build">DEV</span>
-          {% endif %}
+          <a class="app-version-link{% if dev_build %} app-version-link-dev{% endif %}" href="/changelog" aria-label="View changelog for version {{ app_version }}{% if dev_build %} development build{% endif %}">v{{ app_version }}{% if dev_build %} DEV{% endif %}</a>
         </div>
         <nav class="top-nav" aria-label="Primary navigation">
           {% if not current_is_super_admin %}
@@ -43,7 +40,7 @@
             <a href="/config">Config</a>
           {% endif %}
           {% if current_can_access_debug %}
-            <a href="/debug">Debug</a>
+            <a href="/debug">Diag</a>
           {% endif %}
         </nav>
         <nav class="mobile-nav-actions mobile-nav-left" aria-label="Mobile navigation">
@@ -75,10 +72,7 @@
           </a>
         </nav>
         <div class="header-status-group mobile-version-group" aria-label="Application version">
-          <a class="app-version-link" href="/changelog" aria-label="View changelog for version {{ app_version }}">v{{ app_version }}</a>
-          {% if dev_build %}
-            <span class="dev-build-pill" aria-label="Development build">DEV</span>
-          {% endif %}
+          <a class="app-version-link{% if dev_build %} app-version-link-dev{% endif %}" href="/changelog" aria-label="View changelog for version {{ app_version }}{% if dev_build %} development build{% endif %}">v{{ app_version }}{% if dev_build %} DEV{% endif %}</a>
         </div>
         <nav class="mobile-nav-actions mobile-nav-right" aria-label="Mobile quick actions">
           {% if not current_is_super_admin %}

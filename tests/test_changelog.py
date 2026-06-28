@@ -15,7 +15,7 @@ from tests.conftest import extract_csrf_token
 def test_app_version_matches_current_release() -> None:
     """The source-controlled version should match the current release."""
 
-    assert APP_VERSION == "1.1.5"
+    assert APP_VERSION == "1.1.6"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -25,6 +25,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
+    assert "## v1.1.6 - Cloudflare block controls, Review polish, and Home polish" in changelog_text
     assert "## v1.1.5 - AI cleanup revert, remote transcription, and login diagnostics" in changelog_text
     assert "## v1.1.4 - Login protection, Work in Progress controls, diagnostics, and deployment safety" in changelog_text
     assert "## v1.1.3 - Review visibility and Work in Progress refinements" in changelog_text
@@ -35,6 +36,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
+    assert "## v1.1.6 - Review and Home polish" in web_changelog_text
     assert "## v1.1.5 - AI cleanup, speech-to-text, and sign-in updates" in web_changelog_text
     assert "## v1.1.4 - Login protection, Work in Progress controls, and deployment safety" in web_changelog_text
     assert "## v1.1.3 - Review visibility and Work in Progress refinements" in web_changelog_text
@@ -74,14 +76,14 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="v1.1.5",
-        title="AI cleanup, speech-to-text, and sign-in updates",
+        version="v1.1.6",
+        title="Review and Home polish",
         changes=(
-            "AI Cleanup can now switch to Revert cleanup and restore the pre-cleanup notes after reloads.",
-            "Revert cleanup drafts now expire automatically instead of being kept forever.",
-            "Submitted Review entries can keep cleaned draft notes until Submit changes is clicked.",
-            "Speech-to-text can now use a trusted remote faster-whisper server.",
-            "Sign-in now temporarily blocks repeated failed attempts before checking another password.",
+            "Review summaries now start with Remote. or On-Site. before the work notes.",
+            "The Home start button now says Start Work.",
+            "Service-call date selectors now show Today, Yesterday, or Tomorrow with the weekday.",
+            "Dev builds now show DEV inside the yellow version badge instead of a separate pill.",
+            "Review is now titled Work Review and no longer shows the Autotask time-entry ID.",
         ),
     )
 
@@ -103,6 +105,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
+    assert "v1.1.6" in response.text
     assert "v1.1.5" in response.text
     assert "v1.1.4" in response.text
     assert "v1.1.3" in response.text
@@ -112,6 +115,12 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
+    assert "Review and Home polish" in response.text
+    assert "Review summaries now start with Remote. or On-Site. before the work notes." in response.text
+    assert "The Home start button now says Start Work." in response.text
+    assert "Service-call date selectors now show Today, Yesterday, or Tomorrow with the weekday." in response.text
+    assert "Dev builds now show DEV inside the yellow version badge instead of a separate pill." in response.text
+    assert "Review is now titled Work Review and no longer shows the Autotask time-entry ID." in response.text
     assert "AI cleanup, speech-to-text, and sign-in updates" in response.text
     assert "AI Cleanup can now switch to Revert cleanup and restore the pre-cleanup notes after reloads." in response.text
     assert "Revert cleanup drafts now expire automatically instead of being kept forever." in response.text
@@ -202,7 +211,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert v110_index < v102_index
     assert v102_index < v101_index
     assert v101_index < v100_index
-    assert '<h2 id="current-version-heading">AI cleanup, speech-to-text, and sign-in updates</h2>' in response.text
+    assert '<h2 id="current-version-heading">Review and Home polish</h2>' in response.text
+    assert '<span class="release-version">v1.1.6</span>' in response.text
     assert '<span class="release-version">v1.1.5</span>' in response.text
     assert '<span class="release-version">v1.1.4</span>' in response.text
     assert '<span class="release-version">v1.1.3</span>' in response.text

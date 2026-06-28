@@ -12,12 +12,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from job_logger.config import Settings, settings
+from job_logger.logging_config import redact_sensitive_text
 from job_logger.models import CloudflareIPBlock
 
 logger = logging.getLogger(__name__)
 
 CLOUDFLARE_API_BASE_URL = "https://api.cloudflare.com/client/v4"
 CLOUDFLARE_TIMEOUT_SECONDS = 10.0
+CLOUDFLARE_BLOCK_REASON_MAX_CHARS = 180
+CLOUDFLARE_BLOCK_NOTE_MAX_CHARS = 255
 
 
 class CloudflareBlockError(RuntimeError):
@@ -49,6 +52,17 @@ def normalize_ip_address(value: str) -> str | None:
         return str(ipaddress.ip_address(str(value).strip()))
     except ValueError:
         return None
+
+
+def sanitize_cloudflare_block_reason(value: object, *, default_reason: str) -> str:
+    """Return a safe, single-line reason for app-managed Cloudflare blocks."""
+
+    cleaned_reason = redact_sensitive_text(str(value or ""))
+    cleaned_reason = cleaned_reason.replace("\x00", "").replace("\r", " ").replace("\n", " ")
+    cleaned_reason = re.sub(r"\s+", " ", cleaned_reason).strip()
+    if not cleaned_reason:
+        cleaned_reason = default_reason
+    return cleaned_reason[:CLOUDFLARE_BLOCK_REASON_MAX_CHARS]
 
 
 def _allowlist_entries(application_settings: Settings) -> tuple[str, ...]:
@@ -245,7 +259,11 @@ def create_app_cloudflare_block(
     if existing_block is not None:
         return existing_block
 
-    note = f"Job Logger {source} block: {reason}"
+    safe_reason = sanitize_cloudflare_block_reason(
+        reason,
+        default_reason=f"Diagnostics {source} Cloudflare block",
+    )
+    note = f"Job Logger {source} block: {safe_reason}"[:CLOUDFLARE_BLOCK_NOTE_MAX_CHARS]
     access_rule = create_cloudflare_ip_block(
         normalized_ip,
         note=note,
@@ -255,7 +273,7 @@ def create_app_cloudflare_block(
         ip_address=normalized_ip,
         cloudflare_rule_id=access_rule.rule_id,
         source=source,
-        reason=reason,
+        reason=safe_reason,
         failure_count=failure_count,
         notes=note,
     )

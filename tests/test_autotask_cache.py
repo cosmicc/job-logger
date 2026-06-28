@@ -23,6 +23,7 @@ from job_logger.services.autotask import (
     AutotaskConnectivityResult,
     AutotaskSubmissionError,
     LiveAutotaskProvider,
+    split_autotask_summary_notes,
 )
 from job_logger.services.autotask import (
     test_autotask_connectivity as run_autotask_connectivity,
@@ -1633,7 +1634,7 @@ def test_time_entry_creation_uses_ticket_role_and_inherits_billing_code() -> Non
     assert fake_client.posted_payload["resourceID"] == 1
     assert fake_client.posted_payload["roleID"] == 8
     assert fake_client.posted_payload["timeEntryType"] == 2
-    assert fake_client.posted_payload["summaryNotes"] == "Remote Payload must not include allocation code."
+    assert fake_client.posted_payload["summaryNotes"] == "Remote. Payload must not include allocation code."
     assert "billingCodeID" not in fake_client.posted_payload
 
 
@@ -2068,7 +2069,7 @@ def test_time_entry_update_patches_existing_entry_fields_only() -> None:
     assert fake_client.patched_payload["startDateTime"] == "2026-06-16T13:00:00Z"
     assert fake_client.patched_payload["endDateTime"] == "2026-06-16T13:45:00Z"
     assert fake_client.patched_payload["hoursWorked"] == 0.75
-    assert fake_client.patched_payload["summaryNotes"] == "Remote Updated the submitted entry notes."
+    assert fake_client.patched_payload["summaryNotes"] == "Remote. Updated the submitted entry notes."
     assert "ticketID" not in fake_client.patched_payload
     assert "resourceID" not in fake_client.patched_payload
     assert "roleID" not in fake_client.patched_payload
@@ -2117,7 +2118,7 @@ def test_live_time_entry_update_reopens_complete_ticket_before_patch(monkeypatch
     assert result.request_snapshot["ticketStatusPostUpdate"] == "complete"
     assert fake_client.patched_payload is not None
     assert fake_client.patched_payload["id"] == 987654
-    assert fake_client.patched_payload["summaryNotes"] == "Remote Updated submitted notes without changing ticket status."
+    assert fake_client.patched_payload["summaryNotes"] == "Remote. Updated submitted notes without changing ticket status."
     assert fake_client.operations == [
         (
             "/Tickets/query",
@@ -2201,4 +2202,21 @@ def test_time_entry_summary_notes_use_hidden_work_location_prefix() -> None:
 
     assert external_id == "987654"
     assert fake_client.posted_payload is not None
-    assert fake_client.posted_payload["summaryNotes"] == "On-Site replaced the router and verified service."
+    assert fake_client.posted_payload["summaryNotes"] == "On-Site. replaced the router and verified service."
+
+
+def test_summary_prefix_parser_accepts_new_and_legacy_work_location_formats() -> None:
+    """Review parsing should accept the new period prefix and older visible prefixes."""
+
+    assert split_autotask_summary_notes("Remote. Replaced the router.", WorkLocation.ON_SITE) == (
+        WorkLocation.REMOTE,
+        "Replaced the router.",
+    )
+    assert split_autotask_summary_notes("On-Site replaced the access point.", WorkLocation.REMOTE) == (
+        WorkLocation.ON_SITE,
+        "replaced the access point.",
+    )
+    assert split_autotask_summary_notes("Remote: Verified backups.", WorkLocation.ON_SITE) == (
+        WorkLocation.REMOTE,
+        "Verified backups.",
+    )

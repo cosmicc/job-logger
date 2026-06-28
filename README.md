@@ -63,8 +63,9 @@ Autotask REST API references used by this app:
    ownership before it drops to the unprivileged `appuser`. Set `LOG_LEVEL` to
    `DEBUG`, `INFO`, `WARNING`, or `ERROR` to control how much detail is written
    to `${LOG_DIR}/app.log`; Docker defaults to `INFO`.
-   Set `DEV_BUILD=true` only for dev deployments that should show a yellow
-   `DEV` badge in the authenticated desktop and mobile top bar.
+   Set `DEV_BUILD=true` only for dev deployments that should show the
+   authenticated desktop and mobile version badge in yellow with `DEV` folded
+   into the version text.
 
 5. Start the stack:
 
@@ -445,7 +446,7 @@ Set these passkey variables for production when needed:
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.1.3`. Version history starts at `v1.0.0`.
+currently `v1.1.6`. Version history starts at `v1.0.0`.
 
 Authenticated pages show the current version discreetly in the shared header.
 Clicking that version opens `/changelog`, which displays the current version
@@ -457,7 +458,7 @@ diagnostics, debug-page, super-admin-only, operator-only, and agent-facing notes
 in `CHANGELOG.md` only. The changelog page uses the same authenticated session,
 dark/light theme variables, and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the same authenticated header also shows a
-small yellow `DEV` badge on desktop and phone layouts.
+yellow version badge on desktop and phone layouts, such as `v1.1.6 DEV`.
 
 ## Provider Modes
 
@@ -805,8 +806,9 @@ synchronous Autotask calls. After the window load event, the browser fetches
 `/home/service-calls` so slow Autotask service-call lookups show progress
 instead of delaying the whole start screen. The compact date navigator can move
 to the previous or next day, and tapping the displayed day opens a calendar
-picker. Current-week days are labeled by day name with today/yesterday/tomorrow
-context when applicable; dates outside the current week use a calendar date.
+picker. Today, yesterday, and tomorrow are labeled like `Today (Saturday)`;
+other dates show the full month, ordinal day, and weekday, such as
+`June 19th (Friday)`, without the year.
 Each service-call choice shows the client name, the detected `Remote` or
 `On-Site` value from the service-call details text, the local start/end time
 range such as `4:00pm-5:00pm`, and the associated ticket title. Remote and
@@ -870,7 +872,9 @@ time, summary notes, work location, and ticket status edits through
 creating a duplicate entry. **Submit changes** also patches `Tickets.status` to
 match the selected Job Logger status, including temporarily moving a previously
 `Complete` ticket to `In progress` before the time-entry patch when Autotask
-requires that sequence.
+requires that sequence. The selected detail keeps the external Autotask
+time-entry ID hidden because it is only needed internally for updates and
+deletion.
 The same submitted detail also has **Delete From Autotask**, which deletes the
 existing Autotask time entry and returns the local job to review without
 removing the local job record. If Autotask refuses the delete, the job remains
@@ -890,9 +894,10 @@ The mobile Work in Progress card stores a work-location mode of `Remote` or
 summary text. The review list shows each job's Remote or On-Site mode, and
 review detail exposes the same choice as an editable control. Changing it
 updates the visible Autotask-bound summary prefix, such as
-`Remote replaced firewall` or `On-Site replaced firewall`, so the prefix can be
-corrected before submission or **Submit changes**. The server parses that prefix
-back into the stored work-location mode and keeps local note storage unprefixed.
+`Remote. Replaced firewall` or `On-Site. Replaced firewall`, so the prefix can
+be corrected before submission or **Submit changes**. The server parses that
+prefix back into the stored work-location mode and keeps local note storage
+unprefixed.
 
 Ticket `TimeEntries` payloads use the selected ticket's
 `assignedResourceroleID` for `roleID` when available. If Autotask returns the
@@ -918,16 +923,18 @@ and debug connectivity checks run without a managed-user context.
 The `/debug` page is available to the config super admin and to managed web
 users marked Admin on `/users`. Managed admins get the same Diagnostics buttons
 and options, but no `/users` access, no super-admin review scope, and no extra
-job workflow permissions. Non-admin managed users do not see the Debug menu
+job workflow permissions. Non-admin managed users do not see the Diag menu
 item, and direct `/debug/*` requests from those sessions return 403. It shows
 the source-controlled application version and includes **Test Autotask API**
 and **Log out web users** buttons. The logout button forces all managed web
 users to sign in again while leaving the config super admin signed in; a
 managed admin who clicks it is included because that account is a managed web
-user. All authenticated pages also include a discreet version link to
-`/changelog`. The debug Autotask check verifies required workflow configuration
-and the live Companies/Tickets API calls used by the app. The debug button is
-manual and always runs a fresh live check. It is not used by the
+user. The authenticated desktop navigation labels this route as **Diag**, while
+the page title remains **Diagnostics**. All authenticated pages also include a
+discreet version link to `/changelog`. The Diagnostics Autotask check verifies
+required workflow configuration and the live Companies/Tickets API calls used
+by the app. The **Test Autotask API** button is manual and always runs a fresh
+live check. It is not used by the
 initial mobile page or blank Start Work route.
 
 The same `/debug` page also shows compact, paginated successful-login,
@@ -945,6 +952,8 @@ forwarded client headers with one sanitized client IP before proxying to the
 app. Diagnostics show that client IP plus the supporting proxy metadata, while
 local lockout and Cloudflare blocking use the trusted enforcement IP instead of
 display-only request headers.
+On phone layouts, wide Diagnostics tables scroll horizontally so row details and
+actions remain reachable without squeezing every column into the viewport.
 Successful-login rows use a yellow account chip for the config super admin, a
 green chip for managed web users, and colored `Password` or `Passkey` method
 pills.
@@ -956,7 +965,10 @@ Failed-login rows can be hidden from the `/debug` table without changing the
 raw JSONL download. When `CLOUDFLARE_IP_BLOCKING_ENABLED=true` and
 `CLOUDFLARE_API_TOKEN` plus `CLOUDFLARE_ZONE_ID` are configured, `/debug` can
 create and remove app-managed Cloudflare zone IP Access Rules for failed-login
-client IPs. Job Logger automatically creates a Cloudflare block after
+client IPs. Diagnostics can also add a manual Cloudflare IP block with a
+reason. Failed-login row blocks, manual blocks, and automatic blocks are stored
+locally with their reason and use only app-managed Cloudflare rules. Job Logger
+automatically creates a Cloudflare block after
 `CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS` consecutive failed local logins
 from the same trusted enforcement IP and submitted username, defaulting to 5.
 The same threshold locally blocks further password or Device sign-in

@@ -4,7 +4,7 @@ const COMPANY_SEARCH_DELAY_MS = 400;
 const MIN_COMPANY_SEARCH_CHARACTERS = 3;
 const RECORDING_CHUNK_INTERVAL_MS = 2500;
 const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
-const SUMMARY_WORK_LOCATION_PREFIX_PATTERN = /^\s*(on[\s-]?site|remote)\b(?:\s*[:\-]\s*|\s+|$)([\s\S]*)$/i;
+const SUMMARY_WORK_LOCATION_PREFIX_PATTERN = /^\s*(on[\s-]?site|remote)\b(?:\s*[.:\-]\s*|\s+|$)([\s\S]*)$/i;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 const RECORD_AUDIO_LABEL = "Record";
 const STOP_RECORDING_LABEL = "Stop recording";
@@ -429,13 +429,19 @@ function reviewSummaryPrefix() {
   const workLocationValue = checkedWorkLocationInput
     ? checkedWorkLocationInput.value
     : (fallbackWorkLocationInput ? fallbackWorkLocationInput.value : "remote");
-  return workLocationValue === "on_site" ? "On-Site" : "Remote";
+  return workLocationValue === "on_site" ? "On-Site." : "Remote.";
 }
 
 function applyReviewSummaryPrefix(summaryText) {
   const safeSummaryText = String(summaryText || "").trim();
-  if (!safeSummaryText || /^(Remote|On-Site)\b/i.test(safeSummaryText)) {
+  if (!safeSummaryText) {
     return safeSummaryText;
+  }
+
+  const prefixMatch = safeSummaryText.match(SUMMARY_WORK_LOCATION_PREFIX_PATTERN);
+  if (prefixMatch) {
+    const summaryBody = String(prefixMatch[2] || "").trim();
+    return summaryBody ? `${reviewSummaryPrefix()} ${summaryBody}` : reviewSummaryPrefix();
   }
 
   return `${reviewSummaryPrefix()} ${safeSummaryText}`;

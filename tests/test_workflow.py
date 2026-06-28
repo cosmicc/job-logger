@@ -29,6 +29,7 @@ def create_submitted_mock_job(authenticated_client: TestClient, *, summary_notes
     # mobile and review requests in this helper.
     mobile_page_response = authenticated_client.get("/home")
     csrf_token = extract_csrf_token(mobile_page_response.text)
+    assert "Start Work" in mobile_page_response.text
 
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -665,7 +666,7 @@ def test_submitted_review_ai_cleanup_revert_state_expires_on_review_render(
 
     assert reloaded_review_response.status_code == 200
     assert "Remote cleaned submitted notes that should expire." not in reloaded_review_response.text
-    assert "Remote Locked submitted job notes" in reloaded_review_response.text
+    assert "Remote. Locked submitted job notes" in reloaded_review_response.text
     assert "Revert cleanup" not in reloaded_review_response.text
     with database.SessionLocal() as database_session:
         job = database_session.get(Job, submitted_job_id)
@@ -686,7 +687,11 @@ def test_submitted_review_page_allows_controlled_entry_edits(authenticated_clien
     review_html = review_page_response.text
 
     assert review_page_response.status_code == 200
+    assert "Work Review" in review_html
+    assert "Job review" not in review_html
     assert "Submitted Autotask entry" in review_html
+    assert "Autotask time entry:" not in review_html
+    assert f"mock-time-entry-{submitted_job_id}" not in review_html
     assert "can be updated with Submit changes" in review_html
     assert 'class="review-form review-form-submitted"' in review_html
     assert 'class="review-action-stack"' in review_html
@@ -697,7 +702,7 @@ def test_submitted_review_page_allows_controlled_entry_edits(authenticated_clien
     assert re.search(r'<input(?=[^>]*name="start_time")(?![^>]*disabled)', review_html)
     assert re.search(r'<input(?=[^>]*name="work_location")(?=[^>]*value="remote")(?![^>]*disabled)', review_html)
     assert re.search(r'<textarea(?=[^>]*name="summary_notes")(?![^>]*disabled)', review_html)
-    assert "Remote Locked submitted job notes" in review_html
+    assert "Remote. Locked submitted job notes" in review_html
     assert "Submit changes" in review_html
     assert f'action="/review/{submitted_job_id}/edit-entry"' in review_html
     assert f'formaction="/review/{submitted_job_id}/edit-entry"' in review_html
@@ -1019,6 +1024,7 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert response.status_code == 200
     assert 'class="header-status-group desktop-status-group"' in response.text
     assert 'class="header-status-group mobile-version-group"' in response.text
+    assert "app-version-link-dev" not in response.text
     assert "dev-build-pill" not in response.text
     assert "autotask-api-indicator" not in response.text
     assert "Autotask API:" not in response.text
@@ -1110,8 +1116,10 @@ def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_
     response = authenticated_client.get("/home")
 
     assert response.status_code == 200
-    assert response.text.count('class="dev-build-pill"') == 2
-    assert '<span class="dev-build-pill" aria-label="Development build">DEV</span>' in response.text
+    assert response.text.count("app-version-link app-version-link-dev") == 2
+    assert "dev-build-pill" not in response.text
+    assert ">v1.1.6 DEV<" in response.text
+    assert 'aria-label="View changelog for version 1.1.6 development build"' in response.text
     assert response.text.index('class="header-status-group desktop-status-group"') < response.text.index('class="top-nav"')
     assert response.text.index('class="header-status-group mobile-version-group"') < response.text.index('class="mobile-nav-actions mobile-nav-right"')
 
@@ -1133,7 +1141,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".ticket-option-card-header" in stylesheet
     assert ".ticket-location-badge" in stylesheet
     assert ".review-ticket-status-field" in stylesheet
-    assert ".dev-build-pill" in stylesheet
+    assert ".app-version-link-dev" in stylesheet
+    assert ".dev-build-pill" not in stylesheet
     assert "border: 1px solid rgba(245, 158, 11, 0.58);" in stylesheet
     assert ".status-chip" in stylesheet
     assert "text-transform: uppercase;" in stylesheet
@@ -1173,6 +1182,9 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".active-job-panel-slot-2" in stylesheet
     assert ".description-box > .button-grid" in stylesheet
     assert ".review-location-chip" in stylesheet
+    assert ".review-detail-heading-row" in stylesheet
+    assert ".review-work-location-card" in stylesheet
+    assert ".review-detail-heading-row {\n  gap: 6px;" in phone_stylesheet
     assert ".review-action-stack" in stylesheet
     assert ".review-status-stack" in stylesheet
     assert ".review-summary-action-row" in stylesheet
@@ -1186,6 +1198,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".login-header .login-brand" in phone_stylesheet
     assert "grid-column: 2;" in phone_stylesheet
     assert ".mobile-version-group {\n  display: inline-flex;" in phone_stylesheet
+    assert ".dev-build-pill" not in phone_stylesheet
     assert ".mobile-nav-actions {\n  display: flex;" in phone_stylesheet
     assert ".mobile-nav-left {\n  grid-column: 1;" in phone_stylesheet
     assert ".mobile-nav-right {\n  grid-column: 3;" in phone_stylesheet
@@ -1675,7 +1688,7 @@ def test_review_save_does_not_require_ticket_number(authenticated_client: TestCl
     autosave_payload = autosave_response.json()
     assert autosave_payload["job_id"] == active_job_id
     assert autosave_payload["ticket_status"] == "follow_up"
-    assert autosave_payload["summary_notes"] == "Remote Autosaved without ticket during review."
+    assert autosave_payload["summary_notes"] == "Remote. Autosaved without ticket during review."
     assert autosave_payload["job_date"] == "2026-06-16"
     assert autosave_payload["start_time"] == "8:00 am"
     assert autosave_payload["end_time"] == "8:15 am"
@@ -1739,7 +1752,7 @@ def test_review_detail_shows_active_rounded_stop_without_ending_job(authenticate
     autosave_payload = autosave_response.json()
     assert autosave_payload["end_time"] == "8:30 am"
     assert autosave_payload["ticket_status"] == "follow_up"
-    assert autosave_payload["summary_notes"] == "Remote Changed active review notes."
+    assert autosave_payload["summary_notes"] == "Remote. Changed active review notes."
 
     with database.SessionLocal() as database_session:
         active_job = database_session.get(Job, active_job_id)
@@ -1783,7 +1796,7 @@ def test_review_summary_prefix_is_editable_and_updates_work_location(authenticat
     review_page_response = authenticated_client.get(f"/review/{active_job_id}")
     review_html = review_page_response.text
     review_csrf_token = extract_csrf_token(review_html)
-    assert "Remote Original remote work notes." in review_html
+    assert "Remote. Original remote work notes." in review_html
     assert 'class="review-location-chip review-location-remote"' in review_html
     assert "Remote" in review_html
     assert 'data-review-work-location-toggle' in review_html
@@ -1798,12 +1811,12 @@ def test_review_summary_prefix_is_editable_and_updates_work_location(authenticat
             "job_date": "2026-06-16",
             "start_time": "08:00",
             "end_time": "08:15",
-            "summary_notes": "On-Site replaced the access point onsite.",
+            "summary_notes": "On-Site. replaced the access point onsite.",
         },
     )
 
     assert save_response.status_code == 200
-    assert save_response.json()["summary_notes"] == "On-Site replaced the access point onsite."
+    assert save_response.json()["summary_notes"] == "On-Site. replaced the access point onsite."
 
     with database.SessionLocal() as database_session:
         reviewed_job = database_session.get(Job, active_job_id)
@@ -1815,7 +1828,7 @@ def test_review_summary_prefix_is_editable_and_updates_work_location(authenticat
     updated_review_page_response = authenticated_client.get(f"/review/{active_job_id}")
     updated_review_html = updated_review_page_response.text
     assert 'class="review-location-chip review-location-on_site"' in updated_review_html
-    assert "On-Site replaced the access point onsite." in updated_review_html
+    assert "On-Site. replaced the access point onsite." in updated_review_html
 
 
 def test_review_save_active_job_without_stop_time(authenticated_client: TestClient) -> None:
@@ -2730,8 +2743,16 @@ def test_mobile_active_job_date_is_editable(authenticated_client: TestClient) ->
         assert reviewed_job.local_work_date == date(2026, 6, 20)
 
 
-def test_mobile_service_call_start_populates_active_job(authenticated_client: TestClient) -> None:
+def test_mobile_service_call_start_populates_active_job(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Clicking a service call starts a job from server-resolved Autotask data."""
+
+    monkeypatch.setattr(
+        "job_logger.routes.mobile.now_utc",
+        lambda: datetime(2026, 6, 28, 13, 0, tzinfo=UTC),
+    )
 
     mobile_page_response = authenticated_client.get("/home")
     mobile_html = mobile_page_response.text
@@ -2756,7 +2777,7 @@ def test_mobile_service_call_start_populates_active_job(authenticated_client: Te
     assert service_calls_payload["selected_date"] == "2026-06-20"
     assert service_calls_payload["previous_date"] == "2026-06-19"
     assert service_calls_payload["next_date"] == "2026-06-21"
-    assert service_calls_payload["date_label"]
+    assert service_calls_payload["date_label"] == "June 20th (Saturday)"
     assert "No service calls are scheduled for" in service_calls_payload["empty_message"]
     assert service_calls_payload["service_calls"][0] == {
         "service_call_ticket_id": 6101,
@@ -2874,24 +2895,43 @@ def test_completed_local_ticket_filters_service_call_options(authenticated_clien
 
 
 def test_mobile_service_call_date_labels(authenticated_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Service-call day navigation should label current-week dates clearly."""
+    """Service-call day navigation should label relative and calendar dates clearly."""
 
     monkeypatch.setattr(
         "job_logger.routes.mobile.now_utc",
-        lambda: datetime(2026, 6, 19, 13, 0, tzinfo=UTC),
+        lambda: datetime(2026, 6, 20, 13, 0, tzinfo=UTC),
     )
 
-    today_response = authenticated_client.get("/home/service-calls?date=2026-06-19")
-    yesterday_response = authenticated_client.get("/home/service-calls?date=2026-06-18")
-    tomorrow_response = authenticated_client.get("/home/service-calls?date=2026-06-20")
+    first_response = authenticated_client.get("/home/service-calls?date=2026-06-01")
+    second_response = authenticated_client.get("/home/service-calls?date=2026-06-02")
+    third_response = authenticated_client.get("/home/service-calls?date=2026-06-03")
+    eleventh_response = authenticated_client.get("/home/service-calls?date=2026-06-11")
+    today_response = authenticated_client.get("/home/service-calls?date=2026-06-20")
+    yesterday_response = authenticated_client.get("/home/service-calls?date=2026-06-19")
+    tomorrow_response = authenticated_client.get("/home/service-calls?date=2026-06-21")
     outside_week_response = authenticated_client.get("/home/service-calls?date=2026-06-25")
     invalid_response = authenticated_client.get("/home/service-calls?date=not-a-date")
 
-    assert today_response.status_code == 200
-    assert today_response.json()["date_label"] == "Friday (Today)"
-    assert yesterday_response.json()["date_label"] == "Thursday (Yesterday)"
-    assert tomorrow_response.json()["date_label"] == "Saturday (Tomorrow)"
-    assert outside_week_response.json()["date_label"] == "Jun 25, 2026"
+    for response in (
+        first_response,
+        second_response,
+        third_response,
+        eleventh_response,
+        today_response,
+        yesterday_response,
+        tomorrow_response,
+        outside_week_response,
+    ):
+        assert response.status_code == 200
+
+    assert first_response.json()["date_label"] == "June 1st (Monday)"
+    assert second_response.json()["date_label"] == "June 2nd (Tuesday)"
+    assert third_response.json()["date_label"] == "June 3rd (Wednesday)"
+    assert eleventh_response.json()["date_label"] == "June 11th (Thursday)"
+    assert today_response.json()["date_label"] == "Today (Saturday)"
+    assert yesterday_response.json()["date_label"] == "Yesterday (Friday)"
+    assert tomorrow_response.json()["date_label"] == "Tomorrow (Sunday)"
+    assert outside_week_response.json()["date_label"] == "June 25th (Thursday)"
     assert invalid_response.status_code == 400
     assert invalid_response.json()["detail"] == "Selected service-call date is invalid."
 

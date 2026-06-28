@@ -215,6 +215,7 @@ def maybe_auto_block_failed_login_ip(
             "ip_address": block.ip_address,
             "cloudflare_rule_id": block.cloudflare_rule_id,
             "source": block.source,
+            "reason": block.reason,
             "failure_count": failed_count,
         },
     )

@@ -256,22 +256,18 @@ svg {
   color: var(--accent-strong);
 }
 
-.dev-build-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 28px;
-  padding: 4px 9px;
+.app-version-link-dev {
   border: 1px solid rgba(245, 158, 11, 0.58);
-  border-radius: 999px;
   background: var(--warning-soft);
   color: var(--warning);
-  font-size: 11px;
   font-weight: 900;
-  letter-spacing: 0;
-  line-height: 1;
   text-transform: uppercase;
-  white-space: nowrap;
+}
+
+.app-version-link-dev:hover {
+  border-color: rgba(245, 158, 11, 0.76);
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--warning);
 }
 
 .top-nav a,
@@ -1544,9 +1540,11 @@ a:focus-visible {
 
 .review-work-location-card {
   display: grid;
+  min-height: auto;
   align-content: center;
   justify-items: start;
-  gap: 7px;
+  gap: 5px;
+  padding: 8px 10px;
 }
 
 .ticket-status-card label {
@@ -1911,6 +1909,22 @@ a:focus-visible {
 
 .review-header {
   margin-bottom: 18px;
+}
+
+.review-detail-heading-row {
+  gap: 10px;
+}
+
+.review-detail-heading-row .eyebrow-text {
+  margin-bottom: 4px;
+}
+
+.review-detail-heading-row h2 {
+  margin-bottom: 0;
+}
+
+.review-detail-heading-row .status-chip {
+  align-self: center;
 }
 
 .review-layout {
@@ -2984,7 +2998,21 @@ td a {
 }
 
 .automatic-backup-table-wrap {
+  width: 100%;
   margin-top: 14px;
+}
+
+.automatic-backup-header {
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.automatic-backup-header .muted-text {
+  margin-bottom: 0;
+}
+
+.automatic-backup-header .status-chip {
+  align-self: center;
 }
 
 .backup-meta-grid {
@@ -3024,7 +3052,10 @@ td a {
 }
 
 .automatic-backup-table {
+  width: 100%;
   min-width: 920px;
+  border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .automatic-backup-table th,
@@ -3377,6 +3408,40 @@ td a {
   min-width: 980px;
 }
 
+.cloudflare-manual-block-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(240px, 1.4fr) auto;
+  align-items: end;
+  gap: 10px;
+  margin: 12px 0 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.cloudflare-manual-block-form label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cloudflare-manual-block-form label span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.cloudflare-manual-block-form input {
+  min-width: 0;
+}
+
+.cloudflare-manual-block-form .secondary-button {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
 .login-cloudflare-reason-cell,
 .login-cloudflare-rule-cell {
   overflow: hidden;
@@ -3582,14 +3647,38 @@ td a {
   width: 100%;
 }
 
+.debug-scroll-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  -webkit-overflow-scrolling: touch;
+}
+
 .debug-submission-table {
   width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
   table-layout: fixed;
+  font-size: 13px;
 }
 
 .debug-submission-table th,
 .debug-submission-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
   overflow-wrap: anywhere;
+}
+
+.debug-submission-table th {
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
 }
 
 .debug-submission-table .truncate-cell {
@@ -3689,6 +3778,7 @@ td a {
   .autotask-config-list,
   .backup-meta-grid,
   .backup-restore-form,
+  .cloudflare-manual-block-form,
   .user-edit-grid,
   .add-user-fields-grid,
   .theme-card-grid,

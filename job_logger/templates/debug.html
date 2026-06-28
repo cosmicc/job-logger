@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Autotask Debug - Job Logger{% endblock %}
+{% block title %}Diagnostics - Job Logger{% endblock %}
 
 {% block content %}
   <section class="debug-shell">
     <div class="review-header">
       <div>
-        <h1>Autotask debug</h1>
-        <p class="muted-text">Review provider configuration and the most recent submission attempts.</p>
+        <h1>Diagnostics</h1>
+        <p class="muted-text">Monitor storage, login activity, Cloudflare blocks, Autotask connectivity, submission history, logs, and backups.</p>
       </div>
     </div>
 
@@ -311,6 +311,8 @@
                           <form method="post" action="/debug/cloudflare-blocks/block">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <input type="hidden" name="ip_address" value="{{ ip_status.ip_address if ip_status else failure.client_ip }}">
+                            <input type="hidden" name="reason" value="Diagnostics failed-login row block: {{ failure.reason.replace('_', ' ') }} for {{ failure.username or 'blank username' }}">
+                            <input type="hidden" name="redirect_fragment" value="login-failures">
                             <button
                               class="login-action-button cloudflare-block-toggle is-off"
                               type="submit"
@@ -459,6 +461,35 @@
           <p class="muted-text">Cloudflare IP blocking is not fully configured.</p>
         {% endif %}
 
+        <form class="cloudflare-manual-block-form" method="post" action="/debug/cloudflare-blocks/block">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="redirect_fragment" value="cloudflare-blocked-ips">
+          <label>
+            <span>IP address</span>
+            <input
+              type="text"
+              name="ip_address"
+              autocomplete="off"
+              placeholder="203.0.113.10"
+              required
+              {% if not cloudflare_ip_blocking_configured %}disabled{% endif %}
+            >
+          </label>
+          <label>
+            <span>Reason</span>
+            <input
+              type="text"
+              name="reason"
+              maxlength="180"
+              autocomplete="off"
+              placeholder="Repeated failed sign-in attempts"
+              required
+              {% if not cloudflare_ip_blocking_configured %}disabled{% endif %}
+            >
+          </label>
+          <button class="secondary-button" type="submit" {% if not cloudflare_ip_blocking_configured %}disabled{% endif %}>Block IP</button>
+        </form>
+
         {% if cloudflare_ip_blocks %}
           <div class="table-wrap login-attempt-window cloudflare-block-window">
             <table class="login-attempt-table cloudflare-block-table">
@@ -478,7 +509,7 @@
                   <tr>
                     <td class="login-client-ip-cell">{{ block.ip_address }}</td>
                     <td>{{ block.source.replace("_", " ").title() }}</td>
-                    <td class="login-cloudflare-reason-cell">{{ block.reason or "-" }}</td>
+                    <td class="login-cloudflare-reason-cell" title="{{ block.reason }}">{{ block.reason or "-" }}</td>
                     <td>{{ block.failure_count if block.failure_count is not none else "-" }}</td>
                     <td class="login-time-cell">{{ block.created_at_display }}</td>
                     <td class="login-cloudflare-rule-cell" title="{{ block.cloudflare_rule_id }}">{{ block.cloudflare_rule_id }}</td>
@@ -538,7 +569,7 @@
         </div>
 
         {% if submission_attempts %}
-          <div class="table-wrap debug-submission-table-wrap">
+          <div class="debug-scroll-table-wrap debug-submission-table-wrap">
             <table class="debug-submission-table">
               <thead>
                 <tr>
@@ -774,7 +805,7 @@
 
     <section id="automatic-backups" class="table-panel" aria-label="Automatic database backups">
       <div class="debug-panel-body">
-        <div class="review-header">
+        <div class="review-header automatic-backup-header">
           <div>
             <h2>Automatic database backups</h2>
             <p class="muted-text">
@@ -798,7 +829,7 @@
         </dl>
 
         {% if automatic_backups %}
-          <div class="debug-table-wrap automatic-backup-table-wrap">
+          <div class="debug-scroll-table-wrap automatic-backup-table-wrap">
             <table class="debug-submission-table automatic-backup-table">
               <colgroup>
                 <col class="automatic-backup-created-col">

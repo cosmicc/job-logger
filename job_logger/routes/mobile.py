@@ -180,21 +180,23 @@ def _parse_service_call_local_date(raw_service_call_date: str | None) -> date:
 
 
 def _format_service_call_calendar_date(selected_service_call_date: date) -> str:
-    """Return a compact user-facing date for service-call day navigation."""
+    """Return the user-facing date for service-call day navigation."""
 
-    return f"{selected_service_call_date.strftime('%b')} {selected_service_call_date.day}, {selected_service_call_date.year}"
+    day_number = selected_service_call_date.day
+    if 10 <= day_number % 100 <= 20:
+        ordinal_suffix = "th"
+    else:
+        ordinal_suffix = {1: "st", 2: "nd", 3: "rd"}.get(day_number % 10, "th")
+
+    month_name = selected_service_call_date.strftime("%B")
+    weekday_name = selected_service_call_date.strftime("%A")
+    return f"{month_name} {day_number}{ordinal_suffix} ({weekday_name})"
 
 
 def _service_call_date_label(selected_service_call_date: date) -> str:
     """Return the mobile day label for service-call date navigation."""
 
     current_local_date = local_date_for(now_utc())
-    current_week_start = current_local_date - timedelta(days=current_local_date.weekday())
-    current_week_end = current_week_start + timedelta(days=6)
-    if not current_week_start <= selected_service_call_date <= current_week_end:
-        return _format_service_call_calendar_date(selected_service_call_date)
-
-    day_label = selected_service_call_date.strftime("%A")
     relative_day_delta = (selected_service_call_date - current_local_date).days
     relative_labels = {
         -1: "Yesterday",
@@ -203,9 +205,10 @@ def _service_call_date_label(selected_service_call_date: date) -> str:
     }
     relative_label = relative_labels.get(relative_day_delta)
     if relative_label:
-        return f"{day_label} ({relative_label})"
+        weekday_name = selected_service_call_date.strftime("%A")
+        return f"{relative_label} ({weekday_name})"
 
-    return day_label
+    return _format_service_call_calendar_date(selected_service_call_date)
 
 
 def _service_call_date_payload(selected_service_call_date: date) -> dict[str, str]:

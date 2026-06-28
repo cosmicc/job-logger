@@ -44,11 +44,6 @@
   padding: 4px 9px;
 }
 
-.dev-build-pill {
-  min-height: 30px;
-  padding: 4px 8px;
-}
-
 .mobile-nav-actions {
   display: flex;
   gap: 6px;
@@ -77,6 +72,10 @@
 
 .desktop-logout-form {
   display: none;
+}
+
+.review-detail-heading-row {
+  gap: 6px;
 }
 
 .mobile-shell,
@@ -306,6 +305,27 @@
 
 .table-wrap {
   overflow-x: auto;
+}
+
+.debug-scroll-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.debug-submission-table,
+.automatic-backup-table {
+  min-width: 920px;
+}
+
+.automatic-backup-header {
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.automatic-backup-header .status-chip {
+  align-self: flex-start;
 }
 
 .time-step-controls,

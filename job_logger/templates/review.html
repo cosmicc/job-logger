@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Review Jobs - Job Logger{% endblock %}
+{% block title %}Work Review - Job Logger{% endblock %}
 
 {% block content %}
   <div class="mobile-page-loading is-hidden" data-review-page-loading role="status" aria-live="assertive" aria-busy="true">
@@ -13,7 +13,7 @@
   <section class="review-shell">
     <div class="review-header">
       <div>
-        <h1>Job review</h1>
+        <h1>Work Review</h1>
         <p class="muted-text">Edit recorded work, accept reviewed jobs, and submit approved time to Autotask.</p>
       </div>
     </div>
@@ -104,7 +104,7 @@
               <input type="hidden" name="return_to" value="review">
             {% endif %}
 
-            <div class="form-header-row">
+            <div class="form-header-row review-detail-heading-row">
               <div>
                 <p class="eyebrow-text">Selected job</p>
                 <h2 data-selected-ticket-heading>{{ selected_job.ticket_title or selected_job.ticket_number or "Unassigned Ticket" }}</h2>
@@ -119,9 +119,6 @@
               </div>
             {% endif %}
 
-            {% if selected_job.autotask_external_id %}
-              <p class="success-text">Autotask time entry: {{ selected_job.autotask_external_id }}</p>
-            {% endif %}
             {% if selected_job_submitted %}
               <section class="review-submitted-notice" role="note" aria-label="Submitted job editable">
                 <strong>Submitted Autotask entry</strong>

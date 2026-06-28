@@ -42,6 +42,7 @@ from job_logger.services.cloudflare_blocks import (
     ip_is_allowlisted,
     normalize_ip_address,
     remove_app_cloudflare_block,
+    sanitize_cloudflare_block_reason,
 )
 from job_logger.services.login_failures import read_login_failures_page, read_login_successes_page
 from job_logger.services.session_control import invalidate_all_web_user_sessions
@@ -64,6 +65,10 @@ DISK_SPACE_CRITICAL_FREE_BYTES = 1 * 1024 * 1024 * 1024
 AUTOMATIC_BACKUP_TRIGGER_LABELS = {
     "startup": "Startup",
     "scheduled": "Hourly",
+}
+DEBUG_REDIRECT_FRAGMENTS = {
+    "login-failures",
+    "cloudflare-blocked-ips",
 }
 
 
@@ -566,6 +571,15 @@ def _debug_redirect(fragment: str) -> RedirectResponse:
     return RedirectResponse(url=f"/debug#{fragment}", status_code=303)
 
 
+def _debug_redirect_fragment_from_form(value: object, *, default: str) -> str:
+    """Return a known diagnostics fragment from submitted form data."""
+
+    fragment = str(value or "").strip()
+    if fragment in DEBUG_REDIRECT_FRAGMENTS:
+        return fragment
+    return default
+
+
 @router.get("", response_class=HTMLResponse)
 def debug_page(
     request: Request,
@@ -770,23 +784,32 @@ async def block_login_ip_form(
 
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+    redirect_fragment = _debug_redirect_fragment_from_form(
+        form_data.get("redirect_fragment"),
+        default="login-failures",
+    )
     ip_address = str(form_data.get("ip_address", "")).strip()
     normalized_ip = normalize_ip_address(ip_address)
     if normalized_ip is None:
         add_flash_message(request, "Cannot block an invalid IP address.", "error")
-        return _debug_redirect("login-failures")
+        return _debug_redirect(redirect_fragment)
 
     existing_block = cloudflare_block_for_ip(database_session, normalized_ip)
     if existing_block is not None:
         add_flash_message(request, "Cloudflare IP block is already active.", "info")
-        return _debug_redirect("login-failures")
+        return _debug_redirect(redirect_fragment)
+
+    block_reason = sanitize_cloudflare_block_reason(
+        form_data.get("reason"),
+        default_reason="Diagnostics manual Cloudflare block",
+    )
 
     try:
         block = create_app_cloudflare_block(
             database_session,
             normalized_ip,
             source="manual",
-            reason="Diagnostics failed-login row block button",
+            reason=block_reason,
         )
         record_audit_event(
             database_session,
@@ -797,16 +820,17 @@ async def block_login_ip_form(
                 "ip_address": block.ip_address,
                 "cloudflare_rule_id": block.cloudflare_rule_id,
                 "source": block.source,
+                "reason": block.reason,
             },
         )
         database_session.commit()
     except CloudflareBlockError as exc:
         database_session.rollback()
         add_flash_message(request, str(exc), "error")
-        return _debug_redirect("login-failures")
+        return _debug_redirect(redirect_fragment)
 
     add_flash_message(request, "Cloudflare IP block is active.", "success")
-    return _debug_redirect("login-failures")
+    return _debug_redirect(redirect_fragment)
 
 
 @router.post("/cloudflare-blocks/unblock")

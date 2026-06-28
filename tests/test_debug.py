@@ -186,6 +186,8 @@ def test_managed_admin_can_use_debug_without_super_admin_permissions(client: Tes
     home_response = client.get("/home")
     assert home_response.status_code == 200
     assert 'href="/debug"' in home_response.text
+    assert ">Diag</a>" in home_response.text
+    assert ">Debug</a>" not in home_response.text
     assert 'data-mobile-debug-link' in home_response.text
     assert 'href="/users"' not in home_response.text
     assert 'data-mobile-users-link' not in home_response.text
@@ -599,7 +601,7 @@ def test_failed_login_auto_blocks_cloudflare_ip_after_five_consecutive_failures(
 ) -> None:
     """Five consecutive local login failures from one IP should create an app-managed block."""
 
-    created_blocks: list[tuple[str, str, int | None]] = []
+    created_blocks: list[tuple[str, str, str, int | None]] = []
 
     def fake_create_app_cloudflare_block(
         database_session: Session,
@@ -610,7 +612,7 @@ def test_failed_login_auto_blocks_cloudflare_ip_after_five_consecutive_failures(
         failure_count: int | None = None,
         application_settings=settings,
     ) -> CloudflareIPBlock:
-        created_blocks.append((ip_address, source, failure_count))
+        created_blocks.append((ip_address, source, reason, failure_count))
         block = CloudflareIPBlock(
             ip_address=ip_address,
             cloudflare_rule_id="cf-auto-rule",
@@ -643,7 +645,9 @@ def test_failed_login_auto_blocks_cloudflare_ip_after_five_consecutive_failures(
         )
         assert failed_response.status_code == 303
 
-    assert created_blocks == [("198.51.100.55", "automatic", 5)]
+    assert created_blocks == [
+        ("198.51.100.55", "automatic", "5 consecutive failed local app login attempts", 5)
+    ]
     with database.SessionLocal() as database_session:
         counter = database_session.scalar(
             select(LoginFailureCounter).where(
@@ -658,8 +662,10 @@ def test_failed_login_auto_blocks_cloudflare_ip_after_five_consecutive_failures(
         assert block.ip_address == "198.51.100.55"
         assert block.cloudflare_rule_id == "cf-auto-rule"
         assert block.source == "automatic"
+        assert block.reason == "5 consecutive failed local app login attempts"
         audit_event = database_session.scalar(select(AuditEvent).where(AuditEvent.action == "debug.cloudflare_ip_block.created"))
         assert audit_event is not None
+        assert audit_event.details["reason"] == "5 consecutive failed local app login attempts"
         assert audit_event.details["failure_count"] == 5
 
     failure_payloads = [
@@ -899,6 +905,7 @@ def test_debug_cloudflare_block_buttons_create_and_remove_app_managed_block(
     assert success_response.status_code == 303
 
     deleted_rule_ids: list[str] = []
+    created_blocks: list[tuple[str, str]] = []
 
     def fake_cloudflare_ip_blocking_configured() -> bool:
         return True
@@ -912,11 +919,10 @@ def test_debug_cloudflare_block_buttons_create_and_remove_app_managed_block(
         failure_count: int | None = None,
         application_settings=settings,
     ) -> CloudflareIPBlock:
-        assert ip_address == "203.0.113.20"
-        assert "Diagnostics failed-login row block button" in reason
+        created_blocks.append((ip_address, reason))
         block = CloudflareIPBlock(
             ip_address=ip_address,
-            cloudflare_rule_id="cf-manual-rule",
+            cloudflare_rule_id=f"cf-manual-rule-{len(created_blocks)}",
             source=source,
             reason=reason,
             failure_count=failure_count,
@@ -937,23 +943,40 @@ def test_debug_cloudflare_block_buttons_create_and_remove_app_managed_block(
     initial_response = client.get("/debug")
     assert initial_response.status_code == 200
     assert 'aria-label="Block IP at Cloudflare"' in initial_response.text
+    assert 'class="cloudflare-manual-block-form"' in initial_response.text
+    assert 'name="reason"' in initial_response.text
     block_response = client.post(
         "/debug/cloudflare-blocks/block",
-        data={"csrf_token": extract_csrf_token(initial_response.text), "ip_address": "203.0.113.20"},
+        data={
+            "csrf_token": extract_csrf_token(initial_response.text),
+            "ip_address": "203.0.113.20",
+            "reason": "Diagnostics failed-login row block: invalid credentials for bad-user",
+            "redirect_fragment": "login-failures",
+        },
         follow_redirects=False,
     )
     assert block_response.status_code == 303
     assert block_response.headers["location"] == "/debug#login-failures"
+    assert created_blocks == [
+        ("203.0.113.20", "Diagnostics failed-login row block: invalid credentials for bad-user")
+    ]
     with database.SessionLocal() as database_session:
         block = database_session.scalar(select(CloudflareIPBlock))
         assert block is not None
         assert block.ip_address == "203.0.113.20"
-        assert block.cloudflare_rule_id == "cf-manual-rule"
+        assert block.cloudflare_rule_id == "cf-manual-rule-1"
         assert block.source == "manual"
+        assert block.reason == "Diagnostics failed-login row block: invalid credentials for bad-user"
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "debug.cloudflare_ip_block.created")
+        )
+        assert audit_event is not None
+        assert audit_event.details["reason"] == "Diagnostics failed-login row block: invalid credentials for bad-user"
 
     blocked_response = client.get("/debug")
     assert "Cloudflare Blocked IPs" in blocked_response.text
-    assert "cf-manual-rule" in blocked_response.text
+    assert "cf-manual-rule-1" in blocked_response.text
+    assert "Diagnostics failed-login row block: invalid credentials for bad-user" in blocked_response.text
     assert 'aria-label="Unblock IP at Cloudflare"' in blocked_response.text
 
     unblock_response = client.post(
@@ -963,9 +986,29 @@ def test_debug_cloudflare_block_buttons_create_and_remove_app_managed_block(
     )
     assert unblock_response.status_code == 303
     assert unblock_response.headers["location"] == "/debug#cloudflare-blocked-ips"
-    assert deleted_rule_ids == ["cf-manual-rule"]
+    assert deleted_rule_ids == ["cf-manual-rule-1"]
     with database.SessionLocal() as database_session:
         assert database_session.scalar(select(CloudflareIPBlock)) is None
+
+    manual_debug_response = client.get("/debug")
+    manual_block_response = client.post(
+        "/debug/cloudflare-blocks/block",
+        data={
+            "csrf_token": extract_csrf_token(manual_debug_response.text),
+            "ip_address": "203.0.113.21",
+            "reason": "Operator reported credential stuffing",
+            "redirect_fragment": "cloudflare-blocked-ips",
+        },
+        follow_redirects=False,
+    )
+    assert manual_block_response.status_code == 303
+    assert manual_block_response.headers["location"] == "/debug#cloudflare-blocked-ips"
+    assert created_blocks[-1] == ("203.0.113.21", "Operator reported credential stuffing")
+    with database.SessionLocal() as database_session:
+        block = database_session.scalar(select(CloudflareIPBlock))
+        assert block is not None
+        assert block.ip_address == "203.0.113.21"
+        assert block.reason == "Operator reported credential stuffing"
 
 
 def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient) -> None:
@@ -1062,8 +1105,18 @@ def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient)
     assert "raw-secret" not in debug_response.text
 
     stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
+    phone_stylesheet = (
+        Path(__file__).resolve().parents[1] / "job_logger" / "static" / "phone.css"
+    ).read_text(encoding="utf-8")
     assert ".login-attempt-window" in stylesheet
     assert "max-height: 430px;" in stylesheet
+    assert ".debug-scroll-table-wrap" in stylesheet
+    assert ".debug-submission-table {\n  width: 100%;\n  min-width: 920px;" in stylesheet
+    assert ".automatic-backup-table {\n  width: 100%;\n  min-width: 920px;" in stylesheet
+    assert ".automatic-backup-header" in stylesheet
+    assert ".debug-scroll-table-wrap" in phone_stylesheet
+    assert "overscroll-behavior-x: contain;" in phone_stylesheet
+    assert ".automatic-backup-header {\n  gap: 6px;" in phone_stylesheet
     assert ".login-account-super-admin" in stylesheet
     assert "background: var(--warning-soft);" in stylesheet
     assert ".login-details-button" in stylesheet
@@ -1227,7 +1280,11 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     login_as_super_admin(authenticated_client)
     debug_response = authenticated_client.get("/debug")
     assert debug_response.status_code == 200
-    assert "Autotask debug" in debug_response.text
+    assert "Diagnostics - Job Logger" in debug_response.text
+    assert "<h1>Diagnostics</h1>" in debug_response.text
+    assert "Monitor storage, login activity, Cloudflare blocks, Autotask connectivity, submission history, logs, and backups." in debug_response.text
+    assert "Autotask debug" not in debug_response.text
+    assert "Review provider configuration and the most recent submission attempts." not in debug_response.text
     assert "Application version" in debug_response.text
     assert APP_VERSION in debug_response.text
     assert debug_response.text.index("Disk space") < debug_response.text.index("Session controls")
@@ -1248,6 +1305,7 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert "Restore scope" in debug_response.text
     assert "Validated restores replace all Job Logger database tables with the backup contents." in debug_response.text
     assert "Restore confirmation" not in debug_response.text
+    assert '<div class="debug-scroll-table-wrap debug-submission-table-wrap">' in debug_response.text
     assert '<table class="debug-submission-table">' in debug_response.text
     assert "1 retained, 10 per page" in debug_response.text
     assert "<th>User</th>" in debug_response.text
@@ -1336,12 +1394,14 @@ def test_debug_lists_and_restores_automatic_backups(super_admin_client: TestClie
     debug_page_response = super_admin_client.get("/debug")
     assert debug_page_response.status_code == 200
     assert "Automatic database backups" in debug_page_response.text
+    assert 'class="review-header automatic-backup-header"' in debug_page_response.text
     assert "Retention" in debug_page_response.text
     assert "Newest 6 hourly backups, plus one daily backup for today and each of the prior 2 days." in debug_page_response.text
     assert backup_result.backup_file.filename in debug_page_response.text
     assert f'title="{backup_result.backup_file.filename}">{short_backup_name}</span>' in debug_page_response.text
     assert '<col class="automatic-backup-file-col">' in debug_page_response.text
     assert '<col class="automatic-backup-source-col">' in debug_page_response.text
+    assert '<div class="debug-scroll-table-wrap automatic-backup-table-wrap">' in debug_page_response.text
     assert "<th>Source</th>" in debug_page_response.text
     assert "Startup" in debug_page_response.text
     assert '/debug/automatic-backups/download' in debug_page_response.text

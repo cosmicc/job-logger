@@ -360,10 +360,11 @@ extra Allocation Code edit permission even when the value matches the ticket.
 Ticket `TimeEntries.summaryNotes` must be built from the stored work-location
 mode plus the reviewed summary text. The local `summary_notes` field stays
 unprefixed for mobile and persistence. Review detail displays the full
-Autotask-bound summary, including `Remote` or `On-Site`, so the operator can
+Autotask-bound summary, including `Remote. ` or `On-Site. `, so the operator can
 correct the prefix before submission or submitted-entry update. Save, accept,
-retry, and submitted-entry update handlers must parse that visible prefix back into
-`work_location` before building the final payload.
+retry, and submitted-entry update handlers must parse that visible prefix back
+into `work_location` before building the final payload, while still accepting
+older `Remote`, `Remote:`, `Remote -`, and matching On-Site prefixes.
 
 User-scoped live calls must use the owning managed web user's Autotask resource
 ID for local `resourceID` payloads and resource filters. They must not send the
@@ -407,7 +408,11 @@ falling back to generic HTTP client exception text.
 The debug page is a Diagnostics-authorized runtime visibility surface for the
 config super admin and managed web users marked Admin. It should show the
 source-controlled application version, sanitized config, connectivity test
-results, and submission attempts.
+results, and submission attempts under the **Diagnostics** page title. The
+desktop header may label the route **Diag** to keep navigation compact. The
+submission-attempt list should keep its full table width inside a horizontal
+scroller on phone layouts so attempt metadata does not get squeezed into
+unreadable columns.
 
 The script `scripts/discover_autotask_ids.py` is for read-only tenant metadata
 discovery using `.env` configuration. Keep it read-only and never print

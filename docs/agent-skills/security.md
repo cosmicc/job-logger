@@ -82,8 +82,9 @@ That managed-user Admin flag grants full Diagnostics access only, including
 backup/restore, session invalidation, Autotask tests, failed-login hiding, and
 Cloudflare block controls. It must not grant `/users`, super-admin review
 scope, or any additional job workflow permissions. Normal managed web users
-must not see a Debug navigation item, and direct requests from those sessions
-must receive 403 instead of being treated as anonymous login redirects.
+must not see the Diag/Diagnostics navigation item, and direct requests from
+those sessions must receive 403 instead of being treated as anonymous login
+redirects.
 The Diagnostics **Log out web users** action is CSRF-protected, audited, and
 must invalidate only managed web-user sessions. It must not clear the current
 config super-admin session. If a managed Admin user triggers it, that user is
@@ -109,8 +110,9 @@ navigation may show Users, Review, and Diagnostics icons; those links do not
 grant any capability beyond the server-side authorization checks on the target
 routes. Phone-sized managed-user navigation may show Home, Review, Config, and
 Diagnostics only when `web_users.is_admin` is enabled. Non-admin managed users
-must not show Debug. Phone-sized logout controls must submit the normal
-CSRF-protected `/logout` form rather than using browser-only close behavior.
+must not show Diag or Diagnostics navigation. Phone-sized logout controls must
+submit the normal CSRF-protected `/logout` form rather than using browser-only
+close behavior.
 Theme and workflow preferences are not secrets, but autosaving them is still a
 state-changing action that must require
 authentication and CSRF. The workflow preference **Submit from Work in
@@ -167,7 +169,10 @@ additional password or Device sign-in verification for
 `LOGIN_LOCAL_LOCKOUT_MINUTES`, defaulting to 15. When Cloudflare blocking is
 enabled, the app may create/delete only zone IP Access Rules tracked in
 `cloudflare_ip_blocks`, must honor `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, and must
-not mutate unrelated Cloudflare rules. The successful-login table may use a
+not mutate unrelated Cloudflare rules. Diagnostics may create blocks from a
+failed-login row or from a manual IP entry, and every path must require CSRF,
+normalize the IP, apply the allowlist, and store a bounded safe reason that is
+also used in the Cloudflare rule note. The successful-login table may use a
 yellow account-kind chip for config
 super-admin rows so they are easy to distinguish from managed web users, and
 may show `Password` or `Passkey` method pills for the already-sanitized
@@ -175,8 +180,11 @@ authentication method. Near the bottom of `/debug`, the page may show a
 sanitized newest-first tail of `${LOG_DIR}/app.log`; keep that bounded to the
 newest 10 displayed lines and redacted. Login failure, Cloudflare blocked-IP,
 and Autotask submission-attempt diagnostics must stay paginated at 10 rows per
-page. `LOG_LEVEL` controls app-log verbosity and must be limited to `DEBUG`,
-`INFO`, `WARNING`, or `ERROR`. `/debug` may also show disk usage for
+page. Wide Diagnostics tables should stay horizontally scrollable on phone
+layouts instead of compressing columns, especially when they include per-row
+backup or Cloudflare actions. `LOG_LEVEL` controls app-log verbosity and must
+be limited to `DEBUG`, `INFO`, `WARNING`, or `ERROR`. `/debug` may also show
+disk usage for
 app-visible storage paths such as `/`, `${LOG_DIR}`, and
 `${AUTOMATIC_BACKUP_DIR}`. Combine monitored paths when used bytes and total
 bytes match exactly, and keep disk diagnostics read-only and limited to path,

@@ -29,9 +29,13 @@ MAX_SERVICE_CALL_NAME_LENGTH = 240
 MAX_SERVICE_CALL_DETAIL_LENGTH = 2000
 MAX_AUTOTASK_IN_FILTER_VALUES = 500
 
-WORK_LOCATION_SUMMARY_PREFIXES = {
+WORK_LOCATION_DISPLAY_LABELS = {
     WorkLocation.REMOTE: "Remote",
     WorkLocation.ON_SITE: "On-Site",
+}
+WORK_LOCATION_SUMMARY_PREFIXES = {
+    WorkLocation.REMOTE: "Remote.",
+    WorkLocation.ON_SITE: "On-Site.",
 }
 
 TICKET_STATUS_DISPLAY_LABELS = {
@@ -48,7 +52,7 @@ ON_SITE_SERVICE_CALL_PATTERN = re.compile(r"\bon[\s-]?site\b", re.IGNORECASE)
 REMOTE_TICKET_SOURCE_LABELS = {"rmm alert", "datto alert", "bcdr alert", "email alert"}
 RESOURCE_MATCH_TEXT_PATTERN = re.compile(r"[^a-z0-9]+")
 SUMMARY_WORK_LOCATION_PREFIX_PATTERN = re.compile(
-    r"^\s*(?P<prefix>on[\s-]?site|remote)\b(?:\s*[:\-]\s*|\s+|$)(?P<summary>.*)\Z",
+    r"^\s*(?P<prefix>on[\s-]?site|remote)\b(?:\s*[.:\-]\s*|\s+|$)(?P<summary>.*)\Z",
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -477,9 +481,10 @@ def split_autotask_summary_notes(
     """Split a visible Autotask notes value into work location and note body.
 
     Review shows the final Autotask `summaryNotes` string so the operator can
-    correct the leading Remote/On-Site value before submission. Local storage
+    correct the leading Remote. or On-Site. value before submission. Local storage
     still keeps that work mode structured in `work_location`, so this parser
-    accepts common visible prefixes and returns clean reviewer notes.
+    accepts the current period-suffixed prefix and older visible prefixes while
+    returning clean reviewer notes.
     """
 
     raw_summary_notes = (summary_notes or "").strip()
@@ -541,7 +546,7 @@ def work_location_label_for_detection(work_location: WorkLocation | None) -> str
     if work_location is None:
         return "Not specified"
 
-    return WORK_LOCATION_SUMMARY_PREFIXES[work_location]
+    return WORK_LOCATION_DISPLAY_LABELS[work_location]
 
 
 def _safe_service_call_text(raw_text: Any, fallback_text: str, max_length: int) -> str:
@@ -802,7 +807,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 status_label="In Progress",
                 company_name=safe_client_name,
                 detected_work_location=WorkLocation.REMOTE,
-                work_location_label=WORK_LOCATION_SUMMARY_PREFIXES[WorkLocation.REMOTE],
+                work_location_label=WORK_LOCATION_DISPLAY_LABELS[WorkLocation.REMOTE],
                 status_id=1,
             ),
             AutotaskTicketOption(
@@ -812,7 +817,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 status_label="Follow Up",
                 company_name=safe_client_name,
                 detected_work_location=WorkLocation.ON_SITE,
-                work_location_label=WORK_LOCATION_SUMMARY_PREFIXES[WorkLocation.ON_SITE],
+                work_location_label=WORK_LOCATION_DISPLAY_LABELS[WorkLocation.ON_SITE],
                 status_id=4,
             ),
         ]

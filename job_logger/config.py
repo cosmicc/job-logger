@@ -19,8 +19,9 @@ DEFAULT_FASTER_WHISPER_INITIAL_PROMPT = (
 
 DEFAULT_AI_CLEANUP_INSTRUCTIONS = (
     "Clean up MSP work-summary notes for an Autotask time entry. Preserve the "
-    "technical facts, customer impact, ticket context, and any leading Remote "
-    "or On-Site prefix. Improve grammar, punctuation, capitalization, and "
+    "technical facts, customer impact, ticket context, and any leading "
+    "'Remote. ' or 'On-Site. ' prefix. Improve grammar, punctuation, "
+    "capitalization, and "
     "readability. Do not invent work, parts, durations, ticket numbers, root "
     "causes, customer approvals, or follow-up actions. Return only the cleaned "
     "summary text with no markdown, title, explanation, or surrounding quotes."

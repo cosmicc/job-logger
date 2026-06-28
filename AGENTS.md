@@ -128,8 +128,12 @@ table may hide individual rows through `hidden_login_failures`, but the raw
 JSONL download must remain append-only. Cloudflare IP blocking on `/debug` may
 create or remove only app-managed zone IP Access Rules tracked in
 `cloudflare_ip_blocks`; it must honor `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, use the
-trusted enforcement IP, and reset `login_failure_counters` to zero after a
-successful local login for the same enforcement IP and submitted username. After
+trusted enforcement IP, store a safe reason for every block, and reset
+`login_failure_counters` to zero after a successful local login for the same
+enforcement IP and submitted username. The Diagnostics Cloudflare controls may
+block an IP from a failed-login row or from a manual IP entry, but both paths
+must require CSRF, normalize the IP, honor the allowlist, and submit only the
+app-managed rule note to Cloudflare. After
 `CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS` consecutive failures, local
 password and Device sign-in verification must be blocked for
 `LOGIN_LOCAL_LOCKOUT_MINUTES`, defaulting to 15. The successful-login window
@@ -384,8 +388,9 @@ user management, config, debug, and login surfaces through shared CSS variables
 instead of a separate unaudited template branch. Super-admin pages always use
 dark mode.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
-must show a small yellow `DEV` badge near the version link so dev instances are
-visually distinct from production.
+must show the version link as one yellow badge that includes `DEV`, such as
+`v1.1.6 DEV`, so dev instances are visually distinct from production without
+adding a separate pill.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows only the discreet version link, compact
@@ -407,8 +412,8 @@ The review interface must allow editing of reviewed job summary notes, ticket
 status, date, start time, end time, work location, and the translated
 speech-to-text description before acceptance. The review list must show each
 job's Remote or On-Site mode. The summary textarea must show the complete
-Autotask summary that will be sent, including the leading Remote or On-Site
-prefix. Saving review edits parses that prefix back into the stored
+Autotask summary that will be sent, including the leading `Remote. ` or
+`On-Site. ` prefix. Saving review edits parses that prefix back into the stored
 `work_location` field, and the review-detail work-location control must update
 that visible prefix, so the final payload can be corrected without exposing
 ticket or client identity to edits. The selected Autotask client name, company
@@ -607,7 +612,7 @@ The application is a FastAPI project under `job_logger/`.
   Production must use `AUTOTASK_PROVIDER=autotask`; Autotask resource IDs are
   stored on managed web users, not in config. Remote faster-whisper settings
   live here as environment-backed values. `DEV_BUILD=true` marks a dev runtime
-  with the authenticated header badge.
+  by folding `DEV` into the authenticated header version badge.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.
 - `job_logger/models.py` defines persistent tables for managed web users,
   managed-user session invalidation cutoffs, per-user preferences, jobs, audit
@@ -738,8 +743,12 @@ The normal workflow is:
    JavaScript queries `/home/service-calls` to populate service-call start
    cards for the selected local date and that user's Autotask resource,
    including each call's local start/end time range. The mobile date navigator
-   can move backward/forward by day or open a calendar picker, but service-call
-   starts are still verified server-side for the submitted date and resource.
+   can move backward/forward by day or open a calendar picker, and its visible
+   label shows `Today`, `Yesterday`, or `Tomorrow` with the weekday when
+   applicable; other dates show the month, ordinal day, and weekday without
+   the year.
+   Service-call starts are still verified server-side for the submitted date
+   and resource.
    The browser list and start route both filter out service calls for tickets
    that already have a local Job Logger time entry with ticket status Complete
    for the current managed user.
@@ -768,8 +777,8 @@ The normal workflow is:
    locked for that job in Work in Progress, Review, and server-side save/end
    handlers.
 9. User chooses whether the work is Remote or On-Site. The mode is stored on
-   the job and appears as the leading prefix in the review summary textarea so
-   it can be corrected before Autotask submission.
+   the job and appears as the leading `Remote. ` or `On-Site. ` prefix in the
+   review summary textarea so it can be corrected before Autotask submission.
 10. User records notes during an active job from the Summary notes action row,
    where **Record** sits beside the optional **AI Cleanup** action. Review
    detail uses the same paired summary action row for unsubmitted jobs. On
@@ -816,8 +825,9 @@ The normal workflow is:
 16. Successfully submitted jobs can use **Submit changes** for
     date/time/status/notes/work-location updates against the existing Autotask
     time entry, or **Delete From Autotask** to remove the external time entry and
-    return the local job to review. **Submit changes** reasserts the selected
-    local ticket status in Autotask every time it patches the existing
+    return the local job to review. The selected Review detail must not display
+    the stored Autotask `TimeEntries` external ID. **Submit changes** reasserts
+    the selected local ticket status in Autotask every time it patches the existing
     `TimeEntries` row. It may reopen previously Complete tickets to In progress
     before patching `TimeEntries`, then apply the selected final status after the
     time-entry patch when needed.
@@ -868,6 +878,8 @@ In production:
   Returned resource email metadata is optional and is stored only when a user
   selects a resource that includes one.
 - The `/debug` page provides the supported manual **Test Autotask API** action.
+  The authenticated desktop navigation labels this route as **Diag**, while the
+  page itself is titled **Diagnostics**.
 - The `/debug` page provides a Diagnostics-admin **Log out web users** action
   that invalidates all managed web-user sessions without ending the config
   super-admin session. Managed Admin users are included in that invalidation
@@ -884,7 +896,9 @@ In production:
 - The `/debug` disk-space card combines monitored paths when used bytes and
   total bytes match exactly. The app log preview shows only the newest 10
   sanitized lines, and the automatic-backup card belongs below the app-log
-  card.
+  card. Wide Diagnostics tables, including Autotask submission attempts and
+  retained automatic backups, should remain horizontally scrollable on phone
+  layouts so row actions stay reachable.
 - Mock Autotask mode is only for tests and isolated development.
 
 ## Documentation Maintenance Rules For Agents
