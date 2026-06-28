@@ -1127,6 +1127,8 @@ def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient)
     assert ".disk-space-card.disk-space-warning" in stylesheet
     assert ".disk-space-card.disk-space-critical" in stylesheet
     assert ".disk-meter-critical" in stylesheet
+    assert ".debug-shell {\n  display: grid;\n  gap: 12px;" in stylesheet
+    assert ".debug-shell > .review-header {\n  margin-bottom: 0;" in stylesheet
 
 
 def test_debug_paginates_cloudflare_blocked_ips(super_admin_client: TestClient) -> None:

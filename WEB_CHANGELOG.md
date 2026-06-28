@@ -2,13 +2,14 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## v1.1.6 - Review and Home polish
+## v1.1.6 - Review, Home, and header polish
 
 - Review summaries now start with Remote. or On-Site. before the work notes.
 - The Home start button now says Start Work.
 - Service-call date selectors now show Today, Yesterday, or Tomorrow with the weekday.
 - Dev builds now show DEV inside the yellow version badge instead of a separate pill.
 - Review is now titled Work Review and no longer shows the Autotask time-entry ID.
+- Review detail spacing and the mobile DEV version badge now fit better.
 
 ## v1.1.5 - AI cleanup, speech-to-text, and sign-in updates
 

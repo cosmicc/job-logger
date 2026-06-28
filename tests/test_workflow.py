@@ -1184,9 +1184,16 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".review-location-chip" in stylesheet
     assert ".review-detail-heading-row" in stylesheet
     assert ".review-work-location-card" in stylesheet
+    assert ".review-shell > .review-header" in stylesheet
+    assert ".review-detail-heading-row {\n  align-items: flex-start;" in stylesheet
+    assert "flex-direction: column;" in stylesheet
+    assert ".review-detail-heading-row .status-chip {\n  align-self: flex-start;" in stylesheet
+    assert ".review-work-location-card .work-location-switch" in stylesheet
+    assert "justify-self: center;" in stylesheet
     assert ".review-detail-heading-row {\n  gap: 6px;" in phone_stylesheet
     assert ".review-action-stack" in stylesheet
     assert ".review-status-stack" in stylesheet
+    assert "[data-review-autosave-status]:empty" in stylesheet
     assert ".review-summary-action-row" in stylesheet
     assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in stylesheet
     assert ".recording-status:empty,\n[data-active-save-status]:empty" in stylesheet
@@ -1194,6 +1201,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "background: var(--ai-action);" in stylesheet
     assert ".app-header {\n  display: grid;" in phone_stylesheet
     assert "grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);" in phone_stylesheet
+    assert ".mobile-version-group .app-version-link-dev" in phone_stylesheet
+    assert "transform: translateX(-8px);" in phone_stylesheet
     assert ".brand {\n  display: none;" in phone_stylesheet
     assert ".login-header .login-brand" in phone_stylesheet
     assert "grid-column: 2;" in phone_stylesheet

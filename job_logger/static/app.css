@@ -368,7 +368,7 @@ svg {
 
 .debug-shell {
   display: grid;
-  gap: 18px;
+  gap: 12px;
 }
 
 #full-backup {
@@ -1547,6 +1547,10 @@ a:focus-visible {
   padding: 8px 10px;
 }
 
+.review-work-location-card .work-location-switch {
+  justify-self: center;
+}
+
 .ticket-status-card label {
   display: grid;
   gap: 6px;
@@ -1911,8 +1915,20 @@ a:focus-visible {
   margin-bottom: 18px;
 }
 
+.review-shell > .review-header {
+  margin-bottom: 8px;
+}
+
+.debug-shell > .review-header {
+  margin-bottom: 0;
+}
+
 .review-detail-heading-row {
-  gap: 10px;
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 6px;
+  margin-bottom: -4px;
 }
 
 .review-detail-heading-row .eyebrow-text {
@@ -1924,7 +1940,7 @@ a:focus-visible {
 }
 
 .review-detail-heading-row .status-chip {
-  align-self: center;
+  align-self: flex-start;
 }
 
 .review-layout {
@@ -2687,6 +2703,10 @@ td a {
   display: grid;
   gap: 6px;
   margin-top: 10px;
+}
+
+[data-review-autosave-status]:empty {
+  display: none;
 }
 
 .review-summary-action-row {

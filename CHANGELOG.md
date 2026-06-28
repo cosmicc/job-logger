@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## v1.1.6 - Cloudflare block controls, Review polish, and Home polish
+## v1.1.6 - Cloudflare block controls, Review, Home, and header polish
 
 - Advanced the source-controlled dev runtime version to `v1.1.6`, including
   the Python package metadata and PWA service worker cache version.
@@ -25,6 +25,10 @@ All notable changes to Job Logger are documented in this file.
 - Changed Review to use the **Work Review** page title, tightened selected-job
   work-type/status spacing, and stopped showing the Autotask time-entry ID on
   submitted job details.
+- Tightened the Diagnostics and Work Review page-header spacing, left-aligned
+  the selected Review job status pill, centered the selected Review work-type
+  switch, and nudged the phone DEV version badge left so it has more room
+  beside the mobile action icons.
 - Changed mobile Diagnostics Autotask submission-attempt and automatic-backup
   tables to keep full-width rows inside horizontal scrollers, and tightened the
   automatic-backup enabled/disabled status spacing.

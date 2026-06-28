@@ -25,7 +25,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert "## v1.1.6 - Cloudflare block controls, Review polish, and Home polish" in changelog_text
+    assert "## v1.1.6 - Cloudflare block controls, Review, Home, and header polish" in changelog_text
     assert "## v1.1.5 - AI cleanup revert, remote transcription, and login diagnostics" in changelog_text
     assert "## v1.1.4 - Login protection, Work in Progress controls, diagnostics, and deployment safety" in changelog_text
     assert "## v1.1.3 - Review visibility and Work in Progress refinements" in changelog_text
@@ -36,7 +36,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
-    assert "## v1.1.6 - Review and Home polish" in web_changelog_text
+    assert "## v1.1.6 - Review, Home, and header polish" in web_changelog_text
     assert "## v1.1.5 - AI cleanup, speech-to-text, and sign-in updates" in web_changelog_text
     assert "## v1.1.4 - Login protection, Work in Progress controls, and deployment safety" in web_changelog_text
     assert "## v1.1.3 - Review visibility and Work in Progress refinements" in web_changelog_text
@@ -77,13 +77,14 @@ def test_changelog_parser_reads_current_release() -> None:
 
     assert current_entry == ChangelogEntry(
         version="v1.1.6",
-        title="Review and Home polish",
+        title="Review, Home, and header polish",
         changes=(
             "Review summaries now start with Remote. or On-Site. before the work notes.",
             "The Home start button now says Start Work.",
             "Service-call date selectors now show Today, Yesterday, or Tomorrow with the weekday.",
             "Dev builds now show DEV inside the yellow version badge instead of a separate pill.",
             "Review is now titled Work Review and no longer shows the Autotask time-entry ID.",
+            "Review detail spacing and the mobile DEV version badge now fit better.",
         ),
     )
 
@@ -115,12 +116,13 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
-    assert "Review and Home polish" in response.text
+    assert "Review, Home, and header polish" in response.text
     assert "Review summaries now start with Remote. or On-Site. before the work notes." in response.text
     assert "The Home start button now says Start Work." in response.text
     assert "Service-call date selectors now show Today, Yesterday, or Tomorrow with the weekday." in response.text
     assert "Dev builds now show DEV inside the yellow version badge instead of a separate pill." in response.text
     assert "Review is now titled Work Review and no longer shows the Autotask time-entry ID." in response.text
+    assert "Review detail spacing and the mobile DEV version badge now fit better." in response.text
     assert "AI cleanup, speech-to-text, and sign-in updates" in response.text
     assert "AI Cleanup can now switch to Revert cleanup and restore the pre-cleanup notes after reloads." in response.text
     assert "Revert cleanup drafts now expire automatically instead of being kept forever." in response.text
@@ -211,7 +213,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert v110_index < v102_index
     assert v102_index < v101_index
     assert v101_index < v100_index
-    assert '<h2 id="current-version-heading">Review and Home polish</h2>' in response.text
+    assert '<h2 id="current-version-heading">Review, Home, and header polish</h2>' in response.text
     assert '<span class="release-version">v1.1.6</span>' in response.text
     assert '<span class="release-version">v1.1.5</span>' in response.text
     assert '<span class="release-version">v1.1.4</span>' in response.text

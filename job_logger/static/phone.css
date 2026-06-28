@@ -44,6 +44,10 @@
   padding: 4px 9px;
 }
 
+.mobile-version-group .app-version-link-dev {
+  transform: translateX(-8px);
+}
+
 .mobile-nav-actions {
   display: flex;
   gap: 6px;
