@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ticket_notes_overlay.html" import render_ticket_notes_overlay %}
 
 {% block title %}Work Review - Job Logger{% endblock %}
 
@@ -311,6 +312,10 @@
                     +15
                   </button>
                 </div>
+                <span class="duration-inline">
+                  Duration:
+                  <strong data-duration-display>{{ selected_job.rounded_start_utc|duration_label(selected_job_review_end_utc) }}</strong>
+                </span>
               </label>
               <label class="review-ticket-status-field">
                 <span>Ticket status</span>
@@ -351,7 +356,25 @@
               data-review-ticket-description-card
               aria-label="Selected ticket description"
             >
-              <span class="metric-label readonly-field-title">Ticket description</span>
+              <div class="ticket-context-header">
+                <span class="metric-label readonly-field-title">Ticket description</span>
+                <button
+                  class="secondary-button ticket-notes-button is-hidden"
+                  type="button"
+                  data-ticket-notes-button
+                  data-ticket-notes-url="/review/{{ selected_job.id }}/ticket-notes"
+                  data-ticket-notes-ticket-number="{{ selected_job.ticket_number or '' }}"
+                  aria-label="View ticket notes"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 3h9l3 3v15H6z"></path>
+                    <path d="M15 3v4h4"></path>
+                    <path d="M9 11h6"></path>
+                    <path d="M9 15h6"></path>
+                  </svg>
+                  Ticket notes
+                </button>
+              </div>
               <p data-review-ticket-description-display>{{ selected_job.ticket_description or "No description exists for this ticket." }}</p>
             </section>
 
@@ -632,5 +655,7 @@
     </div>
   </section>
 
-  <script src="/static/review.js" defer></script>
+  {{ render_ticket_notes_overlay() }}
+  <script src="/static/ticket-notes.js?v={{ static_asset_version }}" defer></script>
+  <script src="/static/review.js?v={{ static_asset_version }}" defer></script>
 {% endblock %}

@@ -119,6 +119,34 @@ def rounded_duration_minutes(rounded_start_utc: datetime, rounded_end_utc: datet
     return int(duration.total_seconds() // 60)
 
 
+def format_duration_minutes(duration_minutes: int | None) -> str:
+    """Return a compact user-facing label for a rounded duration."""
+
+    if duration_minutes is None or duration_minutes <= 0:
+        return ""
+
+    if duration_minutes < 60:
+        unit = "Minute" if duration_minutes == 1 else "Minutes"
+        return f"{duration_minutes} {unit}"
+
+    whole_hours, remaining_minutes = divmod(duration_minutes, 60)
+    if remaining_minutes == 0:
+        unit = "Hour" if whole_hours == 1 else "Hours"
+        return f"{whole_hours} {unit}"
+
+    hours_text = f"{duration_minutes / 60:.2f}".rstrip("0").rstrip(".")
+    return f"{hours_text} Hours"
+
+
+def format_rounded_duration_label(rounded_start_utc: datetime | None, rounded_end_utc: datetime | None) -> str:
+    """Return the display duration between two rounded UTC timestamps."""
+
+    if rounded_start_utc is None or rounded_end_utc is None:
+        return ""
+
+    return format_duration_minutes(rounded_duration_minutes(rounded_start_utc, rounded_end_utc))
+
+
 def parse_local_form_datetime(local_date: str, local_time: str) -> datetime:
     """Parse HTML date/time fields as America/Detroit and return UTC."""
 

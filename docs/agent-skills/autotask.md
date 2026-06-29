@@ -77,6 +77,7 @@ Current provider responsibilities:
   resource.
 - Resolve service-call ticket/resource relationships before starting a job from
   a service call.
+- Query bounded read-only `TicketNotes` rows for a selected ticket number.
 - Query ticket status picklist metadata.
 - Query a ticket ID from a ticket number.
 - Keep service-call and open-ticket selection read-only against Autotask while
@@ -185,6 +186,15 @@ trusting the clicked browser option. The mobile UI must also make the current
 client input read-only immediately after a successful ticket selection, and the
 service layer must reject crafted client/company changes after the ticket
 exists.
+
+Ticket notes use `GET /review/{job_id}/ticket-notes`. This route must require
+an authenticated session, enforce normal review visibility and ownership rules,
+use the stored ticket number from the database, and call the server-side
+provider. The browser must not call Autotask directly. The response should
+contain only bounded safe fields needed by the overlay, such as note ID, title,
+description, created/updated display times, type, and publish metadata. Keep
+the Work in Progress and Review **Ticket notes** button hidden until this route
+returns at least one note.
 
 ## Service Call Lookup
 

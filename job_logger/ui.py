@@ -36,6 +36,7 @@ templates.env.filters["local_time"] = time_utils.format_local_time
 templates.env.filters["utc_iso"] = time_utils.format_utc_iso
 templates.env.filters["job_date_label"] = time_utils.format_job_date_label
 templates.env.filters["weekday_name"] = time_utils.format_weekday_name
+templates.env.filters["duration_label"] = time_utils.format_rounded_duration_label
 
 
 @lru_cache(maxsize=1)

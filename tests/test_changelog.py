@@ -15,7 +15,7 @@ from tests.conftest import extract_csrf_token
 def test_app_version_matches_current_release() -> None:
     """The source-controlled version should match the current release."""
 
-    assert APP_VERSION == "1.1.7"
+    assert APP_VERSION == "1.2.0"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -25,7 +25,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert "## v1.1.7 - Admin health alerts" in changelog_text
+    assert "## v1.2.0 - Admin alerts, ticket notes, and time totals" in changelog_text
     assert "## v1.1.6 - Cloudflare block controls, Review, Home, and header polish" in changelog_text
     assert "## v1.1.5 - AI cleanup revert, remote transcription, and login diagnostics" in changelog_text
     assert "## v1.1.4 - Login protection, Work in Progress controls, diagnostics, and deployment safety" in changelog_text
@@ -37,7 +37,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
-    assert "## v1.1.7 - Admin health alerts" in web_changelog_text
+    assert "## v1.2.0 - Admin alerts, ticket notes, and time totals" in web_changelog_text
     assert "## v1.1.6 - Review, Home, and header polish" in web_changelog_text
     assert "## v1.1.5 - AI cleanup, speech-to-text, and sign-in updates" in web_changelog_text
     assert "## v1.1.4 - Login protection, Work in Progress controls, and deployment safety" in web_changelog_text
@@ -78,12 +78,14 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="v1.1.7",
-        title="Admin health alerts",
+        version="v1.2.0",
+        title="Admin alerts, ticket notes, and time totals",
         changes=(
             "Admins now see a red top-bar alert when app health needs attention.",
             "Autotask API failures now keep that alert visible until a later Autotask check succeeds.",
             "Low disk space now uses the same top-bar alert to make the problem harder to miss.",
+            "Work in Progress and Review now show the total time between start and stop.",
+            "Tickets with notes now have a Ticket notes overlay in Work in Progress and Review.",
         ),
     )
 
@@ -105,7 +107,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
-    assert "v1.1.7" in response.text
+    assert "v1.2.0" in response.text
     assert "v1.1.6" in response.text
     assert "v1.1.5" in response.text
     assert "v1.1.4" in response.text
@@ -116,10 +118,12 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
-    assert "Admin health alerts" in response.text
+    assert "Admin alerts, ticket notes, and time totals" in response.text
     assert "Admins now see a red top-bar alert when app health needs attention." in response.text
     assert "Autotask API failures now keep that alert visible until a later Autotask check succeeds." in response.text
     assert "Low disk space now uses the same top-bar alert to make the problem harder to miss." in response.text
+    assert "Work in Progress and Review now show the total time between start and stop." in response.text
+    assert "Tickets with notes now have a Ticket notes overlay in Work in Progress and Review." in response.text
     assert "Review, Home, and header polish" in response.text
     assert "Review summaries now start with Remote. or On-Site. before the work notes." in response.text
     assert "The Home start button now says Start Work." in response.text
@@ -201,7 +205,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
-    v117_index = response.text.index("Admin health alerts")
+    v120_index = response.text.index("Admin alerts, ticket notes, and time totals")
     v116_index = response.text.index("Review, Home, and header polish")
     v115_index = response.text.index("AI cleanup, speech-to-text, and sign-in updates")
     v114_index = response.text.index("Login protection, Work in Progress controls, and deployment safety")
@@ -212,7 +216,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     v102_index = response.text.index("Autotask workflow and desktop layout updates")
     v101_index = response.text.index("Mobile shell navigation and close behavior")
     v100_index = response.text.index("Initial release")
-    assert v117_index < v116_index
+    assert v120_index < v116_index
     assert v116_index < v115_index
     assert v115_index < v114_index
     assert v114_index < v113_index
@@ -222,8 +226,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert v110_index < v102_index
     assert v102_index < v101_index
     assert v101_index < v100_index
-    assert '<h2 id="current-version-heading">Admin health alerts</h2>' in response.text
-    assert '<span class="release-version">v1.1.7</span>' in response.text
+    assert '<h2 id="current-version-heading">Admin alerts, ticket notes, and time totals</h2>' in response.text
+    assert '<span class="release-version">v1.2.0</span>' in response.text
     assert '<span class="release-version">v1.1.6</span>' in response.text
     assert '<span class="release-version">v1.1.5</span>' in response.text
     assert '<span class="release-version">v1.1.4</span>' in response.text

@@ -86,6 +86,47 @@ function formatMinutesAsTwelveHourTime(totalMinutes) {
   return `${hour12}:${padTwo(minute)} ${period}`;
 }
 
+function formatDurationMinutes(totalMinutes) {
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) {
+    return "";
+  }
+
+  if (totalMinutes < 60) {
+    return `${totalMinutes} ${totalMinutes === 1 ? "Minute" : "Minutes"}`;
+  }
+
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+  if (remainingMinutes === 0) {
+    return `${wholeHours} ${wholeHours === 1 ? "Hour" : "Hours"}`;
+  }
+
+  return `${(totalMinutes / 60).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")} Hours`;
+}
+
+function updateReviewDurationDisplay(durationLabel = "") {
+  const durationDisplay = document.querySelector("[data-duration-display]");
+  if (!durationDisplay) {
+    return;
+  }
+
+  if (durationLabel) {
+    durationDisplay.textContent = durationLabel;
+    return;
+  }
+
+  const startTimeInput = document.querySelector('input[name="start_time"]');
+  const endTimeInput = document.querySelector('input[name="end_time"]');
+  const startMinutes = startTimeInput ? parseTimeToMinutes(startTimeInput.value) : null;
+  const endMinutes = endTimeInput ? parseTimeToMinutes(endTimeInput.value) : null;
+  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+    durationDisplay.textContent = "";
+    return;
+  }
+
+  durationDisplay.textContent = formatDurationMinutes(endMinutes - startMinutes);
+}
+
 function normalizedDateValue(dateValue) {
   const normalizedDate = String(dateValue || "").trim();
   const dateMatch = normalizedDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -167,6 +208,7 @@ function adjustTimeField(timeFieldName, deltaMinutes) {
 
   const totalMinutes = currentTotalMinutes + deltaMinutes;
   timeInput.value = formatMinutesAsTwelveHourTime(totalMinutes);
+  updateReviewDurationDisplay();
 }
 
 function setReviewAutosaveStatus(message, isError = false) {
@@ -1097,6 +1139,9 @@ function persistReviewAutosaveSnapshot(queuedSnapshot) {
       if (payload && payload.job_date) {
         updateReviewDateWeekday(payload.job_date);
       }
+      if (payload && Object.prototype.hasOwnProperty.call(payload, "duration_label")) {
+        updateReviewDurationDisplay(payload.duration_label || "");
+      }
 
       const latestSnapshot = buildReviewAutosaveSnapshot();
       if (latestSnapshot === queuedSnapshot) {
@@ -1149,6 +1194,19 @@ function bindTimeStepButtons() {
       queueReviewAutosave(true);
     });
   }
+}
+
+function bindReviewDurationInputs() {
+  const timeInputs = document.querySelectorAll('input[name="start_time"], input[name="end_time"]');
+  for (const timeInput of timeInputs) {
+    timeInput.addEventListener("input", () => {
+      updateReviewDurationDisplay();
+    });
+    timeInput.addEventListener("blur", () => {
+      updateReviewDurationDisplay();
+    });
+  }
+  updateReviewDurationDisplay();
 }
 
 function bindReviewAutosave() {
@@ -1267,6 +1325,7 @@ function bindTicketLookup() {
   const ticketDescriptionInput = document.querySelector("[data-review-ticket-description-input]");
   const ticketDescriptionCard = document.querySelector("[data-review-ticket-description-card]");
   const ticketDescriptionDisplay = document.querySelector("[data-review-ticket-description-display]");
+  const ticketNotesButton = document.querySelector("[data-ticket-notes-button]");
   const ticketHeading = document.querySelector("[data-selected-ticket-heading]");
   const selectedRowTicketDisplay = document.querySelector("[data-review-selected-row-ticket]");
   if (!lookupUrl || !ticketSelectUrl || !statusElement || !resultsElement || !ticketNumberInput) {
@@ -1355,6 +1414,12 @@ function bindTicketLookup() {
     }
     if (selectedRowTicketDisplay) {
       selectedRowTicketDisplay.textContent = selectedTicketNumber || "No ticket";
+    }
+    if (ticketNotesButton) {
+      ticketNotesButton.dataset.ticketNotesTicketNumber = selectedTicketNumber;
+      if (window.JobLoggerTicketNotes) {
+        window.JobLoggerTicketNotes.refreshButton(ticketNotesButton);
+      }
     }
   }
 
@@ -1469,6 +1534,7 @@ for (const reviewRow of reviewRows) {
 }
 
 bindTimeStepButtons();
+bindReviewDurationInputs();
 bindTicketLookup();
 bindReviewAutosave();
 bindReviewWorkLocationControls();

@@ -2,9 +2,9 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## v1.1.7 - Admin health alerts
+## v1.2.0 - Admin alerts, ticket notes, and time totals
 
-- Advanced the source-controlled dev runtime version to `v1.1.7`, including
+- Advanced the source-controlled dev runtime version to `v1.2.0`, including
   the Python package metadata and PWA service worker cache version.
 - Added an admin-only red health alert button to the authenticated desktop and
   phone top bars. The alert links to Diagnostics and appears when cached app
@@ -17,6 +17,13 @@ All notable changes to Job Logger are documented in this file.
 - Centralized Diagnostics disk-usage snapshot logic in the shared app-health
   service so the Diagnostics page and top-bar alert use the same warning and
   critical thresholds.
+- Added rounded duration labels to Work in Progress and Review detail so the
+  total time between the visible start and stop times appears near the existing
+  time controls and updates as those times change.
+- Added a read-only Autotask ticket-notes overlay for Work in Progress and
+  Review detail. The **Ticket notes** button stays hidden until a ticket is
+  selected and the authenticated server-side provider confirms bounded notes
+  exist for that ticket.
 
 ## v1.1.6 - Cloudflare block controls, Review, Home, and header polish
 

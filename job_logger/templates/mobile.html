@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ticket_notes_overlay.html" import render_ticket_notes_overlay %}
 
 {% block title %}Mobile Work Log - Job Logger{% endblock %}
 
@@ -106,6 +107,7 @@
         {% for active_job in active_jobs %}
           {% set job_label = active_job.job_slot if active_job.job_slot else loop.index %}
           {% set active_job_date = active_job.local_work_date or active_job.rounded_start_utc|local_date %}
+          {% set rounded_stop_utc = active_rounded_stop_times.get(active_job.id) if active_rounded_stop_times is defined else active_job.rounded_end_utc %}
           <section
             class="work-panel active-job-panel active-job-panel-slot-{{ job_label }}"
             data-active-job-card="{{ active_job.id }}"
@@ -182,9 +184,12 @@
                       +15
                     </button>
                   </form>
+                  <p class="duration-inline">
+                    Duration:
+                    <strong data-duration-display>{{ active_job.rounded_start_utc|duration_label(rounded_stop_utc) }}</strong>
+                  </p>
                 </dd>
               </div>
-              {% set rounded_stop_utc = active_rounded_stop_times.get(active_job.id) if active_rounded_stop_times is defined else active_job.rounded_end_utc %}
               <div class="metric-card">
                 <dt>Rounded stop</dt>
                 <dd>
@@ -340,7 +345,25 @@
                 class="metric-card ticket-description-card {% if not active_job.ticket_number %}is-hidden{% endif %}"
                 data-active-ticket-description-card
               >
-                <dt>Ticket description</dt>
+                <div class="ticket-context-header">
+                  <dt>Ticket description</dt>
+                  <button
+                    class="secondary-button ticket-notes-button is-hidden"
+                    type="button"
+                    data-ticket-notes-button
+                    data-ticket-notes-url="/review/{{ active_job.id }}/ticket-notes"
+                    data-ticket-notes-ticket-number="{{ active_job.ticket_number or '' }}"
+                    aria-label="View ticket notes"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 3h9l3 3v15H6z"></path>
+                      <path d="M15 3v4h4"></path>
+                      <path d="M9 11h6"></path>
+                      <path d="M9 15h6"></path>
+                    </svg>
+                    Ticket notes
+                  </button>
+                </div>
                 <dd class="active-ticket-description-display" data-active-ticket-description-display>{{ active_job.ticket_description or "No description exists for this ticket." }}</dd>
               </div>
             </dl>
@@ -577,6 +600,8 @@
       {% endif %}
     {% endif %}
   </section>
+  {{ render_ticket_notes_overlay() }}
+  <script src="/static/ticket-notes.js?v={{ static_asset_version }}" defer></script>
   <script src="/static/mobile.js?v={{ static_asset_version }}" defer></script>
   {% if show_passkey_setup_prompt %}
     <script src="/static/passkeys.js?v={{ static_asset_version }}" defer></script>

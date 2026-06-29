@@ -1,0 +1,25 @@
+{% macro render_ticket_notes_overlay() %}
+  <div class="ticket-notes-overlay is-hidden" data-ticket-notes-overlay aria-hidden="true">
+    <section class="ticket-notes-dialog" role="dialog" aria-modal="true" aria-labelledby="ticket-notes-overlay-title">
+      <div class="ticket-notes-dialog-header">
+        <div>
+          <p class="eyebrow-text">Ticket notes</p>
+          <h2 id="ticket-notes-overlay-title" data-ticket-notes-title>Ticket notes</h2>
+          <p class="muted-text" data-ticket-notes-subtitle></p>
+        </div>
+        <button class="secondary-button ticket-notes-close-button" type="button" data-ticket-notes-close aria-label="Close ticket notes">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6L6 18"></path>
+            <path d="M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="ticket-notes-dialog-body">
+        <div class="ticket-notes-list" data-ticket-notes-list aria-label="Ticket note list"></div>
+        <article class="ticket-note-detail" data-ticket-note-detail aria-live="polite">
+          <p class="muted-text">Select a note to view details.</p>
+        </article>
+      </div>
+    </section>
+  </div>
+{% endmacro %}

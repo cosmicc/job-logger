@@ -241,6 +241,10 @@ Autotask payload construction.
 Job start times must round to the closest 15-minute interval.
 
 Job end times and job duration must also round to 15-minute intervals.
+Work in Progress and Review detail must show the rounded start-to-stop duration
+near the editable time controls, using labels such as `15 Minutes`, `1 Hour`,
+or `1.25 Hours`, and must update that label as the visible rounded times
+change.
 
 Jobs do not span multiple work dates. Review forms must use one local job date
 with start and end times, and must reject edits where the end time is not after
@@ -307,6 +311,11 @@ user-specific resource ID and optional email address. It may also query
 `ResourceServiceDeskRoles` through the server to list active role IDs for the
 selected resource, enrich those dropdown choices with `Roles.name` when allowed,
 and save the chosen numeric per-user fallback role ID.
+Selected-ticket notes are read-only Autotask context. Work in Progress and
+Review detail may show a **Ticket notes** button only when a ticket is selected
+and the authenticated server route confirms that bounded notes exist for that
+ticket. Do not call Autotask directly from browser JavaScript or expose raw
+provider responses.
 
 Autotask API errors must be recorded clearly for review and troubleshooting
 without exposing credentials or sensitive protocol details.
@@ -384,7 +393,9 @@ today-or-weekday label beside the date label. The active **Rounded start** and
 **Rounded stop**
 fields should use the same 12-hour editable time-field treatment as Review
 detail start/end times, keep the `-15` and `+15` controls, and save only
-through server-validated active-job routes.
+through server-validated active-job routes. Work in Progress and Review detail
+should place the rounded-duration label in the existing time area without
+reworking the mobile or full-browser layout.
 
 Managed web-user pages must respect the current user's saved theme preference.
 The default is the dark theme. Light theme support must cover mobile, review,
@@ -393,7 +404,7 @@ instead of a separate unaudited template branch. Super-admin pages always use
 dark mode.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
 must show the version link as one yellow badge that includes `DEV`, such as
-`v1.1.7 DEV`, so dev instances are visually distinct from production without
+`v1.2.0 DEV`, so dev instances are visually distinct from production without
 adding a separate pill.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
@@ -437,6 +448,11 @@ warning should appear only when AI Cleanup is pressed without notes or when the
 user submits a workflow action that requires summary notes.
 Once an open ticket has been chosen, the stored client name becomes read-only
 everywhere for that job.
+When the selected Autotask ticket has notes, Work in Progress and Review detail
+should expose a compact **Ticket notes** button near the ticket context. The
+button should stay hidden when no ticket is selected or when the note lookup
+returns no notes. The overlay must keep an X close button visible while the
+user reviews the note list and note details.
 Work in Progress and review detail action controls should stay compact and
 scannable on both phone and full browser layouts. Use paired button rows when
 two actions naturally belong together, such as **Record** with **AI Cleanup**,

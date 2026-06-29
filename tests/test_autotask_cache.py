@@ -226,6 +226,74 @@ class FakeOpenTicketLookupClient:
         raise AssertionError(f"Unexpected fake Autotask GET endpoint: {endpoint_path}")
 
 
+class FakeTicketNotesLookupClient:
+    """Fake Autotask client that exposes ticket ID and TicketNotes queries."""
+
+    def __init__(self) -> None:
+        """Capture provider query payloads for TicketNotes assertions."""
+
+        # post_requests preserves the exact entity endpoints used by the lookup.
+        self.post_requests: list[tuple[str, dict[str, Any]]] = []
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return one selected ticket and two note rows."""
+
+        self.post_requests.append((endpoint_path, dict(json)))
+        if endpoint_path == "/Tickets/query":
+            assert json["MaxRecords"] == 1
+            assert json["IncludeFields"] == ["id", "ticketNumber"]
+            assert json["filter"] == [{"op": "eq", "field": "ticketNumber", "value": "T20260616.0001"}]
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 123456, "ticketNumber": "T20260616.0001"},
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/TicketNotes/query":
+            assert json["MaxRecords"] == 100
+            assert json["IncludeFields"] == [
+                "id",
+                "ticketID",
+                "title",
+                "description",
+                "createDateTime",
+                "lastActivityDate",
+                "noteType",
+                "publish",
+            ]
+            assert json["filter"] == [{"op": "eq", "field": "ticketID", "value": 123456}]
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "id": 91001,
+                            "ticketID": 123456,
+                            "title": "Original customer note",
+                            "description": "Customer reported intermittent failures.",
+                            "createDateTime": "2026-06-16T12:00:00Z",
+                            "lastActivityDate": "2026-06-16T12:30:00Z",
+                            "noteType": "Customer",
+                            "publish": 1,
+                        },
+                        {
+                            "id": 91002,
+                            "ticketID": 123456,
+                            "title": "Technician update",
+                            "description": "Technician confirmed WAN status before dispatch.",
+                            "createDateTime": "2026-06-16T13:00:00Z",
+                            "publish": "2",
+                        },
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
+
+
 class FakeServiceCallLookupClient:
     """Fake Autotask client that exposes the service-call relationship chain."""
 
@@ -1233,6 +1301,39 @@ def test_open_ticket_lookup_reuses_recent_server_verified_list(monkeypatch: pyte
     assert fake_client.ticket_query_count == 1
     assert fake_client.status_lookup_count == 1
     assert fake_client.source_lookup_count == 1
+
+
+def test_live_ticket_notes_lookup_uses_selected_ticket_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ticket notes should be read through the selected ticket ID with bounded fields."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTicketNotesLookupClient()
+
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeConnectivityContext:
+        """Return one fake client while matching the provider client signature."""
+
+        # timeout_seconds is accepted so the fake matches LiveAutotaskProvider._client.
+        assert timeout_seconds == 30.0
+        return FakeConnectivityContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    notes = provider.list_ticket_notes("T20260616.0001", resource_id=42)
+
+    assert [endpoint_path for endpoint_path, _payload in fake_client.post_requests] == [
+        "/Tickets/query",
+        "/TicketNotes/query",
+    ]
+    assert len(notes) == 2
+    assert notes[0].note_id == 91002
+    assert notes[0].title == "Technician update"
+    assert notes[0].description == "Technician confirmed WAN status before dispatch."
+    assert notes[0].created_at_utc == datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
+    assert notes[0].updated_at_utc is None
+    assert notes[0].publish == 2
+    assert notes[1].note_id == 91001
+    assert notes[1].created_at_utc == datetime(2026, 6, 16, 12, 0, tzinfo=UTC)
+    assert notes[1].updated_at_utc == datetime(2026, 6, 16, 12, 30, tzinfo=UTC)
 
 
 def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypatch: pytest.MonkeyPatch) -> None:

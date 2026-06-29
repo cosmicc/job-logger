@@ -52,7 +52,7 @@ browser-only action. Keep the explicit desktop logout form available on
 non-mobile authenticated pages.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 one yellow version badge with `DEV` folded into the version text, such as
-`v1.1.7 DEV`. Keep the badge compact so it does not crowd the mobile
+`v1.2.0 DEV`. Keep the badge compact so it does not crowd the mobile
 navigation icons.
 When cached app health is degraded, Diagnostics-authorized users also see a red
 exclamation alert button that links to `/debug`. Do not show that alert to
@@ -116,6 +116,10 @@ Active jobs support these updates before completion:
   `-15` and `+15` minute buttons on either side of the field. These controls
   must not use the full-page status overlay because the adjustment should feel
   immediate.
+- A rounded duration label near the start/stop controls, such as `15 Minutes`,
+  `1 Hour`, or `1.25 Hours`. The server returns the canonical label after
+  active time saves, and browser JavaScript should update the visible label
+  immediately when the visible start or stop time changes.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job client and summary edits, not ticket
@@ -150,6 +154,10 @@ start cards, with `.ticket-option-button` location classes, a visible location
 badge, title, ticket status, and company metadata. This label is display
 metadata only; do not trust it to override the active job's stored work-location
 or ticket-status values.
+When a selected ticket has Autotask notes, Work in Progress may show a compact
+**Ticket notes** button beside the ticket context. Keep the button hidden until
+the authenticated server note lookup confirms at least one note, and render
+notes inside the shared closeable overlay.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
@@ -393,6 +401,9 @@ Review supports:
   names, and becomes read-only once saved.
 - Editing ticket status, start date/time, end date/time, and summary notes
   before successful Autotask submission.
+- Showing the rounded duration beside the selected detail time controls and
+  updating it from the server-normalized autosave response or the browser's
+  current visible time values.
 - Recording additional audio notes on review detail before successful Autotask
   submission.
 - Automatically saving edits without a ticket number.
@@ -406,6 +417,10 @@ Review supports:
   Review acceptance or by direct Work in Progress submission.
 - Looking up open Autotask tickets for the stored selected company ID and
   verified client name.
+- Viewing read-only Autotask ticket notes for the selected ticket through the
+  same shared overlay used by Work in Progress. The notes button must stay
+  hidden when the job has no selected ticket or when the server returns no
+  notes.
 
 Ticket number is intentionally required only before Autotask submission, not for
 ordinary save operations.

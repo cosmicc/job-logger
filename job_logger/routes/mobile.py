@@ -75,7 +75,7 @@ from job_logger.services.preferences import (
 )
 from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
 from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
-from job_logger.time_utils import format_local_compact_time_range, format_local_time, format_utc_iso, local_date_for, now_utc
+from job_logger.time_utils import format_local_compact_time_range, format_local_time, format_rounded_duration_label, format_utc_iso, local_date_for, now_utc
 from job_logger.ui import template_context, templates
 
 router = APIRouter(tags=["mobile"])
@@ -130,6 +130,7 @@ def _active_time_payload(job: object) -> dict[str, object]:
         "rounded_stop_time": format_local_time(rounded_stop_utc),
         "rounded_stop_utc": format_utc_iso(rounded_stop_utc),
         "rounded_stop_overridden": job.rounded_end_utc is not None,
+        "duration_label": format_rounded_duration_label(job.rounded_start_utc, rounded_stop_utc),
     }
 
 

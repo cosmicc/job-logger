@@ -32,6 +32,9 @@ MAX_SERVICE_DESK_ROLE_NAME_LENGTH = 200
 MAX_SERVICE_CALL_LOOKUP_RESULTS = 25
 MAX_SERVICE_CALL_NAME_LENGTH = 240
 MAX_SERVICE_CALL_DETAIL_LENGTH = 2000
+MAX_TICKET_NOTE_LOOKUP_RESULTS = 100
+MAX_TICKET_NOTE_TITLE_LENGTH = 240
+MAX_TICKET_NOTE_BODY_LENGTH = 12000
 MAX_AUTOTASK_IN_FILTER_VALUES = 500
 
 WORK_LOCATION_DISPLAY_LABELS = {
@@ -281,6 +284,28 @@ class AutotaskTicketOption:
 
 
 @dataclass(frozen=True)
+class AutotaskTicketNote:
+    """Safe Autotask ticket-note data returned to authenticated job owners."""
+
+    # note_id is the Autotask TicketNotes.id value used only for UI selection.
+    note_id: int
+
+    # title is bounded because note titles are external customer/work data.
+    title: str
+
+    # description is bounded note body text shown only inside the authenticated overlay.
+    description: str | None
+
+    # created_at_utc and updated_at_utc are display metadata from Autotask.
+    created_at_utc: datetime | None = None
+    updated_at_utc: datetime | None = None
+
+    # note_type and publish are safe display metadata when Autotask returns them.
+    note_type: str | None = None
+    publish: int | None = None
+
+
+@dataclass(frozen=True)
 class _ServiceDeskRoleLookup:
     """Resolved service-desk role context for a resource."""
 
@@ -416,6 +441,11 @@ class BaseAutotaskProvider:
         resource_id: int | None = None,
     ) -> list[AutotaskTicketOption]:
         """Return open ticket options for the supplied client name."""
+
+        raise NotImplementedError
+
+    def list_ticket_notes(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketNote]:
+        """Return safe read-only notes for one selected Autotask ticket."""
 
         raise NotImplementedError
 
@@ -586,6 +616,16 @@ def _ticket_source_label(ticket_record: dict[str, Any], source_labels: dict[int,
 
 def _safe_optional_resource_text(raw_text: Any, max_length: int = MAX_RESOURCE_NAME_LENGTH) -> str | None:
     """Return bounded optional Autotask resource text."""
+
+    safe_text = str(raw_text or "").strip()
+    if not safe_text:
+        return None
+
+    return safe_text[:max_length]
+
+
+def _safe_optional_ticket_note_text(raw_text: Any, max_length: int) -> str | None:
+    """Return bounded optional ticket-note text from Autotask."""
 
     safe_text = str(raw_text or "").strip()
     if not safe_text:
@@ -824,6 +864,33 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 detected_work_location=WorkLocation.ON_SITE,
                 work_location_label=WORK_LOCATION_DISPLAY_LABELS[WorkLocation.ON_SITE],
                 status_id=4,
+            ),
+        ]
+
+    def list_ticket_notes(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketNote]:
+        """Return deterministic ticket notes for local overlay testing."""
+
+        safe_ticket_number = ticket_number.strip().upper()
+        if not safe_ticket_number:
+            raise AutotaskSubmissionError("Ticket number is required before searching Autotask ticket notes.")
+
+        return [
+            AutotaskTicketNote(
+                note_id=91002,
+                title="Technician update",
+                description="Previous technician confirmed the device was reachable from the LAN.",
+                created_at_utc=datetime(2026, 6, 16, 13, 30, tzinfo=UTC),
+                note_type="Mock",
+                publish=1,
+            ),
+            AutotaskTicketNote(
+                note_id=91001,
+                title=f"Mock ticket note for {safe_ticket_number}",
+                description="Customer reported the issue before work started.",
+                created_at_utc=datetime(2026, 6, 16, 12, 0, tzinfo=UTC),
+                updated_at_utc=datetime(2026, 6, 16, 12, 15, tzinfo=UTC),
+                note_type="Mock",
+                publish=1,
             ),
         ]
 
@@ -2027,6 +2094,71 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return ticket_options
 
+    def _query_ticket_notes_for_ticket_id(self, client: httpx.Client, ticket_id: int) -> list[dict[str, Any]]:
+        """Return a bounded set of read-only TicketNotes rows for one ticket."""
+
+        query_payload = {
+            "IncludeFields": [
+                "id",
+                "ticketID",
+                "title",
+                "description",
+                "createDateTime",
+                "lastActivityDate",
+                "noteType",
+                "publish",
+            ],
+            "filter": [{"op": "eq", "field": "ticketID", "value": ticket_id}],
+        }
+        return self._query_paginated_items(
+            client,
+            endpoint_path="/TicketNotes/query",
+            query_payload=query_payload,
+            action_description="Autotask ticket note lookup",
+            max_records=MAX_TICKET_NOTE_LOOKUP_RESULTS,
+            follow_pagination=False,
+        )
+
+    def _build_ticket_notes_for_ticket_id(self, client: httpx.Client, ticket_id: int) -> list[AutotaskTicketNote]:
+        """Return safe note view models for one selected Autotask ticket."""
+
+        ticket_notes: list[AutotaskTicketNote] = []
+        for note_record in self._query_ticket_notes_for_ticket_id(client, ticket_id):
+            note_id = _coerce_positive_autotask_id(note_record.get("id"))
+            if note_id is None:
+                continue
+
+            note_title = _safe_optional_ticket_note_text(
+                note_record.get("title"),
+                MAX_TICKET_NOTE_TITLE_LENGTH,
+            ) or f"Ticket note {note_id}"
+            note_description = _safe_optional_ticket_note_text(
+                note_record.get("description"),
+                MAX_TICKET_NOTE_BODY_LENGTH,
+            )
+            raw_publish = note_record.get("publish")
+            try:
+                publish = int(raw_publish) if raw_publish is not None else None
+            except (TypeError, ValueError):
+                publish = None
+            ticket_notes.append(
+                AutotaskTicketNote(
+                    note_id=note_id,
+                    title=note_title,
+                    description=note_description,
+                    created_at_utc=_parse_autotask_datetime(note_record.get("createDateTime")),
+                    updated_at_utc=_parse_autotask_datetime(note_record.get("lastActivityDate")),
+                    note_type=_safe_optional_ticket_note_text(note_record.get("noteType"), 80),
+                    publish=publish,
+                )
+            )
+
+        return sorted(
+            ticket_notes,
+            key=lambda note: note.created_at_utc or datetime.min.replace(tzinfo=UTC),
+            reverse=True,
+        )
+
     def list_open_tickets_for_client(
         self,
         client_name: str,
@@ -2088,6 +2220,17 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             )
 
         return selected_ticket_options
+
+    def list_ticket_notes(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketNote]:
+        """Return safe read-only TicketNotes rows for one selected ticket number."""
+
+        safe_ticket_number = ticket_number.strip().upper()
+        if not safe_ticket_number:
+            raise AutotaskSubmissionError("Ticket number is required before searching Autotask ticket notes.")
+
+        with self._client() as client:
+            ticket_id = self._query_ticket_id(client, safe_ticket_number)
+            return self._build_ticket_notes_for_ticket_id(client, ticket_id)[:MAX_TICKET_NOTE_LOOKUP_RESULTS]
 
     def search_companies(self, query_text: str, *, resource_id: int | None = None) -> list[AutotaskCompanyOption]:
         """Return active Autotask companies matching a user-entered query."""

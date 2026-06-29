@@ -1123,8 +1123,8 @@ def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_
     assert response.status_code == 200
     assert response.text.count("app-version-link app-version-link-dev") == 2
     assert "dev-build-pill" not in response.text
-    assert ">v1.1.7 DEV<" in response.text
-    assert 'aria-label="View changelog for version 1.1.7 development build"' in response.text
+    assert ">v1.2.0 DEV<" in response.text
+    assert 'aria-label="View changelog for version 1.2.0 development build"' in response.text
     assert response.text.index('class="header-status-group desktop-status-group"') < response.text.index('class="top-nav"')
     assert response.text.index('class="header-status-group mobile-version-group"') < response.text.index('class="mobile-nav-actions mobile-nav-right"')
 
@@ -1538,6 +1538,8 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'data-active-time-delta="15"' in page_html
     assert 'value="-15"' in page_html
     assert 'value="15"' in page_html
+    assert "Duration:" in page_html
+    assert "data-duration-display" in page_html
     assert 'class="work-location-switch"' in page_html
     assert 'data-work-location-toggle' in page_html
     assert 'name="work_location"' in page_html
@@ -1568,6 +1570,7 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert page_html.index('value="-15"') < page_html.index('class="time-field-input rounded-start-time-display"')
     assert page_html.index('class="time-field-input rounded-start-time-display"') < page_html.index('value="15"')
     assert page_html.index("<dt>Rounded start</dt>") < page_html.index("<dt>Rounded stop</dt>")
+    assert page_html.index("data-duration-display") < page_html.index("<dt>Rounded stop</dt>")
     assert page_html.index("<dt>Rounded stop</dt>") < page_html.index('class="metric-card work-location-card"')
 
 
@@ -1710,6 +1713,7 @@ def test_review_save_does_not_require_ticket_number(authenticated_client: TestCl
     assert autosave_payload["job_date"] == "2026-06-16"
     assert autosave_payload["start_time"] == "8:00 am"
     assert autosave_payload["end_time"] == "8:15 am"
+    assert autosave_payload["duration_label"] == "15 Minutes"
 
     with database.SessionLocal() as database_session:
         reviewed_job = database_session.get(Job, active_job_id)
@@ -1748,6 +1752,9 @@ def test_review_detail_shows_active_rounded_stop_without_ending_job(authenticate
 
     assert review_page_response.status_code == 200
     assert re.search(r'<input(?=[^>]*name="end_time")(?=[^>]*value="8:30 am")', review_html)
+    assert "Duration:" in review_html
+    assert "30 Minutes" in review_html
+    assert "data-duration-display" in review_html
     assert review_html.index('name="end_time"') < review_html.index('name="ticket_status"')
     assert 'class="review-ticket-status-field"' in review_html
 
@@ -1769,6 +1776,7 @@ def test_review_detail_shows_active_rounded_stop_without_ending_job(authenticate
     assert autosave_response.status_code == 200
     autosave_payload = autosave_response.json()
     assert autosave_payload["end_time"] == "8:30 am"
+    assert autosave_payload["duration_label"] == "30 Minutes"
     assert autosave_payload["ticket_status"] == "follow_up"
     assert autosave_payload["summary_notes"] == "Remote. Changed active review notes."
 
@@ -2214,6 +2222,75 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
         assert reviewed_job.client_name == "Acme Services"
         assert reviewed_job.autotask_company_id == 1001
         assert reviewed_job.summary_notes == "Review save must not rewrite read-only identity fields."
+
+
+def test_ticket_notes_endpoint_returns_safe_selected_ticket_notes(authenticated_client: TestClient) -> None:
+    """Selected ticket notes should load through the authenticated server route."""
+
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    save_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
+
+    select_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0001"},
+    )
+    assert select_ticket_response.status_code == 200
+
+    notes_response = authenticated_client.get(f"/review/{active_job_id}/ticket-notes")
+
+    assert notes_response.status_code == 200
+    payload = notes_response.json()
+    assert payload["ticket_number"] == "T20260616.0001"
+    assert payload["ticket_title"] == "Mock open ticket for Acme Services"
+    assert len(payload["notes"]) == 2
+    assert payload["notes"][0]["note_id"] == 91002
+    assert payload["notes"][0]["title"] == "Technician update"
+    assert payload["notes"][0]["description"] == "Previous technician confirmed the device was reachable from the LAN."
+    assert payload["notes"][0]["preview"] == "Previous technician confirmed the device was reachable from the LAN."
+    assert payload["notes"][0]["created_at"] == "Jun 16, 2026 9:30 am"
+    assert payload["notes"][1]["title"] == "Mock ticket note for T20260616.0001"
+
+
+def test_ticket_notes_endpoint_stays_empty_until_ticket_is_selected(authenticated_client: TestClient) -> None:
+    """The ticket-notes route should not query notes for a job without a ticket."""
+
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    notes_response = authenticated_client.get(f"/review/{active_job_id}/ticket-notes")
+
+    assert notes_response.status_code == 200
+    assert notes_response.json() == {"ticket_number": "", "ticket_title": "", "notes": []}
 
 
 def test_ticket_description_card_stays_visible_without_description(authenticated_client: TestClient) -> None:
@@ -3330,6 +3407,7 @@ def test_mobile_active_job_rounded_stop_can_be_set_from_time_input(authenticated
     assert save_response.status_code == 200
     assert save_response.json()["rounded_stop_time"] == "9:15 am"
     assert save_response.json()["rounded_stop_overridden"] is True
+    assert save_response.json()["duration_label"] == "1.25 Hours"
     with database.SessionLocal() as database_session:
         active_job = database_session.get(Job, active_job_id)
         assert active_job is not None

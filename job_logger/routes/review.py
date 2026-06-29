@@ -23,6 +23,7 @@ from job_logger.services.ai_cleanup import AiCleanupContext, AiCleanupError, cle
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import (
     AutotaskSubmissionError,
+    AutotaskTicketNote,
     AutotaskTicketOption,
     build_autotask_summary_notes,
     get_autotask_provider,
@@ -52,7 +53,7 @@ from job_logger.services.jobs import (
     verify_autotask_client_selection,
 )
 from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
-from job_logger.time_utils import format_local_date, format_local_time
+from job_logger.time_utils import format_local_date, format_local_display, format_local_time, format_rounded_duration_label
 from job_logger.ui import template_context, templates
 
 router = APIRouter(prefix="/review", tags=["review"])
@@ -174,6 +175,43 @@ def review_ticket_options(
     )
 
 
+@router.get("/{job_id}/ticket-notes")
+def review_ticket_notes(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Return safe Autotask ticket notes for the selected job's stored ticket."""
+
+    try:
+        require_authenticated_username(request)
+        job = get_job_or_raise(database_session, job_id)
+        resource_id = None
+        if not is_super_admin_session(request.session):
+            web_user = _current_enabled_web_user(request, database_session)
+            ensure_job_owned_by_web_user(job, web_user.id)
+            resource_id = web_user.autotask_resource_id
+        if not job.ticket_number:
+            return JSONResponse({"ticket_number": "", "ticket_title": "", "notes": []})
+
+        ticket_notes = get_autotask_provider().list_ticket_notes(
+            job.ticket_number,
+            resource_id=resource_id,
+        )
+    except HTTPException:
+        raise
+    except (AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
+        return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
+
+    return JSONResponse(
+        {
+            "ticket_number": job.ticket_number,
+            "ticket_title": job.ticket_title or "",
+            "notes": [_ticket_note_payload(ticket_note) for ticket_note in ticket_notes],
+        }
+    )
+
+
 async def _form_values(request: Request) -> dict[str, str]:
     """Return submitted form values as a plain string dictionary."""
 
@@ -217,6 +255,28 @@ def _ticket_option_location_class(ticket_option: AutotaskTicketOption) -> str:
     return f"ticket-location-{ticket_option.detected_work_location.value}"
 
 
+def _ticket_note_preview(description: str | None) -> str:
+    """Return a short single-line preview from an Autotask ticket note body."""
+
+    safe_description = " ".join(str(description or "").split())
+    return safe_description[:180]
+
+
+def _ticket_note_payload(ticket_note: AutotaskTicketNote) -> dict[str, object]:
+    """Return safe ticket-note fields for the authenticated overlay."""
+
+    return {
+        "note_id": ticket_note.note_id,
+        "title": ticket_note.title,
+        "description": ticket_note.description or "",
+        "preview": _ticket_note_preview(ticket_note.description),
+        "created_at": format_local_display(ticket_note.created_at_utc) if ticket_note.created_at_utc else "",
+        "updated_at": format_local_display(ticket_note.updated_at_utc) if ticket_note.updated_at_utc else "",
+        "note_type": ticket_note.note_type or "",
+        "publish": ticket_note.publish,
+    }
+
+
 def _review_save_payload(job: object) -> dict[str, object]:
     """Return non-secret review state after a background save completes."""
 
@@ -237,6 +297,7 @@ def _review_save_payload(job: object) -> dict[str, object]:
         "job_date": job_date,
         "start_time": format_local_time(getattr(job, "rounded_start_utc", None)),
         "end_time": format_local_time(rounded_end_utc),
+        "duration_label": format_rounded_duration_label(getattr(job, "rounded_start_utc", None), rounded_end_utc),
     }
 
 

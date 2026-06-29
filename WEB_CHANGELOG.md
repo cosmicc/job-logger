@@ -2,11 +2,13 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## v1.1.7 - Admin health alerts
+## v1.2.0 - Admin alerts, ticket notes, and time totals
 
 - Admins now see a red top-bar alert when app health needs attention.
 - Autotask API failures now keep that alert visible until a later Autotask check succeeds.
 - Low disk space now uses the same top-bar alert to make the problem harder to miss.
+- Work in Progress and Review now show the total time between start and stop.
+- Tickets with notes now have a Ticket notes overlay in Work in Progress and Review.
 
 ## v1.1.6 - Review, Home, and header polish
 

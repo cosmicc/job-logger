@@ -446,7 +446,7 @@ Set these passkey variables for production when needed:
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.1.7`. Version history starts at `v1.0.0`.
+currently `v1.2.0`. Version history starts at `v1.0.0`.
 
 Authenticated pages show the current version discreetly in the shared header.
 Clicking that version opens `/changelog`, which displays the current version
@@ -458,7 +458,7 @@ diagnostics, debug-page, super-admin-only, operator-only, and agent-facing notes
 in `CHANGELOG.md` only. The changelog page uses the same authenticated session,
 dark/light theme variables, and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the same authenticated header also shows a
-yellow version badge on desktop and phone layouts, such as `v1.1.7 DEV`.
+yellow version badge on desktop and phone layouts, such as `v1.2.0 DEV`.
 
 ## Provider Modes
 
@@ -791,6 +791,8 @@ status to `In progress`; the first Autotask write waits until the full time
 entry is submitted or an already submitted entry is explicitly edited/deleted.
 After an open ticket is selected, the stored client name becomes read-only for
 that job everywhere, including Work in Progress and Review.
+If the selected ticket has Autotask notes, Work in Progress and Review show a
+**Ticket notes** button that opens a closeable read-only notes overlay.
 Long ticket descriptions stay inside a scrollable read-only box instead of
 expanding the mobile page indefinitely; phone-sized layouts cap that visible
 box at about 12 lines, and wider layouts cap it at about 25 lines. On the
@@ -858,6 +860,8 @@ button. Mobile submit actions show a loading overlay once the
 tap is accepted so slow redirects or Autotask lookups do not look like ignored
 buttons; rounded start/stop `-15` and `+15` adjustments skip the full-page
 overlay so those small time changes feel immediate.
+Work in Progress and Review detail also show the rounded duration beside the
+start/stop time controls, and the value updates as those times change.
 In active mobile Work in Progress cards, **End Work** or **Submit to Autotask**
 shares a row with the destructive **Delete** action to keep the active-card
 controls compact. Active jobs selected on Review detail also show **End Work**
@@ -1073,6 +1077,8 @@ The active mobile end-work path still protects against a zero-minute rounded
 duration. Work in Progress rounded start and rounded stop use editable 12-hour
 time fields like Review detail start and end time, plus `-15` and `+15`
 controls; the server still rounds, validates, and saves those active-job edits.
+Work in Progress and Review detail show that rounded duration as labels like
+`15 Minutes`, `1 Hour`, or `1.25 Hours`.
 Review detail shows the active Work in Progress rounded stop preview when an
 active job is selected, but review save ignores that displayed end time until
 the user actually ends the job. Ended review edits must explicitly choose a

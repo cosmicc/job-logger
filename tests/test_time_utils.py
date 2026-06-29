@@ -6,10 +6,12 @@ from datetime import UTC, date, datetime, timedelta
 
 from job_logger.time_utils import (
     enforce_minimum_rounded_end,
+    format_duration_minutes,
     format_job_date_label,
     format_local_compact_time_range,
     format_local_display,
     format_local_time,
+    format_rounded_duration_label,
     format_utc_iso,
     parse_local_form_datetime,
     round_end_for_technician,
@@ -61,6 +63,26 @@ def test_enforce_minimum_rounded_end_adds_one_interval() -> None:
     rounded_end = datetime(2026, 6, 16, 12, 0, tzinfo=UTC)
 
     assert enforce_minimum_rounded_end(rounded_start, rounded_end) == rounded_start + timedelta(minutes=15)
+
+
+def test_format_duration_minutes_uses_job_logger_labels() -> None:
+    """Rounded durations should render as compact technician-facing labels."""
+
+    assert format_duration_minutes(15) == "15 Minutes"
+    assert format_duration_minutes(30) == "30 Minutes"
+    assert format_duration_minutes(60) == "1 Hour"
+    assert format_duration_minutes(75) == "1.25 Hours"
+    assert format_duration_minutes(90) == "1.5 Hours"
+    assert format_duration_minutes(0) == ""
+
+
+def test_format_rounded_duration_label_handles_utc_timestamps() -> None:
+    """Duration labels should be derived from rounded UTC database values."""
+
+    rounded_start = datetime(2026, 6, 16, 12, 0, tzinfo=UTC)
+    rounded_end = datetime(2026, 6, 16, 13, 15, tzinfo=UTC)
+
+    assert format_rounded_duration_label(rounded_start, rounded_end) == "1.25 Hours"
 
 
 def test_format_local_time_uses_detroit_twelve_hour_display() -> None:

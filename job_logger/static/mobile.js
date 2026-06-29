@@ -274,6 +274,53 @@ function formatLocalMinutes(totalLocalMinutes) {
   return `${displayHour}:${String(displayMinute).padStart(2, "0")} ${displayPeriod}`;
 }
 
+function formatDurationMinutes(totalMinutes) {
+  if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) {
+    return "";
+  }
+
+  if (totalMinutes < 60) {
+    return `${totalMinutes} ${totalMinutes === 1 ? "Minute" : "Minutes"}`;
+  }
+
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+  if (remainingMinutes === 0) {
+    return `${wholeHours} ${wholeHours === 1 ? "Hour" : "Hours"}`;
+  }
+
+  return `${(totalMinutes / 60).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")} Hours`;
+}
+
+function updateActiveDurationDisplay(activeJobCard) {
+  if (!activeJobCard) {
+    return;
+  }
+
+  const startTimeInput = activeJobCard.querySelector('[data-active-time-input][data-active-time-kind="start"]');
+  const stopTimeInput = activeJobCard.querySelector('[data-active-time-input][data-active-time-kind="stop"]');
+  const durationDisplay = activeJobCard.querySelector("[data-duration-display]");
+  if (!startTimeInput || !stopTimeInput || !durationDisplay) {
+    return;
+  }
+
+  const startMinutes = parseLocalTimeDisplay(startTimeInput.value);
+  const stopMinutes = parseLocalTimeDisplay(stopTimeInput.value);
+  if (startMinutes === null || stopMinutes === null || stopMinutes <= startMinutes) {
+    durationDisplay.textContent = "";
+    return;
+  }
+
+  durationDisplay.textContent = formatDurationMinutes(stopMinutes - startMinutes);
+}
+
+function initializeActiveDurationDisplays() {
+  const activeJobCards = document.querySelectorAll("[data-active-job-card]");
+  for (const activeJobCard of activeJobCards) {
+    updateActiveDurationDisplay(activeJobCard);
+  }
+}
+
 function formatRoundedStopDisplay(timestamp, displayElement) {
   const initialRoundedStopDate = parseRoundedStopDate(displayElement.dataset.initialRoundedStopUtc);
   const initialLocalMinutes = parseLocalTimeDisplay(displayElement.dataset.initialRoundedStopLocalTime);
@@ -330,6 +377,7 @@ function updateLiveRoundedStopDisplay(displayElement) {
   const nextDisplayText = formatRoundedStopDisplay(resolveLiveRoundedStop(displayElement), displayElement);
   if ("value" in displayElement) {
     displayElement.value = nextDisplayText;
+    updateActiveDurationDisplay(displayElement.closest("[data-active-job-card]"));
     return;
   }
 
@@ -715,6 +763,14 @@ function updateActiveTimeDisplays(activeTimeForm, payload) {
     stopTimeInput.dataset.initialRoundedStopUtc = toSafeMapString(payload.rounded_stop_utc);
     stopTimeInput.dataset.initialRoundedStopLocalTime = toSafeMapString(payload.rounded_stop_time);
   }
+  if (payload.duration_label) {
+    const durationDisplay = activeJobCard.querySelector("[data-duration-display]");
+    if (durationDisplay) {
+      durationDisplay.textContent = toSafeMapString(payload.duration_label);
+    }
+  } else {
+    updateActiveDurationDisplay(activeJobCard);
+  }
 
   return activeJobCard;
 }
@@ -793,6 +849,7 @@ function adjustActiveTimeInput(activeTimeForm, deltaMinutes) {
   if (timeInput.dataset.activeTimeKind === "stop") {
     timeInput.dataset.roundedStopOverridden = "true";
   }
+  updateActiveDurationDisplay(activeTimeForm.closest("[data-active-job-card]"));
 }
 
 function setRecordingStatus(jobId, message, isError = false, isLoading = false) {
@@ -1753,6 +1810,7 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   const ticketDescriptionCard = activeJobCard.querySelector("[data-active-ticket-description-card]");
   const ticketDescriptionDisplay = activeJobCard.querySelector("[data-active-ticket-description-display]");
   const ticketStatusInput = activeJobCard.querySelector("[data-active-ticket-status-input]");
+  const ticketNotesButton = activeJobCard.querySelector("[data-ticket-notes-button]");
 
   if (ticketNumberCard && ticketNumber) {
     ticketNumberCard.classList.remove("is-hidden");
@@ -1776,6 +1834,12 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   }
   if (ticketStatusInput && selectedTicket.ticket_status) {
     ticketStatusInput.value = selectedTicket.ticket_status;
+  }
+  if (ticketNotesButton) {
+    ticketNotesButton.dataset.ticketNotesTicketNumber = ticketNumber;
+    if (window.JobLoggerTicketNotes) {
+      window.JobLoggerTicketNotes.refreshButton(ticketNotesButton);
+    }
   }
   if (ticketNumber) {
     lockActiveClientInputForSelectedTicket(jobId);
@@ -2155,9 +2219,11 @@ for (const activeTimeForm of activeTimeForms) {
       if (timeInput.dataset.activeTimeKind === "stop") {
         timeInput.dataset.roundedStopOverridden = "true";
       }
+      updateActiveDurationDisplay(activeTimeForm.closest("[data-active-job-card]"));
       queueActiveTimeFormSave(activeTimeForm);
     });
     timeInput.addEventListener("blur", () => {
+      updateActiveDurationDisplay(activeTimeForm.closest("[data-active-job-card]"));
       queueActiveTimeFormSave(activeTimeForm, true);
     });
   }
@@ -2266,6 +2332,7 @@ for (const serviceCallPanel of serviceCallPanels) {
 }
 
 initializeLiveRoundedStopDisplays();
+initializeActiveDurationDisplays();
 
 if (document.readyState === "complete") {
   window.setTimeout(loadServiceCallPanelsAfterPageLoad, 0);
