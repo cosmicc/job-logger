@@ -1031,6 +1031,7 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert "app-version-link-dev" not in response.text
     assert "dev-build-pill" not in response.text
     assert "autotask-api-indicator" not in response.text
+    assert "data-health-alert-button" not in response.text
     assert "Autotask API:" not in response.text
     assert "Secure session" not in response.text
     assert '<a href="/home">Home</a>' in response.text
@@ -1122,8 +1123,8 @@ def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_
     assert response.status_code == 200
     assert response.text.count("app-version-link app-version-link-dev") == 2
     assert "dev-build-pill" not in response.text
-    assert ">v1.1.6 DEV<" in response.text
-    assert 'aria-label="View changelog for version 1.1.6 development build"' in response.text
+    assert ">v1.1.7 DEV<" in response.text
+    assert 'aria-label="View changelog for version 1.1.7 development build"' in response.text
     assert response.text.index('class="header-status-group desktop-status-group"') < response.text.index('class="top-nav"')
     assert response.text.index('class="header-status-group mobile-version-group"') < response.text.index('class="mobile-nav-actions mobile-nav-right"')
 
@@ -1146,6 +1147,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".ticket-location-badge" in stylesheet
     assert ".review-ticket-status-field" in stylesheet
     assert ".app-version-link-dev" in stylesheet
+    assert ".health-alert-button" in stylesheet
+    assert ".desktop-health-alert-group" in stylesheet
     assert ".dev-build-pill" not in stylesheet
     assert "border: 1px solid rgba(245, 158, 11, 0.58);" in stylesheet
     assert ".status-chip" in stylesheet
@@ -1205,6 +1208,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "background: var(--ai-action);" in stylesheet
     assert ".app-header {\n  display: grid;" in phone_stylesheet
     assert "grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);" in phone_stylesheet
+    assert ".app-header.has-health-alert" in phone_stylesheet
+    assert "grid-template-columns: auto minmax(0, 1fr) auto;" in phone_stylesheet
     assert ".mobile-version-group .app-version-link-dev" in phone_stylesheet
     assert "transform: translateX(-8px);" in phone_stylesheet
     assert ".brand {\n  display: none;" in phone_stylesheet

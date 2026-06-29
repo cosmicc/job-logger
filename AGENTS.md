@@ -393,7 +393,7 @@ instead of a separate unaudited template branch. Super-admin pages always use
 dark mode.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
 must show the version link as one yellow badge that includes `DEV`, such as
-`v1.1.6 DEV`, so dev instances are visually distinct from production without
+`v1.1.7 DEV`, so dev instances are visually distinct from production without
 adding a separate pill.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
@@ -407,6 +407,12 @@ mobile logout button must post to `/logout` with the rendered CSRF token and
 must not use `window.close()` or a browser-only app close fallback. Full-width
 `/home`, review, debug, and other non-mobile authenticated views still expose
 the explicit desktop logout control.
+When cached application health is degraded, only Diagnostics-authorized users
+may see a red exclamation alert button in the authenticated top bar. The
+desktop alert is centered in the header; the phone alert joins the compact
+right-side action group and links to `/debug`. Do not render this alert for
+ordinary managed users, and do not run live Autotask probes while rendering a
+page.
 The unauthenticated login header centers a non-clickable `JL` brand mark on both
 phone and full-browser layouts and does not show the full Job Logger wordmark.
 
@@ -666,6 +672,9 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/routes/pwa.py` serves the web app manifest and root-scoped
   service worker for installed mobile app behavior. The service worker must not
   cache authenticated job, session, Autotask, or transcription data.
+- `job_logger/services/system_health.py` owns shared disk-usage severity
+  snapshots and cached Autotask API health state used by Diagnostics and the
+  admin-only top-bar alert.
 - `job_logger/services/jobs.py` owns core job state transitions and must remain
   the primary place for workflow and job-ownership validation.
 - `job_logger/services/autotask.py` owns Autotask providers, connectivity tests,
@@ -884,6 +893,12 @@ In production:
 - The `/debug` page provides the supported manual **Test Autotask API** action.
   The authenticated desktop navigation labels this route as **Diag**, while the
   page itself is titled **Diagnostics**.
+- Autotask provider HTTP/status failures, failed time-entry create/update/delete
+  results, and failed Diagnostics connectivity tests must mark the cached
+  Autotask health state as degraded until a later Autotask API request or
+  connectivity test succeeds. This cached state powers the admin-only top-bar
+  health alert; page rendering must not run a fresh Autotask contactability
+  probe.
 - The `/debug` page provides a Diagnostics-admin **Log out web users** action
   that invalidates all managed web-user sessions without ending the config
   super-admin session. Managed Admin users are included in that invalidation

@@ -2,6 +2,22 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## v1.1.7 - Admin health alerts
+
+- Advanced the source-controlled dev runtime version to `v1.1.7`, including
+  the Python package metadata and PWA service worker cache version.
+- Added an admin-only red health alert button to the authenticated desktop and
+  phone top bars. The alert links to Diagnostics and appears when cached app
+  health reports degraded state, such as low disk space or Autotask API
+  failures.
+- Added cached Autotask API health tracking. A failed Diagnostics connectivity
+  test, time-entry submission/update/delete failure, or live Autotask provider
+  request failure keeps the alert active until a later Autotask API request or
+  connectivity test succeeds.
+- Centralized Diagnostics disk-usage snapshot logic in the shared app-health
+  service so the Diagnostics page and top-bar alert use the same warning and
+  critical thresholds.
+
 ## v1.1.6 - Cloudflare block controls, Review, Home, and header polish
 
 - Advanced the source-controlled dev runtime version to `v1.1.6`, including

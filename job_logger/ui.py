@@ -22,6 +22,7 @@ from job_logger.security import (
     session_has_debug_access,
 )
 from job_logger.services.preferences import THEME_META_COLORS, get_theme_for_session
+from job_logger.services.system_health import AppHealthSnapshot, collect_app_health_snapshot
 from job_logger.version import APP_VERSION
 
 # templates is the single Jinja environment used by all server-rendered pages.
@@ -62,8 +63,11 @@ def template_context(
     if database_session is not None and current_username(request):
         current_theme = get_theme_for_session(database_session, request.session)
     current_can_access_debug = False
+    app_health_snapshot = AppHealthSnapshot(issues=())
     if database_session is not None and current_username(request):
         current_can_access_debug = session_has_debug_access(request.session, database_session)
+        if current_can_access_debug:
+            app_health_snapshot = collect_app_health_snapshot()
 
     context: dict[str, object] = {
         "request": request,
@@ -72,6 +76,9 @@ def template_context(
         "current_user_kind": current_user_kind(request),
         "current_is_super_admin": is_super_admin_session(request.session),
         "current_can_access_debug": current_can_access_debug,
+        "app_health_snapshot": app_health_snapshot,
+        "app_health_degraded": app_health_snapshot.degraded,
+        "app_health_alert_label": app_health_snapshot.alert_label,
         "current_theme": current_theme.value,
         "theme_color": THEME_META_COLORS[current_theme],
         "flash_messages": pop_flash_messages(request),

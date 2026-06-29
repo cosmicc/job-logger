@@ -2,6 +2,12 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## v1.1.7 - Admin health alerts
+
+- Admins now see a red top-bar alert when app health needs attention.
+- Autotask API failures now keep that alert visible until a later Autotask check succeeds.
+- Low disk space now uses the same top-bar alert to make the problem harder to miss.
+
 ## v1.1.6 - Review, Home, and header polish
 
 - Review summaries now start with Remote. or On-Site. before the work notes.

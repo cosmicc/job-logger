@@ -40,6 +40,7 @@ os.environ["AUTOMATIC_BACKUP_DIR"] = "/tmp/job-logger-test-automatic-backups"
 from job_logger import database  # noqa: E402
 from job_logger.database import Base  # noqa: E402
 from job_logger.main import create_app  # noqa: E402
+from job_logger.services.system_health import reset_cached_autotask_health  # noqa: E402
 from job_logger.services.users import create_web_user  # noqa: E402
 
 TEST_WEB_USER_PASSWORD = "Test-password1!"
@@ -91,6 +92,7 @@ def client() -> Generator[TestClient, None, None]:
     login_success_log_path.unlink(missing_ok=True)
     shutil.rmtree(Path(os.environ["LOG_DIR"]), ignore_errors=True)
     shutil.rmtree(automatic_backup_dir, ignore_errors=True)
+    reset_cached_autotask_health()
     database.configure_database("sqlite+pysqlite://")
     Base.metadata.create_all(database.engine)
     with database.SessionLocal() as database_session:
@@ -105,6 +107,7 @@ def client() -> Generator[TestClient, None, None]:
     test_app = create_app()
     with TestClient(test_app) as test_client:
         yield test_client
+    reset_cached_autotask_health()
     Base.metadata.drop_all(database.engine)
     login_failure_log_path.unlink(missing_ok=True)
     login_success_log_path.unlink(missing_ok=True)

@@ -446,7 +446,7 @@ Set these passkey variables for production when needed:
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.1.6`. Version history starts at `v1.0.0`.
+currently `v1.1.7`. Version history starts at `v1.0.0`.
 
 Authenticated pages show the current version discreetly in the shared header.
 Clicking that version opens `/changelog`, which displays the current version
@@ -458,7 +458,7 @@ diagnostics, debug-page, super-admin-only, operator-only, and agent-facing notes
 in `CHANGELOG.md` only. The changelog page uses the same authenticated session,
 dark/light theme variables, and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the same authenticated header also shows a
-yellow version badge on desktop and phone layouts, such as `v1.1.6 DEV`.
+yellow version badge on desktop and phone layouts, such as `v1.1.7 DEV`.
 
 ## Provider Modes
 
@@ -937,6 +937,11 @@ required workflow configuration and the live Companies/Tickets API calls used
 by the app. The **Test Autotask API** button is manual and always runs a fresh
 live check. It is not used by the
 initial mobile page or blank Start Work route.
+When cached app health is degraded, Diagnostics-authorized users see a red
+exclamation alert in the top bar. It links to Diagnostics and appears for
+conditions such as low disk space or a cached Autotask API failure. Autotask
+failures keep the alert visible until a later Autotask API request or manual
+connectivity check succeeds.
 
 The same `/debug` page also shows compact, paginated successful-login,
 failed-login, Cloudflare blocked-IP, and Autotask submission-attempt windows,

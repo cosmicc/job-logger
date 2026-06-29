@@ -85,6 +85,11 @@ scope, or any additional job workflow permissions. Normal managed web users
 must not see the Diag/Diagnostics navigation item, and direct requests from
 those sessions must receive 403 instead of being treated as anonymous login
 redirects.
+The cached app-health top-bar alert is a Diagnostics access affordance. Render
+it only for the config super admin or managed users whose Admin flag grants
+Diagnostics access, and keep `/debug` authorization as the server-side source
+of truth. The alert must not expose secrets or raw provider details in the
+header; detailed troubleshooting belongs on Diagnostics.
 The Diagnostics **Log out web users** action is CSRF-protected, audited, and
 must invalidate only managed web-user sessions. It must not clear the current
 config super-admin session. If a managed Admin user triggers it, that user is
@@ -189,6 +194,10 @@ app-visible storage paths such as `/`, `${LOG_DIR}`, and
 `${AUTOMATIC_BACKUP_DIR}`. Combine monitored paths when used bytes and total
 bytes match exactly, and keep disk diagnostics read-only and limited to path,
 usage, and warning/critical metadata.
+The shared app-health service uses the same disk warning/critical thresholds
+for the admin-only top-bar alert. Page rendering may read cached health and
+local disk usage, but it must not run fresh external Autotask probes while
+building ordinary authenticated pages.
 `DEV_BUILD=true` is a display-only runtime marker for the authenticated header;
 do not use it as an authorization, environment-isolation, or safety boundary.
 

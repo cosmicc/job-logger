@@ -16,6 +16,11 @@ import httpx
 from job_logger.config import Settings, settings
 from job_logger.enums import TicketStatus, WorkLocation
 from job_logger.models import Job
+from job_logger.services.system_health import (
+    record_autotask_api_failure,
+    record_autotask_api_success,
+    record_autotask_connectivity_result,
+)
 from job_logger.time_utils import ensure_utc, format_autotask_datetime, local_date_for, local_day_bounds_utc, now_utc, rounded_duration_minutes
 
 MAX_COMPANY_MATCHES_FOR_TICKET_LOOKUP = 10
@@ -999,6 +1004,30 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             timeout=timeout_seconds,
         )
 
+    def _api_request(
+        self,
+        client: httpx.Client,
+        method: str,
+        endpoint_path: str,
+        action_description: str,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Run one Autotask request and update cached health from transport state."""
+
+        try:
+            request_method = getattr(client, method.lower())
+            response = request_method(endpoint_path, **kwargs)
+        except httpx.HTTPError:
+            record_autotask_api_failure(
+                f"{action_description} could not reach the Autotask API.",
+                operation=action_description,
+            )
+            raise
+
+        if response.status_code < 400:
+            record_autotask_api_success(operation=action_description)
+        return response
+
     def _cache_namespace(self) -> str:
         """Return the non-secret namespace used for tenant-specific cache keys."""
 
@@ -1042,10 +1071,18 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         safe_error_detail = self._safe_response_error_detail(response)
         if safe_error_detail:
+            record_autotask_api_failure(
+                f"{action_description} failed with Autotask HTTP {response.status_code}: {safe_error_detail}",
+                operation=action_description,
+            )
             raise AutotaskSubmissionError(
                 f"{action_description} failed with Autotask HTTP {response.status_code}: {safe_error_detail}"
             )
 
+        record_autotask_api_failure(
+            f"{action_description} failed with Autotask HTTP {response.status_code}.",
+            operation=action_description,
+        )
         raise AutotaskSubmissionError(f"{action_description} failed with Autotask HTTP {response.status_code}.")
 
     def _safe_response_error_detail(self, response: httpx.Response) -> str | None:
@@ -1114,7 +1151,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         paged_query_payload["MaxRecords"] = max(1, min(max_records, AUTOTASK_MAX_RECORDS_PER_PAGE))
 
         collected_items: list[dict[str, Any]] = []
-        response = client.post(endpoint_path, json=paged_query_payload)
+        response = self._api_request(
+            client,
+            "POST",
+            endpoint_path,
+            action_description,
+            json=paged_query_payload,
+        )
         page_number = 1
 
         while True:
@@ -1137,7 +1180,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             # Autotask's POST query pagination returns a nextPageUrl, but the
             # follow-up request must still use POST with the original query
             # body. Using GET returns HTTP 405 for POST query resources.
-            response = client.post(str(next_page_url), json=paged_query_payload)
+            response = self._api_request(
+                client,
+                "POST",
+                str(next_page_url),
+                action_description,
+                json=paged_query_payload,
+            )
             page_number += 1
 
         return collected_items
@@ -1484,7 +1533,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         connectivity_query_payload = dict(query_payload)
         connectivity_query_payload["MaxRecords"] = 1
-        response = client.post(endpoint_path, json=connectivity_query_payload)
+        response = self._api_request(
+            client,
+            "POST",
+            endpoint_path,
+            action_description,
+            json=connectivity_query_payload,
+        )
         self._raise_for_safe_response(response, action_description)
         response.json()
 
@@ -1612,9 +1667,19 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if isinstance(cached_picklist_labels, dict):
             return cached_picklist_labels
 
-        response = client.get(f"/Tickets/entityInformation/fields/{field_name}")
+        response = self._api_request(
+            client,
+            "GET",
+            f"/Tickets/entityInformation/fields/{field_name}",
+            action_description,
+        )
         if response.status_code == 404:
-            response = client.get("/Tickets/entityInformation/fields")
+            response = self._api_request(
+                client,
+                "GET",
+                "/Tickets/entityInformation/fields",
+                action_description,
+            )
         self._raise_for_safe_response(response, action_description)
 
         response_payload = response.json()
@@ -2521,7 +2586,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if status_id is None:
             return
 
-        response = client.patch("/Tickets", json={"id": ticket_id, "status": status_id})
+        response = self._api_request(
+            client,
+            "PATCH",
+            "/Tickets",
+            "Autotask ticket status update",
+            json={"id": ticket_id, "status": status_id},
+        )
         self._raise_for_safe_response(response, "Autotask ticket status update")
 
     def _time_entry_payload(
@@ -2571,7 +2642,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Create the Autotask TimeEntries row for the accepted job."""
 
         payload = self._time_entry_payload(job, ticket_id=ticket_id, resource_id=resource_id, role_id=role_id)
-        response = client.post("/TimeEntries", json=payload)
+        response = self._api_request(
+            client,
+            "POST",
+            "/TimeEntries",
+            "Autotask time entry creation",
+            json=payload,
+        )
         self._raise_for_safe_response(response, "Autotask time entry creation")
         response_payload = response.json()
         item_id = response_payload.get("itemId") or response_payload.get("id") or response_payload.get("ItemId")
@@ -2589,7 +2666,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         payload = self._time_entry_payload(job)
         payload["id"] = time_entry_id
-        response = client.patch("/TimeEntries", json=payload)
+        response = self._api_request(
+            client,
+            "PATCH",
+            "/TimeEntries",
+            "Autotask time entry update",
+            json=payload,
+        )
         self._raise_for_safe_response(response, "Autotask time entry update")
 
     def _delete_time_entry(self, client: httpx.Client, external_id: str) -> None:
@@ -2599,7 +2682,12 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if time_entry_id is None:
             raise AutotaskSubmissionError("Existing Autotask time entry ID is required before deleting.")
 
-        response = client.delete(f"/TimeEntries/{time_entry_id}")
+        response = self._api_request(
+            client,
+            "DELETE",
+            f"/TimeEntries/{time_entry_id}",
+            "Autotask time entry deletion",
+        )
         self._raise_for_safe_response(response, "Autotask time entry deletion")
 
     def submit_job(
@@ -2665,6 +2753,10 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     snapshot["ticketStatusPostUpdate"] = TicketStatus.COMPLETE.value
                     self._update_ticket_status(client, ticket_context.ticket_id, TicketStatus.COMPLETE, required=True)
         except (httpx.HTTPError, AutotaskSubmissionError) as exc:
+            record_autotask_api_failure(
+                "Autotask time entry submission failed.",
+                operation="Autotask time entry submission",
+            )
             return AutotaskSubmissionResult(
                 provider=self.provider_name,
                 succeeded=False,
@@ -2673,6 +2765,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 request_snapshot=snapshot,
             )
 
+        record_autotask_api_success(operation="Autotask time entry submission")
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,
@@ -2736,6 +2829,10 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                         ticket_id = self._query_ticket_id(client, job.ticket_number)
                     self._update_ticket_status(client, ticket_id, job.ticket_status, required=True)
         except (httpx.HTTPError, AutotaskSubmissionError) as exc:
+            record_autotask_api_failure(
+                "Autotask time entry update failed.",
+                operation="Autotask time entry update",
+            )
             return AutotaskSubmissionResult(
                 provider=self.provider_name,
                 succeeded=False,
@@ -2744,6 +2841,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 request_snapshot=snapshot,
             )
 
+        record_autotask_api_success(operation="Autotask time entry update")
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,
@@ -2767,6 +2865,10 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             with self._client() as client:
                 self._delete_time_entry(client, external_id)
         except (httpx.HTTPError, AutotaskSubmissionError) as exc:
+            record_autotask_api_failure(
+                "Autotask time entry deletion failed.",
+                operation="Autotask time entry deletion",
+            )
             return AutotaskSubmissionResult(
                 provider=self.provider_name,
                 succeeded=False,
@@ -2775,6 +2877,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 request_snapshot=snapshot,
             )
 
+        record_autotask_api_success(operation="Autotask time entry deletion")
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,
@@ -2819,4 +2922,10 @@ def _run_autotask_connectivity_check(application_settings: Settings) -> Autotask
 def test_autotask_connectivity(application_settings: Settings = settings) -> AutotaskConnectivityResult:
     """Return a fresh safe Autotask dependency result for diagnostics."""
 
-    return _run_autotask_connectivity_check(application_settings)
+    connectivity_result = _run_autotask_connectivity_check(application_settings)
+    record_autotask_connectivity_result(
+        available=connectivity_result.available,
+        summary=connectivity_result.summary,
+        operation=connectivity_result.failed_operation,
+    )
+    return connectivity_result

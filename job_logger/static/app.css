@@ -235,6 +235,12 @@ svg {
   min-width: 0;
 }
 
+.desktop-health-alert-group {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 .app-version-link {
   display: inline-flex;
   align-items: center;
@@ -304,6 +310,18 @@ svg {
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--muted);
+}
+
+.health-alert-button {
+  border-color: rgba(248, 113, 113, 0.72);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.health-alert-button:hover {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: var(--on-danger);
 }
 
 .mobile-nav-actions,

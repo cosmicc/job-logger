@@ -12,6 +12,7 @@ import pytest
 from job_logger.config import settings
 from job_logger.enums import JobStatus, TicketStatus, WorkLocation
 from job_logger.models import Job
+from job_logger.services import system_health
 from job_logger.services.autotask import (
     _COMPANY_ID_CACHE,
     _COMPANY_SEARCH_CACHE,
@@ -86,6 +87,24 @@ class FakeCompanyQueryClient:
 
         self.get_call_count += 1
         raise AssertionError(f"Autotask POST query pagination must not use GET: {next_page_url}")
+
+
+class FakeTransportFailureClient:
+    """Fake Autotask client that raises a transport-level HTTP error."""
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Simulate Autotask being unreachable before an HTTP response exists."""
+
+        raise httpx.ConnectError("Autotask API is unreachable")
+
+
+class FakeSuccessfulApiClient:
+    """Fake Autotask client that returns one successful API response."""
+
+    def get(self, endpoint_path: str) -> FakeAutotaskResponse:
+        """Return a success response so the cached health state can clear."""
+
+        return FakeAutotaskResponse({})
 
 
 class FakeTicketStatusClient:
@@ -1096,6 +1115,48 @@ def _clear_autotask_lookup_caches() -> None:
     _OPEN_TICKET_SELECTION_CACHE.clear()
     _RESOURCE_SEARCH_CACHE.clear()
     _SERVICE_CALL_SELECTION_CACHE.clear()
+
+
+def test_live_provider_updates_cached_autotask_health_from_api_results() -> None:
+    """Autotask API failures should alert until a later API call succeeds."""
+
+    provider = _live_test_provider()
+
+    with pytest.raises(httpx.ConnectError):
+        provider._api_request(
+            FakeTransportFailureClient(),
+            "POST",
+            "/Companies/query",
+            "Autotask company lookup",
+            json={"MaxRecords": 1},
+        )
+
+    transport_health = system_health.cached_autotask_health()
+    assert transport_health.available is False
+    assert transport_health.operation == "Autotask company lookup"
+    assert transport_health.summary == "Autotask company lookup could not reach the Autotask API."
+
+    with pytest.raises(AutotaskSubmissionError):
+        provider._raise_for_safe_response(
+            FakeAutotaskResponse({"errors": ["Permission denied."]}, status_code=500),
+            "Autotask ticket lookup",
+        )
+
+    failed_response_health = system_health.cached_autotask_health()
+    assert failed_response_health.available is False
+    assert failed_response_health.operation == "Autotask ticket lookup"
+    assert "Autotask HTTP 500" in failed_response_health.summary
+
+    provider._api_request(
+        FakeSuccessfulApiClient(),
+        "GET",
+        "/Tickets/entityInformation/fields/status",
+        "Autotask status metadata lookup",
+    )
+
+    recovered_health = system_health.cached_autotask_health()
+    assert recovered_health.available is True
+    assert recovered_health.operation == "Autotask status metadata lookup"
 
 
 def test_company_lookup_uses_pagination_and_cache() -> None:

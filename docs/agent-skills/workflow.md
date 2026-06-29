@@ -52,8 +52,12 @@ browser-only action. Keep the explicit desktop logout form available on
 non-mobile authenticated pages.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 one yellow version badge with `DEV` folded into the version text, such as
-`v1.1.6 DEV`. Keep the badge compact so it does not crowd the mobile
+`v1.1.7 DEV`. Keep the badge compact so it does not crowd the mobile
 navigation icons.
+When cached app health is degraded, Diagnostics-authorized users also see a red
+exclamation alert button that links to `/debug`. Do not show that alert to
+ordinary managed users. On phone layouts, keep the alert in the right-side
+action group and compact the icon spacing only when the alert is present.
 
 New blank work starts through `POST /jobs/start`. A user can also start work
 from an Autotask service call selected in the mobile day navigator through

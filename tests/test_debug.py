@@ -31,6 +31,7 @@ from job_logger.models import (
     WebUser,
 )
 from job_logger.routes import debug as debug_routes
+from job_logger.services import system_health
 from job_logger.services.backups import (
     AUTOMATIC_BACKUP_FILENAME_PREFIX,
     AUTOMATIC_BACKUP_FILENAME_SUFFIX,
@@ -265,11 +266,11 @@ def test_debug_can_force_managed_web_users_to_sign_in_again(client: TestClient) 
 def test_debug_page_shows_disk_space_monitor(super_admin_client: TestClient, monkeypatch) -> None:
     """Diagnostics should render app-visible disk usage with warning styling."""
 
-    snapshot = debug_routes.DebugDiskUsageSnapshot(
+    snapshot = system_health.DebugDiskUsageSnapshot(
         severity="warning",
         status_label="Disk space nearing full",
         volumes=(
-            debug_routes.DebugDiskUsageVolume(
+            system_health.DebugDiskUsageVolume(
                 label="Log directory",
                 configured_path="/data/logs",
                 measured_path="/data/logs",
@@ -314,9 +315,9 @@ def test_debug_disk_usage_serializer_uses_existing_parent_for_missing_path(tmp_p
             free=4 * gibibyte,
         )
 
-    monkeypatch.setattr(debug_routes.shutil, "disk_usage", fake_disk_usage)
+    monkeypatch.setattr(system_health.shutil, "disk_usage", fake_disk_usage)
 
-    volume = debug_routes._serialize_disk_usage_volume("Missing child", str(configured_path))
+    volume = system_health._serialize_disk_usage_volume("Missing child", str(configured_path))
 
     assert observed_paths == [tmp_path]
     assert volume.configured_path == str(configured_path)
@@ -334,7 +335,7 @@ def test_debug_disk_usage_combines_paths_on_same_storage() -> None:
     """Diagnostics should combine monitored paths with identical used and total space."""
 
     gibibyte = 1024 * 1024 * 1024
-    first_volume = debug_routes.DebugDiskUsageVolume(
+    first_volume = system_health.DebugDiskUsageVolume(
         label="App filesystem",
         configured_path="/",
         measured_path="/",
@@ -351,7 +352,7 @@ def test_debug_disk_usage_combines_paths_on_same_storage() -> None:
         configured_paths=("App filesystem: /",),
         measured_paths=("/",),
     )
-    second_volume = debug_routes.DebugDiskUsageVolume(
+    second_volume = system_health.DebugDiskUsageVolume(
         label="Log directory",
         configured_path="/data/logs",
         measured_path="/data/logs",
@@ -368,7 +369,7 @@ def test_debug_disk_usage_combines_paths_on_same_storage() -> None:
         configured_paths=("Log directory: /data/logs",),
         measured_paths=("/data/logs",),
     )
-    separate_volume = debug_routes.DebugDiskUsageVolume(
+    separate_volume = system_health.DebugDiskUsageVolume(
         label="Backup directory",
         configured_path="/backups",
         measured_path="/backups",
@@ -386,7 +387,7 @@ def test_debug_disk_usage_combines_paths_on_same_storage() -> None:
         measured_paths=("/backups",),
     )
 
-    combined_volumes = debug_routes._combine_disk_usage_volumes(
+    combined_volumes = system_health._combine_disk_usage_volumes(
         (first_volume, second_volume, separate_volume)
     )
 
@@ -397,6 +398,85 @@ def test_debug_disk_usage_combines_paths_on_same_storage() -> None:
         "Log directory: /data/logs",
     )
     assert combined_volumes[1].label == "Backup directory"
+
+
+def test_app_health_snapshot_includes_degraded_disk_state(monkeypatch) -> None:
+    """The shared health snapshot should alert on warning or critical disk state."""
+
+    disk_snapshot = system_health.DebugDiskUsageSnapshot(
+        severity="warning",
+        status_label="Disk space nearing full",
+        volumes=(),
+    )
+    monkeypatch.setattr(system_health, "collect_disk_usage_snapshot", lambda: disk_snapshot)
+    system_health.reset_cached_autotask_health()
+
+    health_snapshot = system_health.collect_app_health_snapshot()
+
+    assert health_snapshot.degraded is True
+    assert len(health_snapshot.issues) == 1
+    assert health_snapshot.issues[0].code == "disk-space"
+    assert health_snapshot.issues[0].label == "Disk space nearing full"
+
+
+def test_cached_health_alert_is_visible_only_to_diagnostics_users(client: TestClient, monkeypatch) -> None:
+    """Cached degraded health should show a top-bar alert only for Diagnostics users."""
+
+    healthy_disk_snapshot = system_health.DebugDiskUsageSnapshot(
+        severity="ok",
+        status_label="Disk space OK",
+        volumes=(),
+    )
+    monkeypatch.setattr(system_health, "collect_disk_usage_snapshot", lambda: healthy_disk_snapshot)
+    system_health.record_autotask_api_failure(
+        "Autotask API access failed.",
+        operation="Autotask company lookup",
+    )
+
+    login_as_web_user(client)
+    non_admin_response = client.get("/home")
+    assert non_admin_response.status_code == 200
+    assert "data-health-alert-button" not in non_admin_response.text
+    assert "data-mobile-health-alert-link" not in non_admin_response.text
+
+    login_as_super_admin(client)
+    admin_response = client.get("/users")
+    assert admin_response.status_code == 200
+    assert "has-health-alert" in admin_response.text
+    assert 'data-health-alert-button' in admin_response.text
+    assert 'data-desktop-health-alert-link' in admin_response.text
+    assert 'data-mobile-health-alert-link' in admin_response.text
+    assert 'href="/debug"' in admin_response.text
+    assert "Application needs attention:" in admin_response.text
+    assert "Autotask API needs attention" in admin_response.text
+
+    system_health.record_autotask_api_success(operation="Autotask company lookup")
+    cleared_response = client.get("/users")
+    assert cleared_response.status_code == 200
+    assert "data-health-alert-button" not in cleared_response.text
+
+
+def test_managed_admin_sees_cached_health_alert(client: TestClient) -> None:
+    """Managed users marked Admin should see the same app-health alert."""
+
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user.is_admin = True
+        database_session.commit()
+
+    system_health.record_autotask_api_failure(
+        "Autotask API access failed.",
+        operation="Autotask ticket lookup",
+    )
+
+    login_as_web_user(client)
+    response = client.get("/home")
+
+    assert response.status_code == 200
+    assert "has-health-alert" in response.text
+    assert 'data-health-alert-button' in response.text
+    assert 'href="/debug"' in response.text
 
 
 def test_openapi_schema_route_is_disabled(client: TestClient) -> None:
