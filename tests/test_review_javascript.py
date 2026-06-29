@@ -182,6 +182,7 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                 classList: noopClassList,
                 textContent: "",
               }};
+              const reviewDateWeekdayLabel = makeElement("SPAN");
               const reviewAutosaveForm = {{
                 dataset: {{reviewSaveUrl: "/review/job-1/save"}},
                 querySelector(selector) {{
@@ -242,6 +243,9 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                   if (selector === "[data-review-autosave-status]") {{
                     return reviewAutosaveStatus;
                   }}
+                  if (selector === "[data-review-date-weekday-label]") {{
+                    return reviewDateWeekdayLabel;
+                  }}
                   if (selector === "[data-ai-cleanup-status]") {{
                     return aiCleanupStatus;
                   }}
@@ -295,7 +299,11 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                   }});
                   return {{
                     ok: true,
-                    json: async () => ({{job_id: "job-1", summary_notes: summaryTextarea.value}}),
+                    json: async () => ({{
+                      job_id: "job-1",
+                      job_date: jobDateInput.value,
+                      summary_notes: summaryTextarea.value,
+                    }}),
                   }};
                 }},
                 FormData: FakeFormData,
@@ -337,6 +345,19 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
               assert.strictEqual(submittedRequests[0].body.summary_notes, "Autosaved review notes.");
               assert.strictEqual(reviewAutosaveStatus.textContent, "Changes saved.");
 
+              jobDateInput.value = "2026-06-20";
+              jobDateInput.eventHandlers.change();
+              assert.strictEqual(reviewDateWeekdayLabel.textContent, "(Saturday)");
+              runQueuedTimers();
+
+              await Promise.resolve();
+              await Promise.resolve();
+              await new Promise((resolve) => setImmediate(resolve));
+
+              assert.strictEqual(submittedRequests.length, 2);
+              assert.strictEqual(submittedRequests[1].body.job_date, "2026-06-20");
+              assert.strictEqual(reviewDateWeekdayLabel.textContent, "(Saturday)");
+
               assert.strictEqual(typeof aiCleanupButton.eventHandlers.click, "function");
               summaryTextarea.value = "rough review wording";
               aiCleanupButton.eventHandlers.click();
@@ -351,8 +372,8 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
 
               assert.deepStrictEqual(aiCleanupRequests, ["rough review wording"]);
               assert.strictEqual(summaryTextarea.value, "Cleaned review notes.");
-              assert.strictEqual(submittedRequests.length, 2);
-              assert.strictEqual(submittedRequests[1].body.summary_notes, "Cleaned review notes.");
+              assert.strictEqual(submittedRequests.length, 3);
+              assert.strictEqual(submittedRequests[2].body.summary_notes, "Cleaned review notes.");
               assert.strictEqual(aiCleanupStatus.textContent, "Summary cleaned up.");
             }})().catch((error) => {{
               console.error(error);

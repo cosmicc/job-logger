@@ -18,7 +18,7 @@ from job_logger.models import AuditEvent, Job, SubmissionAttempt, WebUser
 from job_logger.services.ai_cleanup import AiCleanupResult
 from job_logger.services.autotask import AutotaskSubmissionResult
 from job_logger.services.jobs import get_active_job
-from job_logger.time_utils import format_local_time, local_date_for
+from job_logger.time_utils import format_job_date_label, format_local_time, local_date_for
 from tests.conftest import extract_csrf_token, login_as_super_admin
 
 
@@ -697,6 +697,10 @@ def test_submitted_review_page_allows_controlled_entry_edits(authenticated_clien
     assert 'class="review-action-stack"' in review_html
     assert 'class="button-pair-row review-action-row"' in review_html
     assert f'form="review-form-{submitted_job_id}"' in review_html
+    assert re.search(
+        rf"Job date\s*<span class=\"date-weekday-label\"[^>]*>\({re.escape(format_job_date_label('2026-06-16'))}\)</span>",
+        review_html,
+    )
     assert re.search(r'<select(?=[^>]*name="ticket_status")(?![^>]*disabled)', review_html)
     assert re.search(r'<input(?=[^>]*name="job_date")(?![^>]*disabled)', review_html)
     assert re.search(r'<input(?=[^>]*name="start_time")(?![^>]*disabled)', review_html)
@@ -2737,6 +2741,12 @@ def test_mobile_active_job_date_is_editable(authenticated_client: TestClient) ->
         assert active_job.local_work_date == date(2026, 6, 20)
         assert local_date_for(active_job.rounded_start_utc) == date(2026, 6, 20)
         assert format_local_time(active_job.rounded_start_utc) == original_local_start_time
+
+    updated_active_mobile_response = authenticated_client.get("/home")
+    assert re.search(
+        rf"Job date\s*<span class=\"date-weekday-label\"[^>]*>\({re.escape(format_job_date_label('2026-06-20'))}\)</span>",
+        updated_active_mobile_response.text,
+    )
 
     end_response = authenticated_client.post(
         f"/jobs/{active_job_id}/end",

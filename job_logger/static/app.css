@@ -683,6 +683,12 @@ label {
   font-weight: 700;
 }
 
+.date-weekday-label {
+  color: var(--muted);
+  text-transform: none;
+  white-space: nowrap;
+}
+
 input,
 select,
 textarea {

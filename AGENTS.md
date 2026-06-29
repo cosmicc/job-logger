@@ -375,9 +375,13 @@ distinct slot shading so they are easier to tell apart. On full-browser Work in
 Progress cards, the End Work/Delete row belongs directly under the
 Record/AI Cleanup row, and recording/AI status text belongs below all action
 buttons. Active Work in Progress cards should show an editable **Job date**
-calendar field instead of the raw started timestamp; the selected local date
-must be saved server-side through the active-job workflow and carry into Review
-and Autotask submission. The active **Rounded start** and **Rounded stop**
+calendar field instead of the raw started timestamp, with `(Today)` shown
+beside the label when the selected date is the current app-local date and the
+weekday shown otherwise; the selected local date must be saved server-side
+through the active-job workflow and carry into Review and Autotask submission.
+The selected Review detail **Job date** field should use the same
+today-or-weekday label beside the date label. The active **Rounded start** and
+**Rounded stop**
 fields should use the same 12-hour editable time-field treatment as Review
 detail start/end times, keep the `-15` and `+15` controls, and save only
 through server-validated active-job routes.

@@ -100,8 +100,10 @@ Active jobs support these updates before completion:
 - Work location mode, either Remote or On-Site, which is stored separately from
   the visible notes.
 - Local job date through the Work in Progress **Job date** calendar field. The
-  selected date replaces the local date portion of the active rounded start
-  time while preserving its local time.
+  label shows `(Today)` beside **Job date** when the selected date is the
+  current app-local date, and the weekday otherwise. The selected date replaces
+  the local date portion of the active rounded start time while preserving its
+  local time.
 - Rounded start time through an editable 12-hour Work in Progress time field
   that matches the Review detail start-time treatment, plus server-validated
   `-15` and `+15` minute buttons on either side of the field.
@@ -477,10 +479,12 @@ From Autotask fails, the selected detail may show a session-scoped local-only
 purge dialog that warns the Autotask time entry may still exist before removing
 the Job Logger review row.
 
-The review detail uses one local job date with start and end times. Jobs do not
-span multiple dates; validation must reject edits where the end time is not
-after the start time on that same date. Keep the audit timeline collapsed by
-default with an expandable detail section.
+The review detail uses one local job date with start and end times, and the
+**Job date** label shows `(Today)` when the selected date is the current
+app-local date or the weekday otherwise. Jobs do not span multiple dates;
+validation must reject edits where the end time is not after the start time on
+that same date. Keep the audit timeline collapsed by default with an expandable
+detail section.
 
 ## Job Status Expectations
 

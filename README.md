@@ -839,8 +839,9 @@ and desktop browsers get appropriately sized layouts. In a full browser view,
 the `/home` Home screen lays out Start Work beside the service-call list, and
 Work in Progress puts job details beside notes and finish actions for easier
 scanning. Active Work in Progress cards show an editable **Job date** calendar
-instead of the raw started timestamp, and changing it saves the selected local
-work date before Review or submission. Active cards also use distinct slot
+with `Today` or the weekday beside the label instead of the raw started
+timestamp, and changing it saves the selected local work date before Review or
+submission. Active cards also use distinct slot
 shading so two active jobs are easier to distinguish, and the full-browser
 active-card finish/delete row sits directly below the **Record** and
 **AI Cleanup** row with recording and cleanup status text below all action

@@ -39,7 +39,10 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
             (async () => {
               const mobileScript = `${fs.readFileSync(MOBILE_SCRIPT_PATH, "utf8")}
               ;this.__mobileTestApi = {
+                jobDateLabelForDateValue,
+                setDateWeekdayLabelText,
                 updateActiveTicketDisplay,
+                weekdayNameForDateValue,
               };`;
               const eventHandlers = {};
               const windowEventHandlers = {};
@@ -326,6 +329,29 @@ def test_mobile_summary_autosave_does_not_replace_typing_buffer(tmp_path: Path) 
 
         assert.deepStrictEqual(submittedSummaries, ["First word "]);
         assert.strictEqual(descriptionTextarea.value, "First word ");
+        """,
+    )
+
+
+def test_mobile_date_label_uses_today_or_weekday_from_date_only_value(tmp_path: Path) -> None:
+    """Work in Progress date labels should say Today only for the current date."""
+
+    run_mobile_javascript_harness(
+        tmp_path,
+        """
+        const weekdayLabel = createFakeElement("span");
+
+        assert.strictEqual(browserContext.__mobileTestApi.weekdayNameForDateValue("2026-06-16"), "Tuesday");
+        assert.strictEqual(browserContext.__mobileTestApi.weekdayNameForDateValue("2026-06-20"), "Saturday");
+        assert.strictEqual(browserContext.__mobileTestApi.weekdayNameForDateValue("bad-date"), "");
+        assert.strictEqual(browserContext.__mobileTestApi.jobDateLabelForDateValue("2026-06-20", "2026-06-20"), "Today");
+        assert.strictEqual(browserContext.__mobileTestApi.jobDateLabelForDateValue("2026-06-20", "2026-06-21"), "Saturday");
+
+        browserContext.__mobileTestApi.setDateWeekdayLabelText(weekdayLabel, "2026-06-20");
+        assert.match(weekdayLabel.textContent, /^\\((Today|Saturday)\\)$/);
+
+        browserContext.__mobileTestApi.setDateWeekdayLabelText(weekdayLabel, "bad-date");
+        assert.strictEqual(weekdayLabel.textContent, "");
         """,
     )
 

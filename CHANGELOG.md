@@ -17,6 +17,8 @@ All notable changes to Job Logger are documented in this file.
   prefixes parseable when saving existing review text.
 - Changed the Home blank-start button label to **Start Work** so the main
   action matches the rest of the work-entry workflow language.
+- Changed Work in Progress and Review detail **Job date** labels to show
+  `(Today)` for the current app-local date and the selected weekday otherwise.
 - Changed both Home service-call date selectors to show relative labels like
   `Today (Saturday)` for today, yesterday, and tomorrow, while other dates show
   the full month, ordinal day, and weekday without the year.

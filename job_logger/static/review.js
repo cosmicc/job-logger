@@ -12,8 +12,10 @@ const RECORDING_STATUS_RECORDING = "Recording audio...";
 const RECORDING_STATUS_SENDING = "Sending data to server...";
 const RECORDING_STATUS_CONVERTING = "Converting audio to text...";
 const RECORDING_STATUS_COMPLETE = "Conversion complete.";
+const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const reviewAutosaveForm = document.querySelector("[data-review-autosave-form]");
 const reviewAutosaveStatus = document.querySelector("[data-review-autosave-status]");
+const reviewDateWeekdayLabel = document.querySelector("[data-review-date-weekday-label]");
 const aiCleanupButtons = document.querySelectorAll("[data-ai-cleanup-button]");
 const reviewRecordButtons = document.querySelectorAll("[data-review-record-button]");
 const reviewCompanyInputs = document.querySelectorAll("[data-review-company-input]");
@@ -82,6 +84,74 @@ function formatMinutesAsTwelveHourTime(totalMinutes) {
   const hour12 = hour24 % 12 || 12;
   const period = hour24 < 12 ? "am" : "pm";
   return `${hour12}:${padTwo(minute)} ${period}`;
+}
+
+function normalizedDateValue(dateValue) {
+  const normalizedDate = String(dateValue || "").trim();
+  const dateMatch = normalizedDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!dateMatch) {
+    return null;
+  }
+
+  const year = Number(dateMatch[1]);
+  const monthIndex = Number(dateMatch[2]) - 1;
+  const day = Number(dateMatch[3]);
+  const localDate = new Date(year, monthIndex, day);
+  if (
+    localDate.getFullYear() !== year
+    || localDate.getMonth() !== monthIndex
+    || localDate.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return {normalizedDate, localDate};
+}
+
+function weekdayNameForDateValue(dateValue) {
+  const dateInfo = normalizedDateValue(dateValue);
+  if (!dateInfo) {
+    return "";
+  }
+
+  return WEEKDAY_NAMES[dateInfo.localDate.getDay()] || "";
+}
+
+function currentDetroitDateValue() {
+  const dateParts = new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "America/Detroit",
+    year: "numeric",
+  }).formatToParts(new Date());
+  const partValues = Object.fromEntries(dateParts.map((part) => [part.type, part.value]));
+  if (!partValues.year || !partValues.month || !partValues.day) {
+    return "";
+  }
+
+  return `${partValues.year}-${partValues.month}-${partValues.day}`;
+}
+
+function jobDateLabelForDateValue(dateValue, currentDateValue = currentDetroitDateValue()) {
+  const dateInfo = normalizedDateValue(dateValue);
+  if (!dateInfo) {
+    return "";
+  }
+
+  if (dateInfo.normalizedDate === currentDateValue) {
+    return "Today";
+  }
+
+  return WEEKDAY_NAMES[dateInfo.localDate.getDay()] || "";
+}
+
+function updateReviewDateWeekday(dateValue) {
+  if (!reviewDateWeekdayLabel) {
+    return;
+  }
+
+  const dateLabel = jobDateLabelForDateValue(dateValue);
+  reviewDateWeekdayLabel.textContent = dateLabel ? `(${dateLabel})` : "";
 }
 
 function adjustTimeField(timeFieldName, deltaMinutes) {
@@ -1023,7 +1093,11 @@ async function cleanupReviewSummary(button) {
 function persistReviewAutosaveSnapshot(queuedSnapshot) {
   setReviewAutosaveStatus("Saving changes...");
   saveReviewFormInBackground()
-    .then(() => {
+    .then((payload) => {
+      if (payload && payload.job_date) {
+        updateReviewDateWeekday(payload.job_date);
+      }
+
       const latestSnapshot = buildReviewAutosaveSnapshot();
       if (latestSnapshot === queuedSnapshot) {
         lastReviewAutosaveSnapshot = latestSnapshot;
@@ -1094,6 +1168,9 @@ function bindReviewAutosave() {
 
     if (control.tagName === "SELECT" || control.type === "date" || control.type === "radio") {
       control.addEventListener("change", () => {
+        if (control.name === "job_date") {
+          updateReviewDateWeekday(control.value);
+        }
         queueReviewAutosave(true);
       });
       continue;

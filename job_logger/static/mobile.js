@@ -14,6 +14,7 @@ const RECORDING_STATUS_RECORDING = "Recording audio...";
 const RECORDING_STATUS_SENDING = "Sending data to server...";
 const RECORDING_STATUS_CONVERTING = "Converting audio to text...";
 const RECORDING_STATUS_COMPLETE = "Conversion complete.";
+const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const activeRecordButtons = document.querySelectorAll(".record-notes-button");
 const descriptionTextareas = document.querySelectorAll(".job-description");
@@ -58,6 +59,82 @@ let activeAudioStopRequested = false;
 
 function toSafeMapString(value) {
   return String(value || "");
+}
+
+function normalizedDateValue(dateValue) {
+  const normalizedDate = toSafeMapString(dateValue).trim();
+  const dateMatch = normalizedDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!dateMatch) {
+    return null;
+  }
+
+  const year = Number(dateMatch[1]);
+  const monthIndex = Number(dateMatch[2]) - 1;
+  const day = Number(dateMatch[3]);
+  const localDate = new Date(year, monthIndex, day);
+  if (
+    localDate.getFullYear() !== year
+    || localDate.getMonth() !== monthIndex
+    || localDate.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return {normalizedDate, localDate};
+}
+
+function weekdayNameForDateValue(dateValue) {
+  const dateInfo = normalizedDateValue(dateValue);
+  if (!dateInfo) {
+    return "";
+  }
+
+  return WEEKDAY_NAMES[dateInfo.localDate.getDay()] || "";
+}
+
+function currentDetroitDateValue() {
+  const dateParts = new Intl.DateTimeFormat("en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "America/Detroit",
+    year: "numeric",
+  }).formatToParts(new Date());
+  const partValues = Object.fromEntries(dateParts.map((part) => [part.type, part.value]));
+  if (!partValues.year || !partValues.month || !partValues.day) {
+    return "";
+  }
+
+  return `${partValues.year}-${partValues.month}-${partValues.day}`;
+}
+
+function jobDateLabelForDateValue(dateValue, currentDateValue = currentDetroitDateValue()) {
+  const dateInfo = normalizedDateValue(dateValue);
+  if (!dateInfo) {
+    return "";
+  }
+
+  if (dateInfo.normalizedDate === currentDateValue) {
+    return "Today";
+  }
+
+  return WEEKDAY_NAMES[dateInfo.localDate.getDay()] || "";
+}
+
+function setDateWeekdayLabelText(labelElement, dateValue) {
+  if (!labelElement) {
+    return;
+  }
+
+  const dateLabel = jobDateLabelForDateValue(dateValue);
+  labelElement.textContent = dateLabel ? `(${dateLabel})` : "";
+}
+
+function updateActiveJobDateWeekday(activeJobCard, dateValue) {
+  if (!activeJobCard) {
+    return;
+  }
+
+  setDateWeekdayLabelText(activeJobCard.querySelector("[data-date-weekday-label]"), dateValue);
 }
 
 function findDescriptionTextarea(jobId) {
@@ -512,7 +589,14 @@ function persistActiveJobFormSnapshot(activeTicketForm, queuedSnapshot) {
   const jobId = toSafeMapString(activeTicketForm.dataset.jobId);
   setActiveSaveStatus(jobId, "Saving changes...");
   saveActiveJobFormInBackground(activeTicketForm)
-    .then(() => {
+    .then((payload) => {
+      if (payload && payload.job_date) {
+        updateActiveJobDateWeekday(
+          document.querySelector(`[data-active-job-card="${jobId}"]`),
+          payload.job_date,
+        );
+      }
+
       const endJobForm = document.querySelector(`.end-job-form[data-job-id="${jobId}"]`);
       if (endJobForm) {
         syncEndJobClientFields(endJobForm);
@@ -617,6 +701,9 @@ function updateActiveTimeDisplays(activeTimeForm, payload) {
     if (payloadJobDate) {
       hiddenJobDateInput.value = payloadJobDate;
     }
+  }
+  if (payloadJobDate) {
+    updateActiveJobDateWeekday(activeJobCard, payloadJobDate);
   }
   if (startTimeInput && payload.rounded_start_time) {
     startTimeInput.value = payload.rounded_start_time;
@@ -2099,6 +2186,8 @@ for (const activeTicketStatusInput of activeTicketStatusInputs) {
 
 for (const activeJobDateInput of activeJobDateInputs) {
   activeJobDateInput.addEventListener("change", () => {
+    const activeJobCard = activeJobDateInput.closest ? activeJobDateInput.closest("[data-active-job-card]") : null;
+    updateActiveJobDateWeekday(activeJobCard, activeJobDateInput.value);
     const activeTicketForm = document.getElementById(activeJobDateInput.getAttribute("form") || "");
     queueActiveJobFormSave(activeTicketForm, true);
   });

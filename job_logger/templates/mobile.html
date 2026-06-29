@@ -105,6 +105,7 @@
       {% if active_jobs %}
         {% for active_job in active_jobs %}
           {% set job_label = active_job.job_slot if active_job.job_slot else loop.index %}
+          {% set active_job_date = active_job.local_work_date or active_job.rounded_start_utc|local_date %}
           <section
             class="work-panel active-job-panel active-job-panel-slot-{{ job_label }}"
             data-active-job-card="{{ active_job.id }}"
@@ -115,13 +116,13 @@
             <dl class="metric-grid">
               <div class="metric-card job-date-card">
                 <label>
-                  <span class="metric-label">Job date</span>
+                  <span class="metric-label">Job date <span class="date-weekday-label" data-date-weekday-label>({{ active_job_date|job_date_label }})</span></span>
                   <input
                     name="job_date"
                     type="date"
                     form="active-ticket-form-{{ active_job.id }}"
                     data-active-job-date-input
-                    value="{{ active_job.local_work_date or active_job.rounded_start_utc|local_date }}"
+                    value="{{ active_job_date }}"
                     required
                   >
                 </label>
@@ -141,7 +142,7 @@
                     <input
                       type="hidden"
                       name="job_date"
-                      value="{{ active_job.local_work_date or active_job.rounded_start_utc|local_date }}"
+                      value="{{ active_job_date }}"
                       data-active-time-job-date
                     >
                     <button
@@ -199,7 +200,7 @@
                     <input
                       type="hidden"
                       name="job_date"
-                      value="{{ active_job.local_work_date or active_job.rounded_start_utc|local_date }}"
+                      value="{{ active_job_date }}"
                       data-active-time-job-date
                     >
                     <button

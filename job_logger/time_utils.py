@@ -164,6 +164,48 @@ def format_local_date(timestamp: datetime | None) -> str:
     return to_local(timestamp).date().isoformat()
 
 
+def format_weekday_name(value: date | datetime | str | None) -> str:
+    """Return the weekday name for a local date value shown beside date inputs."""
+
+    local_date = _date_value_for_label(value)
+    return local_date.strftime("%A") if local_date is not None else ""
+
+
+def format_job_date_label(value: date | datetime | str | None) -> str:
+    """Return Today for the current local date, otherwise the weekday name."""
+
+    local_date = _date_value_for_label(value)
+    if local_date is None:
+        return ""
+
+    if local_date == local_date_for(now_utc()):
+        return "Today"
+
+    return local_date.strftime("%A")
+
+
+def _date_value_for_label(value: date | datetime | str | None) -> date | None:
+    """Normalize template date values before building a compact date label."""
+
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        return to_local(value).date()
+
+    if isinstance(value, date):
+        return value
+
+    normalized_date = value.strip()
+    if not normalized_date:
+        return None
+
+    try:
+        return date.fromisoformat(normalized_date)
+    except ValueError:
+        return None
+
+
 def format_local_time(timestamp: datetime | None) -> str:
     """Format a timestamp for user-facing America/Detroit time display."""
 

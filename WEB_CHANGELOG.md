@@ -6,6 +6,7 @@ Short release notes shown on the authenticated `/changelog` page.
 
 - Review summaries now start with Remote. or On-Site. before the work notes.
 - The Home start button now says Start Work.
+- Work in Progress and Review job dates now show Today or the weekday beside the date.
 - Service-call date selectors now show Today, Yesterday, or Tomorrow with the weekday.
 - Dev builds now show DEV inside the yellow version badge instead of a separate pill.
 - Review is now titled Work Review and no longer shows the Autotask time-entry ID.

@@ -100,6 +100,7 @@
             {% endif %}
           >
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            {% set selected_job_date = selected_job.local_work_date or selected_job.rounded_start_utc|local_date %}
             {% if selected_job.status.value == "active" %}
               <input type="hidden" name="return_to" value="review">
             {% endif %}
@@ -240,8 +241,8 @@
                 </div>
               </div>
               <label>
-                <span>Job date</span>
-                <input name="job_date" type="date" value="{{ selected_job.local_work_date or selected_job.rounded_start_utc|local_date }}" required>
+                <span>Job date <span class="date-weekday-label" data-review-date-weekday-label>({{ selected_job_date|job_date_label }})</span></span>
+                <input name="job_date" type="date" value="{{ selected_job_date }}" required>
               </label>
               <label>
                 <span>Start time</span>
