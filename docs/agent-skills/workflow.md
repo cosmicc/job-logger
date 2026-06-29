@@ -159,9 +159,10 @@ When a selected ticket has Autotask notes, Work in Progress may show a compact
 **Ticket notes** button beside the ticket context. Keep the button hidden until
 the authenticated server note lookup confirms at least one note, and render
 notes inside the shared closeable overlay. The overlay list is newest-first by
-note creation time, and each selection card shows only the note title. Author,
-created, updated, type, and note body content belong in the selected note
-detail pane.
+note creation time, and each selection card shows only the note title. The
+selection card title area should fit two lines and truncate longer titles
+inside the card. Author, created, updated, type, and note body content belong
+in the selected note detail pane.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
@@ -427,7 +428,8 @@ Review supports:
   same shared overlay used by Work in Progress. The notes button must stay
   hidden when the job has no selected ticket or when the server returns no
   notes. The overlay list must stay title-only and newest-first, with safe
-  author metadata shown in note detail instead of the list cards.
+  author metadata shown in note detail instead of the list cards. Long
+  selection titles should clamp to two visible lines inside larger cards.
 
 Ticket number is intentionally required only before Autotask submission, not for
 ordinary save operations.

@@ -85,7 +85,7 @@ def test_changelog_parser_reads_current_release() -> None:
             "Autotask API failures now keep that alert visible until the same request type succeeds.",
             "Low disk space now uses the same top-bar alert to make the problem harder to miss.",
             "Work in Progress and Review now show the centered total time between start and stop.",
-            "Ticket notes now open in a title-only newest-first overlay with note details.",
+            "Ticket notes now open in a newest-first overlay with cleaner two-line title cards.",
         ),
     )
 
@@ -123,7 +123,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Autotask API failures now keep that alert visible until the same request type succeeds." in response.text
     assert "Low disk space now uses the same top-bar alert to make the problem harder to miss." in response.text
     assert "Work in Progress and Review now show the centered total time between start and stop." in response.text
-    assert "Ticket notes now open in a title-only newest-first overlay with note details." in response.text
+    assert "Ticket notes now open in a newest-first overlay with cleaner two-line title cards." in response.text
     assert "Review, Home, and header polish" in response.text
     assert "Review summaries now start with Remote. or On-Site. before the work notes." in response.text
     assert "The Home start button now says Start Work." in response.text

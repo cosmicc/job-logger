@@ -793,9 +793,9 @@ After an open ticket is selected, the stored client name becomes read-only for
 that job everywhere, including Work in Progress and Review.
 If the selected ticket has Autotask notes, Work in Progress and Review show a
 **Ticket notes** button that opens a closeable read-only notes overlay. The
-overlay shows newest notes first, keeps the note picker to note titles only,
-and shows who the selected note was from in the note details when Autotask
-returns that author context.
+overlay shows newest notes first, keeps the note picker to two-line title
+cards, and shows who the selected note was from in the note details when
+Autotask returns that author context.
 Long ticket descriptions stay inside a scrollable read-only box instead of
 expanding the mobile page indefinitely; phone-sized layouts cap that visible
 box at about 12 lines, and wider layouts cap it at about 25 lines. On the

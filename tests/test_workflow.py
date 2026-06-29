@@ -1145,6 +1145,11 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".ticket-option-button.ticket-location-on_site" in stylesheet
     assert ".ticket-option-card-header" in stylesheet
     assert ".ticket-location-badge" in stylesheet
+    assert ".ticket-note-list-button" in stylesheet
+    assert "min-height: 68px;" in stylesheet
+    assert ".ticket-note-list-title" in stylesheet
+    assert "-webkit-line-clamp: 2;" in stylesheet
+    assert "max-height: calc(1.32em * 2);" in stylesheet
     assert ".review-ticket-status-field" in stylesheet
     assert ".app-version-link-dev" in stylesheet
     assert ".health-alert-button" in stylesheet

@@ -461,9 +461,10 @@ button should stay hidden when no ticket is selected or when the note lookup
 returns no notes. The overlay must keep an X close button visible while the
 user reviews the note list and note details. The note list should be ordered by
 created date/time with the newest note first, and selection cards should show
-only the note title so note body text cannot overflow the cards. Note detail
-metadata should include who the note was from when Autotask returns a safe
-author reference.
+only the note title so note body text cannot overflow the cards. Selection
+cards should fit two lines of note title text and truncate longer titles inside
+the card. Note detail metadata should include who the note was from when
+Autotask returns a safe author reference.
 Work in Progress and review detail action controls should stay compact and
 scannable on both phone and full browser layouts. Use paired button rows when
 two actions naturally belong together, such as **Record** with **AI Cleanup**,

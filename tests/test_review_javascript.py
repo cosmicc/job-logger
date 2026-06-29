@@ -26,7 +26,7 @@ def test_open_ticket_renderers_share_status_and_company_metadata() -> None:
 
 
 def test_ticket_notes_overlay_list_cards_show_titles_only() -> None:
-    """Ticket note selection cards should stay compact and leave metadata in detail."""
+    """Ticket note selection cards should leave metadata in detail."""
 
     repository_root = Path(__file__).resolve().parents[1]
     ticket_notes_script = (repository_root / "job_logger" / "static" / "ticket-notes.js").read_text(encoding="utf-8")

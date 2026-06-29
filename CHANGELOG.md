@@ -28,7 +28,9 @@ All notable changes to Job Logger are documented in this file.
   selected and the authenticated server-side provider confirms bounded notes
   exist for that ticket. Note selection cards now show only note titles, the
   selected note detail includes safe author metadata when Autotask returns it,
-  and notes are ordered by created date/time with the newest first.
+  and notes are ordered by created date/time with the newest first. Note
+  selector cards are sized for two title lines and clamp longer titles inside
+  the card.
 
 ## v1.1.6 - Cloudflare block controls, Review, Home, and header polish
 

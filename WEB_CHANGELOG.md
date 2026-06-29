@@ -8,7 +8,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Autotask API failures now keep that alert visible until the same request type succeeds.
 - Low disk space now uses the same top-bar alert to make the problem harder to miss.
 - Work in Progress and Review now show the centered total time between start and stop.
-- Ticket notes now open in a title-only newest-first overlay with note details.
+- Ticket notes now open in a newest-first overlay with cleaner two-line title cards.
 
 ## v1.1.6 - Review, Home, and header polish
 
