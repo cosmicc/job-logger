@@ -10,7 +10,7 @@ from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, ForeignKey, Index, I
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from job_logger.database import Base
-from job_logger.enums import JobStatus, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
+from job_logger.enums import EntryType, JobStatus, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
 
 
 def utc_now() -> datetime:
@@ -476,8 +476,44 @@ class Job(Base):
         comment="Requested ticket status after review.",
     )
 
-    # summary_notes become Autotask summaryNotes when the job is accepted.
-    summary_notes: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Reviewer-approved time notes.")
+    # entry_type decides which Autotask record is created after review:
+    # TimeEntries for work logs or TicketNotes for customer-visible ticket notes.
+    entry_type: Mapped[EntryType] = mapped_column(
+        Enum(
+            EntryType,
+            native_enum=False,
+            length=32,
+            values_callable=lambda enum_values: [enum_value.value for enum_value in enum_values],
+        ),
+        nullable=False,
+        default=EntryType.TIME_ENTRY,
+        server_default=EntryType.TIME_ENTRY.value,
+        comment="Autotask record type created for this local job.",
+    )
+
+    # note_title is required only when entry_type is ticket_note. It is kept
+    # separate from summary_notes because Autotask TicketNotes require a title
+    # plus a description/body.
+    note_title: Mapped[str | None] = mapped_column(
+        String(250),
+        nullable=True,
+        comment="Customer-visible Autotask ticket-note title when this job submits as a note.",
+    )
+
+    # append_to_resolution mirrors the Autotask checkbox for both TimeEntries
+    # and TicketNotes. It defaults on because technicians usually want accepted
+    # work notes copied into the ticket resolution.
+    append_to_resolution: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+        comment="Whether Autotask should append submitted text to the ticket resolution.",
+    )
+
+    # summary_notes become Autotask TimeEntries.summaryNotes or
+    # TicketNotes.description when the job is accepted.
+    summary_notes: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Reviewer-approved submitted notes.")
 
     # ai_cleanup_original_summary stores the exact editable notes value that
     # existed before the latest successful AI cleanup so the user can revert it
@@ -584,8 +620,9 @@ class Job(Base):
     # autotask_provider records whether mock or live Autotask submission was used.
     autotask_provider: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Autotask provider name.")
 
-    # autotask_external_id stores the remote Autotask time entry ID after successful submission.
-    autotask_external_id: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="Remote time entry ID.")
+    # autotask_external_id stores the remote Autotask TimeEntries or TicketNotes
+    # ID after successful submission. entry_type identifies which entity owns it.
+    autotask_external_id: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="Remote Autotask record ID.")
 
     # autotask_submitted_at_utc records when the accepted job was successfully submitted.
     autotask_submitted_at_utc: Mapped[datetime | None] = mapped_column(
@@ -691,8 +728,9 @@ class SubmissionAttempt(Base):
     # succeeded records whether the remote submission completed successfully.
     succeeded: Mapped[bool] = mapped_column(nullable=False, comment="Whether the attempt succeeded.")
 
-    # external_id stores the remote time entry ID when the provider returns one.
-    external_id: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="Remote time entry ID.")
+    # external_id stores the remote Autotask TimeEntries or TicketNotes ID when
+    # the provider returns one.
+    external_id: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="Remote Autotask record ID.")
 
     # safe_error stores non-secret failure detail.
     safe_error: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Safe submission failure detail.")

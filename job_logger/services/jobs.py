@@ -10,7 +10,7 @@ from sqlalchemy import desc, or_, select
 from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.orm import Session
 
-from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
+from job_logger.enums import EntryType, JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
 from job_logger.models import Job, SubmissionAttempt
 from job_logger.services.autotask import (
     AutotaskSubmissionError,
@@ -36,14 +36,15 @@ MAX_ACTIVE_JOBS = 2
 MAX_CLIENT_NAME_LENGTH = 120
 MAX_TICKET_TITLE_LENGTH = 240
 MAX_TICKET_DESCRIPTION_LENGTH = 8000
+MAX_NOTE_TITLE_LENGTH = 250
 ALLOWED_WORK_IN_PROGRESS_TIME_MINUTE_DELTA = {-15, 15}
 AI_CLEANUP_SOURCE_MOBILE = "mobile"
 AI_CLEANUP_SOURCE_REVIEW = "review"
 ALLOWED_AI_CLEANUP_SOURCES = {AI_CLEANUP_SOURCE_MOBILE, AI_CLEANUP_SOURCE_REVIEW}
 SUCCESSFUL_SUBMISSION_PROTECTED_MESSAGE = (
     "Submitted Autotask jobs cannot be deleted locally, resent, or have ticket identity changed. "
-    "Use Submit changes for date, time, summary, or intentional ticket status changes, or Delete From Autotask "
-    "to remove the external time entry."
+    "Use Submit changes for allowed submitted-field updates, or Delete From Autotask "
+    "to remove the external Autotask record."
 )
 RECORDABLE_JOB_STATUSES = {
     JobStatus.ACTIVE,
@@ -69,21 +70,30 @@ class ReviewFields:
     # ticket_status is the requested ticket status from the allowed enum list.
     ticket_status: TicketStatus
 
-    # summary_notes are submitted to Autotask as the time-entry notes.
+    # entry_type decides whether submission writes TimeEntries or TicketNotes.
+    entry_type: EntryType
+
+    # note_title is required only for customer-visible Autotask ticket notes.
+    note_title: str | None
+
+    # append_to_resolution mirrors the Autotask checkbox on the selected entry.
+    append_to_resolution: bool
+
+    # summary_notes are submitted to Autotask as time-entry notes or note body.
     summary_notes: str
 
     # work_location is parsed from the visible Autotask summary prefix.
     work_location: WorkLocation
 
     # rounded_start_utc is the reviewer-approved local start time converted to UTC.
-    rounded_start_utc: datetime
+    rounded_start_utc: datetime | None
 
     # rounded_end_utc is the reviewer-approved local end time converted to UTC.
     # It is optional while a job is still active.
     rounded_end_utc: datetime | None
 
     # local_work_date is the reviewer-selected America/Detroit date.
-    local_work_date: date
+    local_work_date: date | None
 
     # client_name is the selected Autotask company display name.
     client_name: str | None
@@ -286,6 +296,9 @@ def display_summary_notes_for_review(job: Job) -> str:
     ):
         return str(job.ai_cleanup_pending_summary).strip()
 
+    if job.entry_type == EntryType.TICKET_NOTE:
+        return str(job.summary_notes or job.description_text or "").strip()
+
     return build_autotask_summary_notes(job)
 
 
@@ -329,7 +342,7 @@ def is_job_locked_after_successful_submission(job: Job) -> bool:
     status_locked = job.status == JobStatus.SUBMITTED
 
     # external_id_locked preserves immutability for older or partially migrated
-    # successful records where the remote Autotask time-entry ID is the strongest
+    # successful records where the remote Autotask record ID is the strongest
     # evidence that the job has already been accepted externally.
     external_id_locked = bool(job.autotask_external_id)
 
@@ -370,10 +383,18 @@ def ensure_job_ready_for_autotask_submission(job: Job) -> None:
         raise JobWorkflowError("Ticket number is required before Autotask submission.")
     if job.ticket_status is None:
         raise JobWorkflowError("Ticket status is required before Autotask submission.")
+    if not (job.summary_notes or job.description_text or "").strip():
+        if job.entry_type == EntryType.TICKET_NOTE:
+            raise JobWorkflowError("Note description is required before Autotask submission.")
+        raise JobWorkflowError("Summary notes are required before Autotask submission.")
+
+    if job.entry_type == EntryType.TICKET_NOTE:
+        if not (job.note_title or "").strip():
+            raise JobWorkflowError("Note title is required before Autotask submission.")
+        return
+
     if job.rounded_end_utc is None:
         raise JobWorkflowError("End time is required before Autotask submission.")
-    if not (job.summary_notes or job.description_text or "").strip():
-        raise JobWorkflowError("Summary notes are required before Autotask submission.")
 
 
 def list_active_jobs(database_session: Session) -> list[Job]:
@@ -521,6 +542,42 @@ def normalize_ticket_status(ticket_status: TicketStatus | str | None, *, require
         return TicketStatus(normalized_ticket_status)
     except ValueError as exc:
         raise JobWorkflowError("Ticket status is invalid.") from exc
+
+
+def normalize_entry_type(entry_type: EntryType | str | None) -> EntryType:
+    """Return the selected Autotask entry type, defaulting to time entry."""
+
+    if isinstance(entry_type, EntryType):
+        return entry_type
+
+    normalized_entry_type = str(entry_type or EntryType.TIME_ENTRY.value).strip().lower()
+    try:
+        return EntryType(normalized_entry_type)
+    except ValueError as exc:
+        raise JobWorkflowError("Entry type must be Time entry or Ticket note.") from exc
+
+
+def normalize_note_title(note_title: str | None, *, required: bool = False) -> str | None:
+    """Return a bounded customer-visible ticket-note title."""
+
+    normalized_note_title = _normalize_optional_text(note_title, max_length=MAX_NOTE_TITLE_LENGTH)
+    if normalized_note_title is None and required:
+        raise JobWorkflowError("Note title is required for ticket notes.")
+    return normalized_note_title
+
+
+def normalize_append_to_resolution(append_to_resolution: bool | str | None) -> bool:
+    """Return whether submitted text should be appended to the ticket resolution."""
+
+    if isinstance(append_to_resolution, bool):
+        return append_to_resolution
+
+    normalized_value = str(append_to_resolution if append_to_resolution is not None else "true").strip().lower()
+    if normalized_value in {"1", "true", "yes", "on"}:
+        return True
+    if normalized_value in {"0", "false", "no", "off"}:
+        return False
+    raise JobWorkflowError("Append to resolution must be on or off.")
 
 
 def normalize_ticket_title(ticket_title: str | None) -> str | None:
@@ -681,6 +738,9 @@ def start_job(
     autotask_company_id: int | str | None = None,
     work_location: WorkLocation | str | None = WorkLocation.REMOTE,
     ticket_status: TicketStatus | str | None = None,
+    entry_type: EntryType | str | None = EntryType.TIME_ENTRY,
+    note_title: str | None = None,
+    append_to_resolution: bool | str | None = True,
 ) -> Job:
     """Create a new active job while enforcing the two-job overlap limit."""
 
@@ -693,6 +753,12 @@ def start_job(
     )
     normalized_work_location = normalize_work_location(work_location)
     normalized_ticket_status = normalize_ticket_status(ticket_status)
+    normalized_entry_type = normalize_entry_type(entry_type)
+    normalized_note_title = normalize_note_title(
+        note_title,
+        required=normalized_entry_type == EntryType.TICKET_NOTE,
+    )
+    normalized_append_to_resolution = normalize_append_to_resolution(append_to_resolution)
     start_timestamp = now_utc()
     rounded_start_timestamp = round_start_for_technician(start_timestamp)
     job = Job(
@@ -700,6 +766,9 @@ def start_job(
         web_user_id=web_user_id,
         ticket_number=normalized_ticket_number,
         ticket_status=normalized_ticket_status,
+        entry_type=normalized_entry_type,
+        note_title=normalized_note_title,
+        append_to_resolution=normalized_append_to_resolution,
         job_slot=job_slot,
         client_name=normalized_client_name,
         autotask_company_id=normalized_autotask_company_id,
@@ -724,6 +793,9 @@ def update_active_job_ticket_number(
     work_location: WorkLocation | str | None = None,
     ticket_status: TicketStatus | str | None = None,
     job_date: str | None = None,
+    entry_type: EntryType | str | None = None,
+    note_title: str | None = None,
+    append_to_resolution: bool | str | None = None,
 ) -> Job:
     """Update the optional Autotask ticket number and client while a job is active."""
 
@@ -766,6 +838,22 @@ def update_active_job_ticket_number(
 
     if ticket_status is not None:
         job.ticket_status = normalize_ticket_status(ticket_status)
+
+    if entry_type is not None:
+        normalized_entry_type = normalize_entry_type(entry_type)
+        job.entry_type = normalized_entry_type
+        if normalized_entry_type == EntryType.TIME_ENTRY:
+            job.note_title = None
+
+    if note_title is not None:
+        job.note_title = normalize_note_title(note_title)
+    elif job.entry_type == EntryType.TICKET_NOTE and not job.note_title:
+        # Active autosave can switch modes before the title is entered. The
+        # title becomes mandatory when the user ends or submits the note.
+        job.note_title = None
+
+    if append_to_resolution is not None:
+        job.append_to_resolution = normalize_append_to_resolution(append_to_resolution)
 
     if job_date is not None:
         apply_active_job_local_work_date(job, job_date)
@@ -1132,9 +1220,11 @@ def validate_review_fields(
     *,
     require_ticket_number: bool = False,
     require_end_time_fields: bool = True,
+    require_note_title: bool = False,
 ) -> ReviewFields:
     """Validate and normalize editable review form values."""
 
+    entry_type = normalize_entry_type(form_values.get("entry_type"))
     ticket_number = normalize_ticket_number(form_values.get("ticket_number"), required=require_ticket_number)
     if ticket_number is None and require_ticket_number:
         raise JobWorkflowError("Ticket number is required.")
@@ -1145,18 +1235,31 @@ def validate_review_fields(
     if ticket_status is None:
         raise JobWorkflowError("Ticket status is required.")
 
+    note_title = normalize_note_title(
+        form_values.get("note_title"),
+        required=require_note_title or (entry_type == EntryType.TICKET_NOTE and require_ticket_number),
+    )
+    append_to_resolution = normalize_append_to_resolution(form_values.get("append_to_resolution"))
     submitted_summary_notes = form_values.get("summary_notes", "").strip()
     if not submitted_summary_notes:
         submitted_summary_notes = form_values.get("description_text", "").strip()
-    fallback_work_location = normalize_work_location(form_values.get("work_location"))
-    work_location, summary_notes = split_autotask_summary_notes(
-        submitted_summary_notes,
-        fallback_work_location,
-    )
+    if entry_type == EntryType.TICKET_NOTE:
+        work_location = normalize_work_location(form_values.get("work_location"))
+        summary_notes = submitted_summary_notes
+    else:
+        fallback_work_location = normalize_work_location(form_values.get("work_location"))
+        work_location, summary_notes = split_autotask_summary_notes(
+            submitted_summary_notes,
+            fallback_work_location,
+        )
     if not summary_notes:
+        if entry_type == EntryType.TICKET_NOTE:
+            raise JobWorkflowError("Note description is required.")
         raise JobWorkflowError("Summary notes are required.")
 
     if len(summary_notes) > 32000:
+        if entry_type == EntryType.TICKET_NOTE:
+            raise JobWorkflowError("Note description must be 32,000 characters or fewer.")
         raise JobWorkflowError("Summary notes must be 32,000 characters or fewer.")
 
     job_date = form_values.get("job_date", "") or form_values.get("start_date", "")
@@ -1167,24 +1270,30 @@ def validate_review_fields(
     legacy_end_date = form_values.get("end_date", "")
     if legacy_end_date and job_date and legacy_end_date != job_date:
         raise JobWorkflowError("Jobs cannot span multiple dates. Use one job date with start and end times.")
-    if not job_date or not start_time:
+    should_require_time_fields = entry_type == EntryType.TIME_ENTRY
+    if should_require_time_fields and (not job_date or not start_time):
         raise JobWorkflowError("Job date and start time fields are required.")
 
-    try:
-        rounded_start_utc = round_start_for_technician(parse_local_form_datetime(job_date, start_time))
-    except ValueError as exc:
-        raise JobWorkflowError("Job date or time is invalid.") from exc
+    rounded_start_utc = None
+    local_work_date = None
+    if job_date and start_time:
+        try:
+            rounded_start_utc = round_start_for_technician(parse_local_form_datetime(job_date, start_time))
+        except ValueError as exc:
+            raise JobWorkflowError("Job date or time is invalid.") from exc
 
-    local_work_date = local_date_for(rounded_start_utc)
-    if str(local_work_date) != job_date:
-        raise JobWorkflowError("Rounded start time must stay on the selected job date.")
+        local_work_date = local_date_for(rounded_start_utc)
+        if str(local_work_date) != job_date:
+            raise JobWorkflowError("Rounded start time must stay on the selected job date.")
 
     rounded_end_utc = None
-    should_parse_end_time = require_end_time_fields or bool(end_time)
+    should_parse_end_time = entry_type == EntryType.TIME_ENTRY and (require_end_time_fields or bool(end_time))
     if should_parse_end_time:
         if not end_time:
             raise JobWorkflowError("End time is required.")
 
+        if rounded_start_utc is None:
+            raise JobWorkflowError("Job date and start time fields are required.")
         try:
             rounded_end_utc = round_end_for_technician(parse_local_form_datetime(job_date, end_time))
         except ValueError as exc:
@@ -1199,6 +1308,9 @@ def validate_review_fields(
         ticket_title=ticket_title,
         ticket_description=ticket_description,
         ticket_status=ticket_status,
+        entry_type=entry_type,
+        note_title=note_title,
+        append_to_resolution=append_to_resolution,
         summary_notes=summary_notes,
         work_location=work_location,
         rounded_start_utc=rounded_start_utc,
@@ -1228,34 +1340,48 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
             job.ticket_title = None
             job.ticket_description = None
     job.ticket_status = review_fields.ticket_status
+    job.entry_type = review_fields.entry_type
+    job.note_title = review_fields.note_title if review_fields.entry_type == EntryType.TICKET_NOTE else None
+    job.append_to_resolution = review_fields.append_to_resolution
     job.summary_notes = review_fields.summary_notes
     job.description_text = review_fields.summary_notes
-    job.work_location = review_fields.work_location
-    job.rounded_start_utc = review_fields.rounded_start_utc
+    if review_fields.entry_type == EntryType.TIME_ENTRY:
+        job.work_location = review_fields.work_location
+    if review_fields.rounded_start_utc is not None:
+        job.rounded_start_utc = review_fields.rounded_start_utc
     if review_fields.rounded_end_utc is not None:
         job.rounded_end_utc = review_fields.rounded_end_utc
     elif job.status == JobStatus.ACTIVE and job.rounded_end_utc is not None:
         job.rounded_end_utc = enforce_minimum_rounded_end(job.rounded_start_utc, job.rounded_end_utc)
-    job.local_work_date = review_fields.local_work_date
+    if review_fields.local_work_date is not None:
+        job.local_work_date = review_fields.local_work_date
     job.client_name = review_fields.client_name
     job.autotask_company_id = review_fields.autotask_company_id
     return job
 
 
 def _apply_submitted_entry_fields(job: Job, review_fields: ReviewFields) -> Job:
-    """Apply only fields that can be synced to an existing Autotask time entry."""
+    """Apply only fields that can be synced to an existing Autotask record."""
 
     ensure_job_is_successfully_submitted(job)
-    if review_fields.rounded_end_utc is None:
+    if review_fields.entry_type != job.entry_type:
+        raise JobWorkflowError("Submitted entries cannot be changed between time entry and ticket note.")
+    if review_fields.entry_type == EntryType.TIME_ENTRY and review_fields.rounded_end_utc is None:
         raise JobWorkflowError("End time is required before editing a submitted Autotask entry.")
 
     job.ticket_status = review_fields.ticket_status
+    job.note_title = review_fields.note_title if review_fields.entry_type == EntryType.TICKET_NOTE else None
+    job.append_to_resolution = review_fields.append_to_resolution
     job.summary_notes = review_fields.summary_notes
     job.description_text = review_fields.summary_notes
-    job.work_location = review_fields.work_location
-    job.rounded_start_utc = review_fields.rounded_start_utc
-    job.rounded_end_utc = review_fields.rounded_end_utc
-    job.local_work_date = review_fields.local_work_date
+    if review_fields.entry_type == EntryType.TIME_ENTRY:
+        job.work_location = review_fields.work_location
+    if review_fields.rounded_start_utc is not None:
+        job.rounded_start_utc = review_fields.rounded_start_utc
+    if review_fields.rounded_end_utc is not None:
+        job.rounded_end_utc = review_fields.rounded_end_utc
+    if review_fields.local_work_date is not None:
+        job.local_work_date = review_fields.local_work_date
     return job
 
 
@@ -1266,15 +1392,18 @@ def update_submitted_job_autotask_entry(
     *,
     resource_id: int,
 ) -> Job:
-    """Update the existing external Autotask time entry for a submitted job."""
+    """Update the existing external Autotask record for a submitted job."""
 
     ensure_job_is_successfully_submitted(job)
     external_id = (job.autotask_external_id or "").strip()
     if not external_id:
-        raise JobWorkflowError("This submitted job does not have an Autotask time entry ID to update.")
+        raise JobWorkflowError("This submitted job does not have an Autotask record ID to update.")
 
     previous_values = {
         "ticket_status": job.ticket_status,
+        "entry_type": job.entry_type,
+        "note_title": job.note_title,
+        "append_to_resolution": job.append_to_resolution,
         "summary_notes": job.summary_notes,
         "description_text": job.description_text,
         "work_location": job.work_location,
@@ -1285,12 +1414,20 @@ def update_submitted_job_autotask_entry(
     _apply_submitted_entry_fields(job, review_fields)
 
     try:
-        submission_result = get_autotask_provider().update_time_entry(
-            job,
-            external_id,
-            resource_id=resource_id,
-            previous_ticket_status=previous_values["ticket_status"],
-        )
+        if job.entry_type == EntryType.TICKET_NOTE:
+            submission_result = get_autotask_provider().update_ticket_note(
+                job,
+                external_id,
+                resource_id=resource_id,
+                previous_ticket_status=previous_values["ticket_status"],
+            )
+        else:
+            submission_result = get_autotask_provider().update_time_entry(
+                job,
+                external_id,
+                resource_id=resource_id,
+                previous_ticket_status=previous_values["ticket_status"],
+            )
     except AutotaskSubmissionError as exc:
         submission_result = None
         for field_name, previous_value in previous_values.items():
@@ -1336,15 +1473,18 @@ def update_submitted_job_autotask_entry(
 
 
 def delete_submitted_job_autotask_entry(database_session: Session, job: Job, *, resource_id: int) -> Job:
-    """Delete a submitted job's external time entry and return it to review."""
+    """Delete a submitted job's external Autotask record and return it to review."""
 
     ensure_job_is_successfully_submitted(job)
     external_id = (job.autotask_external_id or "").strip()
     if not external_id:
-        raise JobWorkflowError("This submitted job does not have an Autotask time entry ID to delete.")
+        raise JobWorkflowError("This submitted job does not have an Autotask record ID to delete.")
 
     try:
-        submission_result = get_autotask_provider().delete_time_entry(job, external_id, resource_id=resource_id)
+        if job.entry_type == EntryType.TICKET_NOTE:
+            submission_result = get_autotask_provider().delete_ticket_note(job, external_id, resource_id=resource_id)
+        else:
+            submission_result = get_autotask_provider().delete_time_entry(job, external_id, resource_id=resource_id)
     except AutotaskSubmissionError as exc:
         job.autotask_error = str(exc)
         job.autotask_provider = "configuration"
@@ -1426,7 +1566,7 @@ def purge_submitted_job_after_failed_autotask_delete(database_session: Session, 
 
     ensure_job_is_successfully_submitted(job)
     if not (job.autotask_external_id or "").strip():
-        raise JobWorkflowError("This submitted job no longer has an Autotask time entry ID.")
+        raise JobWorkflowError("This submitted job no longer has an Autotask record ID.")
     if not (job.autotask_error or "").strip():
         raise JobWorkflowError("Delete From Autotask must fail before this local purge is available.")
 
@@ -1449,6 +1589,9 @@ def reset_ticket_data(database_session: Session) -> dict[str, int]:
                 ticket_description=None,
                 autotask_company_id=None,
                 ticket_status=None,
+                entry_type=EntryType.TIME_ENTRY,
+                note_title=None,
+                append_to_resolution=True,
                 autotask_provider=None,
                 autotask_external_id=None,
                 autotask_submitted_at_utc=None,

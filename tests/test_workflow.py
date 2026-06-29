@@ -13,7 +13,7 @@ from sqlalchemy import select
 from starlette.websockets import WebSocketDisconnect
 
 from job_logger import database, ui
-from job_logger.enums import JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
+from job_logger.enums import EntryType, JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
 from job_logger.models import AuditEvent, Job, SubmissionAttempt, WebUser
 from job_logger.services.ai_cleanup import AiCleanupResult
 from job_logger.services.autotask import AutotaskSubmissionResult
@@ -316,6 +316,283 @@ def test_work_in_progress_can_submit_directly_to_autotask(authenticated_client: 
     assert f'action="/review/{active_job_id}/edit-entry"' in review_page_response.text
     assert f'action="/review/{active_job_id}/delete-entry"' in review_page_response.text
     assert f'formaction="/review/{active_job_id}/accept"' not in review_page_response.text
+
+
+def test_ticket_note_can_be_submitted_from_review_without_time_fields(authenticated_client: TestClient) -> None:
+    """A review entry can become a customer-visible ticket note before Autotask submission."""
+
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    save_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Acme Services",
+            "autotask_company_id": "1001",
+            "entry_type": "ticket_note",
+            "note_title": "Customer-facing update",
+            "append_to_resolution": "true",
+            "ticket_status": "in_progress",
+            "summary_notes": "The customer can see this note.",
+        },
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
+    select_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0001"},
+    )
+    assert select_ticket_response.status_code == 200
+    text_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/description/text",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": "The customer can see this note."},
+    )
+    assert text_response.status_code == 200
+
+    active_page_response = authenticated_client.get("/home")
+    active_html = active_page_response.text
+    assert 'value="ticket_note"' in active_html
+    assert "Note title" in active_html
+    assert "Note description" in active_html
+    assert "End Note" in active_html
+    assert "Delete Note" in active_html
+    assert 'data-work-location-card' in active_html
+    assert 'work-location-card is-hidden' in active_html
+    assert 'data-duration-row' in active_html
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Acme Services",
+            "autotask_company_id": "1001",
+            "entry_type": "ticket_note",
+            "note_title": "Customer-facing update",
+            "append_to_resolution": "true",
+            "ticket_status": "in_progress",
+            "summary_notes": "The customer can see this note.",
+        },
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_html = review_page_response.text
+    review_csrf_token = extract_csrf_token(review_html)
+    assert "Ticket note" in review_html
+    assert "Note title" in review_html
+    assert "Note description" in review_html
+    assert "Delete note" in review_html
+    assert 'review-work-location-card is-hidden' in review_html
+
+    accept_response = authenticated_client.post(
+        f"/review/{active_job_id}/accept",
+        data={
+            "csrf_token": review_csrf_token,
+            "entry_type": "ticket_note",
+            "ticket_status": "complete",
+            "note_title": "Customer-facing update",
+            "append_to_resolution": "true",
+            "summary_notes": "The customer can see this note.",
+        },
+        follow_redirects=False,
+    )
+    assert accept_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, active_job_id)
+        assert job is not None
+        assert job.status == JobStatus.SUBMITTED
+        assert job.entry_type == EntryType.TICKET_NOTE
+        assert job.note_title == "Customer-facing update"
+        assert job.append_to_resolution is True
+        assert job.summary_notes == "The customer can see this note."
+        assert job.autotask_external_id == f"mock-ticket-note-{active_job_id}"
+
+        attempt = database_session.query(SubmissionAttempt).filter_by(job_id=active_job_id).one()
+        assert attempt.succeeded is True
+        assert attempt.request_snapshot["entry_type"] == "ticket_note"
+        assert attempt.request_snapshot["noteTitleLength"] == len("Customer-facing update")
+        assert attempt.request_snapshot["noteDescriptionLength"] == len("The customer can see this note.")
+        assert attempt.request_snapshot["appendToResolution"] is True
+
+
+def test_submitted_ticket_note_can_be_updated_and_deleted(authenticated_client: TestClient) -> None:
+    """Submitted ticket notes should update and delete the existing Autotask note ID."""
+
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Acme Services",
+            "autotask_company_id": "1001",
+            "entry_type": "ticket_note",
+            "note_title": "Original note",
+            "append_to_resolution": "true",
+            "ticket_status": "in_progress",
+            "summary_notes": "Original note body.",
+        },
+        follow_redirects=False,
+    )
+    authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0001"},
+    )
+    authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Acme Services",
+            "autotask_company_id": "1001",
+            "entry_type": "ticket_note",
+            "note_title": "Original note",
+            "append_to_resolution": "true",
+            "ticket_status": "in_progress",
+            "summary_notes": "Original note body.",
+        },
+        follow_redirects=False,
+    )
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_csrf_token = extract_csrf_token(review_page_response.text)
+    authenticated_client.post(
+        f"/review/{active_job_id}/accept",
+        data={
+            "csrf_token": review_csrf_token,
+            "entry_type": "ticket_note",
+            "ticket_status": "in_progress",
+            "note_title": "Original note",
+            "append_to_resolution": "true",
+            "summary_notes": "Original note body.",
+        },
+        follow_redirects=False,
+    )
+
+    edit_response = authenticated_client.post(
+        f"/review/{active_job_id}/edit-entry",
+        data={
+            "csrf_token": review_csrf_token,
+            "entry_type": "ticket_note",
+            "ticket_status": "follow_up",
+            "note_title": "Updated note",
+            "append_to_resolution": "false",
+            "summary_notes": "Updated note body.",
+        },
+        follow_redirects=False,
+    )
+    assert edit_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, active_job_id)
+        assert job is not None
+        assert job.status == JobStatus.SUBMITTED
+        assert job.entry_type == EntryType.TICKET_NOTE
+        assert job.note_title == "Updated note"
+        assert job.append_to_resolution is False
+        attempts = database_session.query(SubmissionAttempt).filter_by(job_id=active_job_id).all()
+        assert attempts[-1].request_snapshot["operation"] == "update_ticket_note"
+        assert attempts[-1].request_snapshot["appendToResolution"] is False
+
+    delete_response = authenticated_client.post(
+        f"/review/{active_job_id}/delete-entry",
+        data={"csrf_token": review_csrf_token},
+        follow_redirects=False,
+    )
+    assert delete_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, active_job_id)
+        assert job is not None
+        assert job.status == JobStatus.READY_FOR_REVIEW
+        assert job.autotask_external_id is None
+        attempts = database_session.query(SubmissionAttempt).filter_by(job_id=active_job_id).all()
+        assert attempts[-1].request_snapshot["operation"] == "delete_ticket_note"
+
+
+def test_direct_work_in_progress_ticket_note_submit(authenticated_client: TestClient) -> None:
+    """Direct Work in Progress submission should support ticket notes."""
+
+    enable_submit_from_work_in_progress(authenticated_client)
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Acme Services",
+            "autotask_company_id": "1001",
+            "entry_type": "ticket_note",
+            "note_title": "Direct note",
+            "append_to_resolution": "true",
+            "ticket_status": "complete",
+            "summary_notes": "Direct note body.",
+        },
+        follow_redirects=False,
+    )
+    authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0001"},
+    )
+    active_page_response = authenticated_client.get("/home")
+    assert "Submit note" in active_page_response.text
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Acme Services",
+            "autotask_company_id": "1001",
+            "entry_type": "ticket_note",
+            "note_title": "Direct note",
+            "append_to_resolution": "true",
+            "ticket_status": "complete",
+            "summary_notes": "Direct note body.",
+        },
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        job = database_session.get(Job, active_job_id)
+        assert job is not None
+        assert job.status == JobStatus.SUBMITTED
+        assert job.entry_type == EntryType.TICKET_NOTE
+        assert job.autotask_external_id == f"mock-ticket-note-{active_job_id}"
+        attempt = database_session.query(SubmissionAttempt).filter_by(job_id=active_job_id).one()
+        assert attempt.request_snapshot["entry_type"] == "ticket_note"
 
 
 def test_direct_work_in_progress_submit_requires_autotask_fields(authenticated_client: TestClient) -> None:
@@ -951,7 +1228,7 @@ def test_failed_delete_from_autotask_prompts_local_review_purge(
     failed_review_html = failed_review_response.text
     assert "Autotask delete failed" in failed_review_html
     assert "Purge from Job Logger review?" in failed_review_html
-    assert "It does not delete the time entry from Autotask." in failed_review_html
+    assert "It does not delete the Autotask record." in failed_review_html
     assert f'action="/review/{submitted_job_id}/purge-submitted-local"' in failed_review_html
 
     purge_csrf_token = extract_csrf_token(failed_review_html)
@@ -1247,7 +1524,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert 'class="work-panel active-job-panel active-job-panel-slot-{{ job_label }}"' in mobile_template
     assert ">Record</span>" in mobile_template
     assert "Delete time entry" not in mobile_template
-    assert re.search(r">\s*Delete\s*</button>", mobile_template)
+    assert "<span data-delete-entry-label>{% if is_ticket_note %}Delete Note{% else %}Delete{% endif %}</span>" in mobile_template
     assert 'class="summary-action-row review-summary-action-row recording-control-stack"' in review_template
     assert review_template.index("data-review-record-button") < review_template.index("data-ai-cleanup-button")
     review_summary_action_index = review_template.index('class="summary-action-row review-summary-action-row recording-control-stack"')
@@ -3109,7 +3386,7 @@ def test_mobile_active_job_delete_discards_open_job_with_audit(authenticated_cli
         active_job_id = active_job.id
 
     active_page_response = authenticated_client.get("/home")
-    assert re.search(r">\s*Delete\s*</button>", active_page_response.text)
+    assert "<span data-delete-entry-label>Delete</span>" in active_page_response.text
     assert "Delete time entry" not in active_page_response.text
     assert "Delete this time entry? This removes the in-progress entry without sending it to review." in active_page_response.text
     assert 'class="primary-button end-work-button"' in active_page_response.text

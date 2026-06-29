@@ -2,10 +2,35 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## v1.2.0 - Admin alerts, ticket notes, and time totals
+## v1.2.0 - Ticket note mode, notes overlay, alerts, and time totals
 
 - Advanced the source-controlled dev runtime version to `v1.2.0`, including
   the Python package metadata and PWA service worker cache version.
+- Added a Time entry / Ticket note mode switch to Work in Progress and Review
+  detail before Autotask submission. Ticket-note mode disables start/stop time
+  controls, hides Remote/On-Site, changes finish and delete labels to note
+  wording, and requires a note title above the note description.
+- Added customer-visible Autotask `TicketNotes` submission, submitted-note
+  update, and submitted-note delete support. Ticket notes send note title, note
+  description, ticket status, and the append-to-resolution setting without
+  sending time-entry-only fields.
+- Added a default-on **Append to resolution** checkbox for both time entries and
+  ticket notes, and send that value to Autotask during create and submitted
+  update actions.
+- Added job schema fields and migration `0019_entry_type_ticket_notes` for
+  entry type, note title, and append-to-resolution, with full-backup restore
+  compatibility for older backups.
+- Added workflow and provider regression coverage for review-submitted ticket
+  notes, direct Work in Progress ticket-note submission, submitted ticket-note
+  update/delete, and append-to-resolution payload handling.
+- Added a read-only Autotask ticket-notes overlay for Work in Progress and
+  Review detail. The **Ticket notes** button stays hidden until a ticket is
+  selected and the authenticated server-side provider confirms bounded notes
+  exist for that ticket. Note selection cards now show only note titles, the
+  selected note detail includes safe author metadata when Autotask returns it,
+  and notes are ordered by created date/time with the newest first. Note
+  selector cards are sized for two title lines and clamp longer titles inside
+  the card.
 - Added an admin-only red health alert button to the authenticated desktop and
   phone top bars. The alert links to Diagnostics and appears when cached app
   health reports degraded state, such as low disk space or Autotask API
@@ -23,14 +48,6 @@ All notable changes to Job Logger are documented in this file.
   time controls and updates as those times change. Work in Progress places the
   label under **Rounded stop**, while Review keeps it on a separate centered
   row so full-browser start and end time fields stay aligned.
-- Added a read-only Autotask ticket-notes overlay for Work in Progress and
-  Review detail. The **Ticket notes** button stays hidden until a ticket is
-  selected and the authenticated server-side provider confirms bounded notes
-  exist for that ticket. Note selection cards now show only note titles, the
-  selected note detail includes safe author metadata when Autotask returns it,
-  and notes are ordered by created date/time with the newest first. Note
-  selector cards are sized for two title lines and clamp longer titles inside
-  the card.
 
 ## v1.1.6 - Cloudflare block controls, Review, Home, and header polish
 

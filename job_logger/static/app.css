@@ -1510,14 +1510,16 @@ a:focus-visible {
   margin: -2px 0 2px;
 }
 
-.work-location-card {
+.work-location-card,
+.entry-type-card {
   display: grid;
   min-height: 48px;
   align-items: center;
   padding: 8px 10px;
 }
 
-.work-location-card dd {
+.work-location-card dd,
+.entry-type-card dd {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1573,6 +1575,10 @@ a:focus-visible {
   pointer-events: none;
 }
 
+.entry-type-switch span {
+  min-width: 84px;
+}
+
 .work-location-switch input[type="radio"]:checked + span,
 .work-location-toggle input[type="radio"]:checked + span {
   background: var(--accent);
@@ -1586,6 +1592,7 @@ a:focus-visible {
 }
 
 .job-date-card,
+.entry-type-card,
 .work-location-card,
 .ticket-status-card,
 .ticket-number-card,
@@ -1607,6 +1614,7 @@ a:focus-visible {
   font-size: 14px;
 }
 
+.review-entry-type-card,
 .review-work-location-card {
   display: grid;
   min-height: auto;
@@ -1616,8 +1624,51 @@ a:focus-visible {
   padding: 8px 10px;
 }
 
+.review-entry-type-card .work-location-switch,
 .review-work-location-card .work-location-switch {
   justify-self: center;
+}
+
+.note-title-field {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.note-title-field input {
+  width: 100%;
+}
+
+.append-resolution-field {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.append-resolution-field input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.append-resolution-field span {
+  min-width: 0;
+}
+
+.review-append-resolution-field {
+  margin: 0;
+}
+
+.time-controls-disabled {
+  opacity: 0.55;
 }
 
 .ticket-status-card label {
@@ -1751,6 +1802,10 @@ a:focus-visible {
 .work-location-toggle input[type="radio"]:focus-visible + span {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
+}
+
+.entry-type-switch span {
+  min-width: 84px;
 }
 
 .start-work-form .primary-action-button {

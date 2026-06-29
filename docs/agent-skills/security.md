@@ -267,7 +267,7 @@ Audit-worthy actions include:
 - Autotask submission attempts and outcomes.
 - Debug Autotask API tests.
 - Full backup downloads, automatic backup creation, and full restores.
-- Delete time entry or other destructive cleanup.
+- Delete time entry, delete note, or other destructive cleanup.
 
 Do not include secrets, raw headers, raw audio, or excessive user text in audit
 details.
@@ -362,7 +362,7 @@ The debug API test must remain a fresh live diagnostic check.
 Service-call starts and open-ticket selection may query Autotask for verified
 metadata, but they must not patch Autotask ticket status or perform another
 remote write. They only store local job metadata and default the editable local
-ticket status to In progress until the time entry is submitted.
+ticket status to In progress until the time entry or ticket note is submitted.
 
 Review detail may save a first client/company selection only when an active job
 has no client name, company ID, or ticket number yet. That route must require
@@ -400,23 +400,27 @@ server must confirm the association is in today's service-call list for the
 logged-in managed web user's Autotask resource ID before it creates a job or
 stores any ticket/client details.
 
-Successfully submitted Autotask jobs keep protected ticket/client identity and
-local audit history for the external time entry. The server must reject later
-local review save, ticket selection, local delete, accept/resend, and retry
-requests even if a crafted request bypasses the review UI. This applies whether
-the external entry was created from Review acceptance or direct Work in Progress
-submission. The allowed exception is the CSRF-protected **Submit changes** route,
-which may update only job date, start time, end time, summary notes, work
-location, and ticket status for the same submitted job. It must patch the
-existing Autotask `TimeEntries` row instead of creating a new time entry. If the
-previous ticket status was Complete, the provider may temporarily move the
-ticket to In progress before the time-entry patch and then apply the selected
-final status. Submit changes must always reassert the selected local ticket
-status in Autotask. A second
-CSRF-protected submitted action, **Delete From Autotask**, may delete the
-external `TimeEntries` row and return the local job to review, but it must not
-delete the local job, audit events, or submission attempts unless that remote
-delete fails and the user confirms the session-scoped local-only purge fallback.
+Successfully submitted Autotask jobs keep protected ticket/client identity,
+entry type, and local audit history for the external Autotask record. The
+server must reject later local review save, ticket selection, local delete,
+accept/resend, retry, and entry-type conversion requests even if a crafted
+request bypasses the review UI. This applies whether the external record was
+created from Review acceptance or direct Work in Progress submission. The
+allowed exception is the CSRF-protected **Submit changes** route. For submitted
+time entries, it may update only job date, start time, end time, summary notes,
+work location, append-to-resolution, and ticket status for the same submitted
+job, and it must patch the existing Autotask `TimeEntries` row instead of
+creating a new time entry. For submitted ticket notes, it may update only note
+title, note description, append-to-resolution, and ticket status, and it must
+patch the existing Autotask `TicketNotes` row instead of creating a new note.
+If the previous ticket status was Complete, the provider may temporarily move
+the ticket to In progress before the external-record patch and then apply the
+selected final status. Submit changes must always reassert the selected local
+ticket status in Autotask. A second CSRF-protected submitted action, **Delete
+From Autotask**, may delete the external `TimeEntries` or `TicketNotes` row and
+return the local job to review, but it must not delete the local job, audit
+events, or submission attempts unless that remote delete fails and the user
+confirms the session-scoped local-only purge fallback.
 
 ## Database And Deletion Safety
 
@@ -425,11 +429,10 @@ Jobs should not disappear silently.
 Prefer retained workflow states over deletion. If destructive cleanup is
 necessary, it must be explicit, authenticated, CSRF-protected, and auditable.
 Review cleanup may delete local unsubmitted jobs, including active jobs, only
-from the selected review detail through the explicit **Delete time entry**
-action. The mobile active-job delete route remains the quick in-progress
-discard path. Local **Delete time entry** cleanup must stay blocked for
-successfully submitted Autotask jobs so local history remains tied to the
-external time entry.
+from the selected review detail through the explicit local delete action. The
+mobile active-job delete route remains the quick in-progress discard path.
+Local delete cleanup must stay blocked for successfully submitted Autotask jobs
+so local history remains tied to the external Autotask record.
 Submitted-entry corrections belong in the audited Submit changes or Delete From
 Autotask routes, not local cleanup or resend flows. The only submitted-job local
 cleanup exception is the explicit, CSRF-protected local-only purge offered after

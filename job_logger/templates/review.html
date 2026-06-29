@@ -27,7 +27,7 @@
             <tr>
                 <th>Ticket</th>
                 <th>Client</th>
-                <th>Work type</th>
+                <th>Entry type</th>
                 {% if show_job_owner %}<th>Owner</th>{% endif %}
                 <th>Status</th>
                 <th>Date</th>
@@ -53,10 +53,15 @@
                     {{ job.client_name or "Not set" }}
                   </td>
                   <td>
-                    {% set row_work_location = job.work_location.value if job.work_location else "remote" %}
-                    <span class="review-location-chip review-location-{{ row_work_location }}">
-                      {% if row_work_location == "on_site" %}On-Site{% else %}Remote{% endif %}
-                    </span>
+                    {% set row_entry_type = job.entry_type.value if job.entry_type else "time_entry" %}
+                    {% if row_entry_type == "ticket_note" %}
+                      <span class="review-location-chip review-location-note">Ticket note</span>
+                    {% else %}
+                      {% set row_work_location = job.work_location.value if job.work_location else "remote" %}
+                      <span class="review-location-chip review-location-{{ row_work_location }}">
+                        {% if row_work_location == "on_site" %}On-Site{% else %}Remote{% endif %}
+                      </span>
+                    {% endif %}
                   </td>
                   {% if show_job_owner %}
                     <td>{{ job.web_user.full_name if job.web_user else "Unassigned" }}</td>
@@ -87,6 +92,8 @@
       <section class="edit-panel" aria-label="Selected job editor">
         {% if selected_job %}
           {% set review_form_id = "review-form-" ~ selected_job.id %}
+          {% set selected_entry_type = selected_job.entry_type.value if selected_job.entry_type else "time_entry" %}
+          {% set is_ticket_note = selected_entry_type == "ticket_note" %}
           <form
             id="{{ review_form_id }}"
             method="post"
@@ -126,7 +133,11 @@
                 <strong>Submitted Autotask entry</strong>
                 <span>
                   {% if can_modify_selected_job %}
-                    Date, start time, end time, summary notes, work type, and ticket status can be updated with Submit changes.
+                    {% if is_ticket_note %}
+                      Note title, note description, append-to-resolution, and ticket status can be updated with Submit changes.
+                    {% else %}
+                      Date, start time, end time, summary notes, work type, append-to-resolution, and ticket status can be updated with Submit changes.
+                    {% endif %}
                   {% else %}
                     This submitted Autotask entry is visible to the super admin but cannot be edited from that account.
                   {% endif %}
@@ -217,7 +228,37 @@
                 name="autotask_company_id"
                 value="{{ selected_job.autotask_company_id or '' }}"
               >
-              <div class="readonly-field-card review-work-location-card" aria-label="Work type">
+              {% if selected_job_submitted %}
+                <input type="hidden" name="entry_type" value="{{ selected_entry_type }}">
+              {% endif %}
+              <div class="readonly-field-card review-entry-type-card" aria-label="Entry type">
+                <span class="metric-label readonly-field-title">Entry type</span>
+                <div class="work-location-switch entry-type-switch" data-review-entry-type-toggle role="radiogroup" aria-label="Entry type">
+                  <label>
+                    <input
+                      type="radio"
+                      name="entry_type"
+                      value="time_entry"
+                      data-review-entry-type-input
+                      {% if selected_entry_type == "time_entry" %}checked{% endif %}
+                      {% if selected_job_submitted %}disabled{% endif %}
+                    >
+                    <span>Time entry</span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="entry_type"
+                      value="ticket_note"
+                      data-review-entry-type-input
+                      {% if is_ticket_note %}checked{% endif %}
+                      {% if selected_job_submitted %}disabled{% endif %}
+                    >
+                    <span>Ticket note</span>
+                  </label>
+                </div>
+              </div>
+              <div class="readonly-field-card review-work-location-card{% if is_ticket_note %} is-hidden{% endif %}" aria-label="Work type" data-review-work-location-card>
                 <span class="metric-label readonly-field-title">Work type</span>
                 {% set selected_work_location = selected_job.work_location.value if selected_job.work_location else "remote" %}
                 <div class="work-location-switch" data-review-work-location-toggle role="radiogroup" aria-label="Work type">
@@ -245,15 +286,17 @@
                 <span>Job date <span class="date-weekday-label" data-review-date-weekday-label>({{ selected_job_date|job_date_label }})</span></span>
                 <input name="job_date" type="date" value="{{ selected_job_date }}" required>
               </label>
-              <label>
+              <label data-review-time-field>
                 <span>Start time</span>
-                <div class="time-step-controls">
+                <div class="time-step-controls {% if is_ticket_note %}time-controls-disabled{% endif %}">
                   <button
                     type="button"
                     class="secondary-button time-step-button"
                     data-time-input="start_time"
                     data-delta-minutes="-15"
                     aria-label="Decrease start time by 15 minutes"
+                    data-review-time-control
+                    {% if is_ticket_note %}disabled{% endif %}
                   >
                     -15
                   </button>
@@ -266,7 +309,10 @@
                     autocomplete="off"
                     autocorrect="off"
                     spellcheck="false"
-                    required
+                    data-review-time-control
+                    data-required-for-time-entry="true"
+                    {% if not is_ticket_note %}required{% endif %}
+                    {% if is_ticket_note %}disabled{% endif %}
                   >
                   <button
                     type="button"
@@ -274,20 +320,24 @@
                     data-time-input="start_time"
                     data-delta-minutes="15"
                     aria-label="Increase start time by 15 minutes"
+                    data-review-time-control
+                    {% if is_ticket_note %}disabled{% endif %}
                   >
                     +15
                   </button>
                 </div>
               </label>
-              <label>
+              <label data-review-time-field>
                 <span>End time</span>
-                <div class="time-step-controls">
+                <div class="time-step-controls {% if is_ticket_note %}time-controls-disabled{% endif %}">
                   <button
                     type="button"
                     class="secondary-button time-step-button"
                     data-time-input="end_time"
                     data-delta-minutes="-15"
                     aria-label="Decrease end time by 15 minutes"
+                    data-review-time-control
+                    {% if is_ticket_note %}disabled{% endif %}
                   >
                     -15
                   </button>
@@ -300,7 +350,10 @@
                     autocomplete="off"
                     autocorrect="off"
                     spellcheck="false"
-                    {% if selected_job.status.value != "active" %}required{% endif %}
+                    data-review-time-control
+                    data-required-for-time-entry="{% if selected_job.status.value != 'active' %}true{% else %}false{% endif %}"
+                    {% if selected_job.status.value != "active" and not is_ticket_note %}required{% endif %}
+                    {% if is_ticket_note %}disabled{% endif %}
                   >
                   <button
                     type="button"
@@ -308,12 +361,14 @@
                     data-time-input="end_time"
                     data-delta-minutes="15"
                     aria-label="Increase end time by 15 minutes"
+                    data-review-time-control
+                    {% if is_ticket_note %}disabled{% endif %}
                   >
                     +15
                   </button>
                 </div>
               </label>
-              <div class="duration-inline duration-centered review-duration-row">
+              <div class="duration-inline duration-centered review-duration-row{% if is_ticket_note %} is-hidden{% endif %}" data-review-duration-row>
                 Duration:
                 <strong data-duration-display>{{ selected_job.rounded_start_utc|duration_label(selected_job_review_end_utc) }}</strong>
               </div>
@@ -378,8 +433,31 @@
               <p data-review-ticket-description-display>{{ selected_job.ticket_description or "No description exists for this ticket." }}</p>
             </section>
 
+            <label class="wide-field note-title-field {% if not is_ticket_note %}is-hidden{% endif %}" data-review-note-title-field>
+              <span>Note title</span>
+              <input
+                type="text"
+                name="note_title"
+                value="{{ selected_job.note_title or '' }}"
+                maxlength="250"
+                data-review-note-title-input
+                {% if is_ticket_note %}required{% endif %}
+                {% if not is_ticket_note %}disabled{% endif %}
+              >
+            </label>
+            <label class="append-resolution-field review-append-resolution-field">
+              <input type="hidden" name="append_to_resolution" value="false">
+              <input
+                type="checkbox"
+                name="append_to_resolution"
+                value="true"
+                data-review-append-resolution-input
+                {% if selected_job.append_to_resolution %}checked{% endif %}
+              >
+              <span>Append to resolution</span>
+            </label>
             <label class="wide-field">
-              <span>Summary notes</span>
+              <span data-review-summary-label>{% if is_ticket_note %}Note description{% else %}Summary notes{% endif %}</span>
               <textarea name="summary_notes" rows="8" data-review-summary-textarea>{{ selected_job_autotask_summary_notes }}</textarea>
             </label>
             {% if can_modify_selected_job and (not selected_job_submitted or ai_cleanup_enabled or selected_job.ai_cleanup_original_summary) %}
@@ -431,7 +509,7 @@
                     type="submit"
                     form="{{ review_form_id }}"
                     formaction="/review/{{ selected_job.id }}/edit-entry"
-                    data-review-loading-message="Updating Autotask ticket and time entry..."
+                    data-review-loading-message="{% if is_ticket_note %}Updating Autotask ticket and note...{% else %}Updating Autotask ticket and time entry...{% endif %}"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4z"></path>
@@ -444,8 +522,8 @@
                     action="/review/{{ selected_job.id }}/delete-entry"
                     class="submitted-entry-delete-form review-inline-action-form"
                     data-review-task-form
-                    data-review-loading-message="Deleting Autotask time entry..."
-                    data-confirm-message="This will delete the existing Autotask time entry and return this job to review. Continue?"
+                    data-review-loading-message="{% if is_ticket_note %}Deleting Autotask ticket note...{% else %}Deleting Autotask time entry...{% endif %}"
+                    data-confirm-message="{% if is_ticket_note %}This will delete the existing Autotask ticket note and return this job to review. Continue?{% else %}This will delete the existing Autotask time entry and return this job to review. Continue?{% endif %}"
                   >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="danger-outline-button" type="submit">
@@ -467,7 +545,7 @@
                       <h2>Purge from Job Logger review?</h2>
                       <p class="muted-text">
                         Delete From Autotask did not complete. This fallback removes only the Job Logger review entry and
-                        related local submission history. It does not delete the time entry from Autotask.
+                        related local submission history. It does not delete the Autotask record.
                       </p>
                       {% if selected_job.autotask_error %}
                         <p class="error-text">{{ selected_job.autotask_error }}</p>
@@ -495,18 +573,18 @@
                     type="submit"
                     form="{{ review_form_id }}"
                     formaction="/jobs/{{ selected_job.id }}/end"
-                    data-review-loading-message="Ending work..."
+                    data-review-loading-message="{% if is_ticket_note %}Ending note...{% else %}Ending work...{% endif %}"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M8 5h8v14H8z"></path>
                     </svg>
-                    End Work
+                    <span data-review-end-entry-label>{% if is_ticket_note %}End Note{% else %}End Work{% endif %}</span>
                   </button>
                   <form
                     method="post"
                     action="/review/{{ selected_job.id }}/purge"
                     class="purge-form review-inline-action-form"
-                    data-confirm-message="This will permanently remove this local time entry and related debug history. Continue?"
+                    data-confirm-message="{% if is_ticket_note %}This will permanently remove this local note and related debug history. Continue?{% else %}This will permanently remove this local time entry and related debug history. Continue?{% endif %}"
                   >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="danger-outline-button" type="submit">
@@ -517,7 +595,7 @@
                         <path d="M14 11v6"></path>
                         <path d="M9 10h6"></path>
                       </svg>
-                      Delete time entry
+                      <span data-review-delete-entry-label>{% if is_ticket_note %}Delete note{% else %}Delete time entry{% endif %}</span>
                     </button>
                   </form>
                 </div>
@@ -541,7 +619,7 @@
                     type="submit"
                     form="{{ review_form_id }}"
                     formaction="/review/{{ selected_job.id }}/accept"
-                    data-review-loading-message="Submitting time entry to Autotask..."
+                    data-review-loading-message="{% if is_ticket_note %}Submitting ticket note to Autotask...{% else %}Submitting time entry to Autotask...{% endif %}"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M20 6L9 17l-5-5"></path>
@@ -554,7 +632,7 @@
                     method="post"
                     action="/review/{{ selected_job.id }}/purge"
                     class="purge-form review-inline-action-form"
-                    data-confirm-message="This will permanently remove this local time entry and related debug history. Continue?"
+                    data-confirm-message="{% if is_ticket_note %}This will permanently remove this local note and related debug history. Continue?{% else %}This will permanently remove this local time entry and related debug history. Continue?{% endif %}"
                   >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="danger-outline-button" type="submit">
@@ -565,7 +643,7 @@
                         <path d="M14 11v6"></path>
                         <path d="M9 10h6"></path>
                       </svg>
-                      Delete time entry
+                      <span data-review-delete-entry-label>{% if is_ticket_note %}Delete note{% else %}Delete time entry{% endif %}</span>
                     </button>
                   </form>
                 </div>
@@ -576,7 +654,7 @@
                     type="submit"
                     form="{{ review_form_id }}"
                     formaction="/review/{{ selected_job.id }}/accept"
-                    data-review-loading-message="Submitting time entry to Autotask..."
+                    data-review-loading-message="{% if is_ticket_note %}Submitting ticket note to Autotask...{% else %}Submitting time entry to Autotask...{% endif %}"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M20 6L9 17l-5-5"></path>
@@ -587,7 +665,7 @@
                     method="post"
                     action="/review/{{ selected_job.id }}/purge"
                     class="purge-form review-inline-action-form"
-                    data-confirm-message="This will permanently remove this local time entry and related debug history. Continue?"
+                    data-confirm-message="{% if is_ticket_note %}This will permanently remove this local note and related debug history. Continue?{% else %}This will permanently remove this local time entry and related debug history. Continue?{% endif %}"
                   >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="danger-outline-button" type="submit">
@@ -598,7 +676,7 @@
                         <path d="M14 11v6"></path>
                         <path d="M9 10h6"></path>
                       </svg>
-                      Delete time entry
+                      <span data-review-delete-entry-label>{% if is_ticket_note %}Delete note{% else %}Delete time entry{% endif %}</span>
                     </button>
                   </form>
                 </div>

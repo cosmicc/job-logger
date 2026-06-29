@@ -25,6 +25,13 @@ class TicketStatus(StrEnum):
     COMPLETE = "complete"
 
 
+class EntryType(StrEnum):
+    """Supported Autotask record types that a local job can submit."""
+
+    TIME_ENTRY = "time_entry"
+    TICKET_NOTE = "ticket_note"
+
+
 class WorkLocation(StrEnum):
     """Where the work was performed for Autotask time-entry notes."""
 

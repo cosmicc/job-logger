@@ -24,6 +24,9 @@ const reviewTaskForms = document.querySelectorAll("[data-review-task-form]");
 const submittedDeleteFallbackDialog = document.querySelector("[data-submitted-delete-fallback-dialog]");
 const reviewPageLoadingOverlay = document.querySelector("[data-review-page-loading]");
 const reviewPageLoadingMessage = document.querySelector("[data-review-page-loading-message]");
+const reviewEntryTypeInputs = document.querySelectorAll("[data-review-entry-type-input]");
+const reviewNoteTitleInput = document.querySelector("[data-review-note-title-input]");
+const reviewAppendResolutionInput = document.querySelector("[data-review-append-resolution-input]");
 
 let reviewAutosaveTimer = null;
 let lastReviewAutosaveSnapshot = "";
@@ -197,7 +200,7 @@ function updateReviewDateWeekday(dateValue) {
 
 function adjustTimeField(timeFieldName, deltaMinutes) {
   const timeInput = document.querySelector(`input[name="${timeFieldName}"]`);
-  if (!timeInput) {
+  if (!timeInput || timeInput.disabled) {
     return;
   }
 
@@ -222,7 +225,11 @@ function setReviewAutosaveStatus(message, isError = false) {
 
 function shouldSuppressReviewAutosaveError(errorMessage) {
   const summaryTextarea = findReviewSummaryTextarea();
-  return errorMessage === "Summary notes are required." && (!summaryTextarea || !summaryTextarea.value.trim());
+  const isEmptySummary = !summaryTextarea || !summaryTextarea.value.trim();
+  return isEmptySummary && (
+    errorMessage === "Summary notes are required."
+    || errorMessage === "Note description is required."
+  );
 }
 
 function showReviewPageLoading(message) {
@@ -536,6 +543,10 @@ function preferredReviewRecorderMimeType() {
 }
 
 function reviewSummaryPrefix() {
+  if (isReviewTicketNoteMode()) {
+    return "";
+  }
+
   const checkedWorkLocationInput = document.querySelector('input[name="work_location"]:checked');
   const fallbackWorkLocationInput = document.querySelector('input[name="work_location"]');
   const workLocationValue = checkedWorkLocationInput
@@ -547,6 +558,9 @@ function reviewSummaryPrefix() {
 function applyReviewSummaryPrefix(summaryText) {
   const safeSummaryText = String(summaryText || "").trim();
   if (!safeSummaryText) {
+    return safeSummaryText;
+  }
+  if (isReviewTicketNoteMode()) {
     return safeSummaryText;
   }
 
@@ -564,6 +578,10 @@ function replaceReviewSummaryPrefix(summaryText) {
   if (!safeSummaryText) {
     return safeSummaryText;
   }
+  if (isReviewTicketNoteMode()) {
+    const prefixMatch = safeSummaryText.match(SUMMARY_WORK_LOCATION_PREFIX_PATTERN);
+    return prefixMatch ? String(prefixMatch[2] || "").trim() : safeSummaryText;
+  }
 
   const prefixMatch = safeSummaryText.match(SUMMARY_WORK_LOCATION_PREFIX_PATTERN);
   const summaryBody = prefixMatch ? String(prefixMatch[2] || "").trim() : safeSummaryText;
@@ -571,6 +589,10 @@ function replaceReviewSummaryPrefix(summaryText) {
 }
 
 function syncReviewSummaryPrefixFromWorkLocation() {
+  if (isReviewTicketNoteMode()) {
+    return;
+  }
+
   const summaryTextarea = findReviewSummaryTextarea();
   if (!summaryTextarea) {
     return;
@@ -578,6 +600,88 @@ function syncReviewSummaryPrefixFromWorkLocation() {
 
   summaryTextarea.value = replaceReviewSummaryPrefix(summaryTextarea.value);
   queueReviewAutosave(true);
+}
+
+function selectedReviewEntryType() {
+  const checkedEntryTypeInput = document.querySelector('[data-review-entry-type-input]:checked');
+  if (checkedEntryTypeInput) {
+    return checkedEntryTypeInput.value;
+  }
+
+  const hiddenEntryTypeInput = document.querySelector('input[type="hidden"][name="entry_type"]');
+  return hiddenEntryTypeInput ? hiddenEntryTypeInput.value : "time_entry";
+}
+
+function isReviewTicketNoteMode() {
+  return selectedReviewEntryType() === "ticket_note";
+}
+
+function syncReviewEntryMode() {
+  const isTicketNote = isReviewTicketNoteMode();
+  const formElement = document.querySelector("[data-review-task-form]");
+  if (formElement) {
+    formElement.classList.toggle("review-form-ticket-note", isTicketNote);
+  }
+
+  const workLocationCard = document.querySelector("[data-review-work-location-card]");
+  if (workLocationCard) {
+    workLocationCard.classList.toggle("is-hidden", isTicketNote);
+    workLocationCard.querySelectorAll('input[name="work_location"]').forEach((inputElement) => {
+      inputElement.disabled = isTicketNote;
+    });
+  }
+
+  document.querySelectorAll("[data-review-time-control]").forEach((controlElement) => {
+    controlElement.disabled = isTicketNote;
+    if (controlElement.tagName === "INPUT") {
+      controlElement.required = !isTicketNote && controlElement.dataset.requiredForTimeEntry === "true";
+    }
+  });
+
+  document.querySelectorAll(".time-step-controls").forEach((timeControls) => {
+    const controlledInputs = Array.from(timeControls.querySelectorAll("[data-review-time-control]"));
+    timeControls.classList.toggle(
+      "time-controls-disabled",
+      controlledInputs.length > 0 && controlledInputs.every((controlElement) => controlElement.disabled),
+    );
+  });
+
+  const durationRow = document.querySelector("[data-review-duration-row]");
+  if (durationRow) {
+    durationRow.classList.toggle("is-hidden", isTicketNote);
+  }
+  if (!isTicketNote) {
+    updateReviewDurationDisplay();
+  }
+
+  const noteTitleField = document.querySelector("[data-review-note-title-field]");
+  if (noteTitleField) {
+    noteTitleField.classList.toggle("is-hidden", !isTicketNote);
+  }
+  if (reviewNoteTitleInput) {
+    reviewNoteTitleInput.disabled = !isTicketNote;
+    reviewNoteTitleInput.required = isTicketNote;
+  }
+
+  const summaryLabel = document.querySelector("[data-review-summary-label]");
+  if (summaryLabel) {
+    summaryLabel.textContent = isTicketNote ? "Note description" : "Summary notes";
+  }
+
+  const endEntryLabel = document.querySelector("[data-review-end-entry-label]");
+  if (endEntryLabel) {
+    endEntryLabel.textContent = isTicketNote ? "End Note" : "End Work";
+  }
+
+  document.querySelectorAll("[data-review-delete-entry-label]").forEach((deleteLabel) => {
+    deleteLabel.textContent = isTicketNote ? "Delete note" : "Delete time entry";
+  });
+
+  document.querySelectorAll(".purge-form").forEach((purgeForm) => {
+    purgeForm.dataset.confirmMessage = isTicketNote
+      ? "This will permanently remove this local note and related debug history. Continue?"
+      : "This will permanently remove this local time entry and related debug history. Continue?";
+  });
 }
 
 function updateReviewSummaryFromTranscription(activeJobId, payload) {
@@ -1189,6 +1293,10 @@ function bindTimeStepButtons() {
     }
 
     button.addEventListener("click", (event) => {
+      if (button.disabled) {
+        return;
+      }
+
       event.preventDefault();
       adjustTimeField(timeFieldName, deltaMinutes);
       queueReviewAutosave(true);
@@ -1200,9 +1308,15 @@ function bindReviewDurationInputs() {
   const timeInputs = document.querySelectorAll('input[name="start_time"], input[name="end_time"]');
   for (const timeInput of timeInputs) {
     timeInput.addEventListener("input", () => {
+      if (timeInput.disabled) {
+        return;
+      }
       updateReviewDurationDisplay();
     });
     timeInput.addEventListener("blur", () => {
+      if (timeInput.disabled) {
+        return;
+      }
       updateReviewDurationDisplay();
     });
   }
@@ -1217,7 +1331,7 @@ function bindReviewAutosave() {
   lastReviewAutosaveSnapshot = buildReviewAutosaveSnapshot();
   const autosaveControls = reviewAutosaveForm.querySelectorAll("input, select, textarea");
   for (const control of autosaveControls) {
-    if (control.type === "hidden" || control.name === "csrf_token" || control.disabled) {
+    if (control.type === "hidden" || control.name === "csrf_token") {
       continue;
     }
     if (control.dataset && Object.prototype.hasOwnProperty.call(control.dataset, "reviewCompanyInput")) {
@@ -1228,6 +1342,9 @@ function bindReviewAutosave() {
       control.addEventListener("change", () => {
         if (control.name === "job_date") {
           updateReviewDateWeekday(control.value);
+        }
+        if (control.name === "entry_type") {
+          syncReviewEntryMode();
         }
         queueReviewAutosave(true);
       });
@@ -1246,11 +1363,10 @@ function bindReviewAutosave() {
 function bindReviewWorkLocationControls() {
   const workLocationInputs = document.querySelectorAll('input[name="work_location"]');
   for (const workLocationInput of workLocationInputs) {
-    if (workLocationInput.disabled) {
-      continue;
-    }
-
     workLocationInput.addEventListener("change", () => {
+      if (workLocationInput.disabled) {
+        return;
+      }
       if (workLocationInput.checked) {
         syncReviewSummaryPrefixFromWorkLocation();
       }
@@ -1536,8 +1652,29 @@ for (const reviewRow of reviewRows) {
 bindTimeStepButtons();
 bindReviewDurationInputs();
 bindTicketLookup();
+syncReviewEntryMode();
 bindReviewAutosave();
 bindReviewWorkLocationControls();
+
+for (const reviewEntryTypeInput of reviewEntryTypeInputs) {
+  reviewEntryTypeInput.addEventListener("change", () => {
+    if (!reviewEntryTypeInput.checked) {
+      return;
+    }
+
+    syncReviewEntryMode();
+    queueReviewAutosave(true);
+  });
+}
+
+if (reviewNoteTitleInput) {
+  reviewNoteTitleInput.addEventListener("input", () => queueReviewAutosave());
+  reviewNoteTitleInput.addEventListener("blur", () => queueReviewAutosave(true));
+}
+
+if (reviewAppendResolutionInput) {
+  reviewAppendResolutionInput.addEventListener("change", () => queueReviewAutosave(true));
+}
 
 for (const aiCleanupButton of aiCleanupButtons) {
   aiCleanupButton.addEventListener("click", () => {

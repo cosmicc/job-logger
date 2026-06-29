@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from job_logger.config import settings
 from job_logger.database import get_database_session
-from job_logger.enums import JobStatus, TicketStatus
+from job_logger.enums import EntryType, JobStatus, TicketStatus
 from job_logger.models import AuditEvent
 from job_logger.security import (
     add_flash_message,
@@ -289,6 +289,7 @@ def _review_save_payload(job: object) -> dict[str, object]:
     """Return non-secret review state after a background save completes."""
 
     ticket_status = getattr(job, "ticket_status", None)
+    entry_type = getattr(job, "entry_type", EntryType.TIME_ENTRY)
     job_status = getattr(job, "status", None)
     rounded_end_utc = _review_display_end_time_utc(job)
     local_work_date = getattr(job, "local_work_date", None)
@@ -301,11 +302,22 @@ def _review_save_payload(job: object) -> dict[str, object]:
         "job_id": getattr(job, "id", ""),
         "status": job_status.value if job_status is not None else "",
         "ticket_status": ticket_status.value if ticket_status is not None else "",
-        "summary_notes": build_autotask_summary_notes(job),
+        "entry_type": entry_type.value if entry_type is not None else EntryType.TIME_ENTRY.value,
+        "note_title": getattr(job, "note_title", None) or "",
+        "append_to_resolution": bool(getattr(job, "append_to_resolution", True)),
+        "summary_notes": (
+            str(getattr(job, "summary_notes", None) or getattr(job, "description_text", None) or "").strip()
+            if entry_type == EntryType.TICKET_NOTE
+            else build_autotask_summary_notes(job)
+        ),
         "job_date": job_date,
         "start_time": format_local_time(getattr(job, "rounded_start_utc", None)),
         "end_time": format_local_time(rounded_end_utc),
-        "duration_label": format_rounded_duration_label(getattr(job, "rounded_start_utc", None), rounded_end_utc),
+        "duration_label": (
+            ""
+            if entry_type == EntryType.TICKET_NOTE
+            else format_rounded_duration_label(getattr(job, "rounded_start_utc", None), rounded_end_utc)
+        ),
     }
 
 
@@ -319,6 +331,18 @@ def _review_display_end_time_utc(job: object | None):
         return getattr(job, "rounded_end_utc", None) or rounded_stop_for_active_job(job)
 
     return getattr(job, "rounded_end_utc", None)
+
+
+def _entry_type_label(job: object) -> str:
+    """Return a user-facing label for the selected local entry type."""
+
+    return "ticket note" if getattr(job, "entry_type", EntryType.TIME_ENTRY) == EntryType.TICKET_NOTE else "time entry"
+
+
+def _entry_type_sentence_label(job: object) -> str:
+    """Return a sentence-case label for the selected local entry type."""
+
+    return "Ticket note" if _entry_type_label(job) == "ticket note" else "Time entry"
 
 
 def _submitted_delete_failure_purge_available(request: Request, selected_job: object | None) -> bool:
@@ -561,7 +585,7 @@ async def edit_submitted_entry(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> RedirectResponse:
-    """Edit the existing Autotask time entry for an already submitted job."""
+    """Edit the existing Autotask record for an already submitted job."""
 
     actor = require_authenticated_username(request)
     try:
@@ -589,13 +613,14 @@ async def edit_submitted_entry(
                 "succeeded": job.autotask_error is None,
                 "autotask_provider": job.autotask_provider,
                 "external_id": job.autotask_external_id,
+                "entry_type": job.entry_type.value,
             },
         )
         database_session.commit()
         if job.autotask_error:
             add_flash_message(request, f"Autotask entry update failed: {job.autotask_error}", "error")
         else:
-            add_flash_message(request, "Autotask entry updated.", "success")
+            add_flash_message(request, f"Autotask {_entry_type_label(job)} updated.", "success")
     except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
@@ -667,7 +692,7 @@ async def delete_submitted_entry(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> RedirectResponse:
-    """Delete an existing Autotask time entry while keeping the local job."""
+    """Delete an existing Autotask record while keeping the local job."""
 
     actor = require_authenticated_username(request)
     try:
@@ -692,6 +717,7 @@ async def delete_submitted_entry(
                 "autotask_provider": job.autotask_provider,
                 "external_id": original_external_id,
                 "status": job.status.value,
+                "entry_type": job.entry_type.value,
             },
         )
         database_session.commit()
@@ -702,7 +728,7 @@ async def delete_submitted_entry(
         else:
             request.session.pop(SESSION_DELETE_AUTOTASK_FAILED_JOB_ID_KEY, None)
             request.session.pop(SESSION_DELETE_AUTOTASK_FAILED_EXTERNAL_ID_KEY, None)
-            add_flash_message(request, "Autotask entry deleted; job returned to review.", "success")
+            add_flash_message(request, f"Autotask {_entry_type_label(job)} deleted; job returned to review.", "success")
     except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
@@ -749,7 +775,7 @@ async def purge_submitted_local_after_delete_failure(
         request.session.pop(SESSION_DELETE_AUTOTASK_FAILED_EXTERNAL_ID_KEY, None)
         add_flash_message(
             request,
-            "Job purged from Job Logger review. The Autotask time entry may still exist.",
+            "Job purged from Job Logger review. The Autotask record may still exist.",
             "success",
         )
         return RedirectResponse(url="/review", status_code=303)
@@ -789,13 +815,17 @@ async def accept_review(
             action="job.review.accepted",
             job_id=job.id,
             request=request,
-            details={"status": job.status.value, "autotask_provider": job.autotask_provider},
+            details={
+                "status": job.status.value,
+                "autotask_provider": job.autotask_provider,
+                "entry_type": job.entry_type.value,
+            },
         )
         database_session.commit()
         if job.autotask_error:
             add_flash_message(request, f"Submission failed: {job.autotask_error}", "error")
         else:
-            add_flash_message(request, "Job accepted and submitted.", "success")
+            add_flash_message(request, f"{_entry_type_sentence_label(job)} accepted and submitted.", "success")
     except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
@@ -833,13 +863,17 @@ async def retry_submission(
             action="job.autotask.retry",
             job_id=job.id,
             request=request,
-            details={"status": job.status.value, "autotask_provider": job.autotask_provider},
+            details={
+                "status": job.status.value,
+                "autotask_provider": job.autotask_provider,
+                "entry_type": job.entry_type.value,
+            },
         )
         database_session.commit()
         if job.autotask_error:
             add_flash_message(request, f"Retry failed: {job.autotask_error}", "error")
         else:
-            add_flash_message(request, "Submission retry succeeded.", "success")
+            add_flash_message(request, f"{_entry_type_sentence_label(job)} retry succeeded.", "success")
     except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")

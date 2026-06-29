@@ -2,13 +2,17 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## v1.2.0 - Admin alerts, ticket notes, and time totals
+## v1.2.0 - Ticket note mode, notes overlay, alerts, and time totals
 
+- Work entries can now switch between Time entry and Ticket note before Autotask submission.
+- Ticket notes hide time and Remote/On-Site controls, require a note title, and use the note description as the Autotask note body.
+- Time entries and ticket notes now include an Append to resolution checkbox that is on by default.
+- Submitted ticket notes can now be updated or deleted from Review like submitted time entries.
+- Ticket notes now open in a newest-first overlay with cleaner two-line title cards.
 - Admins now see a red top-bar alert when app health needs attention.
 - Autotask API failures now keep that alert visible until the same request type succeeds.
 - Low disk space now uses the same top-bar alert to make the problem harder to miss.
 - Work in Progress and Review now show the centered total time between start and stop.
-- Ticket notes now open in a newest-first overlay with cleaner two-line title cards.
 
 ## v1.1.6 - Review, Home, and header polish
 

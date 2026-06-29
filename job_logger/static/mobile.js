@@ -23,6 +23,9 @@ const activeTicketForms = document.querySelectorAll(".active-ticket-form");
 const companyInputs = document.querySelectorAll("[data-company-input]");
 const activeTicketPickers = document.querySelectorAll("[data-active-ticket-picker]");
 const workLocationInputs = document.querySelectorAll("[data-work-location-input]");
+const activeEntryTypeInputs = document.querySelectorAll("[data-entry-type-input]");
+const activeNoteTitleInputs = document.querySelectorAll("[data-note-title-input]");
+const activeAppendResolutionInputs = document.querySelectorAll("[data-append-resolution-input]");
 const activeTicketStatusInputs = document.querySelectorAll("[data-active-ticket-status-input]");
 const activeJobDateInputs = document.querySelectorAll("[data-active-job-date-input]");
 const activeTimeForms = document.querySelectorAll("[data-active-time-form]");
@@ -59,6 +62,18 @@ let activeAudioStopRequested = false;
 
 function toSafeMapString(value) {
   return String(value || "");
+}
+
+function formDataBooleanValue(formData, fieldName) {
+  if (!formData) {
+    return "false";
+  }
+
+  return formData
+    .getAll(fieldName)
+    .some((fieldValue) => String(fieldValue).trim().toLowerCase() === "true")
+    ? "true"
+    : "false";
 }
 
 function normalizedDateValue(dateValue) {
@@ -225,6 +240,9 @@ function syncEndJobClientFields(endJobForm) {
   const endClientNameField = endJobForm.querySelector(".end-client-name");
   const endAutotaskCompanyIdField = endJobForm.querySelector(".end-autotask-company-id");
   const endWorkLocationField = endJobForm.querySelector(".end-work-location");
+  const endEntryTypeField = endJobForm.querySelector(".end-entry-type");
+  const endNoteTitleField = endJobForm.querySelector(".end-note-title");
+  const endAppendResolutionField = endJobForm.querySelector(".end-append-to-resolution");
   const endTicketStatusField = endJobForm.querySelector(".end-ticket-status");
 
   if (endClientNameField) {
@@ -239,9 +257,107 @@ function syncEndJobClientFields(endJobForm) {
     endWorkLocationField.value = toSafeMapString(activeFormData.get("work_location") || endWorkLocationField.value);
   }
 
+  if (endEntryTypeField && activeFormData) {
+    endEntryTypeField.value = toSafeMapString(activeFormData.get("entry_type") || "time_entry");
+  }
+
+  if (endNoteTitleField && activeFormData) {
+    endNoteTitleField.value = toSafeMapString(activeFormData.get("note_title") || "");
+  }
+
+  if (endAppendResolutionField && activeFormData) {
+    endAppendResolutionField.value = formDataBooleanValue(activeFormData, "append_to_resolution");
+  }
+
   if (endTicketStatusField && activeFormData) {
     endTicketStatusField.value = toSafeMapString(activeFormData.get("ticket_status") || endTicketStatusField.value);
   }
+}
+
+function activeEntryTypeForCard(activeJobCard) {
+  const checkedEntryTypeInput = activeJobCard
+    ? activeJobCard.querySelector('[data-entry-type-input]:checked')
+    : null;
+  return checkedEntryTypeInput ? checkedEntryTypeInput.value : "time_entry";
+}
+
+function syncActiveEntryMode(activeJobCard) {
+  if (!activeJobCard) {
+    return;
+  }
+
+  const isTicketNote = activeEntryTypeForCard(activeJobCard) === "ticket_note";
+  activeJobCard.classList.toggle("active-job-ticket-note", isTicketNote);
+  for (const activeTimeForm of activeJobCard.querySelectorAll("[data-active-time-form]")) {
+    activeTimeForm.classList.toggle("time-controls-disabled", isTicketNote);
+    activeTimeForm.querySelectorAll("button, input").forEach((controlElement) => {
+      if (controlElement.name === "csrf_token" || controlElement.dataset.activeTimeJobDate !== undefined) {
+        return;
+      }
+      controlElement.disabled = isTicketNote;
+    });
+  }
+
+  const durationRow = activeJobCard.querySelector("[data-duration-row]");
+  if (durationRow) {
+    durationRow.classList.toggle("is-hidden", isTicketNote);
+  }
+
+  const workLocationCard = activeJobCard.querySelector("[data-work-location-card]");
+  if (workLocationCard) {
+    workLocationCard.classList.toggle("is-hidden", isTicketNote);
+    workLocationCard.querySelectorAll("[data-work-location-input]").forEach((inputElement) => {
+      inputElement.disabled = isTicketNote;
+    });
+  }
+
+  const noteTitleField = activeJobCard.querySelector("[data-note-title-field]");
+  const noteTitleInput = activeJobCard.querySelector("[data-note-title-input]");
+  if (noteTitleField) {
+    noteTitleField.classList.toggle("is-hidden", !isTicketNote);
+  }
+  if (noteTitleInput) {
+    noteTitleInput.disabled = !isTicketNote;
+    noteTitleInput.required = isTicketNote;
+  }
+
+  const summaryLabel = activeJobCard.querySelector("[data-summary-label]");
+  if (summaryLabel) {
+    summaryLabel.textContent = isTicketNote ? "Note description" : "Summary notes";
+  }
+
+  const endJobForm = activeJobCard.querySelector(".end-job-form");
+  if (endJobForm) {
+    const isDirectSubmit = endJobForm.dataset.submitFromWorkInProgress === "true";
+    const endLabel = endJobForm.querySelector("[data-end-entry-label]");
+    endJobForm.dataset.loadingMessage = isTicketNote
+      ? (isDirectSubmit ? "Submitting note to Autotask..." : "Ending note...")
+      : (isDirectSubmit ? "Submitting to Autotask..." : "Ending work...");
+    if (endLabel) {
+      endLabel.textContent = isTicketNote
+        ? (isDirectSubmit ? "Submit note" : "End Note")
+        : (isDirectSubmit ? "Submit to Autotask" : "End Work");
+    }
+    syncEndJobClientFields(endJobForm);
+  }
+
+  const deleteForm = activeJobCard.querySelector(".delete-active-job-form");
+  if (deleteForm) {
+    deleteForm.dataset.loadingMessage = isTicketNote ? "Deleting note..." : "Deleting time entry...";
+    deleteForm.dataset.confirmMessage = isTicketNote
+      ? "Delete this note? This removes the in-progress note without sending it to review."
+      : "Delete this time entry? This removes the in-progress entry without sending it to review.";
+    const deleteLabel = deleteForm.querySelector("[data-delete-entry-label]");
+    if (deleteLabel) {
+      deleteLabel.textContent = isTicketNote ? "Delete Note" : "Delete";
+    }
+  }
+}
+
+function initializeActiveEntryModes() {
+  document.querySelectorAll("[data-active-job-card]").forEach((activeJobCard) => {
+    syncActiveEntryMode(activeJobCard);
+  });
 }
 
 function parseLocalTimeDisplay(rawLocalTime) {
@@ -2205,6 +2321,37 @@ for (const workLocationInput of workLocationInputs) {
   });
 }
 
+for (const entryTypeInput of activeEntryTypeInputs) {
+  entryTypeInput.addEventListener("change", () => {
+    if (!entryTypeInput.checked) {
+      return;
+    }
+
+    const activeJobCard = entryTypeInput.closest("[data-active-job-card]");
+    syncActiveEntryMode(activeJobCard);
+    const activeTicketForm = document.getElementById(entryTypeInput.getAttribute("form") || "");
+    queueActiveJobFormSave(activeTicketForm, true);
+  });
+}
+
+for (const noteTitleInput of activeNoteTitleInputs) {
+  noteTitleInput.addEventListener("input", () => {
+    const activeTicketForm = document.getElementById(noteTitleInput.getAttribute("form") || "");
+    queueActiveJobFormSave(activeTicketForm);
+  });
+  noteTitleInput.addEventListener("blur", () => {
+    const activeTicketForm = document.getElementById(noteTitleInput.getAttribute("form") || "");
+    queueActiveJobFormSave(activeTicketForm, true);
+  });
+}
+
+for (const appendResolutionInput of activeAppendResolutionInputs) {
+  appendResolutionInput.addEventListener("change", () => {
+    const activeTicketForm = document.getElementById(appendResolutionInput.getAttribute("form") || "");
+    queueActiveJobFormSave(activeTicketForm, true);
+  });
+}
+
 for (const activeTimeForm of activeTimeForms) {
   lastSavedActiveTimeSnapshots.set(activeTimeForm, buildActiveTimeFormSnapshot(activeTimeForm));
 
@@ -2333,6 +2480,7 @@ for (const serviceCallPanel of serviceCallPanels) {
 
 initializeLiveRoundedStopDisplays();
 initializeActiveDurationDisplays();
+initializeActiveEntryModes();
 
 if (document.readyState === "complete") {
   window.setTimeout(loadServiceCallPanelsAfterPageLoad, 0);

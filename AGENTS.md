@@ -5,7 +5,8 @@
 This repository is for a Dockerized Python web application named Job Logger.
 The application provides a mobile-first web workflow for recording work time,
 recording spoken job descriptions, reviewing recorded jobs, and creating
-Autotask time entries after review and acceptance.
+Autotask time entries or customer-visible ticket notes after review and
+acceptance.
 
 The application will be exposed through Cloudflare Tunnel using `cloudflared`.
 The Docker deployment must include the Python web application, PostgreSQL, and
@@ -196,7 +197,7 @@ Recorded jobs follow this lifecycle:
    server validates the same required submission fields and submits the job
    directly to Autotask during end-work instead. The config super admin may view
    all jobs but cannot mutate them.
-5. The review page allows time, status, and notes to be edited before
+5. The review page allows the entry type, time, status, and notes to be edited before
    acceptance while keeping the selected Autotask client and ticket read-only.
    Client identity must come from a selected Autotask company search result;
    typed names that do not match the verified selected company ID must be
@@ -205,22 +206,33 @@ Recorded jobs follow this lifecycle:
    Review detail may save the first client/company through the authenticated
    Autotask company search; after that selection, or after any open ticket is
    chosen for the job, client identity is read-only.
-6. An accepted review job, or a directly submitted Work in Progress job, creates
-   an Autotask time entry using the owning user's Autotask resource ID.
+6. An accepted review job, or a directly submitted Work in Progress job,
+   creates either an Autotask time entry or a customer-visible Autotask ticket
+   note. The local entry type is editable only before successful Autotask
+   submission. Ticket notes require ticket status, note title, note description,
+   and selected ticket identity; they do not require start/stop times or
+   Remote/On-Site work location. Time entries keep the existing date, start
+   time, end time, summary notes, work location, and ticket status
+   requirements. Both record types expose **Append to resolution**, defaulting
+   on, and must send that setting to Autotask.
 7. A successfully submitted Autotask job keeps ticket and client identity
-   read-only. Its job date, start time, end time, summary notes, work location,
-   and ticket status can be changed only through the audited **Submit changes**
-   action, which updates the existing Autotask time entry instead of creating
-   another entry. **Submit changes** always patches `Tickets.status` to the
-   selected local app status as part of the resubmission. When needed, it may
-   temporarily move a
-   previously Complete ticket to In progress before patching `TimeEntries`,
-   then move the ticket to the selected final status after the time-entry patch.
-   The audited **Delete From Autotask** action may delete the external time
-   entry and move the local job back to review, but must not delete the local
-   job record. If Delete From Autotask fails, the selected review detail may
-   show an explicit local-only purge fallback that removes the Job Logger review
-   row while warning that the Autotask time entry may still exist.
+   read-only. The entry type cannot be changed after successful submission.
+   Time entries can change job date, start time, end time, summary notes, work
+   location, append-to-resolution, and ticket status only through the audited
+   **Submit changes** action, which updates the existing `TimeEntries` row
+   instead of creating another entry. Ticket notes can change note title, note
+   description, append-to-resolution, and ticket status through the same
+   audited action, which updates the existing `TicketNotes` row. **Submit
+   changes** always patches `Tickets.status` to the selected local app status
+   as part of the resubmission. When needed, it may temporarily move a
+   previously Complete ticket to In progress before patching the external
+   Autotask record, then move the ticket to the selected final status after the
+   record patch. The audited **Delete From Autotask** action may delete the
+   external Autotask record and move the local job back to review, but must not
+   delete the local job record. If Delete From Autotask fails, the selected
+   review detail may show an explicit local-only purge fallback that removes
+   the Job Logger review row while warning that the Autotask record may still
+   exist.
 8. Failed or edited jobs remain available for audit history. Local cleanup is
    available only through explicit audited delete actions, including **Delete
    time entry** on review detail for local unsubmitted jobs.
@@ -247,6 +259,8 @@ that label as the visible rounded times change. Work in Progress shows the
 centered duration under **Rounded stop**. Review detail shows the centered
 duration on its own row under the start/end time controls so the full-browser
 start and end fields stay aligned.
+Ticket-note mode hides this duration because start and stop times are not used
+for Autotask ticket notes.
 
 Jobs do not span multiple work dates. Review forms must use one local job date
 with start and end times, and must reject edits where the end time is not after
@@ -259,10 +273,10 @@ Daylight Saving Time edge cases must be considered when converting local times.
 
 ## Autotask Integration
 
-Autotask time entries are created after review acceptance by default. A managed
-web user can opt in to direct Work in Progress submission on `/config`, which
-creates the Autotask time entry during end-work after the same local submission
-requirements pass.
+Autotask records are created after review acceptance by default. A managed web
+user can opt in to direct Work in Progress submission on `/config`, which
+creates the selected Autotask time entry or ticket note during end-work after
+the same local submission requirements pass.
 
 The required Autotask time-entry fields for this application are:
 
@@ -273,6 +287,17 @@ The required Autotask time-entry fields for this application are:
 - Start time.
 - End time.
 
+The required Autotask ticket-note fields for this application are:
+
+- Ticket number.
+- Ticket status.
+- Note title.
+- Note description.
+
+Ticket notes created by Job Logger must be customer-visible, never internal.
+Time entries and ticket notes both include the local **Append to resolution**
+setting in the Autotask payload.
+
 Supported ticket status values are:
 
 - In progress.
@@ -281,8 +306,8 @@ Supported ticket status values are:
 - Follow up.
 - Complete.
 
-Autotask submission must be idempotent. A retry must not create duplicate time
-entries for the same accepted job.
+Autotask submission must be idempotent. A retry must not create duplicate
+TimeEntries or TicketNotes rows for the same accepted job.
 
 Autotask resource IDs are not global configuration. They belong to managed web
 users and are required before a user can start work. The app uses the logged-in
@@ -436,19 +461,24 @@ phone and full-browser layouts and does not show the full Job Logger wordmark.
 
 The standard review interface must work well on a full computer screen.
 
-The review interface must allow editing of reviewed job summary notes, ticket
+The review interface must allow editing of reviewed entry type before
+successful Autotask submission, job summary notes or note description, ticket
 status, date, start time, end time, work location, and the translated
 speech-to-text description before acceptance. The review list must show each
-job's Remote or On-Site mode. The summary textarea must show the complete
-Autotask summary that will be sent, including the leading `Remote. ` or
-`On-Site. ` prefix. Saving review edits parses that prefix back into the stored
+job's Remote or On-Site mode for time entries and Ticket note for note-mode
+entries. The summary textarea for time entries must show the complete Autotask
+summary that will be sent, including the leading `Remote. ` or `On-Site. `
+prefix. Saving review edits parses that prefix back into the stored
 `work_location` field, and the review-detail work-location control must update
 that visible prefix, so the final payload can be corrected without exposing
-ticket or client identity to edits. The selected Autotask client name, company
-ID, ticket number, and ticket title are read-only identity fields populated from
-Autotask lookup and must not be editable on the review page. The only exception
-is the empty-identity active-job case, where Review detail may expose Autotask
-company search to save the first verified client/company before ticket lookup.
+ticket or client identity to edits. Ticket-note mode hides Remote/On-Site,
+disables start/end time controls, shows a required note-title field above the
+note description, and keeps the description unprefixed. The selected Autotask
+client name, company ID, ticket number, and ticket title are read-only identity
+fields populated from Autotask lookup and must not be editable on the review
+page. The only exception is the empty-identity active-job case, where Review
+detail may expose Autotask company search to save the first verified
+client/company before ticket lookup.
 Review client searching must not run the generic review autosave or show
 summary-note validation while the user is typing a client; an empty summary
 warning should appear only when AI Cleanup is pressed without notes or when the
@@ -681,8 +711,8 @@ The application is a FastAPI project under `job_logger/`.
   saves, and Autotask company autocomplete.
 - `job_logger/routes/review.py` handles review listing, edit/save/accept/retry,
   saving the first client selection for an empty active review job, updating or
-  deleting existing submitted Autotask entries, ticket lookup for a selected
-  job, and explicit local **Delete time entry** cleanup.
+  deleting existing submitted Autotask records, ticket lookup for a selected
+  job, and explicit local **Delete time entry** / **Delete note** cleanup.
 - `job_logger/routes/users.py` handles the super-admin managed web-user page,
   including add/edit/enable/disable/delete-as-disable behavior, Autotask
   Resource lookup, active service-desk role lookup, and session invalidation
@@ -854,9 +884,10 @@ The normal workflow is:
     Autotask company search before ticket lookup. Review detail groups action
     controls into compact rows with at most two buttons per row; submitted
     entries pair **Submit changes** with **Delete From Autotask**, while local
-    unsubmitted entries pair the submit action with **Delete time entry** when
-    possible. Active jobs selected in Review show **End Work** paired with
-    **Delete time entry** and post to the normal end-work route. Directly
+    unsubmitted entries pair the submit action with **Delete time entry** or
+    **Delete note** when possible. Active jobs selected in Review show **End
+    Work** or **End Note** paired with the matching delete action and post to
+    the normal end-work route. Directly
     submitted jobs still appear in Review for submitted-entry
     **Submit changes** and **Delete From Autotask** actions. Active jobs opened
     in Review show the same rounded stop preview as Work in Progress, but review
@@ -864,17 +895,17 @@ The normal workflow is:
 15. Accept/retry submits a reviewed job to Autotask idempotently with the
     owning managed web user's resource ID.
 16. Successfully submitted jobs can use **Submit changes** for
-    date/time/status/notes/work-location updates against the existing Autotask
-    time entry, or **Delete From Autotask** to remove the external time entry and
-    return the local job to review. The selected Review detail must not display
-    the stored Autotask `TimeEntries` external ID. **Submit changes** reasserts
-    the selected local ticket status in Autotask every time it patches the existing
-    `TimeEntries` row. It may reopen previously Complete tickets to In progress
-    before patching `TimeEntries`, then apply the selected final status after the
-    time-entry patch when needed.
+    supported field updates against the existing Autotask `TimeEntries` or
+    `TicketNotes` row, or **Delete From Autotask** to remove the external
+    record and return the local job to review. The selected Review detail must
+    not display the stored Autotask external ID. **Submit changes** reasserts
+    the selected local ticket status in Autotask every time it patches the
+    existing external row. It may reopen previously Complete tickets to In
+    progress before patching the external record, then apply the selected final
+    status after the patch when needed.
     If **Delete From Autotask** fails, a session-scoped dialog can offer a
-    local-only purge from Job Logger review while warning that the Autotask time
-    entry may still exist.
+    local-only purge from Job Logger review while warning that the Autotask
+    record may still exist.
     Ticket/client identity, local delete, accept/resend, and retry stay blocked
     while the job remains submitted.
 17. Submission attempts and important state changes are recorded for audit and
@@ -906,11 +937,12 @@ In production:
 - Service-call loading, company lookup, ticket lookup, and Autotask submission
   still call Autotask only when those specific workflows need provider data.
   Service-call and open-ticket selection are read/query-only against Autotask
-  and must not patch remote ticket status before time-entry submission.
-- Time-entry submission patches `Tickets.status` to match the selected Job
-  Logger ticket status. Configure all `AUTOTASK_STATUS_*_ID` values and ensure
-  the Autotask API user can patch `Tickets.status`; otherwise submission fails
-  without marking the local job submitted.
+  and must not patch remote ticket status before TimeEntries or TicketNotes
+  submission.
+- Time-entry and ticket-note submission patch `Tickets.status` to match the
+  selected Job Logger ticket status. Configure all `AUTOTASK_STATUS_*_ID`
+  values and ensure the Autotask API user can patch `Tickets.status`; otherwise
+  submission fails without marking the local job submitted.
 - Submitted **Submit changes** actions also patch `Tickets.status` to match the
   selected Job Logger ticket status. The removed
   `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED` setting must not be reintroduced.

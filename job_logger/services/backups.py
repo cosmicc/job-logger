@@ -51,6 +51,11 @@ AUTOMATIC_DAILY_BACKUP_DAYS_TO_KEEP = 3
 _BACKUP_RESTORE_LOCK = threading.RLock()
 _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
     "jobs": {
+        # v1.2.0 added ticket-note mode. Older backups restore as the original
+        # time-entry workflow with append-to-resolution enabled by default.
+        "entry_type": "time_entry",
+        "note_title": None,
+        "append_to_resolution": True,
         # v1.1.5 added server-backed AI cleanup undo state. Older full backups
         # restore with no pending cleanup revert available.
         "ai_cleanup_original_summary": None,

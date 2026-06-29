@@ -40,7 +40,7 @@ owning/submitting managed user's resource ID. The provider omits
 `TimeEntries.billingCodeID` so Autotask
 inherits the selected ticket's Work Type on create. API credentials, ticket
 status IDs, time-entry type, and optional Autotask provider settings remain
-environment-backed. New time-entry submissions and submitted-entry
+environment-backed. New Autotask record submissions and submitted-entry
 **Submit changes** resubmissions must patch `Tickets.status` to the selected
 local ticket status and require the mapped tenant status ID. Do not add a global
 Autotask impersonation resource setting; user-scoped workflows use the owning
@@ -82,13 +82,17 @@ Current provider responsibilities:
 - Query a ticket ID from a ticket number.
 - Keep service-call and open-ticket selection read-only against Autotask while
   the workflow stores a local editable default status of `In progress`.
-- Update selected ticket status during time-entry submission using the local
-  app ticket status and tenant status IDs.
-- Update ticket status during submitted-entry edits using the local app ticket
+- Update selected ticket status during time-entry and ticket-note submission
+  using the local app ticket status and tenant status IDs.
+- Update ticket status during submitted-record edits using the local app ticket
   status and tenant status IDs.
 - Create `TimeEntries`.
 - Patch existing submitted `TimeEntries`.
 - Delete existing submitted `TimeEntries` when the local job must return to
+  review.
+- Create customer-visible `TicketNotes`.
+- Patch existing submitted `TicketNotes`.
+- Delete existing submitted `TicketNotes` when the local job must return to
   review.
 - Return sanitized submission results.
 
@@ -317,12 +321,13 @@ validates a clicked ticket against it before persisting the ticket number.
 
 ## Submission Rules
 
-Time entry submission happens after review acceptance or retry by default. A
+Autotask submission happens after review acceptance or retry by default. A
 managed web user can opt in to **Submit from Work in Progress** on `/config`;
-when enabled, ending an active job submits through the same service immediately
-after local end-work validation succeeds.
+when enabled, ending an active job submits the selected Time entry or Ticket
+note through the same service immediately after local end-work validation
+succeeds.
 
-Required local fields before submission:
+Required local fields before time-entry submission:
 
 - Ticket number.
 - Ticket status.
@@ -331,6 +336,15 @@ Required local fields before submission:
 - End time.
 - Summary notes.
 - Work location mode, which defaults to Remote.
+- Append to resolution.
+
+Required local fields before ticket-note submission:
+
+- Ticket number.
+- Ticket status.
+- Note title.
+- Note description.
+- Append to resolution.
 
 Direct Work in Progress submission must not bypass these requirements. If a
 required local field is missing, the end-work transaction should roll back and
@@ -378,14 +392,28 @@ retry, and submitted-entry update handlers must parse that visible prefix back
 into `work_location` before building the final payload, while still accepting
 older `Remote`, `Remote:`, `Remote -`, and matching On-Site prefixes.
 
+Ticket `TicketNotes` creation must query the selected `Tickets` row by
+`ticketNumber` to get `ticketID`. The payload must use the local note title as
+`title`, the unprefixed note description as `description`, the configured
+customer-visible publish value, the default ticket-note type value, and the
+local append-to-resolution setting. Job Logger ticket notes must never be
+internal. Ticket-note submission and submitted-note updates do not require or
+send start time, end time, hours worked, work location, role ID, billing code,
+or time-entry type.
+
+Both time entries and ticket notes must include the local
+append-to-resolution checkbox value in the Autotask payload. The local setting
+defaults on for newly created jobs and for restored legacy rows that did not
+have the column.
+
 User-scoped live calls must use the owning managed web user's Autotask resource
 ID for local `resourceID` payloads and resource filters. They must not send the
 optional Autotask `ImpersonationResourceId` header. Super-admin Resource lookup
 and debug connectivity checks do not have an owning managed user and must not
 use a global impersonation fallback.
 
-Submission must remain idempotent. A retry must not create duplicate time
-entries for the same accepted job.
+Submission must remain idempotent. A retry must not create duplicate Autotask
+records for the same accepted job.
 
 Both Review acceptance and direct Work in Progress submission must call
 `submit_job_to_autotask()` so idempotency keys, submission attempts, safe error
@@ -394,26 +422,28 @@ remain centralized.
 
 After a provider reports successful submission, ticket identity and destructive
 workflow actions remain protected. Do not allow later review save, ticket
-selection, accept/resend, retry, or local **Delete time entry** actions for that
-job. Supported submitted-job mutations are limited to audited external-entry
-actions: **Submit changes** validates one job date, start/end times, summary
-notes, work location, and ticket status, then patches the existing Autotask
-`TimeEntries` row by its stored external ID and reasserts the selected local
-ticket status on `Tickets.status`. A previously submitted `Complete` ticket may
-be moved to `In progress` before patching `TimeEntries`, then moved to the
-selected final status after the time-entry patch when needed. **Delete From
-Autotask** deletes
-`TimeEntries/{id}` and
-returns the local job to review only after Autotask confirms the delete. If
-the delete fails, the selected review detail may offer a session-scoped,
-local-only purge fallback that removes the Job Logger row while warning that
-the Autotask time entry may still exist. If either action fails, keep local
-state aligned with the last known successful Autotask state and store only safe
-error details.
+selection, accept/resend, retry, local delete actions, or entry-type conversion
+for that job. Supported submitted-job mutations are limited to audited external
+record actions: time-entry **Submit changes** validates one job date,
+start/end times, summary notes, work location, append-to-resolution, and ticket
+status, then patches the existing Autotask `TimeEntries` row by its stored
+external ID. Ticket-note **Submit changes** validates note title, note
+description, append-to-resolution, and ticket status, then patches the existing
+Autotask `TicketNotes` row by its stored external ID. Both paths reassert the
+selected local ticket status on `Tickets.status`. A previously submitted
+`Complete` ticket may be moved to `In progress` before patching the external
+record, then moved to the selected final status after the record patch when
+needed. **Delete From Autotask** deletes `TimeEntries/{id}` or
+`TicketNotes/{id}` and returns the local job to review only after Autotask
+confirms the delete. If the delete fails, the selected review detail may offer
+a session-scoped, local-only purge fallback that removes the Job Logger row
+while warning that the Autotask record may still exist. If either action fails,
+keep local state aligned with the last known successful Autotask state and
+store only safe error details.
 
 Live Autotask write failures should use `_raise_for_safe_response()` so bounded
-body-level messages from `Tickets` or `TimeEntries` errors are shown without
-falling back to generic HTTP client exception text.
+body-level messages from `Tickets`, `TimeEntries`, or `TicketNotes` errors are
+shown without falling back to generic HTTP client exception text.
 
 ## Diagnostics And Scripts
 
@@ -426,14 +456,14 @@ submission-attempt list should keep its full table width inside a horizontal
 scroller on phone layouts so attempt metadata does not get squeezed into
 unreadable columns.
 Autotask provider failures also update cached app health. Any failed live
-Autotask HTTP/status response, failed time-entry submission/update/delete
-result, or failed manual connectivity test should keep the admin-only top-bar
-health alert visible until the same semantic Autotask operation type succeeds
-again. A successful request for a different operation must not clear another
-operation's active failure. This applies to live Autotask requests triggered by
-ordinary managed users, managed Admin users, and the config super admin. Do not
-run the connectivity test from shared header rendering; the header reads cached
-state only.
+Autotask HTTP/status response, failed time-entry or ticket-note
+submission/update/delete result, or failed manual connectivity test should keep
+the admin-only top-bar health alert visible until the same semantic Autotask
+operation type succeeds again. A successful request for a different operation
+must not clear another operation's active failure. This applies to live Autotask
+requests triggered by ordinary managed users, managed Admin users, and the
+config super admin. Do not run the connectivity test from shared header
+rendering; the header reads cached state only.
 
 The script `scripts/discover_autotask_ids.py` is for read-only tenant metadata
 discovery using `.env` configuration. Keep it read-only and never print

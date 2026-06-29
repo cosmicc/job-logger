@@ -101,6 +101,13 @@ Active jobs support these updates before completion:
   both come from the server-backed company search result and must verify
   together before they are saved.
 - Summary notes.
+- Entry type, either Time entry or Ticket note. Time entry is the normal
+  default. Ticket note mode may be selected only before successful Autotask
+  submission.
+- Note title when the entry type is Ticket note. The title is required for
+  submission, but may be incomplete while the active Work in Progress card is
+  being edited.
+- Append to resolution, defaulting on for both time entries and ticket notes.
 - Work location mode, either Remote or On-Site, which is stored separately from
   the visible notes.
 - Local job date through the Work in Progress **Job date** calendar field. The
@@ -121,6 +128,13 @@ Active jobs support these updates before completion:
   the canonical label after active time saves, and browser JavaScript should
   update the visible label immediately when the visible start or stop time
   changes.
+
+When Ticket note is selected, the Work in Progress UI must disable rounded
+start and rounded stop controls, hide the duration label, hide Remote/On-Site,
+show the note-title field above the note-description textarea, and change the
+finish/delete labels to **End Note** and **Delete Note**. If the user's
+**Submit from Work in Progress** preference is enabled, the finish label should
+be a submit-note label while still posting through the normal end-work route.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job client and summary edits, not ticket
@@ -231,8 +245,9 @@ require authentication, CSRF, and job ownership. Mobile active deletion records
 `job.active.deleted`; review deletion records `job.review.deleted`. Do not use
 the mobile endpoint for reviewed, submitted, or failed jobs.
 In the active mobile card, the destructive mobile discard action is labeled
-**Delete** and shares a row with **End Work** or **Submit to Autotask** to keep
-the Work in Progress actions compact.
+**Delete** for time entries or **Delete Note** for notes, and shares a row with
+**End Work**, **End Note**, or the direct-submit variant to keep the Work in
+Progress actions compact.
 When two active jobs are present, their Work in Progress panels should use
 distinct slot shading. In full-browser layout, keep End Work/Delete directly
 under the Record/AI Cleanup row and place recording or AI cleanup status below
@@ -253,25 +268,33 @@ Ending work requires:
 - Valid selected company ID if one is submitted.
 - Current Work in Progress work-location mode.
 - Current Work in Progress ticket status.
+- Current entry type.
+- Current append-to-resolution setting.
 - Current summary notes carried from the mobile textarea.
 
 After ending, the default workflow moves the job to review. When the owning
 managed web user has enabled **Submit from Work in Progress** on `/config`,
 the same end-work route changes the active finish button to **Submit to
-Autotask** and submits the completed job through `submit_job_to_autotask()`
+Autotask** for time entries or a submit-note label for notes and submits the
+completed job through `submit_job_to_autotask()`
 after `end_job()` has assigned rounded stop time and local work date.
 
 Direct Work in Progress submission rules:
 
 - The preference is per-user, database-backed, and default off.
 - The route must still validate ownership, CSRF, active status, client,
-  selected company ID, work location, ticket status, and summary text.
+  selected company ID, entry type, ticket status, append-to-resolution, and
+  submitted text. Time entries also require work location and rounded end time.
+  Ticket notes require a note title and note description instead of start/stop
+  time fields.
 - The browser may copy hidden work-location and ticket-status values from the
   active form for normal UX, but the server must validate those values again.
 - `submit_job_to_autotask()` remains the only submission service. Do not create
   a separate mobile-only Autotask path.
-- Direct submission must require ticket number, ticket status, rounded end time,
-  and non-empty summary notes before any Autotask call is attempted.
+- Direct submission must require ticket number and ticket status for both
+  record types. Time entries require rounded end time and non-empty summary
+  notes before any Autotask call is attempted. Ticket notes require note title
+  and non-empty note description before any Autotask call is attempted.
 - Missing local submission fields should roll back the transaction so the job
   stays active and can be fixed in Work in Progress.
 - Provider-level Autotask failures should use the existing submission-failed
@@ -369,8 +392,8 @@ Review detail uses `POST /review/{job_id}/summary/cleanup`. The returned text
 replaces the review summary textarea. Non-submitted review jobs continue through
 the existing autosave path, and cleanup waits for review audio recording or
 transcription to finish. Submitted jobs do not patch Autotask automatically; the
-user must still click **Submit changes** to update the existing external Autotask
-time entry.
+user must still click **Submit changes** to update the existing external
+Autotask record.
 
 After a successful cleanup, the browser switches the same button to **Revert
 cleanup** while the job has stored cleanup undo state. The server stores the
@@ -404,8 +427,10 @@ Review supports:
   `POST /review/{job_id}/client`, must verify the selected company ID and
   display name through the Autotask provider, rejects typed-only or mismatched
   names, and becomes read-only once saved.
-- Editing ticket status, start date/time, end date/time, and summary notes
-  before successful Autotask submission.
+- Editing entry type, ticket status, append-to-resolution, start date/time,
+  end date/time, and summary notes before successful Autotask submission.
+- Editing note title for Ticket note entries before successful Autotask
+  submission. Submitted entries must reject entry-type conversion.
 - Showing the rounded duration on a centered row under the selected detail
   start/end time controls and updating it from the server-normalized autosave
   response or the browser's current visible time values. Do not nest the
@@ -435,24 +460,29 @@ Ticket number is intentionally required only before Autotask submission, not for
 ordinary save operations.
 
 The review summary textarea displays the complete Autotask `summaryNotes`
-string, including the leading `Remote. ` or `On-Site. ` prefix. Review save,
-accept, retry, and submitted-entry update handlers must parse that prefix back
-into the stored work-location mode and keep the persisted note body clean. The review
-list must show each row's Remote or On-Site mode, and the review detail
-work-location control must rewrite the visible summary prefix when it changes.
-This allows the operator to correct the final Autotask notes without making
+string for Time entry mode, including the leading `Remote. ` or `On-Site. `
+prefix. Review save, accept, retry, and submitted-entry update handlers must
+parse that prefix back into the stored work-location mode and keep the
+persisted note body clean. Ticket note mode must show an unprefixed **Note
+description** textarea, show a required **Note title** field above it, hide
+Remote/On-Site, disable the start and end time controls, and hide the duration
+label. The review list must show each row's Remote or On-Site mode for time
+entries and Ticket note for notes, and the review detail work-location control
+must rewrite the visible summary prefix when it changes on time entries. This
+allows the operator to correct the final Autotask notes without making
 ticket/client identity editable.
 
 The review detail form does not expose a manual Save button. Editable review
 fields are saved through debounced background posts to `POST /review/{job_id}/save`.
 The route still supports normal form posts for compatibility, and the Accept,
-Retry, and **Delete time entry** actions remain explicit workflow actions.
+Retry, and local delete actions remain explicit workflow actions.
 Review detail action controls should stay in the selected detail pane and render
 as compact paired rows on both phone and full-browser layouts. Use no more than
 two buttons per row. Pair **Record** with **AI Cleanup** under Summary notes,
-pair **End Work** with **Delete time entry** for active jobs, pair **Submit
-changes** with **Delete From Autotask** for submitted entries, and pair **Accept
-and Submit** with **Delete time entry** for normal unsubmitted entries.
+pair **End Work** or **End Note** with the matching local delete label for
+active jobs, pair **Submit changes** with **Delete From Autotask** for
+submitted entries, and pair **Accept and Submit** with **Delete time entry** or
+**Delete note** for normal unsubmitted entries.
 Submission-failed jobs may use one row for **Retry** and **Accept and Submit**,
 with destructive local delete on its own following row. Phone-sized Review
 detail should place recording and AI cleanup status text below the summary
@@ -489,23 +519,25 @@ description, keep the card visible with the standard no-description message.
 
 After a job is successfully submitted to Autotask, ticket/client identity and
 workflow actions remain protected. The UI must keep ticket selection,
-accept/resend, retry, and local **Delete time entry** controls hidden or
-blocked, and it should not show the stored Autotask `TimeEntries` external ID
-in the selected detail. Date, start time, end time, summary notes, work
-location, and ticket status can stay editable only when the submitted detail
-shows **Submit changes**.
-That button must call the submitted-entry update route so the existing Autotask
-`TimeEntries` row is patched before local values are kept. Submit changes must
-also reassert the selected local ticket status on `Tickets.status`; a previously
-submitted Complete ticket may be moved to In progress before patching
-`TimeEntries`, then the selected final status may be applied after the
-time-entry patch. The submitted detail can also show **Delete From Autotask**,
-which deletes the external time entry and moves the
-local job back to review only after Autotask confirms the delete. This action
-must not delete the local job, audit events, or submission attempts. If Delete
-From Autotask fails, the selected detail may show a session-scoped local-only
-purge dialog that warns the Autotask time entry may still exist before removing
-the Job Logger review row.
+accept/resend, retry, local delete controls, and entry-type conversion hidden
+or blocked, and it should not show the stored Autotask external ID in the
+selected detail. Date, start time, end time, summary notes, work location,
+append-to-resolution, and ticket status can stay editable for submitted time
+entries only when the submitted detail shows **Submit changes**. Note title,
+note description, append-to-resolution, and ticket status can stay editable for
+submitted ticket notes through the same action. That button must call the
+submitted-entry update route so the existing Autotask `TimeEntries` or
+`TicketNotes` row is patched before local values are kept. Submit changes must
+also reassert the selected local ticket status on `Tickets.status`; a
+previously submitted Complete ticket may be moved to In progress before
+patching the external record, then the selected final status may be applied
+after the record patch. The submitted detail can also show **Delete From
+Autotask**, which deletes the external Autotask record and moves the local job
+back to review only after Autotask confirms the delete. This action must not
+delete the local job, audit events, or submission attempts. If Delete From
+Autotask fails, the selected detail may show a session-scoped local-only purge
+dialog that warns the Autotask record may still exist before removing the Job
+Logger review row.
 
 The review detail uses one local job date with start and end times, and the
 **Job date** label shows `(Today)` when the selected date is the current
@@ -522,7 +554,8 @@ states, failed submission states, or audited cleanup paths.
 **Delete time entry** exists for strict local cleanup from review detail and may
 delete active, ready-for-review, or failed local jobs when the current managed
 web user owns the job. Successfully submitted Autotask jobs cannot use local
-review cleanup because local history must stay tied to the external time entry.
+review cleanup because local history must stay tied to the external Autotask
+record.
 The only submitted-job local purge exception is the explicit fallback after
 Delete From Autotask fails. Use the audited Submit changes or Delete From Autotask
 paths for submitted-entry corrections instead of expanding local destructive

@@ -108,6 +108,8 @@
           {% set job_label = active_job.job_slot if active_job.job_slot else loop.index %}
           {% set active_job_date = active_job.local_work_date or active_job.rounded_start_utc|local_date %}
           {% set rounded_stop_utc = active_rounded_stop_times.get(active_job.id) if active_rounded_stop_times is defined else active_job.rounded_end_utc %}
+          {% set selected_entry_type = active_job.entry_type.value if active_job.entry_type else "time_entry" %}
+          {% set is_ticket_note = selected_entry_type == "ticket_note" %}
           <section
             class="work-panel active-job-panel active-job-panel-slot-{{ job_label }}"
             data-active-job-card="{{ active_job.id }}"
@@ -135,7 +137,7 @@
                   <form
                     method="post"
                     action="/jobs/{{ active_job.id }}/start-time"
-                    class="rounded-start-time-form active-time-step-controls"
+                    class="rounded-start-time-form active-time-step-controls{% if is_ticket_note %} time-controls-disabled{% endif %}"
                     data-active-time-form
                     data-active-time-kind="start"
                     data-job-id="{{ active_job.id }}"
@@ -155,6 +157,7 @@
                       value="-15"
                       data-active-time-delta="-15"
                       aria-label="Decrease rounded start by 15 minutes"
+                      {% if is_ticket_note %}disabled{% endif %}
                     >
                       -15
                     </button>
@@ -171,6 +174,7 @@
                       data-active-time-kind="start"
                       required
                       aria-label="Rounded start time"
+                      {% if is_ticket_note %}disabled{% endif %}
                     >
                     <button
                       type="submit"
@@ -180,6 +184,7 @@
                       value="15"
                       data-active-time-delta="15"
                       aria-label="Increase rounded start by 15 minutes"
+                      {% if is_ticket_note %}disabled{% endif %}
                     >
                       +15
                     </button>
@@ -192,7 +197,7 @@
                   <form
                     method="post"
                     action="/jobs/{{ active_job.id }}/stop-time"
-                    class="rounded-stop-time-form active-time-step-controls"
+                      class="rounded-stop-time-form active-time-step-controls{% if is_ticket_note %} time-controls-disabled{% endif %}"
                     data-active-time-form
                     data-active-time-kind="stop"
                     data-job-id="{{ active_job.id }}"
@@ -212,6 +217,7 @@
                       value="-15"
                       data-active-time-delta="-15"
                       aria-label="Decrease rounded stop by 15 minutes"
+                      {% if is_ticket_note %}disabled{% endif %}
                     >
                       -15
                     </button>
@@ -233,6 +239,7 @@
                       data-initial-rounded-stop-local-time="{{ rounded_stop_utc|local_time }}"
                       required
                       aria-label="Rounded stop time"
+                      {% if is_ticket_note %}disabled{% endif %}
                     >
                     <button
                       type="submit"
@@ -242,17 +249,46 @@
                       value="15"
                       data-active-time-delta="15"
                       aria-label="Increase rounded stop by 15 minutes"
+                      {% if is_ticket_note %}disabled{% endif %}
                     >
                       +15
                     </button>
                   </form>
-                  <p class="duration-inline duration-centered">
+                  <p class="duration-inline duration-centered{% if is_ticket_note %} is-hidden{% endif %}" data-duration-row>
                     Duration:
                     <strong data-duration-display>{{ active_job.rounded_start_utc|duration_label(rounded_stop_utc) }}</strong>
                   </p>
                 </dd>
               </div>
-              <div class="metric-card work-location-card" aria-label="Work type">
+              <div class="metric-card entry-type-card" aria-label="Entry type">
+                <dd>
+                  <div class="work-location-switch entry-type-switch" data-entry-type-toggle role="radiogroup" aria-label="Entry type">
+                    <label>
+                      <input
+                        type="radio"
+                        name="entry_type"
+                        value="time_entry"
+                        form="active-ticket-form-{{ active_job.id }}"
+                        data-entry-type-input
+                        {% if selected_entry_type == "time_entry" %}checked{% endif %}
+                      >
+                      <span>Time entry</span>
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="entry_type"
+                        value="ticket_note"
+                        form="active-ticket-form-{{ active_job.id }}"
+                        data-entry-type-input
+                        {% if is_ticket_note %}checked{% endif %}
+                      >
+                      <span>Ticket note</span>
+                    </label>
+                  </div>
+                </dd>
+              </div>
+              <div class="metric-card work-location-card{% if is_ticket_note %} is-hidden{% endif %}" aria-label="Work type" data-work-location-card>
                 <dd>
                   {% set selected_work_location = active_job.work_location.value if active_job.work_location else "remote" %}
                   <div class="work-location-switch" data-work-location-toggle role="radiogroup" aria-label="Work type">
@@ -435,8 +471,38 @@
             {% endif %}
 
             <div class="description-box">
+              <label
+                class="note-title-field {% if not is_ticket_note %}is-hidden{% endif %}"
+                for="note-title-{{ active_job.id }}"
+                data-note-title-field
+              >
+                <span>Note title</span>
+                <input
+                  id="note-title-{{ active_job.id }}"
+                  type="text"
+                  name="note_title"
+                  value="{{ active_job.note_title or '' }}"
+                  maxlength="250"
+                  form="active-ticket-form-{{ active_job.id }}"
+                  data-note-title-input
+                  {% if is_ticket_note %}required{% endif %}
+                  {% if not is_ticket_note %}disabled{% endif %}
+                >
+              </label>
+              <label class="append-resolution-field">
+                <input type="hidden" name="append_to_resolution" value="false" form="active-ticket-form-{{ active_job.id }}">
+                <input
+                  type="checkbox"
+                  name="append_to_resolution"
+                  value="true"
+                  form="active-ticket-form-{{ active_job.id }}"
+                  data-append-resolution-input
+                  {% if active_job.append_to_resolution %}checked{% endif %}
+                >
+                <span>Append to resolution</span>
+              </label>
               <label for="description-preview-{{ active_job.id }}">
-                <span>Summary notes</span>
+                <span data-summary-label>{% if is_ticket_note %}Note description{% else %}Summary notes{% endif %}</span>
                 <textarea
                   id="description-preview-{{ active_job.id }}"
                   class="job-description"
@@ -487,6 +553,7 @@
                     data-job-id="{{ active_job.id }}"
                     data-page-loading-form
                     data-loading-message="{% if submit_from_work_in_progress_enabled %}Submitting to Autotask...{% else %}Ending work...{% endif %}"
+                    data-submit-from-work-in-progress="{% if submit_from_work_in_progress_enabled %}true{% else %}false{% endif %}"
                   >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input
@@ -509,6 +576,25 @@
                     >
                     <input
                       type="hidden"
+                      class="end-entry-type"
+                      name="entry_type"
+                      value="{{ selected_entry_type }}"
+                    >
+                    <input
+                      type="hidden"
+                      class="end-note-title"
+                      name="note_title"
+                      value="{{ active_job.note_title or '' }}"
+                    >
+                    <input type="hidden" name="append_to_resolution" value="false">
+                    <input
+                      type="hidden"
+                      class="end-append-to-resolution"
+                      name="append_to_resolution"
+                      value="{% if active_job.append_to_resolution %}true{% else %}false{% endif %}"
+                    >
+                    <input
+                      type="hidden"
                       class="end-ticket-status"
                       name="ticket_status"
                       value="{{ active_job.ticket_status.value if active_job.ticket_status else 'in_progress' }}"
@@ -518,7 +604,13 @@
                       <svg viewBox="0 0 24 24" aria-hidden="true">
                         <rect x="6" y="6" width="12" height="12"></rect>
                       </svg>
-                      {% if submit_from_work_in_progress_enabled %}Submit to Autotask{% else %}End Work{% endif %}
+                      <span data-end-entry-label>
+                        {% if is_ticket_note %}
+                          {% if submit_from_work_in_progress_enabled %}Submit note{% else %}End Note{% endif %}
+                        {% else %}
+                          {% if submit_from_work_in_progress_enabled %}Submit to Autotask{% else %}End Work{% endif %}
+                        {% endif %}
+                      </span>
                     </button>
                   </form>
                   <form
@@ -526,8 +618,8 @@
                     action="/jobs/{{ active_job.id }}/delete"
                     class="delete-active-job-form"
                     data-page-loading-form
-                    data-loading-message="Deleting time entry..."
-                    data-confirm-message="Delete this time entry? This removes the in-progress entry without sending it to review."
+                    data-loading-message="{% if is_ticket_note %}Deleting note...{% else %}Deleting time entry...{% endif %}"
+                    data-confirm-message="{% if is_ticket_note %}Delete this note? This removes the in-progress note without sending it to review.{% else %}Delete this time entry? This removes the in-progress entry without sending it to review.{% endif %}"
                   >
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="danger-outline-button" type="submit">
@@ -537,7 +629,7 @@
                         <path d="M10 11v6"></path>
                         <path d="M14 11v6"></path>
                       </svg>
-                      Delete
+                      <span data-delete-entry-label>{% if is_ticket_note %}Delete Note{% else %}Delete{% endif %}</span>
                     </button>
                   </form>
                 </div>

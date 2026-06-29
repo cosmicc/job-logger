@@ -1,4 +1,4 @@
-"""Autotask time-entry submission providers."""
+"""Autotask submission providers for TimeEntries and TicketNotes."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from typing import Any
 import httpx
 
 from job_logger.config import Settings, settings
-from job_logger.enums import TicketStatus, WorkLocation
+from job_logger.enums import EntryType, TicketStatus, WorkLocation
 from job_logger.models import Job
 from job_logger.services.system_health import (
     record_autotask_api_failure,
@@ -33,10 +33,12 @@ MAX_SERVICE_CALL_LOOKUP_RESULTS = 25
 MAX_SERVICE_CALL_NAME_LENGTH = 240
 MAX_SERVICE_CALL_DETAIL_LENGTH = 2000
 MAX_TICKET_NOTE_LOOKUP_RESULTS = 100
-MAX_TICKET_NOTE_TITLE_LENGTH = 240
+MAX_TICKET_NOTE_TITLE_LENGTH = 250
 MAX_TICKET_NOTE_BODY_LENGTH = 12000
 MAX_TICKET_NOTE_AUTHOR_LENGTH = 160
 MAX_AUTOTASK_IN_FILTER_VALUES = 500
+CUSTOMER_VISIBLE_TICKET_NOTE_PUBLISH_VALUE = 1
+DEFAULT_TICKET_NOTE_TYPE = 1
 
 WORK_LOCATION_DISPLAY_LABELS = {
     WorkLocation.REMOTE: "Remote",
@@ -244,7 +246,8 @@ class AutotaskSubmissionResult:
     # succeeded controls the local job state transition.
     succeeded: bool
 
-    # external_id stores the remote Autotask time-entry ID when available.
+    # external_id stores the remote Autotask TimeEntries or TicketNotes ID when
+    # available.
     external_id: str | None
 
     # safe_error stores user-reviewable failure detail without secrets.
@@ -427,8 +430,25 @@ class BaseAutotaskProvider:
 
         raise NotImplementedError
 
+    def update_ticket_note(
+        self,
+        job: Job,
+        external_id: str,
+        *,
+        resource_id: int,
+        previous_ticket_status: TicketStatus | None = None,
+    ) -> AutotaskSubmissionResult:
+        """Update an existing external ticket note for a submitted job."""
+
+        raise NotImplementedError
+
     def delete_time_entry(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
         """Delete an existing external time entry for a submitted job."""
+
+        raise NotImplementedError
+
+    def delete_ticket_note(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
+        """Delete an existing external ticket note for a submitted job."""
 
         raise NotImplementedError
 
@@ -791,12 +811,46 @@ def build_autotask_summary_notes(job: Job) -> str:
     return f"{prefix} {raw_summary_notes}".strip()
 
 
+def build_ticket_note_description(job: Job) -> str:
+    """Return the customer-visible Autotask TicketNotes description."""
+
+    return str(job.summary_notes or job.description_text or "").strip()
+
+
+def _append_to_resolution_for_job(job: Job) -> bool:
+    """Return the local append-to-resolution setting, defaulting old blanks on."""
+
+    raw_append_to_resolution = getattr(job, "append_to_resolution", True)
+    return True if raw_append_to_resolution is None else bool(raw_append_to_resolution)
+
+
+def build_safe_ticket_note_snapshot(job: Job) -> dict[str, Any]:
+    """Build a non-secret snapshot of local ticket-note data used for submission."""
+
+    note_description = build_ticket_note_description(job)
+    return {
+        "job_id": job.id,
+        "entry_type": EntryType.TICKET_NOTE.value,
+        "ticket_number": job.ticket_number,
+        "ticket_status": job.ticket_status.value if job.ticket_status else None,
+        "noteTitleLength": len((job.note_title or "").strip()),
+        "noteDescriptionLength": len(note_description),
+        "publish": CUSTOMER_VISIBLE_TICKET_NOTE_PUBLISH_VALUE,
+        "noteType": DEFAULT_TICKET_NOTE_TYPE,
+        "appendToResolution": _append_to_resolution_for_job(job),
+    }
+
+
 def build_safe_submission_snapshot(job: Job) -> dict[str, Any]:
     """Build a non-secret snapshot of local job data used for submission."""
+
+    if job.entry_type == EntryType.TICKET_NOTE:
+        return build_safe_ticket_note_snapshot(job)
 
     summary_notes_for_autotask = build_autotask_summary_notes(job)
     return {
         "job_id": job.id,
+        "entry_type": EntryType.TIME_ENTRY.value,
         "ticket_number": job.ticket_number,
         "ticket_status": job.ticket_status.value if job.ticket_status else None,
         "startDateTime": format_autotask_datetime(job.rounded_start_utc),
@@ -804,6 +858,7 @@ def build_safe_submission_snapshot(job: Job) -> dict[str, Any]:
         "hoursWorked": str(_job_duration_hours(job)) if job.rounded_end_utc else None,
         "work_location": _work_location_for_job(job).value,
         "summaryNotesLength": len(summary_notes_for_autotask),
+        "appendToResolution": _append_to_resolution_for_job(job),
     }
 
 
@@ -824,10 +879,11 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         snapshot = build_safe_submission_snapshot(job)
         snapshot["resourceID"] = resource_id
         snapshot["defaultServiceDeskRoleID"] = default_service_desk_role_id
+        external_id_prefix = "mock-ticket-note" if job.entry_type == EntryType.TICKET_NOTE else "mock-time-entry"
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,
-            external_id=f"mock-time-entry-{job.id}",
+            external_id=f"{external_id_prefix}-{job.id}",
             safe_error=None,
             request_snapshot=snapshot,
         )
@@ -861,6 +917,48 @@ class MockAutotaskProvider(BaseAutotaskProvider):
 
         snapshot = {
             "operation": "delete_time_entry",
+            "job_id": job.id,
+            "ticket_number": job.ticket_number,
+            "external_id": external_id,
+            "resourceID": resource_id,
+        }
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=True,
+            external_id=external_id,
+            safe_error=None,
+            request_snapshot=snapshot,
+        )
+
+    def update_ticket_note(
+        self,
+        job: Job,
+        external_id: str,
+        *,
+        resource_id: int,
+        previous_ticket_status: TicketStatus | None = None,
+    ) -> AutotaskSubmissionResult:
+        """Return a deterministic success for submitted-note update tests."""
+
+        snapshot = build_safe_submission_snapshot(job)
+        snapshot["operation"] = "update_ticket_note"
+        snapshot["external_id"] = external_id
+        snapshot["resourceID"] = resource_id
+        snapshot["previous_ticket_status"] = previous_ticket_status.value if previous_ticket_status else None
+        snapshot["ticketStatusUpdateAttempted"] = job.ticket_status is not None
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=True,
+            external_id=external_id,
+            safe_error=None,
+            request_snapshot=snapshot,
+        )
+
+    def delete_ticket_note(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
+        """Return a deterministic success for submitted-note delete tests."""
+
+        snapshot = {
+            "operation": "delete_ticket_note",
             "job_id": job.id,
             "ticket_number": job.ticket_number,
             "external_id": external_id,
@@ -1083,7 +1181,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
 
 
 class LiveAutotaskProvider(BaseAutotaskProvider):
-    """Autotask REST API provider for reviewed time-entry submission."""
+    """Autotask REST API provider for reviewed TimeEntries and TicketNotes."""
 
     provider_name = "autotask"
 
@@ -2920,6 +3018,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             "endDateTime": format_autotask_datetime(job.rounded_end_utc),
             "hoursWorked": float(_job_duration_hours(job)),
             "summaryNotes": build_autotask_summary_notes(job),
+            "appendToResolution": _append_to_resolution_for_job(job),
         }
         if ticket_id is not None:
             if resource_id is None or resource_id <= 0:
@@ -2997,6 +3096,136 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         )
         self._raise_for_safe_response(response, "Autotask time entry deletion")
 
+    def _ticket_note_payload(self, job: Job, *, ticket_id: int | None = None) -> dict[str, Any]:
+        """Build customer-visible TicketNotes fields shared by create and update."""
+
+        note_title = str(job.note_title or "").strip()
+        if not note_title:
+            raise AutotaskSubmissionError("Ticket note title is required before Autotask submission.")
+
+        note_description = build_ticket_note_description(job)
+        if not note_description:
+            raise AutotaskSubmissionError("Ticket note description is required before Autotask submission.")
+
+        payload: dict[str, Any] = {
+            "title": note_title[:MAX_TICKET_NOTE_TITLE_LENGTH],
+            "description": note_description,
+            "publish": CUSTOMER_VISIBLE_TICKET_NOTE_PUBLISH_VALUE,
+            "noteType": DEFAULT_TICKET_NOTE_TYPE,
+            "appendToResolution": _append_to_resolution_for_job(job),
+        }
+        if ticket_id is not None:
+            payload["ticketID"] = ticket_id
+
+        return payload
+
+    def _create_ticket_note(self, client: httpx.Client, job: Job, ticket_id: int) -> str:
+        """Create the customer-visible Autotask TicketNotes row for the accepted job."""
+
+        payload = self._ticket_note_payload(job, ticket_id=ticket_id)
+        response = self._api_request(
+            client,
+            "POST",
+            "/TicketNotes",
+            "Autotask ticket note creation",
+            json=payload,
+        )
+        self._raise_for_safe_response(response, "Autotask ticket note creation")
+        response_payload = response.json()
+        item_id = response_payload.get("itemId") or response_payload.get("id") or response_payload.get("ItemId")
+        if item_id is None:
+            return "created-without-id"
+
+        return str(item_id)
+
+    def _update_ticket_note(self, client: httpx.Client, job: Job, external_id: str) -> None:
+        """Patch editable fields on an existing Autotask TicketNotes row."""
+
+        ticket_note_id = _coerce_positive_autotask_id(external_id)
+        if ticket_note_id is None:
+            raise AutotaskSubmissionError("Existing Autotask ticket note ID is required before updating.")
+
+        payload = self._ticket_note_payload(job)
+        payload["id"] = ticket_note_id
+        response = self._api_request(
+            client,
+            "PATCH",
+            "/TicketNotes",
+            "Autotask ticket note update",
+            json=payload,
+        )
+        self._raise_for_safe_response(response, "Autotask ticket note update")
+
+    def _delete_ticket_note(self, client: httpx.Client, external_id: str) -> None:
+        """Delete an existing Autotask TicketNotes row by remote ID."""
+
+        ticket_note_id = _coerce_positive_autotask_id(external_id)
+        if ticket_note_id is None:
+            raise AutotaskSubmissionError("Existing Autotask ticket note ID is required before deleting.")
+
+        response = self._api_request(
+            client,
+            "DELETE",
+            f"/TicketNotes/{ticket_note_id}",
+            "Autotask ticket note deletion",
+        )
+        self._raise_for_safe_response(response, "Autotask ticket note deletion")
+
+    def _submit_ticket_note_job(self, job: Job, *, resource_id: int) -> AutotaskSubmissionResult:
+        """Submit a reviewed job as a customer-visible Autotask ticket note."""
+
+        if not job.ticket_number:
+            raise AutotaskSubmissionError("Ticket number is required before Autotask ticket note submission.")
+
+        snapshot = build_safe_submission_snapshot(job)
+        snapshot.update(
+            {
+                "resourceID": resource_id,
+                "resourceIDSource": "managed_web_user.autotask_resource_id",
+                "ticketStatusUpdatePolicy": "required_on_submit",
+                "ticketStatusUpdateAttempted": False,
+                "ticketStatusPreUpdate": None,
+                "ticketStatusPostUpdate": None,
+            }
+        )
+        try:
+            self._ticket_status_id(job.ticket_status, required=True)
+            with self._client() as client:
+                ticket_id = self._query_ticket_id(client, job.ticket_number)
+                snapshot["ticketID"] = ticket_id
+                snapshot["ticketStatusUpdateAttempted"] = True
+                if job.ticket_status == TicketStatus.COMPLETE:
+                    snapshot["ticketStatusPreUpdate"] = TicketStatus.IN_PROGRESS.value
+                    self._update_ticket_status(client, ticket_id, TicketStatus.IN_PROGRESS, required=True)
+                else:
+                    snapshot["ticketStatusPreUpdate"] = job.ticket_status.value if job.ticket_status else None
+                    self._update_ticket_status(client, ticket_id, job.ticket_status, required=True)
+                external_id = self._create_ticket_note(client, job, ticket_id)
+                if job.ticket_status == TicketStatus.COMPLETE:
+                    snapshot["ticketStatusPostUpdate"] = TicketStatus.COMPLETE.value
+                    self._update_ticket_status(client, ticket_id, TicketStatus.COMPLETE, required=True)
+        except (httpx.HTTPError, AutotaskSubmissionError) as exc:
+            record_autotask_api_failure(
+                "Autotask ticket note submission failed.",
+                operation="Autotask ticket note submission",
+            )
+            return AutotaskSubmissionResult(
+                provider=self.provider_name,
+                succeeded=False,
+                external_id=None,
+                safe_error=str(exc),
+                request_snapshot=snapshot,
+            )
+
+        record_autotask_api_success(operation="Autotask ticket note submission")
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=True,
+            external_id=external_id,
+            safe_error=None,
+            request_snapshot=snapshot,
+        )
+
     def submit_job(
         self,
         job: Job,
@@ -3005,6 +3234,9 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         default_service_desk_role_id: int | None = None,
     ) -> AutotaskSubmissionResult:
         """Submit a reviewed job to the Autotask REST API."""
+
+        if job.entry_type == EntryType.TICKET_NOTE:
+            return self._submit_ticket_note_job(job, resource_id=resource_id)
 
         if not job.ticket_number:
             raise AutotaskSubmissionError("Ticket number is required before Autotask submission.")
@@ -3149,6 +3381,120 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             )
 
         record_autotask_api_success(operation="Autotask time entry update")
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=True,
+            external_id=external_id,
+            safe_error=None,
+            request_snapshot=snapshot,
+        )
+
+    def update_ticket_note(
+        self,
+        job: Job,
+        external_id: str,
+        *,
+        resource_id: int,
+        previous_ticket_status: TicketStatus | None = None,
+    ) -> AutotaskSubmissionResult:
+        """Update an existing Autotask ticket note from reviewed submitted fields."""
+
+        if not job.ticket_number:
+            raise AutotaskSubmissionError("Ticket number is required before Autotask ticket note updates.")
+
+        should_update_ticket_status = job.ticket_status is not None
+        should_reopen_complete_ticket = should_update_ticket_status and previous_ticket_status == TicketStatus.COMPLETE
+        should_update_status_after_note = should_update_ticket_status and (
+            (should_reopen_complete_ticket and job.ticket_status != TicketStatus.IN_PROGRESS)
+            or job.ticket_status == TicketStatus.COMPLETE
+        )
+        snapshot = build_safe_submission_snapshot(job)
+        snapshot.update(
+            {
+                "operation": "update_ticket_note",
+                "external_id": external_id,
+                "resourceID": resource_id,
+                "resourceIDSource": "managed_web_user.autotask_resource_id",
+                "previousTicketStatus": previous_ticket_status.value if previous_ticket_status else None,
+                "ticketStatusUpdatePolicy": "required_on_edit",
+                "ticketStatusUpdateRequested": should_update_ticket_status,
+                "ticketStatusUpdateAttempted": should_update_ticket_status,
+                "ticketStatusPreUpdate": TicketStatus.IN_PROGRESS.value if should_reopen_complete_ticket else None,
+                "ticketStatusPostUpdate": (
+                    job.ticket_status.value if should_update_status_after_note and job.ticket_status is not None else None
+                ),
+            }
+        )
+        try:
+            if should_update_ticket_status:
+                self._ticket_status_id(job.ticket_status, required=True)
+            if should_reopen_complete_ticket:
+                self._ticket_status_id(TicketStatus.IN_PROGRESS, required=True)
+            with self._client() as client:
+                ticket_id: int | None = None
+                if should_reopen_complete_ticket or should_update_ticket_status:
+                    ticket_id = self._query_ticket_id(client, job.ticket_number)
+                    snapshot["ticketID"] = ticket_id
+                if should_reopen_complete_ticket and ticket_id is not None:
+                    self._update_ticket_status(client, ticket_id, TicketStatus.IN_PROGRESS, required=True)
+                elif should_update_ticket_status and job.ticket_status != TicketStatus.COMPLETE and ticket_id is not None:
+                    self._update_ticket_status(client, ticket_id, job.ticket_status, required=True)
+                self._update_ticket_note(client, job, external_id)
+                if should_update_status_after_note and job.ticket_status is not None:
+                    if ticket_id is None:
+                        ticket_id = self._query_ticket_id(client, job.ticket_number)
+                        snapshot["ticketID"] = ticket_id
+                    self._update_ticket_status(client, ticket_id, job.ticket_status, required=True)
+        except (httpx.HTTPError, AutotaskSubmissionError) as exc:
+            record_autotask_api_failure(
+                "Autotask ticket note update failed.",
+                operation="Autotask ticket note update",
+            )
+            return AutotaskSubmissionResult(
+                provider=self.provider_name,
+                succeeded=False,
+                external_id=external_id,
+                safe_error=str(exc),
+                request_snapshot=snapshot,
+            )
+
+        record_autotask_api_success(operation="Autotask ticket note update")
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=True,
+            external_id=external_id,
+            safe_error=None,
+            request_snapshot=snapshot,
+        )
+
+    def delete_ticket_note(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
+        """Delete an existing Autotask ticket note from a submitted job."""
+
+        snapshot = {
+            "operation": "delete_ticket_note",
+            "job_id": job.id,
+            "ticket_number": job.ticket_number,
+            "external_id": external_id,
+            "resourceID": resource_id,
+            "resourceIDSource": "managed_web_user.autotask_resource_id",
+        }
+        try:
+            with self._client() as client:
+                self._delete_ticket_note(client, external_id)
+        except (httpx.HTTPError, AutotaskSubmissionError) as exc:
+            record_autotask_api_failure(
+                "Autotask ticket note deletion failed.",
+                operation="Autotask ticket note deletion",
+            )
+            return AutotaskSubmissionResult(
+                provider=self.provider_name,
+                succeeded=False,
+                external_id=external_id,
+                safe_error=str(exc),
+                request_snapshot=snapshot,
+            )
+
+        record_autotask_api_success(operation="Autotask ticket note deletion")
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,

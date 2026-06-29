@@ -73,6 +73,10 @@
   padding: 0 10px;
 }
 
+.entry-type-switch span {
+  min-width: 84px;
+}
+
 .record-notes-button.is-recording,
 .recording-control-stack .record-notes-button.is-recording,
 .record-notes-button[aria-pressed="true"],

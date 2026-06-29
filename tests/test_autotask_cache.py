@@ -10,7 +10,7 @@ import httpx
 import pytest
 
 from job_logger.config import settings
-from job_logger.enums import JobStatus, TicketStatus, WorkLocation
+from job_logger.enums import EntryType, JobStatus, TicketStatus, WorkLocation
 from job_logger.models import Job
 from job_logger.services import system_health
 from job_logger.services.autotask import (
@@ -637,6 +637,22 @@ class FakeTimeEntryCreateClient:
         return FakeAutotaskResponse({"itemId": 987654})
 
 
+class FakeTicketNoteCreateClient:
+    """Fake Autotask client that captures the TicketNotes create payload."""
+
+    def __init__(self) -> None:
+        """Initialize payload capture used by the TicketNotes create test."""
+
+        self.posted_payload: dict[str, Any] | None = None
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Capture one TicketNotes POST and return a successful response."""
+
+        assert endpoint_path == "/TicketNotes"
+        self.posted_payload = dict(json)
+        return FakeAutotaskResponse({"itemId": 456789})
+
+
 class FakeTicketTimeEntryContextClient:
     """Fake Autotask client that returns ticket fields used for TimeEntries."""
 
@@ -897,6 +913,22 @@ class FakeTimeEntryUpdateClient:
         return FakeAutotaskResponse({})
 
 
+class FakeTicketNoteUpdateClient:
+    """Fake Autotask client that captures the TicketNotes update payload."""
+
+    def __init__(self) -> None:
+        """Initialize payload capture used by the TicketNotes update test."""
+
+        self.patched_payload: dict[str, Any] | None = None
+
+    def patch(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Capture one TicketNotes PATCH and return a successful response."""
+
+        assert endpoint_path == "/TicketNotes"
+        self.patched_payload = dict(json)
+        return FakeAutotaskResponse({})
+
+
 class FakeSubmittedCompleteTimeEntryUpdateClient:
     """Fake client for editing a submitted entry whose ticket starts Complete."""
 
@@ -959,6 +991,40 @@ class FakeCompleteSubmissionClient:
         if endpoint_path == "/TimeEntries":
             self.posted_payload = dict(json)
             return FakeAutotaskResponse({"itemId": 987654})
+
+        raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
+
+    def patch(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Capture ticket status patch payloads."""
+
+        assert endpoint_path == "/Tickets"
+        self.operations.append((endpoint_path, dict(json)))
+        return FakeAutotaskResponse({})
+
+
+class FakeTicketNoteCompleteSubmissionClient:
+    """Fake client for complete-status TicketNotes submission sequencing."""
+
+    def __init__(self) -> None:
+        """Initialize operation captures for note create sequencing assertions."""
+
+        self.operations: list[tuple[str, dict[str, Any] | None]] = []
+        self.posted_payload: dict[str, Any] | None = None
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return ticket ID context or capture TicketNotes create payload."""
+
+        self.operations.append((endpoint_path, dict(json)))
+        if endpoint_path == "/Tickets/query":
+            return FakeAutotaskResponse(
+                {
+                    "items": [{"id": 123456, "ticketNumber": "T20260616.0001"}],
+                    "pageDetails": {},
+                }
+            )
+        if endpoint_path == "/TicketNotes":
+            self.posted_payload = dict(json)
+            return FakeAutotaskResponse({"itemId": 456789})
 
         raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
 
@@ -1140,6 +1206,21 @@ class FakeTimeEntryDeleteClient:
 
     def delete(self, endpoint_path: str) -> FakeAutotaskResponse:
         """Capture one TimeEntries DELETE request and return success."""
+
+        self.deleted_endpoint = endpoint_path
+        return FakeAutotaskResponse({})
+
+
+class FakeTicketNoteDeleteClient:
+    """Fake Autotask client that captures the TicketNotes delete endpoint."""
+
+    def __init__(self) -> None:
+        """Initialize endpoint capture used by the TicketNotes delete test."""
+
+        self.deleted_endpoint: str | None = None
+
+    def delete(self, endpoint_path: str) -> FakeAutotaskResponse:
+        """Capture one TicketNotes DELETE request and return success."""
 
         self.deleted_endpoint = endpoint_path
         return FakeAutotaskResponse({})
@@ -1865,7 +1946,42 @@ def test_time_entry_creation_uses_ticket_role_and_inherits_billing_code() -> Non
     assert fake_client.posted_payload["roleID"] == 8
     assert fake_client.posted_payload["timeEntryType"] == 2
     assert fake_client.posted_payload["summaryNotes"] == "Remote. Payload must not include allocation code."
+    assert fake_client.posted_payload["appendToResolution"] is True
     assert "billingCodeID" not in fake_client.posted_payload
+
+
+def test_ticket_note_creation_uses_customer_visible_payload() -> None:
+    """TicketNotes submissions should create customer-visible notes with the selected title."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTicketNoteCreateClient()
+    rounded_start_utc = datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="ticket-note-payload-test",
+        status=JobStatus.READY_FOR_REVIEW,
+        ticket_number="T20260616.0001",
+        ticket_status=TicketStatus.IN_PROGRESS,
+        entry_type=EntryType.TICKET_NOTE,
+        note_title="Customer update",
+        append_to_resolution=False,
+        summary_notes="This customer-visible note should be sent to Autotask.",
+        description_text="This customer-visible note should be sent to Autotask.",
+        raw_start_utc=rounded_start_utc,
+        rounded_start_utc=rounded_start_utc,
+    )
+
+    external_id = provider._create_ticket_note(fake_client, job, ticket_id=123456)
+
+    assert external_id == "456789"
+    assert fake_client.posted_payload == {
+        "title": "Customer update",
+        "description": "This customer-visible note should be sent to Autotask.",
+        "publish": 1,
+        "noteType": 1,
+        "appendToResolution": False,
+        "ticketID": 123456,
+    }
+    assert "internal" not in fake_client.posted_payload
 
 
 def test_complete_submission_updates_ticket_status_after_time_entry_create(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1913,6 +2029,60 @@ def test_complete_submission_updates_ticket_status_after_time_entry_create(monke
         ),
         ("/Tickets", {"id": 123456, "status": 1}),
         ("/TimeEntries", fake_client.posted_payload),
+        ("/Tickets", {"id": 123456, "status": 5}),
+    ]
+
+
+def test_complete_ticket_note_submission_updates_status_after_note_create(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Final Complete status should be applied after customer-visible TicketNotes creation."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTicketNoteCompleteSubmissionClient()
+    rounded_start_utc = datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="complete-note-submit-test",
+        status=JobStatus.READY_FOR_REVIEW,
+        ticket_number="T20260616.0001",
+        ticket_status=TicketStatus.COMPLETE,
+        entry_type=EntryType.TICKET_NOTE,
+        note_title="Complete note",
+        append_to_resolution=True,
+        summary_notes="Created a customer-visible note and completed the ticket.",
+        description_text="Created a customer-visible note and completed the ticket.",
+        raw_start_utc=rounded_start_utc,
+        rounded_start_utc=rounded_start_utc,
+    )
+
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeAutotaskClientContext:
+        """Return the fake client while matching the provider client signature."""
+
+        assert timeout_seconds == 30.0
+        return FakeAutotaskClientContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    result = provider.submit_job(job, resource_id=1)
+
+    assert result.succeeded is True
+    assert result.external_id == "456789"
+    assert result.request_snapshot["entry_type"] == "ticket_note"
+    assert result.request_snapshot["ticketStatusPreUpdate"] == "in_progress"
+    assert result.request_snapshot["ticketStatusPostUpdate"] == "complete"
+    assert fake_client.posted_payload is not None
+    assert fake_client.posted_payload["title"] == "Complete note"
+    assert fake_client.posted_payload["publish"] == 1
+    assert fake_client.posted_payload["appendToResolution"] is True
+    assert fake_client.operations == [
+        (
+            "/Tickets/query",
+            {
+                "IncludeFields": ["id", "ticketNumber"],
+                "filter": [{"op": "eq", "field": "ticketNumber", "value": "T20260616.0001"}],
+                "MaxRecords": 1,
+            },
+        ),
+        ("/Tickets", {"id": 123456, "status": 1}),
+        ("/TicketNotes", fake_client.posted_payload),
         ("/Tickets", {"id": 123456, "status": 5}),
     ]
 
@@ -2300,10 +2470,45 @@ def test_time_entry_update_patches_existing_entry_fields_only() -> None:
     assert fake_client.patched_payload["endDateTime"] == "2026-06-16T13:45:00Z"
     assert fake_client.patched_payload["hoursWorked"] == 0.75
     assert fake_client.patched_payload["summaryNotes"] == "Remote. Updated the submitted entry notes."
+    assert fake_client.patched_payload["appendToResolution"] is True
     assert "ticketID" not in fake_client.patched_payload
     assert "resourceID" not in fake_client.patched_payload
     assert "roleID" not in fake_client.patched_payload
     assert "billingCodeID" not in fake_client.patched_payload
+
+
+def test_ticket_note_update_patches_existing_note_fields_only() -> None:
+    """Submitted note edits must patch the existing TicketNotes row."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTicketNoteUpdateClient()
+    rounded_start_utc = datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
+    job = Job(
+        id="ticket-note-update-test",
+        status=JobStatus.SUBMITTED,
+        ticket_number="T20260616.0001",
+        ticket_status=TicketStatus.FOLLOW_UP,
+        entry_type=EntryType.TICKET_NOTE,
+        note_title="Updated customer note",
+        append_to_resolution=True,
+        summary_notes="Updated customer-visible note body.",
+        description_text="Updated customer-visible note body.",
+        raw_start_utc=rounded_start_utc,
+        rounded_start_utc=rounded_start_utc,
+    )
+
+    provider._update_ticket_note(fake_client, job, external_id="456789")
+
+    assert fake_client.patched_payload == {
+        "title": "Updated customer note",
+        "description": "Updated customer-visible note body.",
+        "publish": 1,
+        "noteType": 1,
+        "appendToResolution": True,
+        "id": 456789,
+    }
+    assert "ticketID" not in fake_client.patched_payload
+    assert "internal" not in fake_client.patched_payload
 
 
 def test_live_time_entry_update_reopens_complete_ticket_before_patch(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2406,6 +2611,17 @@ def test_time_entry_delete_uses_existing_entry_endpoint() -> None:
     provider._delete_time_entry(fake_client, external_id="987654")
 
     assert fake_client.deleted_endpoint == "/TimeEntries/987654"
+
+
+def test_ticket_note_delete_uses_existing_note_endpoint() -> None:
+    """Submitted note deletes must target the existing TicketNotes row."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTicketNoteDeleteClient()
+
+    provider._delete_ticket_note(fake_client, external_id="456789")
+
+    assert fake_client.deleted_endpoint == "/TicketNotes/456789"
 
 
 def test_time_entry_summary_notes_use_hidden_work_location_prefix() -> None:

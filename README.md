@@ -1,8 +1,9 @@
 # Job Logger
 
 Job Logger is a security-focused Dockerized Python web application for quickly
-recording Autotask time entries from a phone or web browser, reviewing or directly submitting recorded
-jobs, and sending accepted time entries to your Autotask timesheet.
+recording Autotask time entries or customer-visible ticket notes from a phone
+or web browser, reviewing or directly submitting recorded jobs, and sending
+accepted records to Autotask.
 
 ## Architecture
 
@@ -26,6 +27,7 @@ the control point for self-hosted applications:
 Autotask REST API references used by this app:
 
 - TimeEntries entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/TimeEntriesEntity.htm
+- TicketNotes entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/TicketNotesEntity.htm
 - Tickets entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/TicketsEntity.htm
 - Companies entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/CompaniesEntity.htm
 - Resources entity: https://www.autotask.net/help/developerhelp/Content/APIs/REST/Entities/ResourcesEntity.htm
@@ -624,7 +626,7 @@ failure details use the same plain-text status line as audio recording; the
 progress, and cleanup waits until audio recording/transcription is finished. On
 review detail, the cleaned text replaces the textarea; non-submitted jobs
 autosave as usual, while submitted jobs still require **Submit changes** to
-patch the existing Autotask time entry.
+patch the existing Autotask record.
 After a successful cleanup, the button changes to **Revert cleanup** and can
 restore the pre-cleanup notes after page reload or navigation. Submitted Review
 entries can keep a pending cleaned draft across reloads, but Autotask is still
@@ -720,18 +722,21 @@ to update ticket workflow status. Configure all status IDs:
 Open-ticket and service-call selection do not use the Autotask `Tickets`
 endpoint for status changes; they only default the local editable ticket status
 to `In progress`. Autotask ticket status writes wait until the complete time
-entry is submitted or an already submitted entry is explicitly edited.
+entry or ticket note is submitted, or until an already submitted record is
+explicitly edited.
 
 Managed web users can enable **Submit from Work in Progress** on `/config`.
 This option is off by default so existing accounts keep the review-first
 workflow. When enabled, the active Work in Progress finish button changes to
-**Submit to Autotask** and uses the same idempotent Autotask submission service
-as Review acceptance. Direct submission still requires the selected ticket
-number, ticket status, rounded end time, verified Autotask client, and summary
-notes. If those local fields are missing, the job stays active so the
-technician can correct it. If Autotask itself rejects the submission, the job
-moves to the failed submission review state with the safe error message and can
-be retried from Review.
+**Submit to Autotask** for time entries or a submit-note label for ticket notes
+and uses the same idempotent Autotask submission service as Review acceptance.
+Direct time-entry submission still requires the selected ticket number, ticket
+status, rounded end time, verified Autotask client, and summary notes. Direct
+ticket-note submission requires the selected ticket, ticket status, note title,
+and note description. If those local fields are missing, the job stays active
+so the technician can correct it. If Autotask itself rejects the submission,
+the job moves to the failed submission review state with the safe error message
+and can be retried from Review.
 
 The mobile page can search Autotask companies while entering the client name.
 Selecting a company stores the verified display name and Autotask company ID
@@ -866,47 +871,58 @@ overlay so those small time changes feel immediate.
 Work in Progress shows the rounded duration centered under **Rounded stop**,
 and Review detail shows it centered under the start/end time controls. The
 value updates as those times change.
-In active mobile Work in Progress cards, **End Work** or **Submit to Autotask**
-shares a row with the destructive **Delete** action to keep the active-card
-controls compact. Active jobs selected on Review detail also show **End Work**
-beside **Delete time entry**, and the button returns to that review detail after
-the job is ended.
-The app also queries `Tickets` by `ticketNumber`, creates a `TimeEntries` row,
-and records every attempt in `submission_attempts`.
+Each Work in Progress card can switch between **Time entry** and **Ticket note**
+before Autotask submission. Ticket note mode disables start/stop time controls,
+hides Remote/On-Site, shows a required note-title field above the note
+description, and changes the finish/delete labels to note wording. Both time
+entries and notes include an **Append to resolution** checkbox, checked by
+default.
+In active mobile Work in Progress cards, **End Work**, **End Note**, or the
+direct-submit variant shares a row with the destructive delete action to keep
+the active-card controls compact. Active jobs selected on Review detail also
+show the matching end/delete labels, and the button returns to that review
+detail after the job is ended.
+The app also queries `Tickets` by `ticketNumber`, creates either a
+`TimeEntries` row or a customer-visible `TicketNotes` row, and records every
+attempt in `submission_attempts`.
 
 After a job is successfully submitted to Autotask, ticket and client identity
-stay read-only. The selected review detail allows job date, start time, end
-time, summary notes, work location, and ticket status edits through
-**Submit changes**, which patches the existing `TimeEntries` row instead of
-creating a duplicate entry. **Submit changes** also patches `Tickets.status` to
-match the selected Job Logger status, including temporarily moving a previously
-`Complete` ticket to `In progress` before the time-entry patch when Autotask
-requires that sequence. The selected detail keeps the external Autotask
-time-entry ID hidden because it is only needed internally for updates and
-deletion.
+stay read-only, and the entry type can no longer be changed. The selected
+review detail allows job date, start time, end time, summary notes, work
+location, append-to-resolution, and ticket status edits for time entries
+through **Submit changes**, which patches the existing `TimeEntries` row
+instead of creating a duplicate entry. For ticket notes, **Submit changes**
+updates the existing `TicketNotes` row with note title, note description,
+append-to-resolution, and ticket status. **Submit changes** also patches
+`Tickets.status` to match the selected Job Logger status, including temporarily
+moving a previously `Complete` ticket to `In progress` before the external
+record patch when Autotask requires that sequence. The selected detail keeps
+the external Autotask record ID hidden because it is only needed internally for
+updates and deletion.
 The same submitted detail also has **Delete From Autotask**, which deletes the
-existing Autotask time entry and returns the local job to review without
+existing Autotask record and returns the local job to review without
 removing the local job record. If Autotask refuses the delete, the job remains
 submitted and the safe failure message is shown in review. The selected detail
 then shows a dialog that can purge the local Job Logger review entry only; that
-fallback warns that the Autotask time entry may still exist.
-Save, accept/resend, retry, ticket selection, and local **Delete time entry**
-cleanup remain blocked for submitted jobs. **Delete time entry** may remove
-active or other unsubmitted local jobs from the selected review detail when the
-logged-in managed web user owns the job.
+fallback warns that the Autotask record may still exist.
+Save, accept/resend, retry, ticket selection, entry-type conversion, and local
+delete cleanup remain blocked for submitted jobs. The local delete action may
+remove active or other unsubmitted local jobs from the selected review detail
+when the logged-in managed web user owns the job.
 
 The selected job's audit timeline is collapsed by default and can be expanded
 from the review detail when troubleshooting or checking history.
 
 The mobile Work in Progress card stores a work-location mode of `Remote` or
-`On-Site`, defaulting to `Remote`. This mode does not appear in the mobile
-summary text. The review list shows each job's Remote or On-Site mode, and
-review detail exposes the same choice as an editable control. Changing it
-updates the visible Autotask-bound summary prefix, such as
-`Remote. Replaced firewall` or `On-Site. Replaced firewall`, so the prefix can
-be corrected before submission or **Submit changes**. The server parses that
-prefix back into the stored work-location mode and keeps local note storage
-unprefixed.
+`On-Site` for time entries, defaulting to `Remote`. This mode does not appear
+in the mobile summary text. The review list shows each time entry's Remote or
+On-Site mode and shows Ticket note for notes. Review detail exposes the
+Remote/On-Site choice only for time entries. Changing it updates the visible
+Autotask-bound summary prefix, such as `Remote. Replaced firewall` or
+`On-Site. Replaced firewall`, so the prefix can be corrected before submission
+or **Submit changes**. Ticket-note descriptions remain unprefixed. The server
+parses time-entry prefixes back into the stored work-location mode and keeps
+local note storage unprefixed.
 
 Ticket `TimeEntries` payloads use the selected ticket's
 `assignedResourceroleID` for `roleID` when available. If Autotask returns the
@@ -1034,7 +1050,9 @@ database contents with the backup contents, then records a new restore audit
 event. Backups from v1.0.2 that predate the **Submit from Work in Progress**
 preference restore with that new option defaulted off. Backups that predate the
 managed-user session invalidation column restore with no users forced out by
-that missing column. The default restore upload cap is 250 MB:
+that missing column. Backups that predate ticket-note entry mode restore jobs
+as time entries with **Append to resolution** defaulted on and no note title.
+The default restore upload cap is 250 MB:
 `MAX_BACKUP_RESTORE_BYTES` controls app-side validation and
 `NGINX_RESTORE_MAX_BODY_SIZE` controls the matching nginx body limit for
 `/debug/restore`.
@@ -1056,13 +1074,13 @@ result and the `/debug` failed-operation label when diagnosing Autotask HTTP
 500 or permission failures. Some Autotask permission denials are returned as
 HTTP 500 responses, so check the preflight detail before changing credentials.
 
-When Autotask rejects `TimeEntries` creation/update, Job Logger surfaces bounded
-body-level error details when Autotask provides them. This usually identifies
-the specific missing permission, invalid role, billing code, resource, or
-required field more clearly than a generic HTTP 500 message. If the error names
-ticket status updates or `Tickets.status`, confirm the API user has ticket
-workflow permissions and that the `AUTOTASK_STATUS_*_ID` values match the
-tenant picklist IDs.
+When Autotask rejects `TimeEntries` or `TicketNotes` creation/update, Job
+Logger surfaces bounded body-level error details when Autotask provides them.
+This usually identifies the specific missing permission, invalid role, billing
+code, resource, or required field more clearly than a generic HTTP 500 message.
+If the error names ticket status updates or `Tickets.status`, confirm the API
+user has ticket workflow permissions and that the `AUTOTASK_STATUS_*_ID` values
+match the tenant picklist IDs.
 
 ## Time Handling
 
