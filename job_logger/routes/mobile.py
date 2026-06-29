@@ -183,10 +183,11 @@ def _format_service_call_calendar_date(selected_service_call_date: date) -> str:
     """Return the user-facing date for service-call day navigation."""
 
     day_number = selected_service_call_date.day
-    if 10 <= day_number % 100 <= 20:
-        ordinal_suffix = "th"
-    else:
-        ordinal_suffix = {1: "st", 2: "nd", 3: "rd"}.get(day_number % 10, "th")
+    ordinal_suffix = (
+        "th"
+        if 10 <= day_number % 100 <= 20
+        else {1: "st", 2: "nd", 3: "rd"}.get(day_number % 10, "th")
+    )
 
     month_name = selected_service_call_date.strftime("%B")
     weekday_name = selected_service_call_date.strftime("%A")
