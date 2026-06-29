@@ -1570,8 +1570,10 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert page_html.index('value="-15"') < page_html.index('class="time-field-input rounded-start-time-display"')
     assert page_html.index('class="time-field-input rounded-start-time-display"') < page_html.index('value="15"')
     assert page_html.index("<dt>Rounded start</dt>") < page_html.index("<dt>Rounded stop</dt>")
-    assert page_html.index("data-duration-display") < page_html.index("<dt>Rounded stop</dt>")
+    assert page_html.index("<dt>Rounded stop</dt>") < page_html.index("data-duration-display")
+    assert 'class="duration-inline duration-centered"' in page_html
     assert page_html.index("<dt>Rounded stop</dt>") < page_html.index('class="metric-card work-location-card"')
+    assert page_html.index("data-duration-display") < page_html.index('class="metric-card work-location-card"')
 
 
 def test_mobile_active_job_locked_autotask_company_rejects_form_tampering(authenticated_client: TestClient) -> None:
@@ -1755,7 +1757,10 @@ def test_review_detail_shows_active_rounded_stop_without_ending_job(authenticate
     assert "Duration:" in review_html
     assert "30 Minutes" in review_html
     assert "data-duration-display" in review_html
+    assert 'class="duration-inline duration-centered review-duration-row"' in review_html
     assert review_html.index('name="end_time"') < review_html.index('name="ticket_status"')
+    assert review_html.index('name="end_time"') < review_html.index("data-duration-display")
+    assert review_html.index("data-duration-display") < review_html.index('name="ticket_status"')
     assert 'class="review-ticket-status-field"' in review_html
 
     review_csrf_token = extract_csrf_token(review_html)
@@ -2266,8 +2271,10 @@ def test_ticket_notes_endpoint_returns_safe_selected_ticket_notes(authenticated_
     assert payload["notes"][0]["title"] == "Technician update"
     assert payload["notes"][0]["description"] == "Previous technician confirmed the device was reachable from the LAN."
     assert payload["notes"][0]["preview"] == "Previous technician confirmed the device was reachable from the LAN."
+    assert payload["notes"][0]["created_by"] == "Previous Technician"
     assert payload["notes"][0]["created_at"] == "Jun 16, 2026 9:30 am"
     assert payload["notes"][1]["title"] == "Mock ticket note for T20260616.0001"
+    assert payload["notes"][1]["created_by"] == "Customer Contact"
 
 
 def test_ticket_notes_endpoint_stays_empty_until_ticket_is_selected(authenticated_client: TestClient) -> None:

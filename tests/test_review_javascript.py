@@ -25,6 +25,19 @@ def test_open_ticket_renderers_share_status_and_company_metadata() -> None:
     assert expected_meta_line in review_script
 
 
+def test_ticket_notes_overlay_list_cards_show_titles_only() -> None:
+    """Ticket note selection cards should stay compact and leave metadata in detail."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    ticket_notes_script = (repository_root / "job_logger" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
+
+    assert "metaParts.push(`From ${createdBy}`);" in ticket_notes_script
+    assert 'const title = ticketNotesCreateElement("span", "ticket-note-list-title"' in ticket_notes_script
+    assert "noteButton.append(title);" in ticket_notes_script
+    assert "noteButton.append(preview)" not in ticket_notes_script
+    assert "noteButton.append(meta)" not in ticket_notes_script
+
+
 def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
     """Review edits must save through the background save endpoint without a button."""
 

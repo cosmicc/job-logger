@@ -312,11 +312,11 @@
                     +15
                   </button>
                 </div>
-                <span class="duration-inline">
-                  Duration:
-                  <strong data-duration-display>{{ selected_job.rounded_start_utc|duration_label(selected_job_review_end_utc) }}</strong>
-                </span>
               </label>
+              <div class="duration-inline duration-centered review-duration-row">
+                Duration:
+                <strong data-duration-display>{{ selected_job.rounded_start_utc|duration_label(selected_job_review_end_utc) }}</strong>
+              </div>
               <label class="review-ticket-status-field">
                 <span>Ticket status</span>
                 <select name="ticket_status" required>

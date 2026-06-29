@@ -261,6 +261,8 @@ class FakeTicketNotesLookupClient:
                 "description",
                 "createDateTime",
                 "lastActivityDate",
+                "createdByContactID",
+                "creatorResourceID",
                 "noteType",
                 "publish",
             ]
@@ -275,6 +277,7 @@ class FakeTicketNotesLookupClient:
                             "description": "Customer reported intermittent failures.",
                             "createDateTime": "2026-06-16T12:00:00Z",
                             "lastActivityDate": "2026-06-16T12:30:00Z",
+                            "createdByContactID": 7001,
                             "noteType": "Customer",
                             "publish": 1,
                         },
@@ -284,8 +287,33 @@ class FakeTicketNotesLookupClient:
                             "title": "Technician update",
                             "description": "Technician confirmed WAN status before dispatch.",
                             "createDateTime": "2026-06-16T13:00:00Z",
+                            "creatorResourceID": 42,
                             "publish": "2",
                         },
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/Contacts/query":
+            assert json["IncludeFields"] == ["id", "firstName", "lastName"]
+            assert json["filter"] == [{"op": "in", "field": "id", "value": [7001]}]
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 7001, "firstName": "Customer", "lastName": "Contact"},
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/Resources/query":
+            assert json["IncludeFields"] == ["id", "firstName", "lastName"]
+            assert json["filter"] == [{"op": "in", "field": "id", "value": [42]}]
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 42, "firstName": "Test", "lastName": "Technician"},
                     ],
                     "pageDetails": {},
                 }
@@ -1323,15 +1351,19 @@ def test_live_ticket_notes_lookup_uses_selected_ticket_id(monkeypatch: pytest.Mo
     assert [endpoint_path for endpoint_path, _payload in fake_client.post_requests] == [
         "/Tickets/query",
         "/TicketNotes/query",
+        "/Contacts/query",
+        "/Resources/query",
     ]
     assert len(notes) == 2
     assert notes[0].note_id == 91002
     assert notes[0].title == "Technician update"
     assert notes[0].description == "Technician confirmed WAN status before dispatch."
+    assert notes[0].created_by == "Technician, Test"
     assert notes[0].created_at_utc == datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
     assert notes[0].updated_at_utc is None
     assert notes[0].publish == 2
     assert notes[1].note_id == 91001
+    assert notes[1].created_by == "Customer Contact"
     assert notes[1].created_at_utc == datetime(2026, 6, 16, 12, 0, tzinfo=UTC)
     assert notes[1].updated_at_utc == datetime(2026, 6, 16, 12, 30, tzinfo=UTC)
 

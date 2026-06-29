@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy import desc, select
@@ -203,11 +205,16 @@ def review_ticket_notes(
     except (AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
 
+    ordered_ticket_notes = sorted(
+        ticket_notes,
+        key=lambda ticket_note: ticket_note.created_at_utc or datetime.min.replace(tzinfo=UTC),
+        reverse=True,
+    )
     return JSONResponse(
         {
             "ticket_number": job.ticket_number,
             "ticket_title": job.ticket_title or "",
-            "notes": [_ticket_note_payload(ticket_note) for ticket_note in ticket_notes],
+            "notes": [_ticket_note_payload(ticket_note) for ticket_note in ordered_ticket_notes],
         }
     )
 
@@ -270,6 +277,7 @@ def _ticket_note_payload(ticket_note: AutotaskTicketNote) -> dict[str, object]:
         "title": ticket_note.title,
         "description": ticket_note.description or "",
         "preview": _ticket_note_preview(ticket_note.description),
+        "created_by": ticket_note.created_by or "",
         "created_at": format_local_display(ticket_note.created_at_utc) if ticket_note.created_at_utc else "",
         "updated_at": format_local_display(ticket_note.updated_at_utc) if ticket_note.updated_at_utc else "",
         "note_type": ticket_note.note_type or "",

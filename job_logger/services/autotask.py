@@ -35,6 +35,7 @@ MAX_SERVICE_CALL_DETAIL_LENGTH = 2000
 MAX_TICKET_NOTE_LOOKUP_RESULTS = 100
 MAX_TICKET_NOTE_TITLE_LENGTH = 240
 MAX_TICKET_NOTE_BODY_LENGTH = 12000
+MAX_TICKET_NOTE_AUTHOR_LENGTH = 160
 MAX_AUTOTASK_IN_FILTER_VALUES = 500
 
 WORK_LOCATION_DISPLAY_LABELS = {
@@ -295,6 +296,9 @@ class AutotaskTicketNote:
 
     # description is bounded note body text shown only inside the authenticated overlay.
     description: str | None
+
+    # created_by is bounded display-only author metadata resolved from Autotask IDs.
+    created_by: str | None = None
 
     # created_at_utc and updated_at_utc are display metadata from Autotask.
     created_at_utc: datetime | None = None
@@ -656,6 +660,56 @@ def _resource_display_name(first_name: str | None, last_name: str | None, resour
     return f"Resource {resource_id}"
 
 
+def _contact_display_name(first_name: str | None, last_name: str | None, contact_id: int) -> str:
+    """Return a human display label for an Autotask contact note author."""
+
+    safe_first_name = (first_name or "").strip()
+    safe_last_name = (last_name or "").strip()
+    if safe_first_name and safe_last_name:
+        return f"{safe_first_name} {safe_last_name}"[:MAX_TICKET_NOTE_AUTHOR_LENGTH]
+    if safe_first_name:
+        return safe_first_name[:MAX_TICKET_NOTE_AUTHOR_LENGTH]
+    if safe_last_name:
+        return safe_last_name[:MAX_TICKET_NOTE_AUTHOR_LENGTH]
+
+    return f"Contact {contact_id}"
+
+
+def _ticket_note_author_key(note_record: dict[str, Any]) -> tuple[str, int] | None:
+    """Return the preferred safe author key for a TicketNotes record."""
+
+    contact_id = _coerce_positive_autotask_id(
+        note_record.get("createdByContactID")
+        or note_record.get("createdbyContactID")
+        or note_record.get("createdByContactId")
+    )
+    if contact_id is not None:
+        return ("contact", contact_id)
+
+    resource_id = _coerce_positive_autotask_id(
+        note_record.get("creatorResourceID")
+        or note_record.get("creatorresourceID")
+        or note_record.get("createdByResourceID")
+    )
+    if resource_id is not None:
+        return ("resource", resource_id)
+
+    return None
+
+
+def _ticket_note_author_fallback(author_key: tuple[str, int] | None) -> str | None:
+    """Return a non-sensitive fallback label when author-name lookup is unavailable."""
+
+    if author_key is None:
+        return None
+    author_kind, author_id = author_key
+    if author_kind == "contact":
+        return f"Contact {author_id}"
+    if author_kind == "resource":
+        return f"Resource {author_id}"
+    return None
+
+
 def _service_desk_role_label(role_id: int, *, role_name: str | None = None, is_default: bool = False) -> str:
     """Return display text for an active ResourceServiceDeskRoles role ID."""
 
@@ -879,6 +933,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 note_id=91002,
                 title="Technician update",
                 description="Previous technician confirmed the device was reachable from the LAN.",
+                created_by="Previous Technician",
                 created_at_utc=datetime(2026, 6, 16, 13, 30, tzinfo=UTC),
                 note_type="Mock",
                 publish=1,
@@ -887,6 +942,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 note_id=91001,
                 title=f"Mock ticket note for {safe_ticket_number}",
                 description="Customer reported the issue before work started.",
+                created_by="Customer Contact",
                 created_at_utc=datetime(2026, 6, 16, 12, 0, tzinfo=UTC),
                 updated_at_utc=datetime(2026, 6, 16, 12, 15, tzinfo=UTC),
                 note_type="Mock",
@@ -2105,6 +2161,8 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 "description",
                 "createDateTime",
                 "lastActivityDate",
+                "createdByContactID",
+                "creatorResourceID",
                 "noteType",
                 "publish",
             ],
@@ -2119,11 +2177,115 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             follow_pagination=False,
         )
 
+    def _query_ticket_note_contact_names_by_id(self, client: httpx.Client, contact_ids: list[int]) -> dict[int, str]:
+        """Return bounded contact display names keyed by Autotask contact ID."""
+
+        contact_names: dict[int, str] = {}
+        for contact_id_chunk in _chunked_autotask_ids(contact_ids):
+            if not contact_id_chunk:
+                continue
+            query_payload = {
+                "IncludeFields": ["id", "firstName", "lastName"],
+                "filter": [
+                    {
+                        "op": "in",
+                        "field": "id",
+                        "value": contact_id_chunk,
+                    }
+                ],
+            }
+            contact_records = self._query_paginated_items(
+                client,
+                endpoint_path="/Contacts/query",
+                query_payload=query_payload,
+                action_description="Autotask ticket note contact author lookup",
+                max_records=len(contact_id_chunk),
+                follow_pagination=False,
+            )
+            for contact_record in contact_records:
+                contact_id = _coerce_positive_autotask_id(contact_record.get("id"))
+                if contact_id is None:
+                    continue
+                first_name = _safe_optional_ticket_note_text(contact_record.get("firstName"), MAX_TICKET_NOTE_AUTHOR_LENGTH)
+                last_name = _safe_optional_ticket_note_text(contact_record.get("lastName"), MAX_TICKET_NOTE_AUTHOR_LENGTH)
+                contact_names[contact_id] = _contact_display_name(first_name, last_name, contact_id)
+
+        return contact_names
+
+    def _query_ticket_note_resource_names_by_id(self, client: httpx.Client, resource_ids: list[int]) -> dict[int, str]:
+        """Return bounded resource display names keyed by Autotask resource ID."""
+
+        resource_names: dict[int, str] = {}
+        for resource_id_chunk in _chunked_autotask_ids(resource_ids):
+            if not resource_id_chunk:
+                continue
+            query_payload = {
+                "IncludeFields": ["id", "firstName", "lastName"],
+                "filter": [
+                    {
+                        "op": "in",
+                        "field": "id",
+                        "value": resource_id_chunk,
+                    }
+                ],
+            }
+            resource_records = self._query_paginated_items(
+                client,
+                endpoint_path="/Resources/query",
+                query_payload=query_payload,
+                action_description="Autotask ticket note resource author lookup",
+                max_records=len(resource_id_chunk),
+                follow_pagination=False,
+            )
+            for resource_record in resource_records:
+                resource_id = _coerce_positive_autotask_id(resource_record.get("id"))
+                if resource_id is None:
+                    continue
+                first_name = _safe_optional_ticket_note_text(resource_record.get("firstName"), MAX_TICKET_NOTE_AUTHOR_LENGTH)
+                last_name = _safe_optional_ticket_note_text(resource_record.get("lastName"), MAX_TICKET_NOTE_AUTHOR_LENGTH)
+                resource_names[resource_id] = _resource_display_name(first_name, last_name, resource_id)
+
+        return resource_names
+
+    def _query_ticket_note_author_names(self, client: httpx.Client, note_records: list[dict[str, Any]]) -> dict[tuple[str, int], str]:
+        """Return safe display names for TicketNotes author IDs."""
+
+        author_names: dict[tuple[str, int], str] = {}
+        contact_ids: list[int] = []
+        resource_ids: list[int] = []
+        for note_record in note_records:
+            author_key = _ticket_note_author_key(note_record)
+            if author_key is None:
+                continue
+            author_kind, author_id = author_key
+            if author_kind == "contact":
+                contact_ids.append(author_id)
+            elif author_kind == "resource":
+                resource_ids.append(author_id)
+
+        try:
+            contact_names = self._query_ticket_note_contact_names_by_id(client, sorted(set(contact_ids)))
+        except AutotaskSubmissionError:
+            contact_names = {}
+        for contact_id in contact_ids:
+            author_names[("contact", contact_id)] = contact_names.get(contact_id, f"Contact {contact_id}")
+
+        try:
+            resource_names = self._query_ticket_note_resource_names_by_id(client, sorted(set(resource_ids)))
+        except AutotaskSubmissionError:
+            resource_names = {}
+        for resource_id in resource_ids:
+            author_names[("resource", resource_id)] = resource_names.get(resource_id, f"Resource {resource_id}")
+
+        return author_names
+
     def _build_ticket_notes_for_ticket_id(self, client: httpx.Client, ticket_id: int) -> list[AutotaskTicketNote]:
         """Return safe note view models for one selected Autotask ticket."""
 
         ticket_notes: list[AutotaskTicketNote] = []
-        for note_record in self._query_ticket_notes_for_ticket_id(client, ticket_id):
+        note_records = self._query_ticket_notes_for_ticket_id(client, ticket_id)
+        author_names = self._query_ticket_note_author_names(client, note_records)
+        for note_record in note_records:
             note_id = _coerce_positive_autotask_id(note_record.get("id"))
             if note_id is None:
                 continue
@@ -2141,11 +2303,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 publish = int(raw_publish) if raw_publish is not None else None
             except (TypeError, ValueError):
                 publish = None
+            author_key = _ticket_note_author_key(note_record)
             ticket_notes.append(
                 AutotaskTicketNote(
                     note_id=note_id,
                     title=note_title,
                     description=note_description,
+                    created_by=author_names.get(author_key) or _ticket_note_author_fallback(author_key),
                     created_at_utc=_parse_autotask_datetime(note_record.get("createDateTime")),
                     updated_at_utc=_parse_autotask_datetime(note_record.get("lastActivityDate")),
                     note_type=_safe_optional_ticket_note_text(note_record.get("noteType"), 80),

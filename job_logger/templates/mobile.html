@@ -184,10 +184,6 @@
                       +15
                     </button>
                   </form>
-                  <p class="duration-inline">
-                    Duration:
-                    <strong data-duration-display>{{ active_job.rounded_start_utc|duration_label(rounded_stop_utc) }}</strong>
-                  </p>
                 </dd>
               </div>
               <div class="metric-card">
@@ -250,6 +246,10 @@
                       +15
                     </button>
                   </form>
+                  <p class="duration-inline duration-centered">
+                    Duration:
+                    <strong data-duration-display>{{ active_job.rounded_start_utc|duration_label(rounded_stop_utc) }}</strong>
+                  </p>
                 </dd>
               </div>
               <div class="metric-card work-location-card" aria-label="Work type">

@@ -386,8 +386,9 @@ from trusting browser-submitted description values.
 Autotask ticket notes are also remote provider data. The notes overlay must load
 through an authenticated server route that enforces review ownership rules,
 uses the database ticket number, returns bounded safe fields, and renders text
-through normal escaping or `textContent`. Do not expose raw Autotask responses,
-credentials, or direct provider URLs to browser JavaScript.
+through normal escaping or `textContent`. Keep list cards title-only, put safe
+author/date/type metadata in the selected note detail, and do not expose raw
+Autotask responses, credentials, or direct provider URLs to browser JavaScript.
 
 Autotask service-call starts must also be server verified. The mobile browser
 may submit only the service-call ticket association ID and CSRF token; the

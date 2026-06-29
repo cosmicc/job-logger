@@ -192,9 +192,11 @@ an authenticated session, enforce normal review visibility and ownership rules,
 use the stored ticket number from the database, and call the server-side
 provider. The browser must not call Autotask directly. The response should
 contain only bounded safe fields needed by the overlay, such as note ID, title,
-description, created/updated display times, type, and publish metadata. Keep
-the Work in Progress and Review **Ticket notes** button hidden until this route
-returns at least one note.
+description, safe author display text, created/updated display times, type, and
+publish metadata. Return notes ordered by created date/time with newest first.
+Keep the Work in Progress and Review **Ticket notes** button hidden until this
+route returns at least one note. The overlay list cards should render only note
+titles; note body text and author metadata belong in the selected note detail.
 
 ## Service Call Lookup
 

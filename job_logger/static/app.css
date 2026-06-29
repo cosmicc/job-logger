@@ -1500,6 +1500,16 @@ a:focus-visible {
   white-space: nowrap;
 }
 
+.duration-centered {
+  width: 100%;
+  text-align: center;
+}
+
+.review-duration-row {
+  grid-column: 1 / -1;
+  margin: -2px 0 2px;
+}
+
 .work-location-card {
   display: grid;
   min-height: 48px;
@@ -2879,9 +2889,10 @@ td a {
 
 .ticket-note-list-button {
   display: grid;
-  gap: 5px;
   width: 100%;
-  min-height: 62px;
+  min-width: 0;
+  min-height: 48px;
+  align-items: center;
   padding: 10px 11px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2897,13 +2908,12 @@ td a {
 }
 
 .ticket-note-list-title {
+  min-width: 0;
   font-size: 14px;
   font-weight: 850;
   overflow-wrap: anywhere;
 }
 
-.ticket-note-list-preview,
-.ticket-note-list-meta,
 .ticket-note-meta {
   color: var(--muted);
   font-size: 12px;

@@ -242,9 +242,11 @@ Job start times must round to the closest 15-minute interval.
 
 Job end times and job duration must also round to 15-minute intervals.
 Work in Progress and Review detail must show the rounded start-to-stop duration
-near the editable time controls, using labels such as `15 Minutes`, `1 Hour`,
-or `1.25 Hours`, and must update that label as the visible rounded times
-change.
+using labels such as `15 Minutes`, `1 Hour`, or `1.25 Hours`, and must update
+that label as the visible rounded times change. Work in Progress shows the
+centered duration under **Rounded stop**. Review detail shows the centered
+duration on its own row under the start/end time controls so the full-browser
+start and end fields stay aligned.
 
 Jobs do not span multiple work dates. Review forms must use one local job date
 with start and end times, and must reject edits where the end time is not after
@@ -394,7 +396,7 @@ today-or-weekday label beside the date label. The active **Rounded start** and
 fields should use the same 12-hour editable time-field treatment as Review
 detail start/end times, keep the `-15` and `+15` controls, and save only
 through server-validated active-job routes. Work in Progress and Review detail
-should place the rounded-duration label in the existing time area without
+should center the rounded-duration label in the existing time area without
 reworking the mobile or full-browser layout.
 
 Managed web-user pages must respect the current user's saved theme preference.
@@ -452,7 +454,11 @@ When the selected Autotask ticket has notes, Work in Progress and Review detail
 should expose a compact **Ticket notes** button near the ticket context. The
 button should stay hidden when no ticket is selected or when the note lookup
 returns no notes. The overlay must keep an X close button visible while the
-user reviews the note list and note details.
+user reviews the note list and note details. The note list should be ordered by
+created date/time with the newest note first, and selection cards should show
+only the note title so note body text cannot overflow the cards. Note detail
+metadata should include who the note was from when Autotask returns a safe
+author reference.
 Work in Progress and review detail action controls should stay compact and
 scannable on both phone and full browser layouts. Use paired button rows when
 two actions naturally belong together, such as **Record** with **AI Cleanup**,

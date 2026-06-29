@@ -92,9 +92,13 @@ function ticketNotesOverlayElements() {
 
 function ticketNoteMetaText(note) {
   const metaParts = [];
+  const createdBy = ticketNotesSafeString(note.created_by).trim();
   const createdAt = ticketNotesSafeString(note.created_at).trim();
   const updatedAt = ticketNotesSafeString(note.updated_at).trim();
   const noteType = ticketNotesSafeString(note.note_type).trim();
+  if (createdBy) {
+    metaParts.push(`From ${createdBy}`);
+  }
   if (createdAt) {
     metaParts.push(`Created ${createdAt}`);
   }
@@ -137,15 +141,7 @@ function renderTicketNotesList(listElement, detailElement, notes) {
     noteButton.setAttribute("aria-pressed", index === 0 ? "true" : "false");
 
     const title = ticketNotesCreateElement("span", "ticket-note-list-title", ticketNotesSafeString(note.title).trim() || "Ticket note");
-    const preview = ticketNotesCreateElement("span", "ticket-note-list-preview", ticketNotesSafeString(note.preview).trim());
-    const meta = ticketNotesCreateElement("span", "ticket-note-list-meta", ticketNoteMetaText(note));
     noteButton.append(title);
-    if (preview.textContent) {
-      noteButton.append(preview);
-    }
-    if (meta.textContent) {
-      noteButton.append(meta);
-    }
 
     noteButton.addEventListener("click", () => {
       for (const siblingButton of listElement.querySelectorAll(".ticket-note-list-button")) {

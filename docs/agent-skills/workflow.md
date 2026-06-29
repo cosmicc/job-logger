@@ -116,10 +116,11 @@ Active jobs support these updates before completion:
   `-15` and `+15` minute buttons on either side of the field. These controls
   must not use the full-page status overlay because the adjustment should feel
   immediate.
-- A rounded duration label near the start/stop controls, such as `15 Minutes`,
-  `1 Hour`, or `1.25 Hours`. The server returns the canonical label after
-  active time saves, and browser JavaScript should update the visible label
-  immediately when the visible start or stop time changes.
+- A centered rounded duration label under the Work in Progress **Rounded stop**
+  control, such as `15 Minutes`, `1 Hour`, or `1.25 Hours`. The server returns
+  the canonical label after active time saves, and browser JavaScript should
+  update the visible label immediately when the visible start or stop time
+  changes.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job client and summary edits, not ticket
@@ -157,7 +158,10 @@ or ticket-status values.
 When a selected ticket has Autotask notes, Work in Progress may show a compact
 **Ticket notes** button beside the ticket context. Keep the button hidden until
 the authenticated server note lookup confirms at least one note, and render
-notes inside the shared closeable overlay.
+notes inside the shared closeable overlay. The overlay list is newest-first by
+note creation time, and each selection card shows only the note title. Author,
+created, updated, type, and note body content belong in the selected note
+detail pane.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
@@ -401,9 +405,11 @@ Review supports:
   names, and becomes read-only once saved.
 - Editing ticket status, start date/time, end date/time, and summary notes
   before successful Autotask submission.
-- Showing the rounded duration beside the selected detail time controls and
-  updating it from the server-normalized autosave response or the browser's
-  current visible time values.
+- Showing the rounded duration on a centered row under the selected detail
+  start/end time controls and updating it from the server-normalized autosave
+  response or the browser's current visible time values. Do not nest the
+  duration inside the end-time label on full-browser layout because that makes
+  the start and end time controls misalign.
 - Recording additional audio notes on review detail before successful Autotask
   submission.
 - Automatically saving edits without a ticket number.
@@ -420,7 +426,8 @@ Review supports:
 - Viewing read-only Autotask ticket notes for the selected ticket through the
   same shared overlay used by Work in Progress. The notes button must stay
   hidden when the job has no selected ticket or when the server returns no
-  notes.
+  notes. The overlay list must stay title-only and newest-first, with safe
+  author metadata shown in note detail instead of the list cards.
 
 Ticket number is intentionally required only before Autotask submission, not for
 ordinary save operations.
