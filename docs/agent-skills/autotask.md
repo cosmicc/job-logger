@@ -428,9 +428,12 @@ unreadable columns.
 Autotask provider failures also update cached app health. Any failed live
 Autotask HTTP/status response, failed time-entry submission/update/delete
 result, or failed manual connectivity test should keep the admin-only top-bar
-health alert visible until a later live Autotask API request or manual
-connectivity test succeeds. Do not run the connectivity test from shared header
-rendering; the header reads cached state only.
+health alert visible until the same semantic Autotask operation type succeeds
+again. A successful request for a different operation must not clear another
+operation's active failure. This applies to live Autotask requests triggered by
+ordinary managed users, managed Admin users, and the config super admin. Do not
+run the connectivity test from shared header rendering; the header reads cached
+state only.
 
 The script `scripts/discover_autotask_ids.py` is for read-only tenant metadata
 discovery using `.env` configuration. Keep it read-only and never print

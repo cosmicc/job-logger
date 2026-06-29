@@ -948,8 +948,9 @@ initial mobile page or blank Start Work route.
 When cached app health is degraded, Diagnostics-authorized users see a red
 exclamation alert in the top bar. It links to Diagnostics and appears for
 conditions such as low disk space or a cached Autotask API failure. Autotask
-failures keep the alert visible until a later Autotask API request or manual
-connectivity check succeeds.
+failures from any managed user, managed Admin user, or config super admin keep
+the alert visible until the same type of Autotask operation succeeds again.
+Successful unrelated Autotask requests do not clear another active failure.
 
 The same `/debug` page also shows compact, paginated successful-login,
 failed-login, Cloudflare blocked-IP, and Autotask submission-attempt windows,

@@ -12,8 +12,9 @@ All notable changes to Job Logger are documented in this file.
   failures.
 - Added cached Autotask API health tracking. A failed Diagnostics connectivity
   test, time-entry submission/update/delete failure, or live Autotask provider
-  request failure keeps the alert active until a later Autotask API request or
-  connectivity test succeeds.
+  request failure from any user keeps the alert active until the same
+  Autotask operation type succeeds again. Successful unrelated Autotask
+  operations no longer clear a different active failure.
 - Centralized Diagnostics disk-usage snapshot logic in the shared app-health
   service so the Diagnostics page and top-bar alert use the same warning and
   critical thresholds.

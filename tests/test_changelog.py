@@ -82,7 +82,7 @@ def test_changelog_parser_reads_current_release() -> None:
         title="Admin alerts, ticket notes, and time totals",
         changes=(
             "Admins now see a red top-bar alert when app health needs attention.",
-            "Autotask API failures now keep that alert visible until a later Autotask check succeeds.",
+            "Autotask API failures now keep that alert visible until the same request type succeeds.",
             "Low disk space now uses the same top-bar alert to make the problem harder to miss.",
             "Work in Progress and Review now show the centered total time between start and stop.",
             "Ticket notes now open in a title-only newest-first overlay with note details.",
@@ -120,7 +120,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.0" in response.text
     assert "Admin alerts, ticket notes, and time totals" in response.text
     assert "Admins now see a red top-bar alert when app health needs attention." in response.text
-    assert "Autotask API failures now keep that alert visible until a later Autotask check succeeds." in response.text
+    assert "Autotask API failures now keep that alert visible until the same request type succeeds." in response.text
     assert "Low disk space now uses the same top-bar alert to make the problem harder to miss." in response.text
     assert "Work in Progress and Review now show the centered total time between start and stop." in response.text
     assert "Ticket notes now open in a title-only newest-first overlay with note details." in response.text

@@ -320,7 +320,12 @@ ticket. Do not call Autotask directly from browser JavaScript or expose raw
 provider responses.
 
 Autotask API errors must be recorded clearly for review and troubleshooting
-without exposing credentials or sensitive protocol details.
+without exposing credentials or sensitive protocol details. Any failed live
+Autotask API request from any managed user, managed Admin user, or config
+super admin must mark cached app health degraded for that semantic operation
+type. The admin-only top-bar alert must remain degraded until the same
+operation type succeeds again; unrelated successful Autotask requests must not
+clear a different active failure.
 
 ## Speech-to-Text Requirements
 

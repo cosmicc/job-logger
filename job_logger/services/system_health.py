@@ -55,6 +55,8 @@ class CachedAutotaskHealth:
     summary: str
     operation: str | None
     checked_at_utc: datetime
+    active_failure_count: int = 0
+    active_operations: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -92,12 +94,56 @@ class AppHealthSnapshot:
 
 
 _AUTOTASK_HEALTH_LOCK = RLock()
-_cached_autotask_health = CachedAutotaskHealth(
+_cached_autotask_success_health = CachedAutotaskHealth(
     available=True,
     summary="No Autotask API failure has been recorded.",
     operation=None,
     checked_at_utc=datetime.now(UTC),
 )
+_cached_autotask_failures: dict[str, CachedAutotaskHealth] = {}
+
+
+def _normalize_autotask_operation(operation: str | None) -> str:
+    """Return the semantic Autotask operation label used for health tracking."""
+
+    safe_operation = " ".join(str(operation or "Autotask API request").split())
+    return safe_operation or "Autotask API request"
+
+
+def _autotask_operation_key(operation: str | None) -> str:
+    """Return the stable key for one semantic Autotask operation type."""
+
+    return _normalize_autotask_operation(operation).casefold()
+
+
+def _autotask_health_from_active_failures() -> CachedAutotaskHealth:
+    """Return the public Autotask health snapshot from active operation failures."""
+
+    if not _cached_autotask_failures:
+        return _cached_autotask_success_health
+
+    latest_failure = max(
+        _cached_autotask_failures.values(),
+        key=lambda health: health.checked_at_utc,
+    )
+    active_operations = tuple(
+        sorted(
+            operation
+            for operation in (
+                health.operation
+                for health in _cached_autotask_failures.values()
+            )
+            if operation
+        )
+    )
+    return CachedAutotaskHealth(
+        available=False,
+        summary=latest_failure.summary,
+        operation=latest_failure.operation,
+        checked_at_utc=latest_failure.checked_at_utc,
+        active_failure_count=len(_cached_autotask_failures),
+        active_operations=active_operations,
+    )
 
 
 def _format_file_size(size_bytes: int) -> str:
@@ -257,30 +303,34 @@ def collect_disk_usage_snapshot() -> DebugDiskUsageSnapshot:
 
 
 def record_autotask_api_failure(summary: str, *, operation: str | None = None) -> None:
-    """Mark Autotask as degraded until a later provider API call succeeds."""
+    """Mark one Autotask operation as degraded until that operation succeeds."""
 
     safe_summary = " ".join(str(summary or "Autotask API access failed.").split())
     if len(safe_summary) > APP_HEALTH_SUMMARY_LIMIT:
         safe_summary = f"{safe_summary[: APP_HEALTH_SUMMARY_LIMIT - 1].rstrip()}..."
+    safe_operation = _normalize_autotask_operation(operation)
     with _AUTOTASK_HEALTH_LOCK:
-        global _cached_autotask_health
-        _cached_autotask_health = CachedAutotaskHealth(
+        _cached_autotask_failures[_autotask_operation_key(safe_operation)] = CachedAutotaskHealth(
             available=False,
             summary=safe_summary,
-            operation=operation,
+            operation=safe_operation,
             checked_at_utc=datetime.now(UTC),
         )
 
 
 def record_autotask_api_success(*, operation: str | None = None) -> None:
-    """Clear the cached Autotask alert after a successful provider API call."""
+    """Clear the cached Autotask alert for the matching operation type only."""
 
     with _AUTOTASK_HEALTH_LOCK:
-        global _cached_autotask_health
-        _cached_autotask_health = CachedAutotaskHealth(
+        global _cached_autotask_success_health
+        if operation is None:
+            _cached_autotask_failures.clear()
+        else:
+            _cached_autotask_failures.pop(_autotask_operation_key(operation), None)
+        _cached_autotask_success_health = CachedAutotaskHealth(
             available=True,
             summary="Autotask API access succeeded.",
-            operation=operation,
+            operation=_normalize_autotask_operation(operation) if operation is not None else None,
             checked_at_utc=datetime.now(UTC),
         )
 
@@ -293,18 +343,19 @@ def record_autotask_connectivity_result(
 ) -> None:
     """Store the result of an explicit Diagnostics connectivity check."""
 
+    connectivity_operation = "Autotask connectivity check"
     if available:
-        record_autotask_api_success(operation=operation or "connectivity check")
+        record_autotask_api_success(operation=connectivity_operation)
         return
 
-    record_autotask_api_failure(summary, operation=operation or "connectivity check")
+    record_autotask_api_failure(summary, operation=connectivity_operation)
 
 
 def cached_autotask_health() -> CachedAutotaskHealth:
     """Return the current in-process Autotask health state."""
 
     with _AUTOTASK_HEALTH_LOCK:
-        return _cached_autotask_health
+        return _autotask_health_from_active_failures()
 
 
 def reset_cached_autotask_health() -> None:

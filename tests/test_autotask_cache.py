@@ -106,6 +106,11 @@ class FakeSuccessfulApiClient:
 
         return FakeAutotaskResponse({})
 
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return a success response for POST query operations."""
+
+        return FakeAutotaskResponse({})
+
 
 class FakeTicketStatusClient:
     """Fake Autotask client that returns ticket status metadata once."""
@@ -1214,7 +1219,7 @@ def _clear_autotask_lookup_caches() -> None:
 
 
 def test_live_provider_updates_cached_autotask_health_from_api_results() -> None:
-    """Autotask API failures should alert until a later API call succeeds."""
+    """Autotask API failures should clear only after the same operation succeeds."""
 
     provider = _live_test_provider()
 
@@ -1231,6 +1236,8 @@ def test_live_provider_updates_cached_autotask_health_from_api_results() -> None
     assert transport_health.available is False
     assert transport_health.operation == "Autotask company lookup"
     assert transport_health.summary == "Autotask company lookup could not reach the Autotask API."
+    assert transport_health.active_failure_count == 1
+    assert transport_health.active_operations == ("Autotask company lookup",)
 
     with pytest.raises(AutotaskSubmissionError):
         provider._raise_for_safe_response(
@@ -1242,6 +1249,8 @@ def test_live_provider_updates_cached_autotask_health_from_api_results() -> None
     assert failed_response_health.available is False
     assert failed_response_health.operation == "Autotask ticket lookup"
     assert "Autotask HTTP 500" in failed_response_health.summary
+    assert failed_response_health.active_failure_count == 2
+    assert failed_response_health.active_operations == ("Autotask company lookup", "Autotask ticket lookup")
 
     provider._api_request(
         FakeSuccessfulApiClient(),
@@ -1250,9 +1259,36 @@ def test_live_provider_updates_cached_autotask_health_from_api_results() -> None
         "Autotask status metadata lookup",
     )
 
+    unrelated_success_health = system_health.cached_autotask_health()
+    assert unrelated_success_health.available is False
+    assert unrelated_success_health.active_failure_count == 2
+    assert unrelated_success_health.active_operations == ("Autotask company lookup", "Autotask ticket lookup")
+
+    provider._api_request(
+        FakeSuccessfulApiClient(),
+        "GET",
+        "/Tickets/query",
+        "Autotask ticket lookup",
+    )
+
+    partially_recovered_health = system_health.cached_autotask_health()
+    assert partially_recovered_health.available is False
+    assert partially_recovered_health.active_failure_count == 1
+    assert partially_recovered_health.active_operations == ("Autotask company lookup",)
+
+    provider._api_request(
+        FakeSuccessfulApiClient(),
+        "POST",
+        "/Companies/query",
+        "Autotask company lookup",
+        json={"MaxRecords": 1},
+    )
+
     recovered_health = system_health.cached_autotask_health()
     assert recovered_health.available is True
-    assert recovered_health.operation == "Autotask status metadata lookup"
+    assert recovered_health.operation == "Autotask company lookup"
+    assert recovered_health.active_failure_count == 0
+    assert recovered_health.active_operations == ()
 
 
 def test_company_lookup_uses_pagination_and_cache() -> None:

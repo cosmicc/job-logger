@@ -197,7 +197,10 @@ usage, and warning/critical metadata.
 The shared app-health service uses the same disk warning/critical thresholds
 for the admin-only top-bar alert. Page rendering may read cached health and
 local disk usage, but it must not run fresh external Autotask probes while
-building ordinary authenticated pages.
+building ordinary authenticated pages. Cached Autotask health is tracked by
+semantic operation type, so any user's failed Autotask operation keeps the
+alert active until that same operation type succeeds again. Successful
+unrelated Autotask operations must not clear another active failure.
 `DEV_BUILD=true` is a display-only runtime marker for the authenticated header;
 do not use it as an authorization, environment-isolation, or safety boundary.
 

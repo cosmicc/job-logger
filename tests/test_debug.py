@@ -450,7 +450,16 @@ def test_cached_health_alert_is_visible_only_to_diagnostics_users(client: TestCl
     assert "Application needs attention:" in admin_response.text
     assert "Autotask API needs attention" in admin_response.text
 
+    system_health.record_autotask_api_failure(
+        "Autotask ticket lookup failed.",
+        operation="Autotask ticket lookup",
+    )
     system_health.record_autotask_api_success(operation="Autotask company lookup")
+    still_degraded_response = client.get("/users")
+    assert still_degraded_response.status_code == 200
+    assert "data-health-alert-button" in still_degraded_response.text
+
+    system_health.record_autotask_api_success(operation="Autotask ticket lookup")
     cleared_response = client.get("/users")
     assert cleared_response.status_code == 200
     assert "data-health-alert-button" not in cleared_response.text
