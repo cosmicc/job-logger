@@ -87,6 +87,14 @@ def test_changelog_parser_reads_current_release() -> None:
             "Switching back to Time entry restores the Remote. or On-Site. prefix that matches the selected work type.",
             "Past time entry cards now show compact hours beside the resource name, such as 1.5hrs.",
             "Full-browser navigation is now centered and uses the app's home-screen icon in the header.",
+            (
+                "The work-entry navigation button now says Work, uses a work-entry icon, "
+                "and the mobile top-bar buttons use the same blue style as the full web nav."
+            ),
+            (
+                "Work in Progress and Review detail now show the ticket title with the state pill beside it, "
+                "center key field labels, and use matching action button sizes."
+            ),
             "Web service error pages now match Job Logger's look instead of showing a generic server page.",
         ),
     )
@@ -126,6 +134,14 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Switching back to Time entry restores the Remote. or On-Site. prefix that matches the selected work type." in response.text
     assert "Past time entry cards now show compact hours beside the resource name, such as 1.5hrs." in response.text
     assert "Full-browser navigation is now centered and uses the app&#39;s home-screen icon in the header." in response.text
+    assert (
+        "The work-entry navigation button now says Work, uses a work-entry icon, "
+        "and the mobile top-bar buttons use the same blue style as the full web nav."
+    ) in response.text
+    assert (
+        "Work in Progress and Review detail now show the ticket title with the state pill beside it, "
+        "center key field labels, and use matching action button sizes."
+    ) in response.text
     assert "Web service error pages now match Job Logger&#39;s look instead of showing a generic server page." in response.text
     assert "Ticket note mode, ticket time entry history, ticket note history, and time totals" in response.text
     assert "Work entries can now be Time entries or customer-visible Ticket notes." in response.text

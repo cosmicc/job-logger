@@ -115,12 +115,14 @@
             data-active-job-card="{{ active_job.id }}"
             data-active-job-slot="{{ job_label }}"
           >
-            <p class="eyebrow-text">Active job {{ job_label }}</p>
-            <h1>Work in progress</h1>
+            <div class="detail-heading-row active-detail-heading-row">
+              <h2 data-active-ticket-heading>{{ active_job.ticket_title or active_job.ticket_number or "Unassigned Ticket" }}</h2>
+              <span class="status-chip status-{{ active_job.status.value }}">{{ active_job.status.value.replace("_", " ") }}</span>
+            </div>
             <dl class="metric-grid">
               <div class="metric-card job-date-card">
                 <label>
-                  <span class="metric-label">Job date</span>
+                  <span class="metric-label centered-field-label">Job date</span>
                   <span class="date-input-shell">
                     <input
                       name="job_date"
@@ -135,7 +137,7 @@
                 </label>
               </div>
               <div class="metric-card">
-                <dt>Rounded start</dt>
+                <dt class="centered-field-label">Start time</dt>
                 <dd>
                   <form
                     method="post"
@@ -159,7 +161,7 @@
                       name="delta_minutes"
                       value="-15"
                       data-active-time-delta="-15"
-                      aria-label="Decrease rounded start by 15 minutes"
+                      aria-label="Decrease start time by 15 minutes"
                       {% if is_ticket_note %}disabled{% endif %}
                     >
                       -15
@@ -176,7 +178,7 @@
                       data-active-time-input
                       data-active-time-kind="start"
                       required
-                      aria-label="Rounded start time"
+                      aria-label="Start time"
                       {% if is_ticket_note %}disabled{% endif %}
                     >
                     <button
@@ -186,7 +188,7 @@
                       name="delta_minutes"
                       value="15"
                       data-active-time-delta="15"
-                      aria-label="Increase rounded start by 15 minutes"
+                      aria-label="Increase start time by 15 minutes"
                       {% if is_ticket_note %}disabled{% endif %}
                     >
                       +15
@@ -195,7 +197,7 @@
                 </dd>
               </div>
               <div class="metric-card">
-                <dt>Rounded stop</dt>
+                <dt class="centered-field-label">End time</dt>
                 <dd>
                   <form
                     method="post"
@@ -219,7 +221,7 @@
                       name="delta_minutes"
                       value="-15"
                       data-active-time-delta="-15"
-                      aria-label="Decrease rounded stop by 15 minutes"
+                      aria-label="Decrease end time by 15 minutes"
                       {% if is_ticket_note %}disabled{% endif %}
                     >
                       -15
@@ -241,7 +243,7 @@
                       data-initial-rounded-stop-utc="{{ rounded_stop_utc|utc_iso }}"
                       data-initial-rounded-stop-local-time="{{ rounded_stop_utc|local_time }}"
                       required
-                      aria-label="Rounded stop time"
+                      aria-label="End time"
                       {% if is_ticket_note %}disabled{% endif %}
                     >
                     <button
@@ -251,7 +253,7 @@
                       name="delta_minutes"
                       value="15"
                       data-active-time-delta="15"
-                      aria-label="Increase rounded stop by 15 minutes"
+                      aria-label="Increase end time by 15 minutes"
                       {% if is_ticket_note %}disabled{% endif %}
                     >
                       +15
@@ -322,7 +324,7 @@
               </div>
               <div class="metric-card ticket-status-card">
                 <label>
-                  <span class="metric-label">Ticket status</span>
+                  <span class="metric-label centered-field-label">Ticket status</span>
                   <select
                     name="ticket_status"
                     form="active-ticket-form-{{ active_job.id }}"
@@ -385,7 +387,7 @@
                 data-active-ticket-description-card
               >
                 <div class="ticket-context-header">
-                  <dt>Ticket description</dt>
+                  <dt class="centered-field-label">Ticket description</dt>
                   <div class="ticket-context-actions">
                     <button
                       class="secondary-button ticket-notes-button is-hidden"
@@ -513,7 +515,7 @@
                 >
               </label>
               <label for="description-preview-{{ active_job.id }}">
-                <span data-summary-label>{% if is_ticket_note %}Note description{% else %}Summary notes{% endif %}</span>
+                <span class="centered-field-label" data-summary-label>{% if is_ticket_note %}Note description{% else %}Summary notes{% endif %}</span>
                 <textarea
                   id="description-preview-{{ active_job.id }}"
                   class="job-description"

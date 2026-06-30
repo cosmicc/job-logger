@@ -465,17 +465,30 @@ svg {
   gap: 6px;
 }
 
-.mobile-nav-action:hover {
-  border-color: rgba(45, 212, 191, 0.42);
-  background: var(--ticket-option-hover);
+.mobile-nav-action:not(.health-alert-button) {
+  border-color: var(--nav-action-border);
+  background: var(--nav-action-bg);
+  color: var(--nav-action);
+}
+
+.mobile-nav-action:not(.health-alert-button):hover {
+  border-color: var(--nav-action-hover);
+  background: rgba(59, 130, 246, 0.24);
   box-shadow: var(--button-hover-shadow);
-  color: var(--accent-strong);
+  color: var(--nav-action-hover);
+}
+
+.mobile-nav-action.health-alert-button:hover {
+  border-color: var(--danger-hover);
+  background: var(--danger-hover);
+  box-shadow: var(--button-hover-shadow);
+  color: var(--on-danger);
 }
 
 .mobile-logout-action:hover {
-  border-color: var(--danger-hover);
-  background: var(--danger-soft-hover);
-  color: var(--danger-hover);
+  border-color: var(--nav-action-hover);
+  background: rgba(59, 130, 246, 0.24);
+  color: var(--nav-action-hover);
 }
 
 .flash-stack {
@@ -1470,6 +1483,26 @@ a:focus-visible {
   gap: 16px;
 }
 
+.detail-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px 10px;
+  margin-bottom: 2px;
+}
+
+.detail-heading-row h2 {
+  max-width: 100%;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.detail-heading-row .status-chip {
+  flex: 0 0 auto;
+}
+
 .mobile-shell {
   max-width: 520px;
 }
@@ -1529,6 +1562,12 @@ a:focus-visible {
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.centered-field-label {
+  display: block;
+  width: 100%;
+  text-align: center;
 }
 
 .metric-grid dd {
@@ -1678,9 +1717,13 @@ a:focus-visible {
 .ticket-context-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.ticket-context-header .centered-field-label {
+  flex: 1 0 100%;
 }
 
 .ticket-context-actions {
@@ -2276,23 +2319,7 @@ a:focus-visible {
 }
 
 .review-detail-heading-row {
-  align-items: flex-start;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 6px;
   margin-bottom: -4px;
-}
-
-.review-detail-heading-row .eyebrow-text {
-  margin-bottom: 4px;
-}
-
-.review-detail-heading-row h2 {
-  margin-bottom: 0;
-}
-
-.review-detail-heading-row .status-chip {
-  align-self: flex-start;
 }
 
 .review-layout {
@@ -3090,6 +3117,29 @@ td a {
 .review-action-row button {
   width: 100%;
   min-height: 48px;
+}
+
+.edit-panel .review-summary-action-row .secondary-button,
+.edit-panel .review-action-row button {
+  gap: 4px;
+  height: 48px;
+  max-height: 48px;
+  padding-block: 8px;
+  padding-inline: 8px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.edit-panel .review-summary-action-row .secondary-button span,
+.edit-panel .review-action-row button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.edit-panel .review-summary-action-row .secondary-button svg,
+.edit-panel .review-action-row button svg {
+  flex: 0 0 auto;
 }
 
 .ticket-notes-overlay-open {

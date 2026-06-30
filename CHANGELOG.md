@@ -15,6 +15,15 @@ All notable changes to Job Logger are documented in this file.
 - Centered the full-browser authenticated top navigation and replaced the
   desktop header's text-only `JL` mark with the same source-controlled app icon
   used for mobile home-screen installs.
+- Renamed the authenticated `/home` navigation item from **Home** to **Work**,
+  changed its desktop and phone icon to a work-entry add icon, and changed
+  phone top-bar navigation buttons to use the same blue treatment as the
+  full-browser navigation buttons.
+- Changed Work in Progress and Review detail headings to show the selected
+  ticket title with the job state pill beside it instead of a separate
+  **Selected job** label, centered the main field labels, renamed active
+  rounded-time controls to **Start time** and **End time**, and made Review
+  detail action buttons match Work in Progress sizing.
 - Added app-styled nginx error documents for common 4xx and 5xx web errors,
   disabled nginx server tokens, and kept proxy-generated failures branded as
   the Job Logger web service instead of the stock server error page.

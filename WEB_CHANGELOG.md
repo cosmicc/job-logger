@@ -8,6 +8,8 @@ Short release notes shown on the authenticated `/changelog` page.
 - Switching back to Time entry restores the Remote. or On-Site. prefix that matches the selected work type.
 - Past time entry cards now show compact hours beside the resource name, such as 1.5hrs.
 - Full-browser navigation is now centered and uses the app's home-screen icon in the header.
+- The work-entry navigation button now says Work, uses a work-entry icon, and the mobile top-bar buttons use the same blue style as the full web nav.
+- Work in Progress and Review detail now show the ticket title with the state pill beside it, center key field labels, and use matching action button sizes.
 - Web service error pages now match Job Logger's look instead of showing a generic server page.
 
 ## v1.2.0 - Ticket note mode, ticket time entry history, ticket note history, and time totals

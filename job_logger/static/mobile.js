@@ -1964,6 +1964,7 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   const ticketNumberDisplay = activeJobCard.querySelector("[data-active-ticket-number-display]");
   const ticketTitleCard = activeJobCard.querySelector("[data-active-ticket-title-card]");
   const ticketTitleDisplay = activeJobCard.querySelector("[data-active-ticket-title-display]");
+  const ticketHeading = activeJobCard.querySelector("[data-active-ticket-heading]");
   const ticketDescriptionCard = activeJobCard.querySelector("[data-active-ticket-description-card]");
   const ticketDescriptionDisplay = activeJobCard.querySelector("[data-active-ticket-description-display]");
   const ticketStatusInput = activeJobCard.querySelector("[data-active-ticket-status-input]");
@@ -1982,6 +1983,9 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   }
   if (ticketTitleDisplay) {
     ticketTitleDisplay.textContent = ticketTitle;
+  }
+  if (ticketHeading) {
+    ticketHeading.textContent = ticketTitle || ticketNumber || "Unassigned Ticket";
   }
 
   if (ticketDescriptionCard) {

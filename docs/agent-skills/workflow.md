@@ -41,9 +41,11 @@ targets the phone or installed mobile app.
 Phone-sized authenticated layouts hide the brand mark and desktop logout form.
 The visible top bar should place the left navigation icons on the left, the
 version link centered in the middle, and right-side action icons on the right.
-Managed web users see Home and Review on the left, with Config and logout on
-the right. Managed users marked as Admin also see Diagnostics on the right, but
-that flag must not remove Config or grant super-admin-only Users navigation.
+Managed web users see Work and Review on the left, with Config and logout on
+the right. The Work button links to `/home` and uses the same work-entry icon
+on phone and full-browser navigation. Managed users marked as Admin also see
+Diagnostics on the right, but that flag must not remove Config or grant
+super-admin-only Users navigation.
 The config super admin sees Users, Review, and Diagnostics on the left, with
 logout on the right, and must not see Config. The mobile logout button must
 submit the normal `/logout` form with the rendered CSRF token. Do not wire
@@ -53,7 +55,7 @@ non-mobile authenticated pages. Full-browser top navigation should stay
 centered and use raised blue icon-and-text buttons, including visible
 **Log out** text after the logout icon. The authenticated desktop brand mark
 should use the source-controlled PWA home-screen icon while phone-sized
-navigation remains compact icon buttons.
+navigation remains compact blue icon buttons.
 Enabled buttons and button-like navigation controls should visibly brighten on
 hover. Workflow actions such as **Record**, **AI Cleanup**, finish, delete, and
 review submit controls should look raised at rest and pressed in while active.
@@ -126,15 +128,15 @@ Active jobs support these updates before completion:
   as `06/29/2026  (Yesterday)`. Other dates show only the centered date. The
   selected date replaces the local date portion of the active rounded start
   time while preserving its local time.
-- Rounded start time through an editable 12-hour Work in Progress time field
-  that matches the Review detail start-time treatment, plus server-validated
-  `-15` and `+15` minute buttons on either side of the field.
-- Rounded stop time through an editable 12-hour Work in Progress time field
-  that matches the Review detail end-time treatment, plus server-validated
-  `-15` and `+15` minute buttons on either side of the field. These controls
-  must not use the full-page status overlay because the adjustment should feel
-  immediate.
-- A centered rounded duration label under the Work in Progress **Rounded stop**
+- Rounded start time through an editable 12-hour Work in Progress **Start
+  time** field that matches the Review detail start-time treatment, plus
+  server-validated `-15` and `+15` minute buttons on either side of the field.
+- Rounded stop time through an editable 12-hour Work in Progress **End time**
+  field that matches the Review detail end-time treatment, plus
+  server-validated `-15` and `+15` minute buttons on either side of the field.
+  These controls must not use the full-page status overlay because the
+  adjustment should feel immediate.
+- A centered rounded duration label under the Work in Progress **End time**
   control, such as `15 Minutes`, `1 Hour`, or `1.25 Hours`. The server returns
   the canonical label after active time saves, and browser JavaScript should
   update the visible label immediately when the visible start or stop time
@@ -527,12 +529,12 @@ before the user presses AI Cleanup or submits a workflow action. Once an open
 ticket has been selected, the client name is locked for the job.
 
 When a ticket is selected from Autotask lookup, store the ticket title with the
-job and use it as the selected-job detail heading. If no ticket has been
+job and use it as the ticket-title detail heading. If no ticket has been
 selected, the detail heading should read `Unassigned Ticket`. Older jobs that
 have a ticket number but no stored title may display the ticket number as a
 fallback. Once a job has a ticket number, hide the open-ticket lookup panel for
 that job. Review ticket selection should update the read-only ticket number,
-selected-job heading, and read-only ticket description card in place after the
+ticket-title heading, and read-only ticket description card in place after the
 server verifies and stores the ticket. If the verified ticket has no
 description, keep the card visible with the standard no-description message.
 

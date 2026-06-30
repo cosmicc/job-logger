@@ -183,7 +183,8 @@
   }
 
   .work-panel[data-active-job-card] > .eyebrow-text,
-  .work-panel[data-active-job-card] > h1 {
+  .work-panel[data-active-job-card] > h1,
+  .work-panel[data-active-job-card] > .detail-heading-row {
     grid-column: 1 / -1;
   }
 
@@ -237,6 +238,13 @@
 
   .work-panel[data-active-job-card] .work-finish-stack .end-work-button,
   .work-panel[data-active-job-card] .work-finish-stack .danger-outline-button {
+    min-height: 56px;
+  }
+
+  .edit-panel .review-summary-action-row .secondary-button,
+  .edit-panel .review-action-row button {
+    height: 56px;
+    max-height: 56px;
     min-height: 56px;
   }
 }

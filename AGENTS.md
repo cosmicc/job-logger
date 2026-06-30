@@ -256,9 +256,9 @@ Job end times and job duration must also round to 15-minute intervals.
 Work in Progress and Review detail must show the rounded start-to-stop duration
 using labels such as `15 Minutes`, `1 Hour`, or `1.25 Hours`, and must update
 that label as the visible rounded times change. Work in Progress shows the
-centered duration under **Rounded stop**. Review detail shows the centered
-duration on its own row under the start/end time controls so the full-browser
-start and end fields stay aligned.
+centered duration under **End time**. Review detail shows the centered duration
+on its own row under the start/end time controls so the full-browser start and
+end fields stay aligned.
 Ticket-note mode hides this duration because start and stop times are not used
 for Autotask ticket notes.
 
@@ -428,13 +428,11 @@ label should be centered together with two spaces between them, such as
 The selected local date must be saved server-side through the active-job
 workflow and carry into Review and Autotask submission. The selected Review
 detail **Job date** field should use the same centered in-selector treatment.
-The active **Rounded start** and
-**Rounded stop**
-fields should use the same 12-hour editable time-field treatment as Review
-detail start/end times, keep the `-15` and `+15` controls, and save only
-through server-validated active-job routes. Work in Progress and Review detail
-should center the rounded-duration label in the existing time area without
-reworking the mobile or full-browser layout.
+The active **Start time** and **End time** fields should use the same 12-hour
+editable time-field treatment as Review detail start/end times, keep the `-15`
+and `+15` controls, and save only through server-validated active-job routes.
+Work in Progress and Review detail should center the rounded-duration label in
+the existing time area without reworking the mobile or full-browser layout.
 
 Managed web-user pages must respect the current user's saved theme preference.
 The default is the dark theme. Light theme support must cover mobile, review,
@@ -450,17 +448,20 @@ On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows only the discreet version link, compact
 navigation icons, and a mobile logout icon button on the right. The version
 link is centered between the left navigation group and the right action group.
-Managed web users see Home and Review on the left, with Config and logout on
-the right. The config super admin sees Users, Review, and Diagnostics on the
-left, with logout on the right, and must not see the Config shortcut. The
-mobile logout button must post to `/logout` with the rendered CSRF token and
+Managed web users see Work and Review on the left, with Config and logout on
+the right. The Work button links to `/home` and uses the same work-entry icon
+on phone and full-browser navigation. The config super admin sees Users,
+Review, and Diagnostics on the left, with logout on the right, and must not see
+the Config shortcut. The mobile logout button must post to `/logout` with the
+rendered CSRF token and
 must not use `window.close()` or a browser-only app close fallback. Full-width
 `/home`, review, debug, and other non-mobile authenticated views still expose
 the explicit desktop logout control. Full-browser top navigation should be
 centered, use raised blue icon-and-text buttons, and show the source-controlled
 PWA home-screen icon as the authenticated desktop brand mark. It should include
 a **Log out** button with the logout icon and visible text while preserving the
-phone-sized icon navigation.
+phone-sized icon navigation. Phone top-bar navigation buttons should use the
+same blue visual treatment as the full-browser navigation buttons.
 Enabled buttons and button-like navigation controls should show a slight
 brighter hover state, and workflow action buttons should have a raised idle
 state plus a pressed-in active state. Destructive red controls should stay red

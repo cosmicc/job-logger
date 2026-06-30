@@ -845,18 +845,20 @@ buttons. On phone-sized Review detail, Record and AI Cleanup status text also
 stays below the Review action buttons. Phone-sized authenticated layouts
 hide the brand mark and desktop logout button, place left navigation
 icons on the left, center the version link, and put right-side actions on the
-right. Managed web users see Home and Review on the left, with Config and a
-logout icon on the right. The config super admin sees Users, Review, and
-Diagnostics on the left, with a logout icon on the right. The mobile logout
+right. Managed web users see Work and Review on the left, with Config and a
+logout icon on the right. The Work icon links to `/home` and uses the same
+work-entry symbol as the full-browser Work nav button. The config super admin
+sees Users, Review, and Diagnostics on the left, with a logout icon on the
+right. The mobile logout
 icon submits the normal CSRF-protected `/logout` form. Full-width `/home`,
 review, debug, and other non-mobile pages keep the explicit desktop logout
 button. Mobile submit actions show a loading overlay once the
 tap is accepted so slow redirects or Autotask lookups do not look like ignored
 buttons; rounded start/stop `-15` and `+15` adjustments skip the full-page
 overlay so those small time changes feel immediate.
-Work in Progress shows the rounded duration centered under **Rounded stop**,
-and Review detail shows it centered under the start/end time controls. The
-value updates as those times change.
+Work in Progress shows the rounded duration centered under **End time**, and
+Review detail shows it centered under the start/end time controls. The value
+updates as those times change.
 Each Work in Progress card can switch between **Time entry** and **Ticket note**
 before Autotask submission. Ticket note mode disables start/stop time controls,
 hides Remote/On-Site, shows a required note-title field above the note

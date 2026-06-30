@@ -45,11 +45,12 @@
           {% if not current_is_super_admin %}
             <a href="/home">
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 11 12 3l9 8"></path>
-                <path d="M5 10v10h14V10"></path>
-                <path d="M9 20v-6h6v6"></path>
+                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path>
+                <path d="M9 5a3 3 0 0 1 6 0"></path>
+                <path d="M12 11v6"></path>
+                <path d="M9 14h6"></path>
               </svg>
-              <span>Home</span>
+              <span>Work</span>
             </a>
           {% endif %}
           {% if current_is_super_admin %}
@@ -92,11 +93,12 @@
         </nav>
         <nav class="mobile-nav-actions mobile-nav-left" aria-label="Mobile navigation">
           {% if not current_is_super_admin %}
-            <a class="icon-button mobile-nav-action" href="/home" title="Home" aria-label="Home" data-mobile-home-link>
+            <a class="icon-button mobile-nav-action" href="/home" title="Work" aria-label="Work" data-mobile-home-link>
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 11 12 3l9 8"></path>
-                <path d="M5 10v10h14V10"></path>
-                <path d="M9 20v-6h6v6"></path>
+                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path>
+                <path d="M9 5a3 3 0 0 1 6 0"></path>
+                <path d="M12 11v6"></path>
+                <path d="M9 14h6"></path>
               </svg>
             </a>
           {% else %}

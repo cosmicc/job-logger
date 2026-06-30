@@ -1312,12 +1312,13 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert 'class="desktop-header-left"' in response.text
     assert 'class="brand-icon" src="/static/icons/job-logger-icon-192.png"' in response.text
     assert '<a href="/home">' in response.text
-    assert "<span>Home</span>" in response.text
+    assert "<span>Work</span>" in response.text
+    assert '<path d="M12 11v6"></path>' in response.text
     assert '<a href="/home">Mobile</a>' not in response.text
     assert 'class="mobile-nav-actions mobile-nav-left"' in response.text
     assert 'class="mobile-nav-actions mobile-nav-right"' in response.text
     assert 'data-mobile-home-link' in response.text
-    assert 'aria-label="Home"' in response.text
+    assert 'aria-label="Work"' in response.text
     assert 'data-mobile-review-link' in response.text
     assert 'aria-label="Review"' in response.text
     assert 'data-mobile-users-link' not in response.text
@@ -1378,7 +1379,8 @@ def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(aut
     assert ">Mobile<" not in response.text
     assert "Secure session" not in response.text
     assert '<a href="/home">' in response.text
-    assert "<span>Home</span>" in response.text
+    assert "<span>Work</span>" in response.text
+    assert '<path d="M12 11v6"></path>' in response.text
     assert '<a href="/home">Mobile</a>' not in response.text
     assert 'action="/logout"' in response.text
     assert 'class="icon-button desktop-logout-button"' in response.text
@@ -1446,6 +1448,9 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".brand-icon" in stylesheet
     assert "grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);" in stylesheet
     assert "justify-self: center;" in stylesheet
+    assert ".mobile-nav-action:not(.health-alert-button)" in stylesheet
+    assert "border-color: var(--nav-action-border);" in stylesheet
+    assert "background: var(--nav-action-bg);" in stylesheet
     assert ".mobile-nav-action:active" in stylesheet
     assert ".desktop-logout-button" in stylesheet
     assert ".desktop-logout-form" in stylesheet
@@ -1508,12 +1513,14 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".active-job-panel-slot-2" in stylesheet
     assert ".description-box > .button-grid" in stylesheet
     assert ".review-location-chip" in stylesheet
+    assert ".detail-heading-row" in stylesheet
+    assert ".detail-heading-row .status-chip" in stylesheet
+    assert ".centered-field-label" in stylesheet
     assert ".review-detail-heading-row" in stylesheet
     assert ".review-work-location-card" in stylesheet
     assert ".review-shell > .review-header" in stylesheet
-    assert ".review-detail-heading-row {\n  align-items: flex-start;" in stylesheet
-    assert "flex-direction: column;" in stylesheet
-    assert ".review-detail-heading-row .status-chip {\n  align-self: flex-start;" in stylesheet
+    assert "justify-content: flex-start;" in stylesheet
+    assert ".ticket-context-header .centered-field-label" in stylesheet
     assert ".review-work-location-card .work-location-switch" in stylesheet
     assert "justify-self: center;" in stylesheet
     assert ".review-detail-heading-row {\n  gap: 6px;" in phone_stylesheet
@@ -1549,13 +1556,20 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "min-height: 180px;" in phone_stylesheet
     assert ".active-jobs-stack > .work-panel:not([data-active-job-card])" in desktop_stylesheet
     assert ".work-panel[data-active-job-card]" in desktop_stylesheet
+    assert ".work-panel[data-active-job-card] > .detail-heading-row" in desktop_stylesheet
     assert "grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);" in desktop_stylesheet
     assert "grid-template-columns: minmax(0, 1fr) minmax(360px, 0.78fr);" in desktop_stylesheet
     assert ".work-panel[data-active-job-card] .summary-action-row .secondary-button" in desktop_stylesheet
+    assert ".edit-panel .review-summary-action-row .secondary-button" in desktop_stylesheet
+    assert ".edit-panel .review-action-row button" in desktop_stylesheet
     assert ".active-jobs-stack > .work-panel:not([data-active-job-card])" not in phone_stylesheet
     assert ".work-panel[data-active-job-card]" not in phone_stylesheet
     mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
     review_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+    assert 'class="detail-heading-row active-detail-heading-row"' in mobile_template
+    assert "data-active-ticket-heading" in mobile_template
+    assert 'class="detail-heading-row review-detail-heading-row"' in review_template
+    assert "Selected job" not in review_template
     assert mobile_template.index('class="summary-action-row recording-control-stack"') < mobile_template.index("data-ai-cleanup-button")
     assert mobile_template.index("data-record-audio-label") < mobile_template.index("data-ai-cleanup-button")
     summary_action_index = mobile_template.index('class="summary-action-row recording-control-stack"')
@@ -1900,10 +1914,10 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'pattern="[Tt][0-9]{8}\\\\.[0-9]{4}"' not in page_html
     assert page_html.index('value="-15"') < page_html.index('class="time-field-input rounded-start-time-display"')
     assert page_html.index('class="time-field-input rounded-start-time-display"') < page_html.index('value="15"')
-    assert page_html.index("<dt>Rounded start</dt>") < page_html.index("<dt>Rounded stop</dt>")
-    assert page_html.index("<dt>Rounded stop</dt>") < page_html.index("data-duration-display")
+    assert page_html.index('<dt class="centered-field-label">Start time</dt>') < page_html.index('<dt class="centered-field-label">End time</dt>')
+    assert page_html.index('<dt class="centered-field-label">End time</dt>') < page_html.index("data-duration-display")
     assert 'class="duration-inline duration-centered"' in page_html
-    assert page_html.index("<dt>Rounded stop</dt>") < page_html.index('class="metric-card work-location-card"')
+    assert page_html.index('<dt class="centered-field-label">End time</dt>') < page_html.index('class="metric-card work-location-card"')
     assert page_html.index("data-duration-display") < page_html.index('class="metric-card work-location-card"')
 
 

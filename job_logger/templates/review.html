@@ -89,7 +89,7 @@
         </div>
       </section>
 
-      <section class="edit-panel" aria-label="Selected job editor">
+      <section class="edit-panel" aria-label="Work detail editor">
         {% if selected_job %}
           {% set review_form_id = "review-form-" ~ selected_job.id %}
           {% set selected_entry_type = selected_job.entry_type.value if selected_job.entry_type else "time_entry" %}
@@ -113,11 +113,8 @@
               <input type="hidden" name="return_to" value="review">
             {% endif %}
 
-            <div class="form-header-row review-detail-heading-row">
-              <div>
-                <p class="eyebrow-text">Selected job</p>
-                <h2 data-selected-ticket-heading>{{ selected_job.ticket_title or selected_job.ticket_number or "Unassigned Ticket" }}</h2>
-              </div>
+            <div class="detail-heading-row review-detail-heading-row">
+              <h2 data-selected-ticket-heading>{{ selected_job.ticket_title or selected_job.ticket_number or "Unassigned Ticket" }}</h2>
               <span class="status-chip status-{{ selected_job.status.value }}">{{ selected_job.status.value.replace("_", " ") }}</span>
             </div>
 
@@ -279,14 +276,14 @@
                 </div>
               </div>
               <label class="review-job-date-field">
-                <span>Job date</span>
+                <span class="centered-field-label">Job date</span>
                 <span class="date-input-shell">
                   <input name="job_date" type="date" value="{{ selected_job_date }}" required>
                   <span class="date-display-text" data-review-date-display>{{ selected_job_date|job_date_display }}</span>
                 </span>
               </label>
               <label class="review-start-time-field" data-review-time-field>
-                <span>Start time</span>
+                <span class="centered-field-label">Start time</span>
                 <div class="time-step-controls {% if is_ticket_note %}time-controls-disabled{% endif %}">
                   <button
                     type="button"
@@ -327,7 +324,7 @@
                 </div>
               </label>
               <label class="review-end-time-field" data-review-time-field>
-                <span>End time</span>
+                <span class="centered-field-label">End time</span>
                 <div class="time-step-controls {% if is_ticket_note %}time-controls-disabled{% endif %}">
                   <button
                     type="button"
@@ -372,7 +369,7 @@
                 <strong data-duration-display>{{ selected_job.rounded_start_utc|duration_label(selected_job_review_end_utc) }}</strong>
               </div>
               <label class="review-ticket-status-field">
-                <span>Ticket status</span>
+                <span class="centered-field-label">Ticket status</span>
                 <select name="ticket_status" required>
                   {% for option_value, option_label in ticket_status_options %}
                     <option value="{{ option_value }}" {% if selected_job.ticket_status and selected_job.ticket_status.value == option_value %}selected{% endif %}>
@@ -411,7 +408,7 @@
               aria-label="Selected ticket description"
             >
               <div class="ticket-context-header">
-                <span class="metric-label readonly-field-title">Ticket description</span>
+                <span class="metric-label readonly-field-title centered-field-label">Ticket description</span>
                 <div class="ticket-context-actions">
                   <button
                     class="secondary-button ticket-notes-button is-hidden"
@@ -465,7 +462,7 @@
               >
             </label>
             <label class="wide-field">
-              <span data-review-summary-label>{% if is_ticket_note %}Note description{% else %}Summary notes{% endif %}</span>
+              <span class="centered-field-label" data-review-summary-label>{% if is_ticket_note %}Note description{% else %}Summary notes{% endif %}</span>
               <textarea name="summary_notes" rows="8" data-review-summary-textarea>{{ selected_job_autotask_summary_notes }}</textarea>
             </label>
             <label class="append-resolution-field review-append-resolution-field">
