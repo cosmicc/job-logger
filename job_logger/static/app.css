@@ -1950,6 +1950,11 @@ a:focus-visible {
   font-weight: 650;
 }
 
+.workflow-status-line {
+  margin-top: 12px;
+  min-width: 0;
+}
+
 .recording-status:empty,
 [data-active-save-status]:empty {
   display: none;
@@ -2865,7 +2870,7 @@ td a {
 .review-status-stack {
   display: grid;
   gap: 6px;
-  margin-top: 10px;
+  margin-top: 14px;
 }
 
 [data-review-autosave-status]:empty {
@@ -3031,10 +3036,12 @@ td a {
   min-width: 0;
   margin-top: 4px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 750;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ticket-note-meta {
@@ -3043,6 +3050,11 @@ td a {
   font-weight: 650;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.ticket-time-entry-detail-range {
+  font-size: 15px;
+  line-height: 1.35;
 }
 
 .ticket-note-detail {

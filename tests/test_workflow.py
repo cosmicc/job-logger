@@ -1517,7 +1517,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert mobile_template.index("data-record-audio-label") < mobile_template.index("data-ai-cleanup-button")
     summary_action_index = mobile_template.index('class="summary-action-row recording-control-stack"')
     active_button_grid_index = mobile_template.index('class="button-grid"', summary_action_index)
-    recording_status_index = mobile_template.index('class="recording-status"', active_button_grid_index)
+    recording_status_index = mobile_template.index('class="recording-status workflow-status-line"', active_button_grid_index)
     assert summary_action_index < active_button_grid_index < recording_status_index
     assert 'class="work-panel active-job-panel active-job-panel-slot-{{ job_label }}"' in mobile_template
     assert ">Record</span>" in mobile_template
@@ -2596,10 +2596,10 @@ def test_ticket_time_entries_endpoint_returns_safe_selected_ticket_time_entries(
     assert payload["ticket_title"] == "Mock open ticket for Acme Services"
     assert len(payload["time_entries"]) == 2
     assert payload["time_entries"][0]["time_entry_id"] == 81002
-    assert payload["time_entries"][0]["resource_name"] == "Technician, Test"
+    assert payload["time_entries"][0]["resource_name"] == "Test Technician"
     assert payload["time_entries"][0]["display_range"] == "06/29/2026 01:30 PM - 02:15 PM (0.7500 hours)"
     assert payload["time_entries"][0]["summary_notes"] == "Remote. Confirmed backup job status and verified customer access."
-    assert payload["time_entries"][1]["resource_name"] == "Engineer, Prior"
+    assert payload["time_entries"][1]["resource_name"] == "Prior Engineer"
 
 
 def test_ticket_notes_endpoint_stays_empty_until_ticket_is_selected(authenticated_client: TestClient) -> None:

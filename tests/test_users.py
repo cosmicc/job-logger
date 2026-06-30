@@ -470,7 +470,7 @@ def test_users_page_autotask_resource_lookup_is_super_admin_only(client: TestCli
     assert lookup_response.status_code == 200
     payload = lookup_response.json()
     assert payload["resources"][0]["resource_id"] == 42
-    assert payload["resources"][0]["resource_name"] == "Blow, Joe"
+    assert payload["resources"][0]["resource_name"] == "Joe Blow"
     assert payload["resources"][0]["email"] == "joe.blow@example.test"
 
 

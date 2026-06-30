@@ -153,10 +153,6 @@
             {% if selected_job.autotask_error %}
               <p class="error-text">{{ selected_job.autotask_error }}</p>
             {% endif %}
-            {% if not selected_job_submitted and can_modify_selected_job %}
-              <p class="muted-text" data-review-autosave-status aria-live="polite"></p>
-            {% endif %}
-
             <fieldset class="review-readonly-fieldset" {% if not can_modify_selected_job %}disabled{% endif %}>
             <div class="form-grid">
               <div class="readonly-field-card">
@@ -710,19 +706,16 @@
 
           {% if can_modify_selected_job and (not selected_job_submitted or ai_cleanup_enabled or selected_job.ai_cleanup_original_summary) %}
             <div class="review-status-stack" aria-live="polite">
-              {% if not selected_job_submitted %}
-                <p
-                  class="recording-status"
-                  data-review-recording-status
-                  data-job-id="{{ selected_job.id }}"
-                  aria-live="polite"
-                ></p>
-                {% if selected_job.transcription_error %}
-                  <p class="error-text">{{ selected_job.transcription_error }}</p>
-                {% endif %}
-              {% endif %}
-              {% if ai_cleanup_enabled or selected_job.ai_cleanup_original_summary %}
-                <p class="recording-status ai-cleanup-status" data-ai-cleanup-status aria-live="polite"></p>
+              <p
+                class="recording-status workflow-status-line"
+                data-review-autosave-status
+                data-review-recording-status
+                data-ai-cleanup-status
+                data-job-id="{{ selected_job.id }}"
+                aria-live="polite"
+              ></p>
+              {% if not selected_job_submitted and selected_job.transcription_error %}
+                <p class="error-text">{{ selected_job.transcription_error }}</p>
               {% endif %}
             </div>
           {% endif %}

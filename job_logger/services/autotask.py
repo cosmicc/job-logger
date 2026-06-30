@@ -184,7 +184,7 @@ class AutotaskResourceOption:
     # resource_id is the Autotask Resource ID stored on the managed web user.
     resource_id: int
 
-    # resource_name is formatted for humans as "Last, First" when available.
+    # resource_name is formatted for humans as "First Last" when available.
     resource_name: str
 
     # first_name is included so the browser can explain why a result matched.
@@ -321,7 +321,7 @@ class AutotaskTicketTimeEntry:
     # time_entry_id is the Autotask TimeEntries.id value used only for UI selection.
     time_entry_id: int
 
-    # resource_name is bounded display-only technician metadata resolved from Autotask.
+    # resource_name is bounded first-name-first technician metadata resolved from Autotask.
     resource_name: str
 
     # start_at_utc and end_at_utc are displayed in the application timezone.
@@ -720,13 +720,27 @@ def _resource_match_text(raw_text: Any) -> str:
     return " ".join(normalized_text.split())
 
 
+def resource_name_for_display(raw_resource_name: str | None) -> str:
+    """Return a resource name in first-name-first order for user-facing pages."""
+
+    safe_resource_name = str(raw_resource_name or "").strip()
+    if not safe_resource_name:
+        return ""
+
+    last_name, separator, first_name = safe_resource_name.partition(",")
+    if separator and first_name.strip() and last_name.strip():
+        return f"{first_name.strip()} {last_name.strip()}"[:MAX_RESOURCE_NAME_LENGTH]
+
+    return safe_resource_name[:MAX_RESOURCE_NAME_LENGTH]
+
+
 def _resource_display_name(first_name: str | None, last_name: str | None, resource_id: int) -> str:
-    """Return the resource label that matches Autotask's last-name-first format."""
+    """Return the first-name-first resource label shown in authenticated pages."""
 
     safe_first_name = (first_name or "").strip()
     safe_last_name = (last_name or "").strip()
     if safe_first_name and safe_last_name:
-        return f"{safe_last_name}, {safe_first_name}"[:MAX_RESOURCE_NAME_LENGTH]
+        return f"{safe_first_name} {safe_last_name}"[:MAX_RESOURCE_NAME_LENGTH]
     if safe_last_name:
         return safe_last_name[:MAX_RESOURCE_NAME_LENGTH]
     if safe_first_name:
@@ -1113,7 +1127,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         return [
             AutotaskTicketTimeEntry(
                 time_entry_id=81002,
-                resource_name="Technician, Test",
+                resource_name="Test Technician",
                 start_at_utc=datetime(2026, 6, 29, 17, 30, tzinfo=UTC),
                 end_at_utc=datetime(2026, 6, 29, 18, 15, tzinfo=UTC),
                 hours_worked=Decimal("0.7500"),
@@ -1121,7 +1135,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             ),
             AutotaskTicketTimeEntry(
                 time_entry_id=81001,
-                resource_name="Engineer, Prior",
+                resource_name="Prior Engineer",
                 start_at_utc=datetime(2026, 6, 28, 14, 0, tzinfo=UTC),
                 end_at_utc=datetime(2026, 6, 28, 14, 30, tzinfo=UTC),
                 hours_worked=Decimal("0.5000"),
@@ -1161,14 +1175,14 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         resource_options = [
             AutotaskResourceOption(
                 resource_id=42,
-                resource_name="Blow, Joe",
+                resource_name="Joe Blow",
                 first_name="Joe",
                 last_name="Blow",
                 email="joe.blow@example.test",
             ),
             AutotaskResourceOption(
                 resource_id=1,
-                resource_name="Technician, Test",
+                resource_name="Test Technician",
                 first_name="Test",
                 last_name="Technician",
                 email="test.technician@example.test",

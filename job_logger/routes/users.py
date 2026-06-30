@@ -13,7 +13,7 @@ from job_logger.database import get_database_session
 from job_logger.models import Job, WebAuthnCredential, WebUser
 from job_logger.security import add_flash_message, require_super_admin, validate_csrf_token
 from job_logger.services.audit import record_audit_event
-from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider
+from job_logger.services.autotask import AutotaskSubmissionError, get_autotask_provider, resource_name_for_display
 from job_logger.services.users import (
     WebUserError,
     create_web_user,
@@ -122,7 +122,8 @@ def autotask_resource_options(request: Request, query: str = "") -> JSONResponse
             "resources": [
                 {
                     "resource_id": resource_option.resource_id,
-                    "resource_name": resource_option.resource_name,
+                    "resource_name": resource_name_for_display(resource_option.resource_name)
+                    or f"Resource {resource_option.resource_id}",
                     "first_name": resource_option.first_name,
                     "last_name": resource_option.last_name,
                     "email": resource_option.email,

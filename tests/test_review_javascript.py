@@ -47,10 +47,28 @@ def test_ticket_time_entries_overlay_list_cards_show_resource_and_range() -> Non
     assert 'const resource = ticketNotesCreateElement(' in ticket_notes_script
     assert '"ticket-time-entry-list-resource"' in ticket_notes_script
     assert '"ticket-time-entry-list-range"' in ticket_notes_script
+    assert "function ticketNotesResourceNameForDisplay(rawResourceName)" in ticket_notes_script
+    assert 'ticketNotesResourceNameForDisplay(timeEntry.resource_name)' in ticket_notes_script
+    assert '"ticket-note-meta ticket-time-entry-detail-range muted-text"' in ticket_notes_script
     assert "timeEntryButton.append(resource);" in ticket_notes_script
     assert "timeEntryButton.append(range);" in ticket_notes_script
     assert "renderTicketTimeEntryDetail(detailElement, timeEntry)" in ticket_notes_script
     assert "ticketNotesSafeString(timeEntry.summary_notes)" in ticket_notes_script
+
+
+def test_workflow_status_messages_share_one_line() -> None:
+    """Save, recording, and AI cleanup messages should overwrite one shared status line."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    mobile_template = (repository_root / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (repository_root / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+
+    assert 'class="recording-status workflow-status-line"' in mobile_template
+    assert "data-active-save-status" in mobile_template
+    assert 'class="recording-status workflow-status-line"' in review_template
+    assert "data-review-autosave-status" in review_template
+    assert "data-review-recording-status" in review_template
+    assert "data-ai-cleanup-status" in review_template
 
 
 def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:

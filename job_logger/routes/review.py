@@ -31,6 +31,7 @@ from job_logger.services.autotask import (
     AutotaskTicketTimeEntry,
     build_autotask_summary_notes,
     get_autotask_provider,
+    resource_name_for_display,
 )
 from job_logger.services.jobs import (
     JobWorkflowError,
@@ -393,7 +394,7 @@ def _ticket_time_entry_payload(time_entry: AutotaskTicketTimeEntry) -> dict[str,
 
     return {
         "time_entry_id": time_entry.time_entry_id,
-        "resource_name": time_entry.resource_name,
+        "resource_name": resource_name_for_display(time_entry.resource_name) or "Unknown resource",
         "display_range": _ticket_time_entry_display_range(time_entry),
         "summary_notes": time_entry.summary_notes or "",
         "hours_worked": _format_ticket_time_entry_hours(time_entry.hours_worked),

@@ -1554,7 +1554,7 @@ def test_live_ticket_notes_lookup_uses_selected_ticket_id(monkeypatch: pytest.Mo
     assert notes[0].note_id == 91002
     assert notes[0].title == "Technician update"
     assert notes[0].description == "Technician confirmed WAN status before dispatch."
-    assert notes[0].created_by == "Technician, Test"
+    assert notes[0].created_by == "Test Technician"
     assert notes[0].created_at_utc == datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
     assert notes[0].updated_at_utc is None
     assert notes[0].publish == 2
@@ -1587,13 +1587,13 @@ def test_live_ticket_time_entries_lookup_uses_selected_ticket_id(monkeypatch: py
     ]
     assert len(time_entries) == 2
     assert time_entries[0].time_entry_id == 81002
-    assert time_entries[0].resource_name == "Technician, Test"
+    assert time_entries[0].resource_name == "Test Technician"
     assert time_entries[0].start_at_utc == datetime(2026, 6, 29, 17, 30, tzinfo=UTC)
     assert time_entries[0].end_at_utc == datetime(2026, 6, 29, 18, 15, tzinfo=UTC)
     assert str(time_entries[0].hours_worked) == "0.7500"
     assert time_entries[0].summary_notes == "Remote. Confirmed backup job status."
     assert time_entries[1].time_entry_id == 81001
-    assert time_entries[1].resource_name == "Engineer, Prior"
+    assert time_entries[1].resource_name == "Prior Engineer"
     assert str(time_entries[1].hours_worked) == "0.5000"
 
 
@@ -1665,7 +1665,7 @@ def test_resource_lookup_uses_name_filters_and_cache(monkeypatch: pytest.MonkeyP
 
     assert len(first_lookup) == 1
     assert first_lookup[0].resource_id == 42
-    assert first_lookup[0].resource_name == "Blow, Joe"
+    assert first_lookup[0].resource_name == "Joe Blow"
     assert first_lookup[0].first_name == "Joe"
     assert first_lookup[0].last_name == "Blow"
     assert first_lookup[0].email == "joe.blow@example.test"

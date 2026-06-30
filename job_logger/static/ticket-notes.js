@@ -16,6 +16,26 @@ function ticketNotesCreateElement(tagName, className, textContent = "") {
   return element;
 }
 
+function ticketNotesResourceNameForDisplay(rawResourceName) {
+  const resourceName = ticketNotesSafeString(rawResourceName).trim();
+  if (!resourceName) {
+    return "Unknown resource";
+  }
+
+  const commaIndex = resourceName.indexOf(",");
+  if (commaIndex === -1) {
+    return resourceName;
+  }
+
+  const lastName = resourceName.slice(0, commaIndex).trim();
+  const firstName = resourceName.slice(commaIndex + 1).trim();
+  if (!lastName || !firstName) {
+    return resourceName;
+  }
+
+  return `${firstName} ${lastName}`;
+}
+
 function ticketNotesButtonHasTicket(button) {
   return Boolean(ticketNotesSafeString(button.dataset.ticketNotesTicketNumber).trim());
 }
@@ -196,14 +216,14 @@ function renderTicketTimeEntryDetail(detailElement, timeEntry) {
   }
 
   detailElement.replaceChildren();
-  const resourceName = ticketNotesSafeString(timeEntry.resource_name).trim() || "Unknown resource";
+  const resourceName = ticketNotesResourceNameForDisplay(timeEntry.resource_name);
   const displayRange = ticketNotesSafeString(timeEntry.display_range).trim();
   const summaryText = ticketNotesSafeString(timeEntry.summary_notes).trim() || "No summary of work is available.";
   const title = ticketNotesCreateElement("h3", "", resourceName);
   const body = ticketNotesCreateElement("p", "ticket-note-body", summaryText);
   detailElement.append(title);
   if (displayRange) {
-    detailElement.append(ticketNotesCreateElement("p", "ticket-note-meta muted-text", displayRange));
+    detailElement.append(ticketNotesCreateElement("p", "ticket-note-meta ticket-time-entry-detail-range muted-text", displayRange));
   }
   detailElement.append(body);
 }
@@ -253,7 +273,7 @@ function renderTicketTimeEntriesList(listElement, detailElement, timeEntries) {
     const resource = ticketNotesCreateElement(
       "span",
       "ticket-time-entry-list-resource",
-      ticketNotesSafeString(timeEntry.resource_name).trim() || "Unknown resource",
+      ticketNotesResourceNameForDisplay(timeEntry.resource_name),
     );
     const range = ticketNotesCreateElement(
       "span",

@@ -43,8 +43,24 @@
     resultsElement.hidden = true;
   }
 
+  function resourceNameForDisplay(rawResourceName) {
+    const resourceName = String(rawResourceName || "").trim();
+    const commaIndex = resourceName.indexOf(",");
+    if (commaIndex === -1) {
+      return resourceName;
+    }
+
+    const lastName = resourceName.slice(0, commaIndex).trim();
+    const firstName = resourceName.slice(commaIndex + 1).trim();
+    if (!lastName || !firstName) {
+      return resourceName;
+    }
+
+    return `${firstName} ${lastName}`;
+  }
+
   function resourceOptionLabel(resource) {
-    const resourceName = resource.resource_name || `Resource ${resource.resource_id}`;
+    const resourceName = resourceNameForDisplay(resource.resource_name) || `Resource ${resource.resource_id}`;
     return `${resourceName} (ID ${resource.resource_id})`;
   }
 

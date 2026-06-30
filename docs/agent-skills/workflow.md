@@ -177,9 +177,10 @@ overlay. The notes list is newest-first by note creation time, and each note
 selection card shows only the note title. The note selection card title area
 should fit two lines and truncate longer titles inside the card. Author,
 created, updated, type, and note body content belong in the selected note
-detail pane. Past time-entry list cards show the resource and formatted local
-start/stop/hours text, and the selected time-entry detail shows the summary of
-work.
+detail pane. Past time-entry list cards show the resource name first-name first
+and the formatted local start/stop/hours text on one larger single-line row,
+and the selected time-entry detail shows a larger date/time row plus the
+summary of work.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
@@ -385,11 +386,11 @@ the cleanup task, job context, and untrusted summary text.
 Mobile active jobs use `POST /jobs/{job_id}/summary/cleanup`. After a successful
 response, `job_logger/static/mobile.js` replaces the active summary textarea and
 persists the cleaned result through the existing active description text save
-endpoint. Mobile AI cleanup uses the same `.recording-status` line as audio
-recording for progress, success, and failure details. Status text stays
-text-only; the **AI Cleanup** button shows the shared spinner while cleanup or
-cleaned-summary saving is in progress. Cleanup should not run while audio
-recording or transcription is in progress.
+endpoint. Mobile AI cleanup uses the same `.recording-status` line as save and
+audio recording messages for progress, success, and failure details. Status
+text stays text-only; the **AI Cleanup** button shows the shared spinner while
+cleanup or cleaned-summary saving is in progress. Cleanup should not run while
+audio recording or transcription is in progress.
 
 Review detail uses `POST /review/{job_id}/summary/cleanup`. The returned text
 replaces the review summary textarea. Non-submitted review jobs continue through
@@ -458,8 +459,9 @@ Review supports:
   returns no rows for that lookup. The notes list must stay title-only and
   newest-first, with safe author metadata shown in note detail instead of the
   list cards. Long note selection titles should clamp to two visible lines
-  inside larger cards. Past time-entry list cards show resource plus local
-  start/stop/hours text, and the detail pane shows the summary of work.
+  inside larger cards. Past time-entry list cards show first-name-first
+  resource names plus one-line local start/stop/hours text, and the detail pane
+  shows a larger date/time row plus the summary of work.
 
 Ticket number is intentionally required only before Autotask submission, not for
 ordinary save operations.
@@ -489,10 +491,10 @@ active jobs, pair **Submit changes** with **Delete From Autotask** for
 submitted entries, and pair **Accept and Submit** with **Delete time entry** or
 **Delete note** for normal unsubmitted entries.
 Submission-failed jobs may use one row for **Retry** and **Accept and Submit**,
-with destructive local delete on its own following row. Phone-sized Review
-detail should place recording and AI cleanup status text below the summary
-action row and the workflow action row so those messages are under all visible
-action buttons.
+with destructive local delete on its own following row. Review detail should
+place the shared **Changes saved**, recording, and AI Cleanup status line below
+the workflow action rows so the newest message replaces the previous status
+under all visible action buttons.
 
 Review ticket selection persists through `POST /review/{job_id}/ticket`. The
 route uses the recently loaded server-side open-ticket selection cache when it

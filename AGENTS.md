@@ -344,7 +344,9 @@ a ticket is selected and the authenticated server route confirms that bounded
 notes exist for that ticket. They may also show a **Past time entries** button
 when the authenticated server route confirms that bounded `TimeEntries` rows
 exist for the selected ticket. Do not call Autotask directly from browser
-JavaScript or expose raw provider responses.
+JavaScript or expose raw provider responses. Resource names returned by
+Autotask for authenticated display must be shown first-name first, even when
+Autotask stores or returns the combined name as `Last, First`.
 
 Autotask API errors must be recorded clearly for review and troubleshooting
 without exposing credentials or sensitive protocol details. Any failed live
@@ -368,10 +370,10 @@ After the user stops active-job or review-detail recording, the browser status
 must distinguish the upload and transcription phases: first **Sending data to
 server...**, then **Converting audio to text...**, then **Conversion
 complete.** when the final transcript has been returned and pasted into the
-summary field. Audio and AI Cleanup status lines are plain text only. The
-spinning loading icon belongs in the active button itself, such as the disabled
-active-job **Record** button while the recording is still being sent or
-converted and the **AI Cleanup** button while cleanup is running.
+summary field. Audio, AI Cleanup, and save status messages share one plain-text
+status line. The spinning loading icon belongs in the active button itself,
+such as the disabled active-job **Record** button while the recording is still
+being sent or converted and the **AI Cleanup** button while cleanup is running.
 
 The local faster-whisper provider may use `FASTER_WHISPER_INITIAL_PROMPT` to
 guide transcript formatting, including rendering dictated punctuation words as
@@ -499,16 +501,17 @@ so note body text cannot overflow the cards. Selection cards should fit two
 lines of note title text and truncate longer titles inside the card. Note
 detail metadata should include who the note was from when Autotask returns a
 safe author reference. Past time-entry selection cards should show the resource
-name and formatted local start/stop/hours text, and the selected detail should
-show the summary of work.
+name first-name first and formatted local start/stop/hours text on one larger
+single-line row, and the selected detail should show a larger date/time row
+plus the summary of work.
 Work in Progress and review detail action controls should stay compact and
 scannable on both phone and full browser layouts. Use paired button rows when
 two actions naturally belong together, such as **Record** with **AI Cleanup**,
 **End Work** with **Delete**, and review submit/edit actions with the matching
-delete action. Never place more than two action buttons in one row. On
-phone-sized Review detail, recording and AI cleanup status text belongs below
-the summary action row and the review workflow action row, not between those
-button groups.
+delete action. Never place more than two action buttons in one row. Work in
+Progress and Review detail should use one shared status line below the action
+buttons for **Changes saved**, recording, and AI Cleanup messages; the newest
+message should replace the previous status instead of adding another line.
 Status chips across review, diagnostics, and user management should use the
 shared outlined, all-caps pill treatment while preserving status-specific
 colors.
@@ -856,9 +859,9 @@ The normal workflow is:
    where **Record** sits beside the optional **AI Cleanup** action. Review
    detail uses the same paired summary action row for unsubmitted jobs. On
    full-browser Work in Progress cards, the End Work/Delete row sits directly
-   below Record/AI Cleanup, and recording/AI status text sits below all action
-   buttons. On phone-sized Review detail, recording and AI cleanup status text
-   also sits below the review workflow action buttons. The record button becomes
+   below Record/AI Cleanup, and one shared save/recording/AI Cleanup status
+   line sits below all action buttons. Review detail uses the same single-line
+   status treatment below the review workflow actions. The record button becomes
    a stop button while audio chunks stream to
    the server over WebSocket. Recording, sending, and converting progress use
    plain status text, and stopping capture keeps the disabled record button in a
@@ -866,9 +869,9 @@ The normal workflow is:
 11. When enabled, user can click **AI Cleanup** to send the current summary text
    through the configured server-side cleanup provider. On
    mobile, progress and failure details use the same plain-text status line as
-   audio recording, while the **AI Cleanup** button itself shows the spinner
-   during cleanup. The returned text replaces the summary textarea and remains
-   subject to normal save/review behavior.
+   save and audio recording messages, while the **AI Cleanup** button itself
+   shows the spinner during cleanup. The returned text replaces the summary
+   textarea and remains subject to normal save/review behavior.
 12. User can save active job edits before ending work.
 13. User ends work with a mandatory verified Autotask client. With the default workflow, the
     active-card **End Work** action shares a row with the destructive **Delete**

@@ -85,7 +85,8 @@ def test_changelog_parser_reads_current_release() -> None:
             "Ticket note mode uses a required note title and note description instead of time and Remote/On-Site fields.",
             "Append to resolution is available for both entry types, and submitted Ticket notes can be updated or deleted from Review.",
             "Ticket notes now open from the selected ticket in a closeable newest-first overlay.",
-            "A Past time entries button now opens ticket time entries with resource, start/stop time, hours, and summary-of-work details.",
+            "A Past time entries button now opens ticket time entries with clearer technician names, larger time details, and summary-of-work details.",
+            "Work entry save, recording, and AI Cleanup messages now share one status line.",
             "Job date controls now show Today, Yesterday, or Tomorrow inside the date selector when applicable.",
             "Work in Progress and Review now have cleaner time controls, larger Remote/On-Site pills, and rounded total time shown.",
             "Full-browser Review now keeps Entry type beside Job date so start and end times share a row.",
@@ -134,9 +135,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     ) in response.text
     assert "Ticket notes now open from the selected ticket in a closeable newest-first overlay." in response.text
     assert (
-        "A Past time entries button now opens ticket time entries with resource, "
-        "start/stop time, hours, and summary-of-work details."
+        "A Past time entries button now opens ticket time entries with clearer technician names, "
+        "larger time details, and summary-of-work details."
     ) in response.text
+    assert "Work entry save, recording, and AI Cleanup messages now share one status line." in response.text
     assert "Job date controls now show Today, Yesterday, or Tomorrow inside the date selector when applicable." in response.text
     assert (
         "Work in Progress and Review now have cleaner time controls, larger Remote/On-Site pills, "

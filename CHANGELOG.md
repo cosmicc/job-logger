@@ -38,8 +38,13 @@ All notable changes to Job Logger are documented in this file.
 - Added a read-only **Past time entries** overlay for Work in Progress and
   Review detail. The button stays hidden until a ticket is selected and the
   authenticated provider confirms bounded `TimeEntries` rows exist for that
-  ticket. The list shows each resource with local start/stop time and hours,
-  and the selected detail shows the summary of work.
+  ticket. The list shows each resource first-name first with a larger
+  single-line local start/stop time and hours row, and the selected detail
+  shows a larger date/time row plus the summary of work.
+- Changed Work in Progress and Review detail status feedback so **Changes
+  saved**, recording, and AI Cleanup messages share one status line below the
+  action buttons and replace each other instead of rendering in separate
+  locations.
 - Changed Work in Progress and Review **Job date** controls so `(Today)`,
   `(Yesterday)`, or `(Tomorrow)` appears inside the date selector box when
   applicable. Other dates show only the selected date.

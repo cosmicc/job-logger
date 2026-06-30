@@ -658,12 +658,16 @@
                   </form>
                 </div>
               </div>
-              <p class="recording-status" data-job-id="{{ active_job.id }}" aria-live="polite"></p>
-              {% if active_job.transcription_error %}
-                <p class="error-text">{{ active_job.transcription_error }}</p>
-              {% endif %}
             </div>
-            <p class="muted-text" data-active-save-status data-job-id="{{ active_job.id }}" aria-live="polite"></p>
+            <p
+              class="recording-status workflow-status-line"
+              data-job-id="{{ active_job.id }}"
+              data-active-save-status
+              aria-live="polite"
+            ></p>
+            {% if active_job.transcription_error %}
+              <p class="error-text">{{ active_job.transcription_error }}</p>
+            {% endif %}
           </section>
         {% endfor %}
       {% else %}
