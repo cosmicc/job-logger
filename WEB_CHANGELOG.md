@@ -4,12 +4,11 @@ Short release notes shown on the authenticated `/changelog` page.
 
 ## v1.2.0 - Ticket note mode, ticket history, alerts, and time totals
 
-- Work entries can now be saved as Time entries or customer-visible Ticket notes before Autotask submission.
-- Time entries and Ticket notes now support Append to resolution, and submitted Ticket notes can be updated or deleted from Review.
-- Ticket notes and past time entries now open from the selected ticket so users can quickly review ticket history.
-- Work in Progress and Review now have cleaner date, time, and Remote/On-Site controls.
+- Work entries can now be Time entries or customer-visible Ticket notes.
+- Ticket notes and past time entries now open together from the selected ticket.
+- Append to resolution is available for both entry types, and submitted Ticket notes can be updated or deleted from Review.
+- Work in Progress and Review now have cleaner date, time, Remote/On-Site, and total-time controls.
 - Admins now see a top-bar alert when app health needs attention.
-- Work in Progress and Review now show the total rounded time between start and stop.
 
 ## v1.1.6 - Review, Home, and header polish
 

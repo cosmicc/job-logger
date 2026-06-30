@@ -81,12 +81,11 @@ def test_changelog_parser_reads_current_release() -> None:
         version="v1.2.0",
         title="Ticket note mode, ticket history, alerts, and time totals",
         changes=(
-            "Work entries can now be saved as Time entries or customer-visible Ticket notes before Autotask submission.",
-            "Time entries and Ticket notes now support Append to resolution, and submitted Ticket notes can be updated or deleted from Review.",
-            "Ticket notes and past time entries now open from the selected ticket so users can quickly review ticket history.",
-            "Work in Progress and Review now have cleaner date, time, and Remote/On-Site controls.",
+            "Work entries can now be Time entries or customer-visible Ticket notes.",
+            "Ticket notes and past time entries now open together from the selected ticket.",
+            "Append to resolution is available for both entry types, and submitted Ticket notes can be updated or deleted from Review.",
+            "Work in Progress and Review now have cleaner date, time, Remote/On-Site, and total-time controls.",
             "Admins now see a top-bar alert when app health needs attention.",
-            "Work in Progress and Review now show the total rounded time between start and stop.",
         ),
     )
 
@@ -120,15 +119,14 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
     assert "Ticket note mode, ticket history, alerts, and time totals" in response.text
-    assert "Work entries can now be saved as Time entries or customer-visible Ticket notes before Autotask submission." in response.text
+    assert "Work entries can now be Time entries or customer-visible Ticket notes." in response.text
+    assert "Ticket notes and past time entries now open together from the selected ticket." in response.text
     assert (
-        "Time entries and Ticket notes now support Append to resolution, "
+        "Append to resolution is available for both entry types, "
         "and submitted Ticket notes can be updated or deleted from Review."
     ) in response.text
-    assert "Ticket notes and past time entries now open from the selected ticket so users can quickly review ticket history." in response.text
-    assert "Work in Progress and Review now have cleaner date, time, and Remote/On-Site controls." in response.text
+    assert "Work in Progress and Review now have cleaner date, time, Remote/On-Site, and total-time controls." in response.text
     assert "Admins now see a top-bar alert when app health needs attention." in response.text
-    assert "Work in Progress and Review now show the total rounded time between start and stop." in response.text
     assert "Review, Home, and header polish" in response.text
     assert "Review summaries now start with Remote. or On-Site. before the work notes." in response.text
     assert "The Home start button now says Start Work." in response.text
