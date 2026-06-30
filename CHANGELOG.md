@@ -55,6 +55,10 @@ All notable changes to Job Logger are documented in this file.
 - Changed the full-browser authenticated top navigation to raised blue
   icon-and-text buttons, including a visible **Log out** label after the logout
   icon, with pressed-button feedback matching the phone header controls.
+- Changed Work in Progress, Review, navigation, and Diagnostics controls so
+  enabled buttons brighten on hover and workflow action buttons have clearer
+  raised and pressed states. Diagnostics destructive buttons now hover to a
+  brighter red instead of falling back to a neutral dark treatment.
 - Adjusted full-browser Review detail so **Entry type** sits beside **Job date**
   and the start/end time controls share a row again. Remote/On-Site switch
   pills now match the Time entry/Ticket note switch size.

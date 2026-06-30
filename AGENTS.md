@@ -459,6 +459,10 @@ must not use `window.close()` or a browser-only app close fallback. Full-width
 the explicit desktop logout control. Full-browser top navigation should use
 raised blue icon-and-text buttons, including a **Log out** button with the
 logout icon and visible text, while preserving the phone-sized icon navigation.
+Enabled buttons and button-like navigation controls should show a slight
+brighter hover state, and workflow action buttons should have a raised idle
+state plus a pressed-in active state. Destructive red controls should stay red
+on hover and use a brighter red treatment, not a neutral or black hover.
 When cached application health is degraded, only Diagnostics-authorized users
 may see a red exclamation alert button in the authenticated top bar. The
 desktop alert is centered in the header; the phone alert joins the compact

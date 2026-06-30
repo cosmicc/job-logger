@@ -7,12 +7,19 @@
   --border: #2b3c59;
   --accent: #2dd4bf;
   --accent-strong: #14b8a6;
+  --accent-hover: #5eead4;
   --warning: #f59e0b;
+  --warning-hover: #fbbf24;
   --warning-soft: rgba(245, 158, 11, 0.16);
   --danger: #f87171;
+  --danger-hover: #fca5a5;
   --danger-soft: rgba(248, 113, 113, 0.16);
+  --danger-soft-hover: rgba(248, 113, 113, 0.24);
   --success: #34d399;
+  --success-hover: #6ee7b7;
   --shadow: 0 22px 52px rgba(3, 7, 18, 0.55);
+  --button-shadow: 0 2px 0 rgba(3, 7, 18, 0.38), 0 8px 18px rgba(3, 7, 18, 0.18);
+  --button-hover-shadow: 0 2px 0 rgba(3, 7, 18, 0.42), 0 10px 20px rgba(3, 7, 18, 0.24);
   --focus-ring: rgba(45, 212, 191, 0.45);
   --success-soft: rgba(52, 211, 153, 0.16);
   --surface-strong: rgba(255, 255, 255, 0.05);
@@ -57,13 +64,20 @@ html.theme-light {
   --border: #cbd5e1;
   --accent: #0f766e;
   --accent-strong: #0d9488;
+  --accent-hover: #14b8a6;
   --warning: #b45309;
+  --warning-hover: #d97706;
   --warning-soft: rgba(180, 83, 9, 0.14);
   --danger: #dc2626;
+  --danger-hover: #ef4444;
   --danger-soft: rgba(220, 38, 38, 0.11);
+  --danger-soft-hover: rgba(220, 38, 38, 0.18);
   --success: #059669;
+  --success-hover: #10b981;
   --success-soft: rgba(5, 150, 105, 0.12);
   --shadow: 0 18px 48px rgba(15, 23, 42, 0.12);
+  --button-shadow: 0 2px 0 rgba(15, 23, 42, 0.13), 0 8px 18px rgba(15, 23, 42, 0.08);
+  --button-hover-shadow: 0 2px 0 rgba(15, 23, 42, 0.16), 0 10px 20px rgba(15, 23, 42, 0.12);
   --focus-ring: rgba(13, 148, 136, 0.34);
   --surface-strong: rgba(255, 255, 255, 0.76);
   --on-accent: #ffffff;
@@ -151,6 +165,14 @@ button {
 button:not(:disabled):active {
   transform: translateY(1px) scale(0.985);
   box-shadow: var(--pressed-shadow);
+}
+
+button:not(:disabled):hover,
+.top-nav a:hover,
+.app-version-link:hover,
+.text-link:hover,
+.secondary-link-button:hover {
+  filter: brightness(1.04);
 }
 
 svg {
@@ -269,6 +291,7 @@ svg {
 .app-version-link:hover {
   border-color: rgba(45, 212, 191, 0.42);
   background: var(--surface-muted);
+  box-shadow: var(--button-hover-shadow);
   color: var(--accent-strong);
 }
 
@@ -317,6 +340,7 @@ svg {
 .top-nav a:hover {
   border-color: var(--nav-action-hover);
   background: rgba(59, 130, 246, 0.24);
+  box-shadow: var(--button-hover-shadow);
   color: var(--nav-action-hover);
 }
 
@@ -343,6 +367,7 @@ svg {
 .text-link:hover,
 .secondary-link-button:hover {
   background: var(--surface-muted);
+  box-shadow: var(--button-hover-shadow);
   color: var(--text);
 }
 
@@ -386,6 +411,7 @@ svg {
 .desktop-logout-button:hover {
   border-color: var(--nav-action-hover);
   background: rgba(59, 130, 246, 0.24);
+  box-shadow: var(--button-hover-shadow);
   color: var(--nav-action-hover);
 }
 
@@ -396,8 +422,9 @@ svg {
 }
 
 .health-alert-button:hover {
-  border-color: var(--danger);
-  background: var(--danger);
+  border-color: var(--danger-hover);
+  background: var(--danger-hover);
+  box-shadow: var(--button-hover-shadow);
   color: var(--on-danger);
 }
 
@@ -415,13 +442,14 @@ svg {
 .mobile-nav-action:hover {
   border-color: rgba(45, 212, 191, 0.42);
   background: var(--ticket-option-hover);
+  box-shadow: var(--button-hover-shadow);
   color: var(--accent-strong);
 }
 
 .mobile-logout-action:hover {
-  border-color: rgba(248, 113, 113, 0.45);
-  background: var(--danger-soft);
-  color: var(--danger);
+  border-color: var(--danger-hover);
+  background: var(--danger-soft-hover);
+  color: var(--danger-hover);
 }
 
 .flash-stack {
@@ -896,6 +924,7 @@ a:focus-visible {
   border-radius: var(--radius);
   padding: 10px 14px;
   border: 1px solid transparent;
+  box-shadow: var(--button-shadow);
   font-weight: 750;
   line-height: 1.2;
 }
@@ -908,7 +937,8 @@ a:focus-visible {
 
 .primary-button:hover,
 .primary-action-button:hover {
-  background: var(--accent-strong);
+  background: var(--accent-hover);
+  box-shadow: var(--button-hover-shadow);
 }
 
 .primary-action-button {
@@ -924,7 +954,10 @@ a:focus-visible {
 }
 
 .secondary-button:hover {
+  border-color: var(--accent);
   background: var(--surface-muted);
+  box-shadow: var(--button-hover-shadow);
+  color: var(--text);
 }
 
 .company-search-results,
@@ -1271,16 +1304,37 @@ a:focus-visible {
   color: var(--on-danger);
 }
 
+.danger-button:hover {
+  border-color: var(--danger-hover);
+  background: var(--danger-hover);
+  box-shadow: var(--button-hover-shadow);
+  color: var(--on-danger);
+}
+
 .danger-outline-button {
   border-color: rgba(248, 113, 113, 0.35);
   background: var(--danger-soft);
   color: var(--danger);
 }
 
+.danger-outline-button:hover {
+  border-color: var(--danger-hover);
+  background: var(--danger-soft-hover);
+  box-shadow: var(--button-hover-shadow);
+  color: var(--danger-hover);
+}
+
 .success-outline-button {
   border-color: rgba(52, 211, 153, 0.38);
   background: var(--success-soft);
   color: var(--success);
+}
+
+.success-outline-button:hover {
+  border-color: var(--success-hover);
+  background: var(--success-soft);
+  box-shadow: var(--button-hover-shadow);
+  color: var(--success-hover);
 }
 
 .record-notes-button,
@@ -1292,7 +1346,9 @@ a:focus-visible {
 
 .record-notes-button:hover,
 .recording-control-stack .record-notes-button:hover {
-  background: var(--warning);
+  border-color: var(--warning-hover);
+  background: var(--warning-hover);
+  box-shadow: var(--button-hover-shadow);
   color: var(--on-warning);
 }
 
@@ -1305,7 +1361,9 @@ a:focus-visible {
 
 .end-work-button:hover,
 .work-finish-stack .end-work-button:hover {
-  background: var(--success);
+  border-color: var(--success-hover);
+  background: var(--success-hover);
+  box-shadow: var(--button-hover-shadow);
   color: var(--on-success);
 }
 
@@ -1318,7 +1376,9 @@ a:focus-visible {
 
 .ai-cleanup-button:hover,
 .summary-tool-row .ai-cleanup-button:hover {
+  border-color: var(--ai-action-hover);
   background: var(--ai-action-hover);
+  box-shadow: var(--button-hover-shadow);
   color: var(--ai-action-text);
 }
 
@@ -3695,6 +3755,7 @@ td a {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--button-shadow);
   color: var(--muted);
   cursor: pointer;
 }
@@ -3711,6 +3772,7 @@ td a {
 
 .login-action-button:hover {
   background: var(--surface-muted);
+  box-shadow: var(--button-hover-shadow);
   color: var(--text);
 }
 
@@ -3725,16 +3787,34 @@ td a {
   color: var(--danger);
 }
 
+.login-hide-button:hover {
+  border-color: var(--danger-hover);
+  background: var(--danger-soft-hover);
+  color: var(--danger-hover);
+}
+
 .cloudflare-block-toggle.is-on {
   border-color: rgba(52, 211, 153, 0.42);
   background: var(--success-soft);
   color: var(--success);
 }
 
+.cloudflare-block-toggle.is-on:hover {
+  border-color: var(--success-hover);
+  background: var(--success-soft);
+  color: var(--success-hover);
+}
+
 .cloudflare-block-toggle.is-off {
   border-color: rgba(245, 158, 11, 0.42);
   background: var(--warning-soft);
   color: var(--warning);
+}
+
+.cloudflare-block-toggle.is-off:hover {
+  border-color: var(--warning-hover);
+  background: var(--warning-soft);
+  color: var(--warning-hover);
 }
 
 .login-ip-allowlisted {

@@ -13,6 +13,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Job date controls now center the date with Today, Yesterday, or Tomorrow inside the selector when applicable.
 - Ticket note fields are tighter, with Append to resolution below the note description.
 - Full-browser navigation now uses raised blue icon buttons with visible labels.
+- Buttons now have clearer hover and pressed states, including red destructive actions staying red on hover.
 - Work in Progress and Review now have cleaner time controls, larger Remote/On-Site pills, and rounded total time shown.
 - Full-browser Review now keeps Entry type beside Job date so start and end times share a row.
 - Admins now see a top-bar alert when app health needs attention.

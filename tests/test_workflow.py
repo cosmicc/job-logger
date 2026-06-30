@@ -1432,6 +1432,11 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".review-ticket-status-field" in stylesheet
     assert ".app-version-link-dev" in stylesheet
     assert "--nav-action:" in stylesheet
+    assert "--button-shadow:" in stylesheet
+    assert "--button-hover-shadow:" in stylesheet
+    assert "--danger-hover:" in stylesheet
+    assert "--warning-hover:" in stylesheet
+    assert "--success-hover:" in stylesheet
     assert ".top-nav a" in stylesheet
     assert ".top-nav a svg" in stylesheet
     assert ".top-nav a:active" in stylesheet
@@ -1462,7 +1467,11 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".mobile-page-loading" in stylesheet
     assert ".ticket-status-card select" in stylesheet
     assert "button:not(:disabled):active" in stylesheet
+    assert "button:not(:disabled):hover" in stylesheet
+    assert "filter: brightness(1.04);" in stylesheet
     assert "transform: translateY(1px) scale(0.985);" in stylesheet
+    assert "box-shadow: var(--button-shadow);" in stylesheet
+    assert "box-shadow: var(--button-hover-shadow);" in stylesheet
     assert ".service-call-time-range" in stylesheet
     assert "max-height: 25lh;" in stylesheet
     assert "max-height: 12.5lh;" in phone_stylesheet
@@ -1474,9 +1483,16 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".ticket-picker-status.is-loading" in stylesheet
     assert ".record-notes-button,\n.recording-control-stack .record-notes-button" in stylesheet
     assert "background: var(--warning);" in stylesheet
+    assert "background: var(--warning-hover);" in stylesheet
     assert ".end-work-button,\n.work-finish-stack .end-work-button" in stylesheet
     assert "background: var(--success);" in stylesheet
+    assert "background: var(--success-hover);" in stylesheet
     assert ".ai-cleanup-button,\n.summary-tool-row .ai-cleanup-button" in stylesheet
+    assert ".danger-button:hover" in stylesheet
+    assert ".danger-outline-button:hover" in stylesheet
+    assert ".login-hide-button:hover" in stylesheet
+    assert "background: var(--danger-hover);" in stylesheet
+    assert "background: var(--danger-soft-hover);" in stylesheet
     assert ".summary-action-row" in stylesheet
     assert ".button-pair-row" in stylesheet
     assert ".active-job-panel-slot-1" in stylesheet
