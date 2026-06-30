@@ -93,13 +93,6 @@ def _get_optional_integer(environment_variable_name: str) -> int | None:
     return int(raw_value)
 
 
-def _get_csv(environment_variable_name: str, default_value: str) -> list[str]:
-    """Return a comma-separated setting as a clean list of values."""
-
-    raw_value = os.getenv(environment_variable_name, default_value)
-    return [item.strip() for item in raw_value.split(",") if item.strip()]
-
-
 def _get_log_level() -> str:
     """Return the validated app file logging level."""
 
@@ -148,9 +141,6 @@ class Settings:
     # It must be provided through a secret environment file or secret store.
     app_password: str | None
 
-    # BIND_ADDRESS is the host-facing nginx bind used by the bundled tunnel origin.
-    bind_address: str
-
     # LOGIN_FAILURE_LOG_PATH is a JSONL file for failed app-login attempts.
     # It should live in a host-mounted log directory for Docker deployments.
     login_failure_log_path: str
@@ -167,9 +157,6 @@ class Settings:
 
     # APP_SESSION_TIMEOUT_HOURS controls how long a local login remains valid.
     session_timeout_hours: float
-
-    # APP_ALLOWED_HOSTS limits accepted Host headers when configured.
-    allowed_hosts: list[str]
 
     # CLOUDFLARE_ACCESS_REQUIRED optionally requires a Cloudflare Access identity header.
     cloudflare_access_required: bool
@@ -375,7 +362,6 @@ def load_settings() -> Settings:
         log_level=_get_log_level(),
         app_username=os.getenv("APP_USERNAME", "admin"),
         app_password=os.getenv("APP_PASSWORD") or None,
-        bind_address=os.getenv("BIND_ADDRESS", "127.0.0.1").strip() or "127.0.0.1",
         login_failure_log_path=os.getenv(
             "LOGIN_FAILURE_LOG_PATH",
             f"{os.getenv('LOG_DIR', 'logs').rstrip('/')}/job-logger-login-failures.log",
@@ -387,7 +373,6 @@ def load_settings() -> Settings:
         login_failure_debug_rows=_get_integer("LOGIN_FAILURE_DEBUG_ROWS", 200),
         session_cookie_secure=_get_boolean("APP_SESSION_COOKIE_SECURE", False),
         session_timeout_hours=_get_positive_float("APP_SESSION_TIMEOUT_HOURS", 12.0),
-        allowed_hosts=_get_csv("APP_ALLOWED_HOSTS", "localhost,127.0.0.1,app"),
         cloudflare_access_required=_get_boolean("CLOUDFLARE_ACCESS_REQUIRED", False),
         cloudflare_ip_blocking_enabled=_get_boolean("CLOUDFLARE_IP_BLOCKING_ENABLED", False),
         cloudflare_api_token=os.getenv("CLOUDFLARE_API_TOKEN", ""),

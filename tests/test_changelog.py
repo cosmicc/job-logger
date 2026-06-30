@@ -82,9 +82,13 @@ def test_changelog_parser_reads_current_release() -> None:
         title="Ticket note mode, ticket history, alerts, and time totals",
         changes=(
             "Work entries can now be Time entries or customer-visible Ticket notes.",
-            "Ticket notes and past time entries now open together from the selected ticket.",
+            "Ticket note mode uses a required note title and note description instead of time and Remote/On-Site fields.",
             "Append to resolution is available for both entry types, and submitted Ticket notes can be updated or deleted from Review.",
-            "Work in Progress and Review now have cleaner date, time, Remote/On-Site, and total-time controls.",
+            "Ticket notes now open from the selected ticket in a closeable newest-first overlay.",
+            "A Past time entries button now opens ticket time entries with resource, start/stop time, hours, and summary-of-work details.",
+            "Job date controls now show Today, Yesterday, or Tomorrow inside the date selector when applicable.",
+            "Work in Progress and Review now have cleaner time controls, larger Remote/On-Site pills, and rounded total time shown.",
+            "Full-browser Review now keeps Entry type beside Job date so start and end times share a row.",
             "Admins now see a top-bar alert when app health needs attention.",
         ),
     )
@@ -120,12 +124,25 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.0" in response.text
     assert "Ticket note mode, ticket history, alerts, and time totals" in response.text
     assert "Work entries can now be Time entries or customer-visible Ticket notes." in response.text
-    assert "Ticket notes and past time entries now open together from the selected ticket." in response.text
+    assert (
+        "Ticket note mode uses a required note title and note description "
+        "instead of time and Remote/On-Site fields."
+    ) in response.text
     assert (
         "Append to resolution is available for both entry types, "
         "and submitted Ticket notes can be updated or deleted from Review."
     ) in response.text
-    assert "Work in Progress and Review now have cleaner date, time, Remote/On-Site, and total-time controls." in response.text
+    assert "Ticket notes now open from the selected ticket in a closeable newest-first overlay." in response.text
+    assert (
+        "A Past time entries button now opens ticket time entries with resource, "
+        "start/stop time, hours, and summary-of-work details."
+    ) in response.text
+    assert "Job date controls now show Today, Yesterday, or Tomorrow inside the date selector when applicable." in response.text
+    assert (
+        "Work in Progress and Review now have cleaner time controls, larger Remote/On-Site pills, "
+        "and rounded total time shown."
+    ) in response.text
+    assert "Full-browser Review now keeps Entry type beside Job date so start and end times share a row." in response.text
     assert "Admins now see a top-bar alert when app health needs attention." in response.text
     assert "Review, Home, and header polish" in response.text
     assert "Review summaries now start with Remote. or On-Site. before the work notes." in response.text

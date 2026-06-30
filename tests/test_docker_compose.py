@@ -63,11 +63,10 @@ def test_compose_requires_app_and_database_secrets() -> None:
     assert "CLOUDFLARE_ACCESS_REQUIRED: ${CLOUDFLARE_ACCESS_REQUIRED:-true}" in compose_text
 
 
-def test_nginx_host_port_uses_bind_address_and_http_port() -> None:
-    """Nginx should bind to the configured host IP and HTTP port for Cloudflare Tunnel."""
+def test_nginx_host_port_uses_localhost_and_http_port() -> None:
+    """Nginx should bind only to localhost for the Cloudflare Tunnel origin."""
 
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
 
-    assert '"${BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-${NGINX_PUBLIC_PORT:-11030}}:80"' in compose_text
-    assert "BIND_ADDRESS: ${BIND_ADDRESS:-127.0.0.1}" in compose_text
+    assert '"127.0.0.1:${HTTP_PORT:-11030}:80"' in compose_text
     assert "network_mode: \"host\"" in compose_text

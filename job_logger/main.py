@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import ipaddress
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 
@@ -11,7 +10,6 @@ from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.engine import make_url
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from job_logger.config import Settings, settings
 from job_logger.logging_config import configure_logging
@@ -25,19 +23,6 @@ DEVELOPMENT_DATABASE_PASSWORD = "job_logger_password"  # nosec B105
 DEVELOPMENT_SECRET_KEY = "development-only-change-me"  # nosec B105
 HSTS_HEADER_VALUE = "max-age=15552000"
 PLACEHOLDER_SECRET_PREFIX = "replace-with-"  # nosec B105
-
-
-def _is_loopback_bind_address(bind_address: str) -> bool:
-    """Return whether the host-facing origin bind is limited to loopback."""
-
-    normalized_address = bind_address.strip().strip("[]").lower()
-    if normalized_address in {"", "localhost"}:
-        return True
-
-    try:
-        return ipaddress.ip_address(normalized_address).is_loopback
-    except ValueError:
-        return False
 
 
 def _database_password(database_url: str) -> str | None:
@@ -68,14 +53,8 @@ def _database_uses_unsafe_password(database_url: str) -> bool:
 def validate_runtime_settings(application_settings: Settings) -> None:
     """Fail fast when production settings would expose the app unsafely."""
 
-    bind_is_loopback = _is_loopback_bind_address(application_settings.bind_address)
     uses_development_app_password = application_settings.app_password == DEVELOPMENT_APP_PASSWORD
     uses_development_secret = application_settings.app_secret_key == DEVELOPMENT_SECRET_KEY
-    if not bind_is_loopback and (uses_development_app_password or uses_development_secret):
-        raise RuntimeError(
-            "Development app credentials or session secret cannot be used when BIND_ADDRESS is not loopback."
-        )
-
     if not application_settings.is_production:
         return
 
@@ -117,9 +96,6 @@ def create_app(application_settings: Settings = settings) -> FastAPI:
         same_site="lax",
         max_age=application_settings.session_timeout_seconds,
     )
-
-    if application_settings.allowed_hosts and "*" not in application_settings.allowed_hosts:
-        fastapi_app.add_middleware(TrustedHostMiddleware, allowed_hosts=application_settings.allowed_hosts)
 
     fastapi_app.mount("/static", StaticFiles(directory="job_logger/static"), name="static")
 

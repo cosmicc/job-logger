@@ -5,9 +5,13 @@ Short release notes shown on the authenticated `/changelog` page.
 ## v1.2.0 - Ticket note mode, ticket history, alerts, and time totals
 
 - Work entries can now be Time entries or customer-visible Ticket notes.
-- Ticket notes and past time entries now open together from the selected ticket.
+- Ticket note mode uses a required note title and note description instead of time and Remote/On-Site fields.
 - Append to resolution is available for both entry types, and submitted Ticket notes can be updated or deleted from Review.
-- Work in Progress and Review now have cleaner date, time, Remote/On-Site, and total-time controls.
+- Ticket notes now open from the selected ticket in a closeable newest-first overlay.
+- A Past time entries button now opens ticket time entries with resource, start/stop time, hours, and summary-of-work details.
+- Job date controls now show Today, Yesterday, or Tomorrow inside the date selector when applicable.
+- Work in Progress and Review now have cleaner time controls, larger Remote/On-Site pills, and rounded total time shown.
+- Full-browser Review now keeps Entry type beside Job date so start and end times share a row.
 - Admins now see a top-bar alert when app health needs attention.
 
 ## v1.1.6 - Review, Home, and header polish
@@ -35,7 +39,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Work in Progress rounded start and rounded stop are now editable like Review time fields.
 - Remote and On-Site switches are a little larger.
 - Tickets with no description now show a clear left-aligned message.
-- Cloudflare Tunnel deployments can now bind the web listener to a specific host address and port.
+- Cloudflare Tunnel deployments can now choose the local web listener port.
 
 ## v1.1.3 - Review visibility and Work in Progress refinements
 

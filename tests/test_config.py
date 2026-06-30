@@ -185,21 +185,6 @@ def test_runtime_validation_rejects_production_placeholder_secrets() -> None:
         validate_runtime_settings(production_settings)
 
 
-def test_runtime_validation_rejects_development_defaults_on_non_loopback_bind() -> None:
-    """Development credentials should not be usable on a direct LAN-facing origin bind."""
-
-    unsafe_settings = replace(
-        settings,
-        app_environment="development",
-        app_secret_key="development-only-change-me",
-        app_password="admin",
-        bind_address="0.0.0.0",
-    )
-
-    with pytest.raises(RuntimeError, match="BIND_ADDRESS is not loopback"):
-        validate_runtime_settings(unsafe_settings)
-
-
 def test_production_security_headers_include_hsts() -> None:
     """Production responses should include app-side HSTS for HTTPS deployments."""
 

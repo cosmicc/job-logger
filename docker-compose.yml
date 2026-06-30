@@ -14,7 +14,6 @@ services:
       APP_SECRET_KEY: ${APP_SECRET_KEY:?Set APP_SECRET_KEY in .env}
       APP_USERNAME: ${APP_USERNAME:-admin}
       APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in .env}
-      BIND_ADDRESS: ${BIND_ADDRESS:-127.0.0.1}
       LOG_DIR: /data/logs
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOGIN_FAILURE_LOG_PATH: /data/logs/job-logger-login-failures.log
@@ -22,7 +21,6 @@ services:
       LOGIN_FAILURE_DEBUG_ROWS: ${LOGIN_FAILURE_DEBUG_ROWS:-200}
       APP_SESSION_COOKIE_SECURE: ${APP_SESSION_COOKIE_SECURE:-true}
       APP_SESSION_TIMEOUT_HOURS: ${APP_SESSION_TIMEOUT_HOURS:-12}
-      APP_ALLOWED_HOSTS: ${APP_ALLOWED_HOSTS:-localhost,127.0.0.1,app}
       CLOUDFLARE_ACCESS_REQUIRED: ${CLOUDFLARE_ACCESS_REQUIRED:-true}
       CLOUDFLARE_IP_BLOCKING_ENABLED: ${CLOUDFLARE_IP_BLOCKING_ENABLED:-false}
       CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
@@ -123,12 +121,10 @@ services:
     depends_on:
       - app
     ports:
-      # Bind Nginx on the requested host address so the host-networked
-      # Cloudflare Tunnel connector can use that same origin URL, such as
-      # http://127.0.0.1:2082 when BIND_ADDRESS=127.0.0.1 and HTTP_PORT=2082.
-      # NGINX_PUBLIC_PORT remains a backward-compatible fallback for existing
-      # deployments that have not moved to HTTP_PORT yet.
-      - "${BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-${NGINX_PUBLIC_PORT:-11030}}:80"
+      # Bind Nginx only on localhost so the host-networked Cloudflare Tunnel
+      # connector is the intended origin client. HTTP_PORT selects that local
+      # tunnel origin port, such as http://127.0.0.1:2082.
+      - "127.0.0.1:${HTTP_PORT:-11030}:80"
     healthcheck:
       # Check that the Nginx master process is alive.
       # This avoids failures when the container image does not include wget/curl.

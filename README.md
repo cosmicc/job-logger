@@ -140,7 +140,7 @@ git clone --branch dev https://github.com/cosmicc/job-logger.git job-logger-dev
 Keep the dev instance isolated from production:
 
 - Use a separate `.env` with its own `APP_SECRET_KEY`, database password,
-  Cloudflare tunnel token, allowed hostname, and WebAuthn origin.
+  Cloudflare tunnel token, public hostname, and WebAuthn origin.
 - Use a separate Cloudflare Tunnel and public hostname for dev testing.
 - Use a separate Docker Compose project name, PostgreSQL volume, backup
   directory, and host log directory so dev cannot overwrite production data.
@@ -183,36 +183,34 @@ tunnel connector all come up with one `docker compose up -d --build` command.
    ```
 
    The Compose-managed `cloudflared` service uses host networking, so
-   `127.0.0.1` is the stable address from the connector to the host-published
-   Nginx port. Avoid using a Wi-Fi or LAN address unless `cloudflared` is
-   running on a different host, because those addresses can change and produce
-   Cloudflare 502 errors.
+   `127.0.0.1` is the stable address from the connector to the localhost
+   Nginx port.
 
 3. Create a Cloudflare Access self-hosted application for that hostname.
-4. Put the same hostname in `.env` under `APP_ALLOWED_HOSTS`.
-5. Put the tunnel token in `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
+4. Put the tunnel token in `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
    If this token is missing or invalid, Cloudflare will return a 502 and
    `cloudflared` will repeatedly restart.
-6. Prefer `CLOUDFLARE_ACCESS_REQUIRED=true` for production when the matching
+5. Prefer `CLOUDFLARE_ACCESS_REQUIRED=true` for production when the matching
    Cloudflare Access application is configured. Docker Compose defaults this
    setting to true, but `APP_ENV=production` no longer refuses startup solely
    because the optional Access header gate is disabled. Secure session cookies
    are still required in production.
-7. Set `WEBAUTHN_ORIGIN` to the public HTTPS origin that phones see in the
+6. Set `WEBAUTHN_ORIGIN` to the public HTTPS origin that phones see in the
    browser, such as `https://logger.example.com`, before using passkeys through
-   Cloudflare Tunnel. The bundled nginx origin also preserves Cloudflare's
-   forwarded HTTPS scheme for WebAuthn, but this explicit setting is the safest
-   production pin. Set `WEBAUTHN_RP_ID` to the same hostname if the app cannot
-   reliably derive the public host from forwarded headers.
-8. Start the full stack:
+   Cloudflare Tunnel. Use this setting whenever the app needs the
+   browser-facing public URL. The bundled nginx origin also preserves
+   Cloudflare's forwarded HTTPS scheme for WebAuthn, but this explicit setting
+   is the safest production pin. Set `WEBAUTHN_RP_ID` to the same hostname if
+   the app cannot reliably derive the public host from forwarded headers.
+7. Start the full stack:
 
    ```bash
    docker compose up -d --build
    ```
 
-   After changing `APP_ALLOWED_HOSTS`, `BIND_ADDRESS`, `HTTP_PORT`, or the nginx proxy
-   config, recreate the app-facing services so Docker applies the new container
-   environment and rendered nginx config:
+   After changing `HTTP_PORT` or the nginx proxy config, recreate the
+   app-facing services so Docker applies the new container environment and
+   rendered nginx config:
 
    ```bash
    docker compose up -d --build --force-recreate app nginx cloudflared
@@ -221,23 +219,18 @@ tunnel connector all come up with one `docker compose up -d --build` command.
 Nginx is the web front end for this deployment. Public mobile and review
 traffic should enter through the Cloudflare Tunnel hostname, reach the host-exposed
 Nginx endpoint on `127.0.0.1:11030` from the Compose-managed connector by
-default (or `<BIND_ADDRESS>:<HTTP_PORT>` after you change it), and then
-proxy to FastAPI at `http://app:8000`.
+default, and then proxy to FastAPI at `http://app:8000`.
 
 The app container is exposed only to the private Compose network. The local
 troubleshooting URL reaches Nginx on `127.0.0.1`, not the app container
 directly.
 
-Nginx binds `HTTP_PORT` on `BIND_ADDRESS` so the Compose-managed tunnel can
-reach the origin through host networking. The default bind is `127.0.0.1`. If
-`BIND_ADDRESS=127.0.0.1` and `HTTP_PORT=2082`, set the Cloudflare Tunnel service
-route to `http://127.0.0.1:2082`. Avoid binding to `0.0.0.0`; direct LAN access
-to this port bypasses Cloudflare Access. Application login still protects the
-app itself, but production is intended to enter through Cloudflare Tunnel plus
-Access.
+Nginx always binds `HTTP_PORT` on `127.0.0.1` so the Compose-managed tunnel can
+reach the origin through host networking without exposing the port on the LAN.
+If `HTTP_PORT=2082`, set the Cloudflare Tunnel service route to
+`http://127.0.0.1:2082`.
 
-`HTTP_PORT` is the configurable host-facing port. `NGINX_PUBLIC_PORT` remains a
-backward-compatible fallback for older `.env` files when `HTTP_PORT` is unset.
+`HTTP_PORT` is the configurable localhost-facing port.
 All other service ports are fixed internally and are not intended to be changed
 via environment:
 
@@ -330,9 +323,8 @@ Check these items first:
 
 - Confirm `.env` exists and contains a real `CLOUDFLARE_TUNNEL_TOKEN`.
 - Confirm the Cloudflare tunnel origin (what your Cloudflare connector is configured
-  to reach) is `http://127.0.0.1:11030` by default, or your configured
-  `http://<BIND_ADDRESS>:<HTTP_PORT>`. If the tunnel is configured to a LAN address, verify that
-  the address is still assigned to this host before looking for app problems.
+  to reach) is `http://127.0.0.1:11030` by default, or
+  `http://127.0.0.1:<your-http-port>` when you changed `HTTP_PORT`.
 - Confirm the public web path reaches the app login from the Docker host:
 
   ```bash
@@ -351,13 +343,6 @@ Check these items first:
 
   ```bash
   curl -i http://127.0.0.1:11030/login
-  ```
-
-- Confirm the app accepts the Cloudflare public hostname after container
-  recreation:
-
-  ```bash
-  curl -i -H 'Host: joblogger.lsec.io' http://127.0.0.1:11030/login
   ```
 
 - Confirm the app is healthy from inside the app container:

@@ -500,10 +500,10 @@ production startup must not hard-require that optional Access header gate.
 Production startup must still fail unless `APP_SESSION_COOKIE_SECURE=true`,
 non-default app/database secrets that are not copied placeholders are
 configured, and `AUTOTASK_PROVIDER=autotask` is used.
-Docker nginx publishing uses `BIND_ADDRESS` plus `HTTP_PORT`, with
-`NGINX_PUBLIC_PORT` retained only as a compatibility fallback; the default bind
-is `127.0.0.1` and the bundled host-networked `cloudflared` connector should
-target the same loopback origin URL.
+Docker nginx publishing binds only to `127.0.0.1` and uses `HTTP_PORT` as the
+host-networked `cloudflared` origin URL port. The Cloudflare Tunnel public
+hostname should be recorded through `WEBAUTHN_ORIGIN` when the app needs the
+browser-facing URL, especially for passkeys.
 
 ## Tests To Consider
 

@@ -538,17 +538,14 @@ The project must support Docker-based deployment.
 
 Docker Compose should include the Python application, PostgreSQL, and
 `cloudflared` when practical.
-Nginx host publishing should use `BIND_ADDRESS` plus `HTTP_PORT`, with
-`NGINX_PUBLIC_PORT` kept only as a backward-compatible fallback. Compose must
-fail closed when `APP_SECRET_KEY`, `APP_PASSWORD`, or `POSTGRES_PASSWORD` are
-missing instead of falling back to development secrets. Compose should default
-the optional Cloudflare Access header gate on for production, but production
-startup must only hard-require secure session cookies, non-default app/database
-secrets that are not copied placeholders, and `AUTOTASK_PROVIDER=autotask`. The
-bundled `cloudflared` service
-uses host networking, so a loopback bind such as `BIND_ADDRESS=127.0.0.1` and
-`HTTP_PORT=2082` should pair with the tunnel origin URL
-`http://127.0.0.1:2082`; loopback is the default.
+Nginx host publishing must bind only to `127.0.0.1` and use `HTTP_PORT` for the
+host-networked Cloudflare Tunnel origin URL, such as `http://127.0.0.1:2082`.
+Compose must fail closed when `APP_SECRET_KEY`, `APP_PASSWORD`, or
+`POSTGRES_PASSWORD` are missing instead of falling back to development secrets.
+Compose should default the optional Cloudflare Access header gate on for
+production, but production startup must only hard-require secure session
+cookies, non-default app/database secrets that are not copied placeholders, and
+`AUTOTASK_PROVIDER=autotask`.
 
 The application container should not run as root unless there is a specific,
 documented reason.
@@ -648,10 +645,9 @@ deployment readiness unless the user explicitly asks for that release step.
 
 The dev deployment should run as a separate instance from production, with its
 own checkout or worktree, Docker Compose project name, `.env`, database volume,
-backup path, host log path, Cloudflare Tunnel token, public hostname, allowed
-host setting, WebAuthn origin, and host-facing `HTTP_PORT`. This keeps
-dev testing from sharing production sessions, logs, backups, database state, or
-tunnel credentials.
+backup path, host log path, Cloudflare Tunnel token, public hostname, WebAuthn
+origin, and host-facing `HTTP_PORT`. This keeps dev testing from sharing
+production sessions, logs, backups, database state, or tunnel credentials.
 
 ## Agent Orientation Map
 
@@ -675,7 +671,7 @@ adding features quickly.
 The application is a FastAPI project under `job_logger/`.
 
 - `job_logger/main.py` creates the FastAPI app, registers routers, applies
-  TrustedHost, session, Cloudflare Access, CSP, and security-header middleware.
+  session, Cloudflare Access, CSP, and security-header middleware.
 - `job_logger/version.py` owns the source-controlled application version shown
   in authenticated headers, `/changelog`, and diagnostics. Advance it only
   when requested and keep it aligned with `pyproject.toml`.

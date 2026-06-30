@@ -6,6 +6,10 @@ All notable changes to Job Logger are documented in this file.
 
 - Advanced the source-controlled dev runtime version to `v1.2.0`, including
   the Python package metadata and PWA service worker cache version.
+- Removed obsolete app host-header allowlist and alternate nginx bind/fallback
+  port settings. Docker now publishes nginx only on localhost using
+  `HTTP_PORT`, and the public browser URL should be configured with
+  `WEBAUTHN_ORIGIN` when the app needs it.
 - Added a Time entry / Ticket note mode switch to Work in Progress and Review
   detail before Autotask submission. Ticket-note mode disables start/stop time
   controls, hides Remote/On-Site, changes finish and delete labels to note
@@ -181,10 +185,9 @@ All notable changes to Job Logger are documented in this file.
   blocks, hidden failed-login rows, and login-failure counters, with
   full-backup restore compatibility for older backups that do not contain
   those tables.
-- Added Docker/runtime `BIND_ADDRESS` and `HTTP_PORT` support for the nginx
-  listener so the host-networked Cloudflare Tunnel connector can target a
-  loopback origin on a chosen port; `NGINX_PUBLIC_PORT` remains a
-  backward-compatible fallback.
+- Added Docker/runtime `HTTP_PORT` support for the nginx listener so the
+  host-networked Cloudflare Tunnel connector can target a loopback origin on a
+  chosen port.
 - Changed the super-admin Diagnostics disk-space card to combine monitored
   paths when used space and total space match exactly, reducing duplicate
   storage rows on single-drive installs.
