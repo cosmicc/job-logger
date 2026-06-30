@@ -37,7 +37,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
-    assert "## v1.2.0 - Ticket note mode, ticket history, alerts, and time totals" in web_changelog_text
+    assert "## v1.2.0 - Ticket note mode, ticket time entry history, ticket note history, and time totals" in web_changelog_text
     assert "## v1.1.6 - Review, Home, and header polish" in web_changelog_text
     assert "## v1.1.5 - AI cleanup, speech-to-text, and sign-in updates" in web_changelog_text
     assert "## v1.1.4 - Login protection, Work in Progress controls, and deployment safety" in web_changelog_text
@@ -79,19 +79,19 @@ def test_changelog_parser_reads_current_release() -> None:
 
     assert current_entry == ChangelogEntry(
         version="v1.2.0",
-        title="Ticket note mode, ticket history, alerts, and time totals",
+        title="Ticket note mode, ticket time entry history, ticket note history, and time totals",
         changes=(
             "Work entries can now be Time entries or customer-visible Ticket notes.",
             "Ticket note mode uses a required note title and note description instead of time and Remote/On-Site fields.",
             "Append to resolution is available for both entry types, and submitted Ticket notes can be updated or deleted from Review.",
             "Ticket notes now open from the selected ticket in a closeable newest-first overlay.",
-            "A Past time entries button now opens ticket time entries with clearer technician names, larger time details, and summary-of-work details.",
+            "A Past time entries button now opens ticket time entries with clear technician names, large time details, and summary-of-work details.",
             "Work entry save, recording, and AI Cleanup messages now share one status line.",
             "Job date controls now center the date with Today, Yesterday, or Tomorrow inside the selector when applicable.",
             "Ticket note fields are tighter, with Append to resolution below the note description.",
             "Full-browser navigation now uses raised blue icon buttons with visible labels.",
-            "Buttons now have clearer hover and pressed states, including red destructive actions staying red on hover.",
-            "Work in Progress and Review now have cleaner time controls, larger Remote/On-Site pills, and rounded total time shown.",
+            "Buttons now have clear hover and pressed states, including red destructive actions staying red on hover.",
+            "Work in Progress and Review now have clean time controls, larger Remote/On-Site pills, and rounded total time shown.",
             "Full-browser Review now keeps Entry type beside Job date so start and end times share a row.",
             "Admins now see a top-bar alert when app health needs attention.",
         ),
@@ -126,7 +126,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
-    assert "Ticket note mode, ticket history, alerts, and time totals" in response.text
+    assert "Ticket note mode, ticket time entry history, ticket note history, and time totals" in response.text
     assert "Work entries can now be Time entries or customer-visible Ticket notes." in response.text
     assert (
         "Ticket note mode uses a required note title and note description "
@@ -138,8 +138,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     ) in response.text
     assert "Ticket notes now open from the selected ticket in a closeable newest-first overlay." in response.text
     assert (
-        "A Past time entries button now opens ticket time entries with clearer technician names, "
-        "larger time details, and summary-of-work details."
+        "A Past time entries button now opens ticket time entries with clear technician names, "
+        "large time details, and summary-of-work details."
     ) in response.text
     assert "Work entry save, recording, and AI Cleanup messages now share one status line." in response.text
     assert (
@@ -148,9 +148,9 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     ) in response.text
     assert "Ticket note fields are tighter, with Append to resolution below the note description." in response.text
     assert "Full-browser navigation now uses raised blue icon buttons with visible labels." in response.text
-    assert "Buttons now have clearer hover and pressed states, including red destructive actions staying red on hover." in response.text
+    assert "Buttons now have clear hover and pressed states, including red destructive actions staying red on hover." in response.text
     assert (
-        "Work in Progress and Review now have cleaner time controls, larger Remote/On-Site pills, "
+        "Work in Progress and Review now have clean time controls, larger Remote/On-Site pills, "
         "and rounded total time shown."
     ) in response.text
     assert "Full-browser Review now keeps Entry type beside Job date so start and end times share a row." in response.text
@@ -236,7 +236,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
-    v120_index = response.text.index("Ticket note mode, ticket history, alerts, and time totals")
+    v120_index = response.text.index("Ticket note mode, ticket time entry history, ticket note history, and time totals")
     v116_index = response.text.index("Review, Home, and header polish")
     v115_index = response.text.index("AI cleanup, speech-to-text, and sign-in updates")
     v114_index = response.text.index("Login protection, Work in Progress controls, and deployment safety")
@@ -257,7 +257,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert v110_index < v102_index
     assert v102_index < v101_index
     assert v101_index < v100_index
-    assert '<h2 id="current-version-heading">Ticket note mode, ticket history, alerts, and time totals</h2>' in response.text
+    assert '<h2 id="current-version-heading">Ticket note mode, ticket time entry history, ticket note history, and time totals</h2>' in response.text
     assert '<span class="release-version">v1.2.0</span>' in response.text
     assert '<span class="release-version">v1.1.6</span>' in response.text
     assert '<span class="release-version">v1.1.5</span>' in response.text

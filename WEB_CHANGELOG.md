@@ -2,19 +2,19 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## v1.2.0 - Ticket note mode, ticket history, alerts, and time totals
+## v1.2.0 - Ticket note mode, ticket time entry history, ticket note history, and time totals
 
 - Work entries can now be Time entries or customer-visible Ticket notes.
 - Ticket note mode uses a required note title and note description instead of time and Remote/On-Site fields.
 - Append to resolution is available for both entry types, and submitted Ticket notes can be updated or deleted from Review.
 - Ticket notes now open from the selected ticket in a closeable newest-first overlay.
-- A Past time entries button now opens ticket time entries with clearer technician names, larger time details, and summary-of-work details.
+- A Past time entries button now opens ticket time entries with clear technician names, large time details, and summary-of-work details.
 - Work entry save, recording, and AI Cleanup messages now share one status line.
 - Job date controls now center the date with Today, Yesterday, or Tomorrow inside the selector when applicable.
 - Ticket note fields are tighter, with Append to resolution below the note description.
 - Full-browser navigation now uses raised blue icon buttons with visible labels.
-- Buttons now have clearer hover and pressed states, including red destructive actions staying red on hover.
-- Work in Progress and Review now have cleaner time controls, larger Remote/On-Site pills, and rounded total time shown.
+- Buttons now have clear hover and pressed states, including red destructive actions staying red on hover.
+- Work in Progress and Review now have clean time controls, larger Remote/On-Site pills, and rounded total time shown.
 - Full-browser Review now keeps Entry type beside Job date so start and end times share a row.
 - Admins now see a top-bar alert when app health needs attention.
 
