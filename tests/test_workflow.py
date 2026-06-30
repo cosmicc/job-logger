@@ -975,7 +975,7 @@ def test_submitted_review_page_allows_controlled_entry_edits(authenticated_clien
     assert 'class="button-pair-row review-action-row"' in review_html
     assert f'form="review-form-{submitted_job_id}"' in review_html
     assert 'class="date-input-shell"' in review_html
-    assert '<span class="date-relative-label" data-review-date-weekday-label></span>' in review_html
+    assert 'class="date-display-text" data-review-date-display' in review_html
     assert re.search(r'<select(?=[^>]*name="ticket_status")(?![^>]*disabled)', review_html)
     assert re.search(r'<input(?=[^>]*name="job_date")(?![^>]*disabled)', review_html)
     assert re.search(r'<input(?=[^>]*name="start_time")(?![^>]*disabled)', review_html)
@@ -1309,7 +1309,8 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert "data-health-alert-button" not in response.text
     assert "Autotask API:" not in response.text
     assert "Secure session" not in response.text
-    assert '<a href="/home">Home</a>' in response.text
+    assert '<a href="/home">' in response.text
+    assert "<span>Home</span>" in response.text
     assert '<a href="/home">Mobile</a>' not in response.text
     assert 'class="mobile-nav-actions mobile-nav-left"' in response.text
     assert 'class="mobile-nav-actions mobile-nav-right"' in response.text
@@ -1374,10 +1375,13 @@ def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(aut
     assert 'class="secondary-link-button" href="/home"' not in response.text
     assert ">Mobile<" not in response.text
     assert "Secure session" not in response.text
-    assert '<a href="/home">Home</a>' in response.text
+    assert '<a href="/home">' in response.text
+    assert "<span>Home</span>" in response.text
     assert '<a href="/home">Mobile</a>' not in response.text
     assert 'action="/logout"' in response.text
-    assert 'aria-label="Sign out"' in response.text
+    assert 'class="icon-button desktop-logout-button"' in response.text
+    assert 'aria-label="Log out"' in response.text
+    assert "<span>Log out</span>" in response.text
     assert 'data-close-app-button' not in response.text
     assert 'mobile-logout-action' in response.text
     assert '/static/pwa.js?v=' in response.text
@@ -1427,6 +1431,13 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "max-height: calc(1.32em * 2);" in stylesheet
     assert ".review-ticket-status-field" in stylesheet
     assert ".app-version-link-dev" in stylesheet
+    assert "--nav-action:" in stylesheet
+    assert ".top-nav a" in stylesheet
+    assert ".top-nav a svg" in stylesheet
+    assert ".top-nav a:active" in stylesheet
+    assert ".mobile-nav-action:active" in stylesheet
+    assert ".desktop-logout-button" in stylesheet
+    assert "box-shadow: var(--nav-action-shadow);" in stylesheet
     assert ".health-alert-button" in stylesheet
     assert ".desktop-health-alert-group" in stylesheet
     assert ".dev-build-pill" not in stylesheet
@@ -1445,6 +1456,9 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "max-width: 420px;" in stylesheet
     assert ".service-call-date-step-button" in stylesheet
     assert ".service-call-date-button" in stylesheet
+    assert ".date-display-text" in stylesheet
+    assert "justify-content: center;" in stylesheet
+    assert "white-space: pre;" in stylesheet
     assert ".mobile-page-loading" in stylesheet
     assert ".ticket-status-card select" in stylesheet
     assert "button:not(:disabled):active" in stylesheet
@@ -1480,6 +1494,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".review-detail-heading-row {\n  gap: 6px;" in phone_stylesheet
     assert ".review-action-stack" in stylesheet
     assert ".review-status-stack" in stylesheet
+    assert ".review-status-stack.has-status-message" in stylesheet
+    assert "display: none;" in stylesheet
     assert "[data-review-autosave-status]:empty" in stylesheet
     assert ".review-summary-action-row" in stylesheet
     assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in stylesheet
@@ -1523,11 +1539,19 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ">Record</span>" in mobile_template
     assert "Delete time entry" not in mobile_template
     assert "<span data-delete-entry-label>{% if is_ticket_note %}Delete Note{% else %}Delete{% endif %}</span>" in mobile_template
+    active_append_index = mobile_template.index('class="append-resolution-field"')
+    active_note_title_index = mobile_template.index("data-note-title-field")
+    active_summary_label_index = mobile_template.index("data-summary-label")
+    assert active_append_index < active_note_title_index < active_summary_label_index
     assert 'class="summary-action-row review-summary-action-row recording-control-stack"' in review_template
     assert review_template.index("data-review-record-button") < review_template.index("data-ai-cleanup-button")
+    review_append_index = review_template.index('class="append-resolution-field review-append-resolution-field"')
+    review_note_title_index = review_template.index("data-review-note-title-field")
+    review_summary_label_index = review_template.index("data-review-summary-label")
+    assert review_append_index < review_note_title_index < review_summary_label_index
     review_summary_action_index = review_template.index('class="summary-action-row review-summary-action-row recording-control-stack"')
     review_action_stack_index = review_template.index('class="review-action-stack"')
-    review_status_stack_index = review_template.index('class="review-status-stack"', review_action_stack_index)
+    review_status_stack_index = review_template.index("review-status-stack", review_action_stack_index)
     assert review_summary_action_index < review_action_stack_index < review_status_stack_index
     assert review_template.index("data-review-recording-status", review_status_stack_index) > review_action_stack_index
     assert ">Record</span>" in review_template
@@ -3181,7 +3205,7 @@ def test_mobile_active_job_date_is_editable(authenticated_client: TestClient) ->
 
     updated_active_mobile_response = authenticated_client.get("/home")
     assert 'class="date-input-shell"' in updated_active_mobile_response.text
-    assert '<span class="date-relative-label" data-date-weekday-label></span>' in updated_active_mobile_response.text
+    assert 'class="date-display-text" data-date-display' in updated_active_mobile_response.text
 
     end_response = authenticated_client.post(
         f"/jobs/{active_job_id}/end",

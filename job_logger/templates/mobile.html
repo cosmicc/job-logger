@@ -121,7 +121,6 @@
               <div class="metric-card job-date-card">
                 <label>
                   <span class="metric-label">Job date</span>
-                  {% set active_job_date_label = active_job_date|job_date_label %}
                   <span class="date-input-shell">
                     <input
                       name="job_date"
@@ -131,7 +130,7 @@
                       value="{{ active_job_date }}"
                       required
                     >
-                    <span class="date-relative-label" data-date-weekday-label>{% if active_job_date_label %}({{ active_job_date_label }}){% endif %}</span>
+                    <span class="date-display-text" data-date-display>{{ active_job_date|job_date_display }}</span>
                   </span>
                 </label>
               </div>
@@ -495,6 +494,18 @@
             {% endif %}
 
             <div class="description-box">
+              <label class="append-resolution-field">
+                <input type="hidden" name="append_to_resolution" value="false" form="active-ticket-form-{{ active_job.id }}">
+                <input
+                  type="checkbox"
+                  name="append_to_resolution"
+                  value="true"
+                  form="active-ticket-form-{{ active_job.id }}"
+                  data-append-resolution-input
+                  {% if active_job.append_to_resolution %}checked{% endif %}
+                >
+                <span>Append to resolution</span>
+              </label>
               <label
                 class="note-title-field {% if not is_ticket_note %}is-hidden{% endif %}"
                 for="note-title-{{ active_job.id }}"
@@ -512,18 +523,6 @@
                   {% if is_ticket_note %}required{% endif %}
                   {% if not is_ticket_note %}disabled{% endif %}
                 >
-              </label>
-              <label class="append-resolution-field">
-                <input type="hidden" name="append_to_resolution" value="false" form="active-ticket-form-{{ active_job.id }}">
-                <input
-                  type="checkbox"
-                  name="append_to_resolution"
-                  value="true"
-                  form="active-ticket-form-{{ active_job.id }}"
-                  data-append-resolution-input
-                  {% if active_job.append_to_resolution %}checked{% endif %}
-                >
-                <span>Append to resolution</span>
               </label>
               <label for="description-preview-{{ active_job.id }}">
                 <span data-summary-label>{% if is_ticket_note %}Note description{% else %}Summary notes{% endif %}</span>

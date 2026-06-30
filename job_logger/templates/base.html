@@ -41,17 +41,51 @@
         {% endif %}
         <nav class="top-nav" aria-label="Primary navigation">
           {% if not current_is_super_admin %}
-            <a href="/home">Home</a>
+            <a href="/home">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 11 12 3l9 8"></path>
+                <path d="M5 10v10h14V10"></path>
+                <path d="M9 20v-6h6v6"></path>
+              </svg>
+              <span>Home</span>
+            </a>
           {% endif %}
           {% if current_is_super_admin %}
-            <a href="/users">Users</a>
+            <a href="/users">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                <path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"></path>
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <span>Users</span>
+            </a>
           {% endif %}
-          <a href="/review">Review</a>
+          <a href="/review">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 11l2 2 4-4"></path>
+              <path d="M20 6v14H4V6"></path>
+              <path d="M8 6V4h8v2"></path>
+              <path d="M7 6h10"></path>
+            </svg>
+            <span>Review</span>
+          </a>
           {% if not current_is_super_admin %}
-            <a href="/config">Config</a>
+            <a href="/config">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
+                <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.08 1.65V21a2 2 0 1 1-4 0v-.09a1.8 1.8 0 0 0-1.08-1.65 1.8 1.8 0 0 0-1.98.36l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.8 1.8 0 0 0 4.35 15a1.8 1.8 0 0 0-1.65-1.08H2.6a2 2 0 1 1 0-4h.09a1.8 1.8 0 0 0 1.65-1.08 1.8 1.8 0 0 0-.36-1.98l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.8 1.8 0 0 0 1.98.36 1.8 1.8 0 0 0 1.08-1.65V2.6a2 2 0 1 1 4 0v.09a1.8 1.8 0 0 0 1.08 1.65 1.8 1.8 0 0 0 1.98-.36l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.8 1.8 0 0 0-.36 1.98 1.8 1.8 0 0 0 1.65 1.08h.09a2 2 0 1 1 0 4h-.09A1.8 1.8 0 0 0 19.4 15Z"></path>
+              </svg>
+              <span>Config</span>
+            </a>
           {% endif %}
           {% if current_can_access_debug %}
-            <a href="/debug">Diag</a>
+            <a href="/debug">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a6 6 0 0 1-7.9 7.9l-5.6 5.6a2.1 2.1 0 0 1-3-3l5.6-5.6a6 6 0 0 1 7.9-7.9l-3.1 3.1Z"></path>
+              </svg>
+              <span>Diag</span>
+            </a>
           {% endif %}
         </nav>
         <nav class="mobile-nav-actions mobile-nav-left" aria-label="Mobile navigation">
@@ -123,12 +157,13 @@
         </nav>
         <form method="post" action="/logout" class="logout-form desktop-logout-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button class="icon-button" type="submit" title="Sign out" aria-label="Sign out">
+          <button class="icon-button desktop-logout-button" type="submit" title="Log out" aria-label="Log out">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M10 17l5-5-5-5"></path>
               <path d="M15 12H3"></path>
               <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
             </svg>
+            <span>Log out</span>
           </button>
         </form>
       {% else %}

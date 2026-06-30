@@ -155,13 +155,34 @@ function jobDateLabelForDateValue(dateValue, currentDateValue = currentDetroitDa
   return "";
 }
 
+function formatJobDateForDisplay(dateInfo) {
+  if (!dateInfo) {
+    return "";
+  }
+
+  const month = String(dateInfo.localDate.getMonth() + 1).padStart(2, "0");
+  const day = String(dateInfo.localDate.getDate()).padStart(2, "0");
+  const year = String(dateInfo.localDate.getFullYear()).padStart(4, "0");
+  return `${month}/${day}/${year}`;
+}
+
+function jobDateDisplayTextForDateValue(dateValue, currentDateValue = currentDetroitDateValue()) {
+  const dateInfo = normalizedDateValue(dateValue);
+  if (!dateInfo) {
+    return "";
+  }
+
+  const dateLabel = jobDateLabelForDateValue(dateValue, currentDateValue);
+  const displayDate = formatJobDateForDisplay(dateInfo);
+  return dateLabel ? `${displayDate}  (${dateLabel})` : displayDate;
+}
+
 function setDateWeekdayLabelText(labelElement, dateValue) {
   if (!labelElement) {
     return;
   }
 
-  const dateLabel = jobDateLabelForDateValue(dateValue);
-  labelElement.textContent = dateLabel ? `(${dateLabel})` : "";
+  labelElement.textContent = jobDateDisplayTextForDateValue(dateValue);
 }
 
 function updateActiveJobDateWeekday(activeJobCard, dateValue) {
@@ -169,7 +190,7 @@ function updateActiveJobDateWeekday(activeJobCard, dateValue) {
     return;
   }
 
-  setDateWeekdayLabelText(activeJobCard.querySelector("[data-date-weekday-label]"), dateValue);
+  setDateWeekdayLabelText(activeJobCard.querySelector("[data-date-display]"), dateValue);
 }
 
 function findDescriptionTextarea(jobId) {

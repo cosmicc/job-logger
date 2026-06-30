@@ -280,10 +280,9 @@
               </div>
               <label class="review-job-date-field">
                 <span>Job date</span>
-                {% set selected_job_date_label = selected_job_date|job_date_label %}
                 <span class="date-input-shell">
                   <input name="job_date" type="date" value="{{ selected_job_date }}" required>
-                  <span class="date-relative-label" data-review-date-weekday-label>{% if selected_job_date_label %}({{ selected_job_date_label }}){% endif %}</span>
+                  <span class="date-display-text" data-review-date-display>{{ selected_job_date|job_date_display }}</span>
                 </span>
               </label>
               <label class="review-start-time-field" data-review-time-field>
@@ -453,6 +452,17 @@
               <p data-review-ticket-description-display>{{ selected_job.ticket_description or "No description exists for this ticket." }}</p>
             </section>
 
+            <label class="append-resolution-field review-append-resolution-field">
+              <input type="hidden" name="append_to_resolution" value="false">
+              <input
+                type="checkbox"
+                name="append_to_resolution"
+                value="true"
+                data-review-append-resolution-input
+                {% if selected_job.append_to_resolution %}checked{% endif %}
+              >
+              <span>Append to resolution</span>
+            </label>
             <label class="wide-field note-title-field {% if not is_ticket_note %}is-hidden{% endif %}" data-review-note-title-field>
               <span>Note title</span>
               <input
@@ -464,17 +474,6 @@
                 {% if is_ticket_note %}required{% endif %}
                 {% if not is_ticket_note %}disabled{% endif %}
               >
-            </label>
-            <label class="append-resolution-field review-append-resolution-field">
-              <input type="hidden" name="append_to_resolution" value="false">
-              <input
-                type="checkbox"
-                name="append_to_resolution"
-                value="true"
-                data-review-append-resolution-input
-                {% if selected_job.append_to_resolution %}checked{% endif %}
-              >
-              <span>Append to resolution</span>
             </label>
             <label class="wide-field">
               <span data-review-summary-label>{% if is_ticket_note %}Note description{% else %}Summary notes{% endif %}</span>
@@ -705,7 +704,7 @@
           {% endif %}
 
           {% if can_modify_selected_job and (not selected_job_submitted or ai_cleanup_enabled or selected_job.ai_cleanup_original_summary) %}
-            <div class="review-status-stack" aria-live="polite">
+            <div class="review-status-stack{% if not selected_job_submitted and selected_job.transcription_error %} has-status-message{% endif %}" aria-live="polite">
               <p
                 class="recording-status workflow-status-line"
                 data-review-autosave-status

@@ -187,7 +187,7 @@ def test_managed_admin_can_use_debug_without_super_admin_permissions(client: Tes
     home_response = client.get("/home")
     assert home_response.status_code == 200
     assert 'href="/debug"' in home_response.text
-    assert ">Diag</a>" in home_response.text
+    assert "<span>Diag</span>" in home_response.text
     assert ">Debug</a>" not in home_response.text
     assert 'data-mobile-debug-link' in home_response.text
     assert 'href="/users"' not in home_response.text

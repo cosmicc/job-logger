@@ -44,10 +44,17 @@ All notable changes to Job Logger are documented in this file.
 - Changed Work in Progress and Review detail status feedback so **Changes
   saved**, recording, and AI Cleanup messages share one status line below the
   action buttons and replace each other instead of rendering in separate
-  locations.
+  locations. Empty Review status space is hidden until a message exists.
 - Changed Work in Progress and Review **Job date** controls so `(Today)`,
   `(Yesterday)`, or `(Tomorrow)` appears inside the date selector box when
-  applicable. Other dates show only the selected date.
+  applicable. The date and relative label are centered together with two
+  spaces between them, and other dates show only the centered selected date.
+- Changed Work in Progress and Review ticket-note layout so **Append to
+  resolution** sits above **Note title**, keeping **Note title** and **Note
+  description** grouped without extra vertical gaps.
+- Changed the full-browser authenticated top navigation to raised blue
+  icon-and-text buttons, including a visible **Log out** label after the logout
+  icon, with pressed-button feedback matching the phone header controls.
 - Adjusted full-browser Review detail so **Entry type** sits beside **Job date**
   and the start/end time controls share a row again. Remote/On-Site switch
   pills now match the Time entry/Ticket note switch size.

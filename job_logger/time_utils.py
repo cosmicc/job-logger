@@ -217,6 +217,21 @@ def format_job_date_label(value: date | datetime | str | None) -> str:
     return ""
 
 
+def format_job_date_display(value: date | datetime | str | None) -> str:
+    """Return the centered date text shown inside editable job date controls."""
+
+    local_date = _date_value_for_label(value)
+    if local_date is None:
+        return ""
+
+    display_date = local_date.strftime("%m/%d/%Y")
+    relative_label = format_job_date_label(local_date)
+    if relative_label:
+        return f"{display_date}  ({relative_label})"
+
+    return display_date
+
+
 def _date_value_for_label(value: date | datetime | str | None) -> date | None:
     """Normalize template date values before building a compact date label."""
 

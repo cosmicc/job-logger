@@ -422,11 +422,13 @@ Record/AI Cleanup row, and recording/AI status text belongs below all action
 buttons. Active Work in Progress cards should show an editable **Job date**
 calendar field instead of the raw started timestamp, with `(Today)`,
 `(Yesterday)`, or `(Tomorrow)` shown inside the date selector box when the
-selected date is adjacent to the current app-local date. Other selected dates
-show only the date. The selected local date must be saved server-side through
-the active-job workflow and carry into Review and Autotask submission. The
-selected Review detail **Job date** field should use the same in-selector
-relative label treatment. The active **Rounded start** and
+selected date is adjacent to the current app-local date. The date and relative
+label should be centered together with two spaces between them, such as
+`06/29/2026  (Yesterday)`. Other selected dates show only the centered date.
+The selected local date must be saved server-side through the active-job
+workflow and carry into Review and Autotask submission. The selected Review
+detail **Job date** field should use the same centered in-selector treatment.
+The active **Rounded start** and
 **Rounded stop**
 fields should use the same 12-hour editable time-field treatment as Review
 detail start/end times, keep the `-15` and `+15` controls, and save only
@@ -454,7 +456,9 @@ left, with logout on the right, and must not see the Config shortcut. The
 mobile logout button must post to `/logout` with the rendered CSRF token and
 must not use `window.close()` or a browser-only app close fallback. Full-width
 `/home`, review, debug, and other non-mobile authenticated views still expose
-the explicit desktop logout control.
+the explicit desktop logout control. Full-browser top navigation should use
+raised blue icon-and-text buttons, including a **Log out** button with the
+logout icon and visible text, while preserving the phone-sized icon navigation.
 When cached application health is degraded, only Diagnostics-authorized users
 may see a red exclamation alert button in the authenticated top bar. The
 desktop alert is centered in the header; the phone alert joins the compact
@@ -478,7 +482,9 @@ prefix. Saving review edits parses that prefix back into the stored
 that visible prefix, so the final payload can be corrected without exposing
 ticket or client identity to edits. Ticket-note mode hides Remote/On-Site,
 disables start/end time controls, shows a required note-title field above the
-note description, and keeps the description unprefixed. The selected Autotask
+note description, and keeps the description unprefixed. **Append to resolution**
+should sit above the note title in ticket-note mode so note title and note
+description stay visually grouped together. The selected Autotask
 client name, company ID, ticket number, and ticket title are read-only identity
 fields populated from Autotask lookup and must not be editable on the review
 page. The only exception is the empty-identity active-job case, where Review

@@ -15,7 +15,7 @@ const RECORDING_STATUS_COMPLETE = "Conversion complete.";
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const reviewAutosaveForm = document.querySelector("[data-review-autosave-form]");
 const reviewAutosaveStatus = document.querySelector("[data-review-autosave-status]");
-const reviewDateWeekdayLabel = document.querySelector("[data-review-date-weekday-label]");
+const reviewDateDisplay = document.querySelector("[data-review-date-display]");
 const aiCleanupButtons = document.querySelectorAll("[data-ai-cleanup-button]");
 const reviewRecordButtons = document.querySelectorAll("[data-review-record-button]");
 const reviewCompanyInputs = document.querySelectorAll("[data-review-company-input]");
@@ -209,13 +209,51 @@ function jobDateLabelForDateValue(dateValue, currentDateValue = currentDetroitDa
   return "";
 }
 
+function formatJobDateForDisplay(dateInfo) {
+  if (!dateInfo) {
+    return "";
+  }
+
+  const month = String(dateInfo.localDate.getMonth() + 1).padStart(2, "0");
+  const day = String(dateInfo.localDate.getDate()).padStart(2, "0");
+  const year = String(dateInfo.localDate.getFullYear()).padStart(4, "0");
+  return `${month}/${day}/${year}`;
+}
+
+function jobDateDisplayTextForDateValue(dateValue, currentDateValue = currentDetroitDateValue()) {
+  const dateInfo = normalizedDateValue(dateValue);
+  if (!dateInfo) {
+    return "";
+  }
+
+  const dateLabel = jobDateLabelForDateValue(dateValue, currentDateValue);
+  const displayDate = formatJobDateForDisplay(dateInfo);
+  return dateLabel ? `${displayDate}  (${dateLabel})` : displayDate;
+}
+
 function updateReviewDateWeekday(dateValue) {
-  if (!reviewDateWeekdayLabel) {
+  if (!reviewDateDisplay) {
     return;
   }
 
-  const dateLabel = jobDateLabelForDateValue(dateValue);
-  reviewDateWeekdayLabel.textContent = dateLabel ? `(${dateLabel})` : "";
+  reviewDateDisplay.textContent = jobDateDisplayTextForDateValue(dateValue);
+}
+
+function syncReviewStatusStack(statusElement) {
+  if (!statusElement || typeof statusElement.closest !== "function") {
+    return;
+  }
+
+  const statusStack = statusElement.closest(".review-status-stack");
+  if (!statusStack || !statusStack.classList) {
+    return;
+  }
+
+  const hasStatusText = Boolean(String(statusElement.textContent || "").trim());
+  const hasServerError = Boolean(
+    statusStack.querySelector && statusStack.querySelector(".error-text"),
+  );
+  statusStack.classList.toggle("has-status-message", hasStatusText || hasServerError);
 }
 
 function adjustTimeField(timeFieldName, deltaMinutes) {
@@ -241,6 +279,7 @@ function setReviewAutosaveStatus(message, isError = false) {
 
   reviewAutosaveStatus.textContent = message;
   reviewAutosaveStatus.classList.toggle("error-text", isError);
+  syncReviewStatusStack(reviewAutosaveStatus);
 }
 
 function shouldSuppressReviewAutosaveError(errorMessage) {
@@ -271,6 +310,7 @@ function setInlineLoadingStatus(statusElement, message, {isError = false} = {}) 
   statusElement.classList.toggle("error-text", isError);
   statusElement.classList.remove("is-loading");
   statusElement.textContent = message;
+  syncReviewStatusStack(statusElement);
 }
 
 function setAiCleanupStatus(button, message, isError = false, isLoading = false) {

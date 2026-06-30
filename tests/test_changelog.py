@@ -87,7 +87,9 @@ def test_changelog_parser_reads_current_release() -> None:
             "Ticket notes now open from the selected ticket in a closeable newest-first overlay.",
             "A Past time entries button now opens ticket time entries with clearer technician names, larger time details, and summary-of-work details.",
             "Work entry save, recording, and AI Cleanup messages now share one status line.",
-            "Job date controls now show Today, Yesterday, or Tomorrow inside the date selector when applicable.",
+            "Job date controls now center the date with Today, Yesterday, or Tomorrow inside the selector when applicable.",
+            "Ticket note fields are tighter, with Append to resolution above the note title.",
+            "Full-browser navigation now uses raised blue icon buttons with visible labels.",
             "Work in Progress and Review now have cleaner time controls, larger Remote/On-Site pills, and rounded total time shown.",
             "Full-browser Review now keeps Entry type beside Job date so start and end times share a row.",
             "Admins now see a top-bar alert when app health needs attention.",
@@ -139,7 +141,12 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "larger time details, and summary-of-work details."
     ) in response.text
     assert "Work entry save, recording, and AI Cleanup messages now share one status line." in response.text
-    assert "Job date controls now show Today, Yesterday, or Tomorrow inside the date selector when applicable." in response.text
+    assert (
+        "Job date controls now center the date with Today, Yesterday, or Tomorrow "
+        "inside the selector when applicable."
+    ) in response.text
+    assert "Ticket note fields are tighter, with Append to resolution above the note title." in response.text
+    assert "Full-browser navigation now uses raised blue icon buttons with visible labels." in response.text
     assert (
         "Work in Progress and Review now have cleaner time controls, larger Remote/On-Site pills, "
         "and rounded total time shown."

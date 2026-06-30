@@ -7,6 +7,7 @@ from datetime import UTC, date, datetime, timedelta
 from job_logger.time_utils import (
     enforce_minimum_rounded_end,
     format_duration_minutes,
+    format_job_date_display,
     format_job_date_label,
     format_local_compact_time_range,
     format_local_display,
@@ -104,6 +105,18 @@ def test_format_job_date_label_uses_today_for_current_detroit_date(monkeypatch) 
     assert format_job_date_label(date(2026, 6, 30)) == "Tomorrow"
     assert format_job_date_label(date(2026, 7, 1)) == ""
     assert format_job_date_label("not-a-date") == ""
+
+
+def test_format_job_date_display_combines_date_and_relative_label(monkeypatch) -> None:
+    """Date selector text should keep the date and near-current label together."""
+
+    monkeypatch.setattr("job_logger.time_utils.now_utc", lambda: datetime(2026, 6, 29, 14, 0, tzinfo=UTC))
+
+    assert format_job_date_display("2026-06-29") == "06/29/2026  (Today)"
+    assert format_job_date_display(date(2026, 6, 28)) == "06/28/2026  (Yesterday)"
+    assert format_job_date_display(date(2026, 6, 30)) == "06/30/2026  (Tomorrow)"
+    assert format_job_date_display(date(2026, 7, 1)) == "07/01/2026"
+    assert format_job_date_display("not-a-date") == ""
 
 
 def test_format_utc_iso_keeps_explicit_utc_offset_for_naive_database_values() -> None:

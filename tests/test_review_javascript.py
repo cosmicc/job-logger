@@ -228,7 +228,7 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                 classList: noopClassList,
                 textContent: "",
               }};
-              const reviewDateWeekdayLabel = makeElement("SPAN");
+              const reviewDateDisplay = makeElement("SPAN");
               const reviewAutosaveForm = {{
                 dataset: {{reviewSaveUrl: "/review/job-1/save"}},
                 querySelector(selector) {{
@@ -259,6 +259,9 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
               }};
               const reviewAutosaveStatus = {{
                 classList: noopClassList,
+                closest() {{
+                  return null;
+                }},
                 textContent: "",
               }};
 
@@ -289,8 +292,8 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
                   if (selector === "[data-review-autosave-status]") {{
                     return reviewAutosaveStatus;
                   }}
-                  if (selector === "[data-review-date-weekday-label]") {{
-                    return reviewDateWeekdayLabel;
+                  if (selector === "[data-review-date-display]") {{
+                    return reviewDateDisplay;
                   }}
                   if (selector === "[data-ai-cleanup-status]") {{
                     return aiCleanupStatus;
@@ -393,7 +396,7 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
 
               jobDateInput.value = "2026-06-20";
               jobDateInput.eventHandlers.change();
-              assert.strictEqual(reviewDateWeekdayLabel.textContent, "");
+              assert.strictEqual(reviewDateDisplay.textContent, "06/20/2026");
               runQueuedTimers();
 
               await Promise.resolve();
@@ -402,7 +405,7 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
 
               assert.strictEqual(submittedRequests.length, 2);
               assert.strictEqual(submittedRequests[1].body.job_date, "2026-06-20");
-              assert.strictEqual(reviewDateWeekdayLabel.textContent, "");
+              assert.strictEqual(reviewDateDisplay.textContent, "06/20/2026");
 
               assert.strictEqual(typeof aiCleanupButton.eventHandlers.click, "function");
               summaryTextarea.value = "rough review wording";

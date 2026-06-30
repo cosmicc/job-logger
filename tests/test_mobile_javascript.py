@@ -39,6 +39,7 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
             (async () => {
               const mobileScript = `${fs.readFileSync(MOBILE_SCRIPT_PATH, "utf8")}
               ;this.__mobileTestApi = {
+                jobDateDisplayTextForDateValue,
                 jobDateLabelForDateValue,
                 setDateWeekdayLabelText,
                 updateActiveTicketDisplay,
@@ -339,7 +340,7 @@ def test_mobile_date_label_uses_near_current_relative_text(tmp_path: Path) -> No
     run_mobile_javascript_harness(
         tmp_path,
         """
-        const weekdayLabel = createFakeElement("span");
+        const dateDisplay = createFakeElement("span");
 
         assert.strictEqual(browserContext.__mobileTestApi.weekdayNameForDateValue("2026-06-16"), "Tuesday");
         assert.strictEqual(browserContext.__mobileTestApi.weekdayNameForDateValue("2026-06-20"), "Saturday");
@@ -348,9 +349,28 @@ def test_mobile_date_label_uses_near_current_relative_text(tmp_path: Path) -> No
         assert.strictEqual(browserContext.__mobileTestApi.jobDateLabelForDateValue("2026-06-20", "2026-06-21"), "Yesterday");
         assert.strictEqual(browserContext.__mobileTestApi.jobDateLabelForDateValue("2026-06-22", "2026-06-21"), "Tomorrow");
         assert.strictEqual(browserContext.__mobileTestApi.jobDateLabelForDateValue("2026-06-23", "2026-06-21"), "");
+        assert.strictEqual(
+          browserContext.__mobileTestApi.jobDateDisplayTextForDateValue("2026-06-20", "2026-06-20"),
+          "06/20/2026  (Today)",
+        );
+        assert.strictEqual(
+          browserContext.__mobileTestApi.jobDateDisplayTextForDateValue("2026-06-20", "2026-06-21"),
+          "06/20/2026  (Yesterday)",
+        );
+        assert.strictEqual(
+          browserContext.__mobileTestApi.jobDateDisplayTextForDateValue("2026-06-22", "2026-06-21"),
+          "06/22/2026  (Tomorrow)",
+        );
+        assert.strictEqual(
+          browserContext.__mobileTestApi.jobDateDisplayTextForDateValue("2026-06-23", "2026-06-21"),
+          "06/23/2026",
+        );
+        assert.strictEqual(browserContext.__mobileTestApi.jobDateDisplayTextForDateValue("bad-date"), "");
 
-        browserContext.__mobileTestApi.setDateWeekdayLabelText(weekdayLabel, "bad-date");
-        assert.strictEqual(weekdayLabel.textContent, "");
+        browserContext.__mobileTestApi.setDateWeekdayLabelText(dateDisplay, "2026-06-20");
+        assert.match(dateDisplay.textContent, /^06\\/20\\/2026(  \\((Today|Yesterday|Tomorrow)\\))?$/);
+        browserContext.__mobileTestApi.setDateWeekdayLabelText(dateDisplay, "bad-date");
+        assert.strictEqual(dateDisplay.textContent, "");
         """,
     )
 

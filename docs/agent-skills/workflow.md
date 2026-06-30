@@ -49,7 +49,9 @@ logout on the right, and must not see Config. The mobile logout button must
 submit the normal `/logout` form with the rendered CSRF token. Do not wire
 mobile logout through `window.close()`, `about:blank`, a GET link, or another
 browser-only action. Keep the explicit desktop logout form available on
-non-mobile authenticated pages.
+non-mobile authenticated pages. Full-browser top navigation should use raised
+blue icon-and-text buttons, including visible **Log out** text after the logout
+icon, while phone-sized navigation remains compact icon buttons.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 one yellow version badge with `DEV` folded into the version text, such as
 `v1.2.0 DEV`. Keep the badge compact so it does not crowd the mobile
@@ -112,9 +114,11 @@ Active jobs support these updates before completion:
   the visible notes.
 - Local job date through the Work in Progress **Job date** calendar field. The
   selector shows `(Today)`, `(Yesterday)`, or `(Tomorrow)` inside the date box
-  when the selected date is adjacent to the current app-local date; other dates
-  show only the date. The selected date replaces the local date portion of the
-  active rounded start time while preserving its local time.
+  when the selected date is adjacent to the current app-local date. The date
+  and relative label are centered together with two spaces between them, such
+  as `06/29/2026  (Yesterday)`. Other dates show only the centered date. The
+  selected date replaces the local date portion of the active rounded start
+  time while preserving its local time.
 - Rounded start time through an editable 12-hour Work in Progress time field
   that matches the Review detail start-time treatment, plus server-validated
   `-15` and `+15` minute buttons on either side of the field.
@@ -470,10 +474,11 @@ The review summary textarea displays the complete Autotask `summaryNotes`
 string for Time entry mode, including the leading `Remote. ` or `On-Site. `
 prefix. Review save, accept, retry, and submitted-entry update handlers must
 parse that prefix back into the stored work-location mode and keep the
-persisted note body clean. Ticket note mode must show an unprefixed **Note
-description** textarea, show a required **Note title** field above it, hide
-Remote/On-Site, disable the start and end time controls, and hide the duration
-label. The review list must show each row's Remote or On-Site mode for time
+persisted note body clean. Ticket note mode must show **Append to resolution**
+above the required **Note title** field, then an unprefixed **Note
+description** textarea immediately below the title. It must hide Remote/On-Site,
+disable the start and end time controls, and hide the duration label. The
+review list must show each row's Remote or On-Site mode for time
 entries and Ticket note for notes, and the review detail work-location control
 must rewrite the visible summary prefix when it changes on time entries. This
 allows the operator to correct the final Autotask notes without making
@@ -548,10 +553,11 @@ Logger review row.
 
 The review detail uses one local job date with start and end times, and the
 **Job date** selector shows `(Today)`, `(Yesterday)`, or `(Tomorrow)` inside the
-date box when applicable. Other selected dates show only the date. Jobs do not
-span multiple dates; validation must reject edits where the end time is not
-after the start time on that same date. Keep the audit timeline collapsed by
-default with an expandable detail section.
+date box when applicable. The date and relative label are centered together
+with two spaces between them. Other selected dates show only the centered date.
+Jobs do not span multiple dates; validation must reject edits where the end
+time is not after the start time on that same date. Keep the audit timeline
+collapsed by default with an expandable detail section.
 
 ## Job Status Expectations
 
