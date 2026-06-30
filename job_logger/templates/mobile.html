@@ -40,6 +40,7 @@
           <input
             class="service-call-date-input"
             type="date"
+            data-date-chooser-input
             data-service-call-date-input
             data-service-call-date-control
             aria-label="Choose service-call date"
@@ -122,12 +123,13 @@
             <dl class="metric-grid">
               <div class="metric-card job-date-card">
                 <label>
-                  <span class="metric-label centered-field-label">Job date</span>
+                  <span class="metric-label centered-field-label" data-entry-date-label>{% if is_ticket_note %}Note Date{% else %}Job date{% endif %}</span>
                   <span class="date-input-shell">
                     <input
                       name="job_date"
                       type="date"
                       form="active-ticket-form-{{ active_job.id }}"
+                      data-date-chooser-input
                       data-active-job-date-input
                       value="{{ active_job_date }}"
                       required
@@ -136,7 +138,7 @@
                   </span>
                 </label>
               </div>
-              <div class="metric-card">
+              <div class="metric-card time-entry-time-card{% if is_ticket_note %} is-hidden{% endif %}" data-active-time-field>
                 <dt class="centered-field-label">Start time</dt>
                 <dd>
                   <form
@@ -196,7 +198,7 @@
                   </form>
                 </dd>
               </div>
-              <div class="metric-card">
+              <div class="metric-card time-entry-time-card{% if is_ticket_note %} is-hidden{% endif %}" data-active-time-field>
                 <dt class="centered-field-label">End time</dt>
                 <dd>
                   <form
@@ -403,7 +405,7 @@
                         <path d="M9 11h6"></path>
                         <path d="M9 15h6"></path>
                       </svg>
-                      Ticket notes
+                      <span data-ticket-context-label>Ticket notes</span>
                     </button>
                     <button
                       class="secondary-button ticket-notes-button is-hidden"
@@ -421,7 +423,7 @@
                         <path d="M8 10v4"></path>
                         <path d="M8 17v4"></path>
                       </svg>
-                      Past time entries
+                      <span data-ticket-context-label>Past time entries</span>
                     </button>
                   </div>
                 </div>
@@ -723,6 +725,7 @@
   </section>
   {{ render_ticket_notes_overlay() }}
   <script src="/static/ticket-notes.js?v={{ static_asset_version }}" defer></script>
+  <script src="/static/date-time-controls.js?v={{ static_asset_version }}" defer></script>
   <script src="/static/mobile.js?v={{ static_asset_version }}" defer></script>
   {% if show_passkey_setup_prompt %}
     <script src="/static/passkeys.js?v={{ static_asset_version }}" defer></script>

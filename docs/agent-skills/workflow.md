@@ -126,11 +126,15 @@ Active jobs support these updates before completion:
   when the selected date is adjacent to the current app-local date. The date
   and relative label are centered together with two spaces between them, such
   as `06/29/2026  (Yesterday)`. Other dates show only the centered date. The
-  selected date replaces the local date portion of the active rounded start
+  app-owned calendar chooser uses **Today**, **Cancel**, and **Set** controls
+  instead of the native browser picker so the visible wording is consistent.
+  The selected date replaces the local date portion of the active rounded start
   time while preserving its local time.
 - Rounded start time through an editable 12-hour Work in Progress **Start
   time** field that matches the Review detail start-time treatment, plus
   server-validated `-15` and `+15` minute buttons on either side of the field.
+  Focusing the field should open a 15-minute dropdown centered on the currently
+  selected time so earlier times are above and later times are below.
 - Rounded stop time through an editable 12-hour Work in Progress **End time**
   field that matches the Review detail end-time treatment, plus
   server-validated `-15` and `+15` minute buttons on either side of the field.
@@ -142,12 +146,14 @@ Active jobs support these updates before completion:
   update the visible label immediately when the visible start or stop time
   changes.
 
-When Ticket note is selected, the Work in Progress UI must disable rounded
-start and rounded stop controls, hide the duration label, hide Remote/On-Site,
-show the note-title field above the note-description textarea, and change the
-finish/delete labels to **End Note** and **Delete Note**. If the user's
-**Submit from Work in Progress** preference is enabled, the finish label should
-be a submit-note label while still posting through the normal end-work route.
+When Ticket note is selected, the Work in Progress UI must change **Job date**
+to **Note Date**, hide the rounded start and rounded stop control rows while
+preserving their current values for a switch back to Time entry, hide the
+duration label, hide Remote/On-Site, show the note-title field above the
+note-description textarea, and change the finish/delete labels to **End Note**
+and **Delete Note**. If the user's **Submit from Work in Progress** preference
+is enabled, the finish label should be a submit-note label while still posting
+through the normal end-work route.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job client and summary edits, not ticket
@@ -486,9 +492,11 @@ parse that prefix back into the stored work-location mode and keep the
 persisted note body clean. Ticket note mode must show the required **Note
 title** field, then an unprefixed **Note description** textarea, then
 **Append to resolution** directly above the action buttons. It must hide
-Remote/On-Site, disable the start and end time controls, and hide the duration
-label. The review list must show each row's Remote or On-Site mode for time
-entries and Ticket note for notes, and the review detail work-location control
+Remote/On-Site, change **Job date** to **Note Date**, hide the start and end
+time controls while preserving their current values for a switch back to Time
+entry, and hide the duration label. The review list must show each row's Remote
+or On-Site mode for time entries and Ticket note for notes, and the review
+detail work-location control
 must rewrite the visible summary prefix when it changes on time entries. This
 allows the operator to correct the final Autotask notes without making
 ticket/client identity editable.

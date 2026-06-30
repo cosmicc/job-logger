@@ -851,7 +851,8 @@ label {
   min-width: 0;
 }
 
-.date-input-shell input[type="date"] {
+.date-input-shell input[type="date"],
+.date-input-shell input[data-date-chooser-input] {
   position: relative;
   z-index: 1;
   padding: 7px 42px 7px 11px;
@@ -890,6 +891,133 @@ label {
 
 .date-display-text:empty {
   display: none;
+}
+
+.date-chooser-popover,
+.time-dropdown-popover {
+  position: fixed;
+  z-index: 1000;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+
+.date-chooser-popover {
+  display: grid;
+  gap: 10px;
+  width: min(320px, calc(100vw - 16px));
+  padding: 12px;
+}
+
+.date-chooser-header {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-chooser-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 850;
+  text-align: center;
+}
+
+.date-chooser-month-button,
+.date-chooser-day {
+  min-width: 0;
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-muted);
+  color: var(--text);
+  justify-content: center;
+}
+
+.date-chooser-weekdays,
+.date-chooser-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.date-chooser-weekdays span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.date-chooser-day {
+  padding: 0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.date-chooser-day.is-outside-month {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.date-chooser-day.is-today {
+  border-color: var(--accent);
+}
+
+.date-chooser-day.is-selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.date-chooser-footer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding-top: 2px;
+}
+
+.date-chooser-link-button {
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.time-dropdown-popover {
+  display: grid;
+  max-height: min(360px, calc(100vh - 24px));
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.time-dropdown-option {
+  min-height: 34px;
+  padding: 7px 11px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+  justify-content: center;
+  text-align: center;
+}
+
+.time-dropdown-option:hover,
+.time-dropdown-option.is-selected {
+  background: var(--surface-muted);
+}
+
+.time-dropdown-option.is-selected {
+  color: var(--accent-strong);
 }
 
 .date-weekday-label {
@@ -1744,6 +1872,14 @@ a:focus-visible {
 .ticket-notes-button svg {
   width: 16px;
   height: 16px;
+}
+
+.ticket-notes-button.is-empty-context {
+  cursor: default;
+}
+
+.ticket-notes-button.is-empty-context:hover {
+  filter: none;
 }
 
 .duration-inline {

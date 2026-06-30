@@ -329,6 +329,13 @@ function syncActiveEntryMode(activeJobCard) {
 
   const isTicketNote = activeEntryTypeForCard(activeJobCard) === "ticket_note";
   activeJobCard.classList.toggle("active-job-ticket-note", isTicketNote);
+  const dateLabel = activeJobCard.querySelector("[data-entry-date-label]");
+  if (dateLabel) {
+    dateLabel.textContent = isTicketNote ? "Note Date" : "Job date";
+  }
+  for (const activeTimeField of activeJobCard.querySelectorAll("[data-active-time-field]")) {
+    activeTimeField.classList.toggle("is-hidden", isTicketNote);
+  }
   for (const activeTimeForm of activeJobCard.querySelectorAll("[data-active-time-form]")) {
     activeTimeForm.classList.toggle("time-controls-disabled", isTicketNote);
     activeTimeForm.querySelectorAll("button, input").forEach((controlElement) => {
@@ -1793,6 +1800,11 @@ function openServiceCallCalendar(panel) {
     return;
   }
 
+  if (window.JobLoggerDateTimeControls && typeof window.JobLoggerDateTimeControls.openDateChooser === "function") {
+    window.JobLoggerDateTimeControls.openDateChooser(dateInput);
+    return;
+  }
+
   if (typeof dateInput.showPicker === "function") {
     dateInput.showPicker();
     return;
@@ -2422,6 +2434,13 @@ for (const activeTimeForm of activeTimeForms) {
       queueActiveTimeFormSave(activeTimeForm);
     });
     timeInput.addEventListener("blur", () => {
+      updateActiveDurationDisplay(activeTimeForm.closest("[data-active-job-card]"));
+      queueActiveTimeFormSave(activeTimeForm, true);
+    });
+    timeInput.addEventListener("change", () => {
+      if (timeInput.dataset.activeTimeKind === "stop") {
+        timeInput.dataset.roundedStopOverridden = "true";
+      }
       updateActiveDurationDisplay(activeTimeForm.closest("[data-active-job-card]"));
       queueActiveTimeFormSave(activeTimeForm, true);
     });

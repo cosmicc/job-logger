@@ -366,10 +366,12 @@ def test_ticket_note_can_be_submitted_from_review_without_time_fields(authentica
     active_page_response = authenticated_client.get("/home")
     active_html = active_page_response.text
     assert 'value="ticket_note"' in active_html
+    assert "Note Date" in active_html
     assert "Note title" in active_html
     assert "Note description" in active_html
     assert "End Note" in active_html
     assert "Delete Note" in active_html
+    assert "time-entry-time-card is-hidden" in active_html
     assert 'data-work-location-card' in active_html
     assert 'work-location-card is-hidden' in active_html
     assert 'data-duration-row' in active_html
@@ -394,9 +396,12 @@ def test_ticket_note_can_be_submitted_from_review_without_time_fields(authentica
     review_html = review_page_response.text
     review_csrf_token = extract_csrf_token(review_html)
     assert "Ticket note" in review_html
+    assert "Note Date" in review_html
     assert "Note title" in review_html
     assert "Note description" in review_html
     assert "Delete note" in review_html
+    assert "review-start-time-field is-hidden" in review_html
+    assert "review-end-time-field is-hidden" in review_html
     assert 'review-work-location-card is-hidden' in review_html
 
     accept_response = authenticated_client.post(

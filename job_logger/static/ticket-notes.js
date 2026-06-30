@@ -63,28 +63,71 @@ function ticketTimeEntriesButtonHasTicket(button) {
   return Boolean(ticketNotesSafeString(button.dataset.ticketTimeEntriesTicketNumber).trim());
 }
 
-function setTicketNotesButtonVisible(button, isVisible, notes = []) {
-  button.classList.toggle("is-hidden", !isVisible);
-  button.disabled = !isVisible;
-  button.setAttribute("aria-hidden", isVisible ? "false" : "true");
-  if (isVisible) {
-    const noteCount = Array.isArray(notes) ? notes.length : 0;
-    button.dataset.ticketNotesCount = String(noteCount);
-  } else {
-    delete button.dataset.ticketNotesCount;
+function ticketContextDefaultLabel(button, fallbackLabel) {
+  const labelElement = button.querySelector("[data-ticket-context-label]");
+  if (!button.dataset.ticketContextDefaultLabel) {
+    const initialLabel = labelElement
+      ? ticketNotesSafeString(labelElement.textContent).trim()
+      : ticketNotesSafeString(button.textContent).trim();
+    button.dataset.ticketContextDefaultLabel = initialLabel || fallbackLabel;
   }
+  return button.dataset.ticketContextDefaultLabel || fallbackLabel;
 }
 
-function setTicketTimeEntriesButtonVisible(button, isVisible, timeEntries = []) {
-  button.classList.toggle("is-hidden", !isVisible);
-  button.disabled = !isVisible;
-  button.setAttribute("aria-hidden", isVisible ? "false" : "true");
-  if (isVisible) {
-    const entryCount = Array.isArray(timeEntries) ? timeEntries.length : 0;
-    button.dataset.ticketTimeEntriesCount = String(entryCount);
-  } else {
-    delete button.dataset.ticketTimeEntriesCount;
+function setTicketContextButtonLabel(button, labelText, fallbackLabel) {
+  const safeLabelText = ticketNotesSafeString(labelText).trim() || fallbackLabel;
+  let labelElement = button.querySelector("[data-ticket-context-label]");
+  if (!labelElement) {
+    labelElement = document.createElement("span");
+    labelElement.dataset.ticketContextLabel = "";
+    button.append(labelElement);
   }
+  labelElement.textContent = safeLabelText;
+}
+
+function resetTicketContextButton(button, fallbackLabel, countDatasetName, ariaLabel) {
+  ticketContextDefaultLabel(button, fallbackLabel);
+  setTicketContextButtonLabel(button, button.dataset.ticketContextDefaultLabel, fallbackLabel);
+  button.classList.add("is-hidden");
+  button.classList.remove("is-empty-context");
+  button.disabled = true;
+  button.setAttribute("aria-hidden", "true");
+  button.setAttribute("aria-label", ariaLabel);
+  delete button.dataset[countDatasetName];
+}
+
+function setTicketNotesButtonReady(button, notes = []) {
+  const noteCount = Array.isArray(notes) ? notes.length : 0;
+  const hasNotes = noteCount > 0;
+  ticketContextDefaultLabel(button, "Ticket notes");
+  button.classList.remove("is-hidden");
+  button.classList.toggle("is-empty-context", !hasNotes);
+  button.disabled = !hasNotes;
+  button.setAttribute("aria-hidden", "false");
+  button.setAttribute("aria-label", hasNotes ? "View ticket notes" : "No ticket notes");
+  button.dataset.ticketNotesCount = String(noteCount);
+  setTicketContextButtonLabel(
+    button,
+    hasNotes ? button.dataset.ticketContextDefaultLabel : "No Notes",
+    "Ticket notes",
+  );
+}
+
+function setTicketTimeEntriesButtonReady(button, timeEntries = []) {
+  const entryCount = Array.isArray(timeEntries) ? timeEntries.length : 0;
+  const hasTimeEntries = entryCount > 0;
+  ticketContextDefaultLabel(button, "Past time entries");
+  button.classList.remove("is-hidden");
+  button.classList.toggle("is-empty-context", !hasTimeEntries);
+  button.disabled = !hasTimeEntries;
+  button.setAttribute("aria-hidden", "false");
+  button.setAttribute("aria-label", hasTimeEntries ? "View past time entries" : "No past time entries");
+  button.dataset.ticketTimeEntriesCount = String(entryCount);
+  setTicketContextButtonLabel(
+    button,
+    hasTimeEntries ? button.dataset.ticketContextDefaultLabel : "No past entries",
+    "Past time entries",
+  );
 }
 
 async function fetchTicketNotesForButton(button) {
@@ -130,7 +173,7 @@ async function refreshTicketNotesButton(button) {
     return;
   }
 
-  setTicketNotesButtonVisible(button, false);
+  resetTicketContextButton(button, "Ticket notes", "ticketNotesCount", "View ticket notes");
   if (!ticketNotesButtonHasTicket(button)) {
     ticketNoteButtonCache.delete(button);
     return;
@@ -139,10 +182,10 @@ async function refreshTicketNotesButton(button) {
   try {
     const payload = await fetchTicketNotesForButton(button);
     ticketNoteButtonCache.set(button, payload);
-    setTicketNotesButtonVisible(button, payload.notes.length > 0, payload.notes);
+    setTicketNotesButtonReady(button, payload.notes);
   } catch (error) {
     ticketNoteButtonCache.delete(button);
-    setTicketNotesButtonVisible(button, false);
+    resetTicketContextButton(button, "Ticket notes", "ticketNotesCount", "View ticket notes");
   }
 }
 
@@ -151,7 +194,7 @@ async function refreshTicketTimeEntriesButton(button) {
     return;
   }
 
-  setTicketTimeEntriesButtonVisible(button, false);
+  resetTicketContextButton(button, "Past time entries", "ticketTimeEntriesCount", "View past time entries");
   if (!ticketTimeEntriesButtonHasTicket(button)) {
     ticketTimeEntryButtonCache.delete(button);
     return;
@@ -160,10 +203,10 @@ async function refreshTicketTimeEntriesButton(button) {
   try {
     const payload = await fetchTicketTimeEntriesForButton(button);
     ticketTimeEntryButtonCache.set(button, payload);
-    setTicketTimeEntriesButtonVisible(button, payload.time_entries.length > 0, payload.time_entries);
+    setTicketTimeEntriesButtonReady(button, payload.time_entries);
   } catch (error) {
     ticketTimeEntryButtonCache.delete(button);
-    setTicketTimeEntriesButtonVisible(button, false);
+    resetTicketContextButton(button, "Past time entries", "ticketTimeEntriesCount", "View past time entries");
   }
 }
 
@@ -414,12 +457,18 @@ function initializeTicketNotesOverlay() {
 
     const notesButton = event.target.closest("[data-ticket-notes-button]");
     if (notesButton) {
+      if (notesButton.disabled) {
+        return;
+      }
       openTicketNotesOverlay(notesButton);
       return;
     }
 
     const timeEntriesButton = event.target.closest("[data-ticket-time-entries-button]");
     if (timeEntriesButton) {
+      if (timeEntriesButton.disabled) {
+        return;
+      }
       openTicketTimeEntriesOverlay(timeEntriesButton);
       return;
     }

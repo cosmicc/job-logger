@@ -2,10 +2,14 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## v1.2.1 - Review note switching, ticket history cards, and header polish
+## v1.2.1 - Review controls, ticket history, and header polish
 
+- Date choosers now use Today, Cancel, and Set controls inside the app.
+- Start and end time fields now open a 15-minute time dropdown.
 - Switching a Time entry to a Ticket note now removes the Remote. or On-Site. prefix from the note description.
 - Switching back to Time entry restores the Remote. or On-Site. prefix that matches the selected work type.
+- Ticket note mode now shows Note Date and hides start/end time fields until switching back to Time entry.
+- Ticket history now filters system-generated notes and shows No Notes or No past entries when the selected ticket has no usable history.
 - Past time entry cards now show compact hours beside the resource name, such as 1.5hrs.
 - Full-browser navigation is now centered and uses the app's home-screen icon in the header.
 - The work-entry navigation button now says Work, uses a work-entry icon, and the mobile top-bar buttons use the same blue style as the full web nav.

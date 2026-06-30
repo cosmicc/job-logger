@@ -782,11 +782,13 @@ status to `In progress`; the first Autotask write waits until the full time
 entry is submitted or an already submitted entry is explicitly edited/deleted.
 After an open ticket is selected, the stored client name becomes read-only for
 that job everywhere, including Work in Progress and Review.
-If the selected ticket has Autotask notes or past time entries, Work in
-Progress and Review show **Ticket notes** and **Past time entries** buttons
-that open the same closeable read-only overlay. Notes are shown newest first
-with two-line title cards. Past time entries list the resource, local
-start/stop time, and hours, and selecting one shows its summary of work.
+After an authenticated lookup, Work in Progress and Review show **Ticket
+notes** and **Past time entries** buttons when the selected ticket has usable
+history, or disabled **No Notes** and **No past entries** buttons when none is
+available. Workflow Rule and Service Desk Notification ticket notes are treated
+as system noise and filtered out. Notes are shown newest first with two-line
+title cards. Past time entries list the resource, local start/stop time, and
+hours, and selecting one shows its summary of work.
 Long ticket descriptions stay inside a scrollable read-only box instead of
 expanding the mobile page indefinitely; phone-sized layouts cap that visible
 box at about 12 lines, and wider layouts cap it at about 25 lines. On the
@@ -801,8 +803,9 @@ selected local date. The mobile page renders first with a loading state and no
 synchronous Autotask calls. After the window load event, the browser fetches
 `/home/service-calls` so slow Autotask service-call lookups show progress
 instead of delaying the whole start screen. The compact date navigator can move
-to the previous or next day, and tapping the displayed day opens a calendar
-picker. Today, yesterday, and tomorrow are labeled like `Today (Saturday)`;
+to the previous or next day, and tapping the displayed day opens the app's
+calendar chooser with **Today**, **Cancel**, and **Set** controls. Today,
+yesterday, and tomorrow are labeled like `Today (Saturday)`;
 other dates show the full month, ordinal day, and weekday, such as
 `June 19th (Friday)`, without the year.
 Each service-call choice shows the client name, the detected `Remote` or
@@ -838,7 +841,10 @@ scanning. Active Work in Progress cards show an editable **Job date** calendar
 with `(Today)`, `(Yesterday)`, or `(Tomorrow)` inside the date box when
 applicable, and changing it saves the selected local work date before Review or
 submission. Other dates show only the selected date. Active cards also use distinct slot
-shading so two active jobs are easier to distinguish, and the full-browser
+shading so two active jobs are easier to distinguish. Work in Progress and
+Review start/end time fields open a 15-minute time dropdown centered on the
+currently selected time while still allowing the `-15` and `+15` step buttons.
+The full-browser
 active-card finish/delete row sits directly below the **Record** and
 **AI Cleanup** row with recording and cleanup status text below all action
 buttons. On phone-sized Review detail, Record and AI Cleanup status text also
@@ -860,11 +866,11 @@ Work in Progress shows the rounded duration centered under **End time**, and
 Review detail shows it centered under the start/end time controls. The value
 updates as those times change.
 Each Work in Progress card can switch between **Time entry** and **Ticket note**
-before Autotask submission. Ticket note mode disables start/stop time controls,
-hides Remote/On-Site, shows a required note-title field above the note
-description, and changes the finish/delete labels to note wording. Both time
-entries and notes include an **Append to resolution** checkbox, checked by
-default.
+before Autotask submission. Ticket note mode changes **Job date** to **Note
+Date**, hides the start/end time controls while remembering their values, hides
+Remote/On-Site, shows a required note-title field above the note description,
+and changes the finish/delete labels to note wording. Both time entries and
+notes include an **Append to resolution** checkbox, checked by default.
 In active mobile Work in Progress cards, **End Work**, **End Note**, or the
 direct-submit variant shares a row with the destructive delete action to keep
 the active-card controls compact. Active jobs selected on Review detail also
@@ -1087,7 +1093,8 @@ Start time, end time, and resulting duration are rounded to 15-minute intervals.
 The active mobile end-work path still protects against a zero-minute rounded
 duration. Work in Progress rounded start and rounded stop use editable 12-hour
 time fields like Review detail start and end time, plus `-15` and `+15`
-controls; the server still rounds, validates, and saves those active-job edits.
+controls and a 15-minute dropdown that opens around the currently selected
+time; the server still rounds, validates, and saves those active-job edits.
 Work in Progress and Review detail show that rounded duration as centered labels
 like `15 Minutes`, `1 Hour`, or `1.25 Hours`.
 Review detail shows the active Work in Progress rounded stop preview when an

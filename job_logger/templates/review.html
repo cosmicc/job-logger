@@ -276,13 +276,13 @@
                 </div>
               </div>
               <label class="review-job-date-field">
-                <span class="centered-field-label">Job date</span>
+                <span class="centered-field-label" data-review-entry-date-label>{% if is_ticket_note %}Note Date{% else %}Job date{% endif %}</span>
                 <span class="date-input-shell">
-                  <input name="job_date" type="date" value="{{ selected_job_date }}" required>
+                  <input name="job_date" type="date" value="{{ selected_job_date }}" data-date-chooser-input required>
                   <span class="date-display-text" data-review-date-display>{{ selected_job_date|job_date_display }}</span>
                 </span>
               </label>
-              <label class="review-start-time-field" data-review-time-field>
+              <label class="review-start-time-field{% if is_ticket_note %} is-hidden{% endif %}" data-review-time-field>
                 <span class="centered-field-label">Start time</span>
                 <div class="time-step-controls {% if is_ticket_note %}time-controls-disabled{% endif %}">
                   <button
@@ -323,7 +323,7 @@
                   </button>
                 </div>
               </label>
-              <label class="review-end-time-field" data-review-time-field>
+              <label class="review-end-time-field{% if is_ticket_note %} is-hidden{% endif %}" data-review-time-field>
                 <span class="centered-field-label">End time</span>
                 <div class="time-step-controls {% if is_ticket_note %}time-controls-disabled{% endif %}">
                   <button
@@ -424,7 +424,7 @@
                       <path d="M9 11h6"></path>
                       <path d="M9 15h6"></path>
                     </svg>
-                    Ticket notes
+                    <span data-ticket-context-label>Ticket notes</span>
                   </button>
                   <button
                     class="secondary-button ticket-notes-button is-hidden"
@@ -442,7 +442,7 @@
                       <path d="M8 10v4"></path>
                       <path d="M8 17v4"></path>
                     </svg>
-                    Past time entries
+                    <span data-ticket-context-label>Past time entries</span>
                   </button>
                 </div>
               </div>
@@ -748,5 +748,6 @@
 
   {{ render_ticket_notes_overlay() }}
   <script src="/static/ticket-notes.js?v={{ static_asset_version }}" defer></script>
+  <script src="/static/date-time-controls.js?v={{ static_asset_version }}" defer></script>
   <script src="/static/review.js?v={{ static_asset_version }}" defer></script>
 {% endblock %}

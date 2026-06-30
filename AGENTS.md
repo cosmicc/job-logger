@@ -428,9 +428,13 @@ label should be centered together with two spaces between them, such as
 The selected local date must be saved server-side through the active-job
 workflow and carry into Review and Autotask submission. The selected Review
 detail **Job date** field should use the same centered in-selector treatment.
+All app date chooser fields should use the shared app-controlled calendar with
+**Today**, **Cancel**, and **Set** controls instead of relying on native browser
+picker wording.
 The active **Start time** and **End time** fields should use the same 12-hour
 editable time-field treatment as Review detail start/end times, keep the `-15`
-and `+15` controls, and save only through server-validated active-job routes.
+and `+15` controls, open a 15-minute dropdown centered on the current field
+value when selected, and save only through server-validated active-job routes.
 Work in Progress and Review detail should center the rounded-duration label in
 the existing time area without reworking the mobile or full-browser layout.
 
@@ -488,9 +492,11 @@ prefix. Saving review edits parses that prefix back into the stored
 `work_location` field, and the review-detail work-location control must update
 that visible prefix, so the final payload can be corrected without exposing
 ticket or client identity to edits. Ticket-note mode hides Remote/On-Site,
-disables start/end time controls, shows a required note-title field above the
-note description, and keeps the description unprefixed. **Append to resolution**
-should sit under the note description and above the action buttons. The
+changes the date label from **Job date** to **Note Date**, hides start/end time
+controls while preserving their values for switching back to Time entry, shows
+a required note-title field above the note description, and keeps the
+description unprefixed. **Append to resolution** should sit under the note
+description and above the action buttons. The
 selected Autotask
 client name, company ID, ticket number, and ticket title are read-only identity
 fields populated from Autotask lookup and must not be editable on the review
@@ -503,20 +509,23 @@ warning should appear only when AI Cleanup is pressed without notes or when the
 user submits a workflow action that requires summary notes.
 Once an open ticket has been chosen, the stored client name becomes read-only
 everywhere for that job.
-When the selected Autotask ticket has notes or past time entries, Work in
-Progress and Review detail should expose compact **Ticket notes** and **Past
-time entries** buttons near the ticket context. Each button should stay hidden
-when no ticket is selected or when its authenticated lookup returns no rows. The
-shared overlay must keep an X close button visible while the user reviews the
-list and detail panes. The note list should be ordered by created date/time
-with the newest note first, and selection cards should show only the note title
-so note body text cannot overflow the cards. Selection cards should fit two
-lines of note title text and truncate longer titles inside the card. Note
-detail metadata should include who the note was from when Autotask returns a
-safe author reference. Past time-entry selection cards should show the resource
-name first-name first and formatted local start/stop/hours text on one larger
-single-line row, and the selected detail should show a larger date/time row
-plus the summary of work.
+When a selected Autotask ticket exists, Work in Progress and Review detail
+should run authenticated lookups for ticket notes and past time entries near
+the ticket context. Before a ticket is selected, keep the buttons hidden. After
+lookup, expose compact **Ticket notes** and **Past time entries** buttons when
+rows exist; when no displayable notes or no past time entries exist, show
+same-place disabled **No Notes** and **No past entries** buttons. Ticket-note
+lookups must filter out Workflow Rule and Service Desk Notification notes
+before deciding whether any notes exist. The shared overlay must keep an X
+close button visible while the user reviews the list and detail panes. The note
+list should be ordered by created date/time with the newest note first, and
+selection cards should show only the note title so note body text cannot
+overflow the cards. Selection cards should fit two lines of note title text and
+truncate longer titles inside the card. Note detail metadata should include who
+the note was from when Autotask returns a safe author reference. Past
+time-entry selection cards should show the resource name first-name first and
+formatted local start/stop/hours text on one larger single-line row, and the
+selected detail should show a larger date/time row plus the summary of work.
 Work in Progress and review detail action controls should stay compact and
 scannable on both phone and full browser layouts. Use paired button rows when
 two actions naturally belong together, such as **Record** with **AI Cleanup**,

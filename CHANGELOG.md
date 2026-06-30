@@ -6,9 +6,22 @@ All notable changes to Job Logger are documented in this file.
 
 - Advanced the source-controlled dev runtime version to `v1.2.1`, including
   the Python package metadata and PWA service worker cache version.
+- Replaced native browser date pickers on Work in Progress, Review, and
+  service-call date controls with the app's own calendar chooser using
+  **Today**, **Cancel**, and **Set** controls.
+- Added a shared 15-minute time dropdown for Work in Progress and Review
+  start/end time fields, opening around the currently selected time while
+  preserving the existing `-15` and `+15` controls.
 - Changed Review entry-type switching so moving from Time entry to Ticket note
   removes the visible `Remote. ` or `On-Site. ` summary prefix, and switching
   back to Time entry reapplies the prefix that matches the selected work type.
+- Changed Ticket note mode on Work in Progress and Review so **Job date**
+  becomes **Note Date** and the start/end time controls are hidden instead of
+  disabled while their values remain available if the entry switches back to
+  Time entry.
+- Filtered Workflow Rule and Service Desk Notification rows out of selected
+  ticket-note history, and changed empty selected-ticket history lookups to
+  show disabled **No Notes** or **No past entries** buttons after lookup.
 - Changed **Past time entries** selection cards so the resource row shows a
   compact right-aligned hours label such as `1.5hrs`, while the card time
   range and selected detail content keep their existing source data.

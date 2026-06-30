@@ -314,6 +314,29 @@ class AutotaskTicketNote:
     publish: int | None = None
 
 
+SYSTEM_TICKET_NOTE_CONTEXT_TYPES = frozenset({"workflow rule", "service desk notification"})
+
+
+def _normalized_ticket_note_context_type(value: str | None) -> str:
+    """Return a stable note-type key for display filtering decisions."""
+
+    return " ".join(str(value or "").split()).casefold()
+
+
+def is_displayable_ticket_note_context(ticket_note: AutotaskTicketNote) -> bool:
+    """Return whether an Autotask note should be shown in ticket context overlays."""
+
+    note_type = _normalized_ticket_note_context_type(ticket_note.note_type)
+    note_title = _normalized_ticket_note_context_type(ticket_note.title)
+    return note_type not in SYSTEM_TICKET_NOTE_CONTEXT_TYPES and note_title not in SYSTEM_TICKET_NOTE_CONTEXT_TYPES
+
+
+def filter_displayable_ticket_notes(ticket_notes: list[AutotaskTicketNote]) -> list[AutotaskTicketNote]:
+    """Remove system-generated Autotask notes from authenticated ticket context."""
+
+    return [ticket_note for ticket_note in ticket_notes if is_displayable_ticket_note_context(ticket_note)]
+
+
 @dataclass(frozen=True)
 class AutotaskTicketTimeEntry:
     """Safe Autotask time-entry data returned to authenticated job owners."""

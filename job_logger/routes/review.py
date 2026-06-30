@@ -30,6 +30,7 @@ from job_logger.services.autotask import (
     AutotaskTicketOption,
     AutotaskTicketTimeEntry,
     build_autotask_summary_notes,
+    filter_displayable_ticket_notes,
     get_autotask_provider,
     resource_name_for_display,
 )
@@ -205,9 +206,11 @@ def review_ticket_notes(
         if not job.ticket_number:
             return JSONResponse({"ticket_number": "", "ticket_title": "", "notes": []})
 
-        ticket_notes = get_autotask_provider().list_ticket_notes(
-            job.ticket_number,
-            resource_id=resource_id,
+        ticket_notes = filter_displayable_ticket_notes(
+            get_autotask_provider().list_ticket_notes(
+                job.ticket_number,
+                resource_id=resource_id,
+            )
         )
     except HTTPException:
         raise

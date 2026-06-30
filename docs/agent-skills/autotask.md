@@ -198,10 +198,15 @@ use the stored ticket number from the database, and call the server-side
 provider. The browser must not call Autotask directly. The response should
 contain only bounded safe fields needed by the overlay, such as note ID, title,
 description, safe author display text, created/updated display times, type, and
-publish metadata. Return notes ordered by created date/time with newest first.
-Keep the Work in Progress and Review **Ticket notes** button hidden until this
-route returns at least one note. The overlay list cards should render only note
-titles; note body text and author metadata belong in the selected note detail.
+publish metadata. Filter out Autotask system notes whose note type or title is
+`Workflow Rule` or `Service Desk Notification` before sorting or deciding
+whether the ticket has notes. Return the remaining notes ordered by created
+date/time with newest first. Keep the Work in Progress and Review **Ticket
+notes** button hidden until a ticket exists and the authenticated lookup has
+completed. If the lookup returns zero displayable notes, show a disabled
+same-place **No Notes** button instead of opening the overlay. The overlay list
+cards should render only note titles; note body text and author metadata belong
+in the selected note detail.
 
 Past time entries use `GET /review/{job_id}/ticket-time-entries`. This route
 must require an authenticated session, enforce normal review visibility and
@@ -211,9 +216,11 @@ bounded `TimeEntries` rows for that ticket, and resolve `resourceID` values
 through safe `Resources` display names. The response should contain only the
 fields needed by the overlay: time-entry ID, safe resource display name,
 formatted local start/stop/hours text, and bounded summary notes. Keep the Work
-in Progress and Review **Past time entries** button hidden until this route
-returns at least one row. The overlay list cards should show resource and time
-range only; summary notes belong in the selected detail pane.
+in Progress and Review **Past time entries** button hidden until a ticket
+exists and the authenticated lookup has completed. If the lookup returns zero
+rows, show a disabled same-place **No past entries** button instead of opening
+the overlay. The overlay list cards should show resource and time range only;
+summary notes belong in the selected detail pane.
 
 ## Service Call Lookup
 

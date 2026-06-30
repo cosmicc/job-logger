@@ -705,6 +705,11 @@ function syncReviewEntryMode({syncSummaryPrefix = false} = {}) {
     formElement.classList.toggle("review-form-ticket-note", isTicketNote);
   }
 
+  const dateLabel = document.querySelector("[data-review-entry-date-label]");
+  if (dateLabel) {
+    dateLabel.textContent = isTicketNote ? "Note Date" : "Job date";
+  }
+
   const workLocationCard = document.querySelector("[data-review-work-location-card]");
   if (workLocationCard) {
     workLocationCard.classList.toggle("is-hidden", isTicketNote);
@@ -718,6 +723,10 @@ function syncReviewEntryMode({syncSummaryPrefix = false} = {}) {
     if (controlElement.tagName === "INPUT") {
       controlElement.required = !isTicketNote && controlElement.dataset.requiredForTimeEntry === "true";
     }
+  });
+
+  document.querySelectorAll("[data-review-time-field]").forEach((timeField) => {
+    timeField.classList.toggle("is-hidden", isTicketNote);
   });
 
   document.querySelectorAll(".time-step-controls").forEach((timeControls) => {
@@ -1405,6 +1414,13 @@ function bindReviewDurationInputs() {
       }
       updateReviewDurationDisplay();
     });
+    timeInput.addEventListener("change", () => {
+      if (timeInput.disabled) {
+        return;
+      }
+      updateReviewDurationDisplay();
+      queueReviewAutosave(true);
+    });
   }
   updateReviewDurationDisplay();
 }
@@ -1424,7 +1440,9 @@ function bindReviewAutosave() {
       continue;
     }
 
-    if (control.tagName === "SELECT" || control.type === "date" || control.type === "radio") {
+    const isDateChooserControl = control.dataset
+      && Object.prototype.hasOwnProperty.call(control.dataset, "dateChooserInput");
+    if (control.tagName === "SELECT" || control.type === "date" || isDateChooserControl || control.type === "radio") {
       control.addEventListener("change", () => {
         if (control.name === "job_date") {
           updateReviewDateWeekday(control.value);

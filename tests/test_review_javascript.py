@@ -62,6 +62,47 @@ def test_ticket_time_entries_overlay_list_cards_show_resource_and_range() -> Non
     assert "ticketNotesSafeString(timeEntry.summary_notes)" in ticket_notes_script
 
 
+def test_ticket_context_buttons_show_disabled_empty_states() -> None:
+    """Ticket context lookups should show same-place disabled buttons for empty results."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    ticket_notes_script = (repository_root / "job_logger" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
+    mobile_template = (repository_root / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (repository_root / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+
+    assert "No Notes" in ticket_notes_script
+    assert "No past entries" in ticket_notes_script
+    assert "is-empty-context" in ticket_notes_script
+    assert "button.disabled = !hasNotes;" in ticket_notes_script
+    assert "button.disabled = !hasTimeEntries;" in ticket_notes_script
+    assert "data-ticket-context-label" in mobile_template
+    assert "data-ticket-context-label" in review_template
+
+
+def test_shared_date_time_controls_replace_native_picker_and_add_time_dropdown() -> None:
+    """Date choosers should use app controls, and time fields should offer 15-minute options."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    controls_script = (repository_root / "job_logger" / "static" / "date-time-controls.js").read_text(encoding="utf-8")
+    mobile_template = (repository_root / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (repository_root / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+    review_script = (repository_root / "job_logger" / "static" / "review.js").read_text(encoding="utf-8")
+
+    assert 'todayButton.textContent = "Today";' in controls_script
+    assert 'cancelButton.textContent = "Cancel";' in controls_script
+    assert 'setButton.textContent = "Set";' in controls_script
+    assert "JOB_LOGGER_TIME_STEP_MINUTES = 15" in controls_script
+    assert "timeInput.setAttribute(\"aria-haspopup\", \"listbox\")" in controls_script
+    assert 'selectedButton.scrollIntoView({block: "center"});' in controls_script
+    assert "dateInput.type = \"text\";" in controls_script
+    assert "dateInput.readOnly = true;" in controls_script
+    assert "data-date-chooser-input" in mobile_template
+    assert "data-date-chooser-input" in review_template
+    assert "/static/date-time-controls.js?v=" in mobile_template
+    assert "/static/date-time-controls.js?v=" in review_template
+    assert "isDateChooserControl" in review_script
+
+
 def test_review_entry_type_switch_syncs_summary_prefix() -> None:
     """Changing entry type should strip or restore only the visible work-location prefix."""
 
