@@ -796,11 +796,11 @@ status to `In progress`; the first Autotask write waits until the full time
 entry is submitted or an already submitted entry is explicitly edited/deleted.
 After an open ticket is selected, the stored client name becomes read-only for
 that job everywhere, including Work in Progress and Review.
-If the selected ticket has Autotask notes, Work in Progress and Review show a
-**Ticket notes** button that opens a closeable read-only notes overlay. The
-overlay shows newest notes first, keeps the note picker to two-line title
-cards, and shows who the selected note was from in the note details when
-Autotask returns that author context.
+If the selected ticket has Autotask notes or past time entries, Work in
+Progress and Review show **Ticket notes** and **Past time entries** buttons
+that open the same closeable read-only overlay. Notes are shown newest first
+with two-line title cards. Past time entries list the resource, local
+start/stop time, and hours, and selecting one shows its summary of work.
 Long ticket descriptions stay inside a scrollable read-only box instead of
 expanding the mobile page indefinitely; phone-sized layouts cap that visible
 box at about 12 lines, and wider layouts cap it at about 25 lines. On the
@@ -849,9 +849,9 @@ and desktop browsers get appropriately sized layouts. In a full browser view,
 the `/home` Home screen lays out Start Work beside the service-call list, and
 Work in Progress puts job details beside notes and finish actions for easier
 scanning. Active Work in Progress cards show an editable **Job date** calendar
-with `Today` or the weekday beside the label instead of the raw started
-timestamp, and changing it saves the selected local work date before Review or
-submission. Active cards also use distinct slot
+with `(Today)`, `(Yesterday)`, or `(Tomorrow)` inside the date box when
+applicable, and changing it saves the selected local work date before Review or
+submission. Other dates show only the selected date. Active cards also use distinct slot
 shading so two active jobs are easier to distinguish, and the full-browser
 active-card finish/delete row sits directly below the **Record** and
 **AI Cleanup** row with recording and cleanup status text below all action

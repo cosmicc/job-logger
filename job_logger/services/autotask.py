@@ -7,7 +7,7 @@ import time
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from threading import RLock
 from typing import Any
 
@@ -36,6 +36,8 @@ MAX_TICKET_NOTE_LOOKUP_RESULTS = 100
 MAX_TICKET_NOTE_TITLE_LENGTH = 250
 MAX_TICKET_NOTE_BODY_LENGTH = 12000
 MAX_TICKET_NOTE_AUTHOR_LENGTH = 160
+MAX_TICKET_TIME_ENTRY_LOOKUP_RESULTS = 100
+MAX_TICKET_TIME_ENTRY_SUMMARY_LENGTH = 12000
 MAX_AUTOTASK_IN_FILTER_VALUES = 500
 CUSTOMER_VISIBLE_TICKET_NOTE_PUBLISH_VALUE = 1
 DEFAULT_TICKET_NOTE_TYPE = 1
@@ -313,6 +315,27 @@ class AutotaskTicketNote:
 
 
 @dataclass(frozen=True)
+class AutotaskTicketTimeEntry:
+    """Safe Autotask time-entry data returned to authenticated job owners."""
+
+    # time_entry_id is the Autotask TimeEntries.id value used only for UI selection.
+    time_entry_id: int
+
+    # resource_name is bounded display-only technician metadata resolved from Autotask.
+    resource_name: str
+
+    # start_at_utc and end_at_utc are displayed in the application timezone.
+    start_at_utc: datetime | None
+    end_at_utc: datetime | None
+
+    # hours_worked is quantized for display but still kept numeric until the route formats it.
+    hours_worked: Decimal | None
+
+    # summary_notes is bounded customer/work text shown only inside the authenticated overlay.
+    summary_notes: str | None
+
+
+@dataclass(frozen=True)
 class _ServiceDeskRoleLookup:
     """Resolved service-desk role context for a resource."""
 
@@ -470,6 +493,11 @@ class BaseAutotaskProvider:
 
     def list_ticket_notes(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketNote]:
         """Return safe read-only notes for one selected Autotask ticket."""
+
+        raise NotImplementedError
+
+    def list_ticket_time_entries(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketTimeEntry]:
+        """Return safe read-only time entries for one selected Autotask ticket."""
 
         raise NotImplementedError
 
@@ -656,6 +684,33 @@ def _safe_optional_ticket_note_text(raw_text: Any, max_length: int) -> str | Non
         return None
 
     return safe_text[:max_length]
+
+
+def _safe_optional_ticket_time_entry_text(raw_text: Any, max_length: int) -> str | None:
+    """Return bounded optional time-entry text from Autotask."""
+
+    safe_text = str(raw_text or "").strip()
+    if not safe_text:
+        return None
+
+    return safe_text[:max_length]
+
+
+def _coerce_time_entry_hours(raw_hours: Any) -> Decimal | None:
+    """Return non-negative Autotask time-entry hours rounded for display."""
+
+    if raw_hours in (None, ""):
+        return None
+
+    try:
+        hours_worked = Decimal(str(raw_hours))
+    except (InvalidOperation, ValueError):
+        return None
+
+    if not hours_worked.is_finite() or hours_worked < 0:
+        return None
+
+    return hours_worked.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
 
 
 def _resource_match_text(raw_text: Any) -> str:
@@ -1045,6 +1100,32 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 updated_at_utc=datetime(2026, 6, 16, 12, 15, tzinfo=UTC),
                 note_type="Mock",
                 publish=1,
+            ),
+        ]
+
+    def list_ticket_time_entries(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketTimeEntry]:
+        """Return deterministic ticket time entries for local overlay testing."""
+
+        safe_ticket_number = ticket_number.strip().upper()
+        if not safe_ticket_number:
+            raise AutotaskSubmissionError("Ticket number is required before searching Autotask time entries.")
+
+        return [
+            AutotaskTicketTimeEntry(
+                time_entry_id=81002,
+                resource_name="Technician, Test",
+                start_at_utc=datetime(2026, 6, 29, 17, 30, tzinfo=UTC),
+                end_at_utc=datetime(2026, 6, 29, 18, 15, tzinfo=UTC),
+                hours_worked=Decimal("0.7500"),
+                summary_notes="Remote. Confirmed backup job status and verified customer access.",
+            ),
+            AutotaskTicketTimeEntry(
+                time_entry_id=81001,
+                resource_name="Engineer, Prior",
+                start_at_utc=datetime(2026, 6, 28, 14, 0, tzinfo=UTC),
+                end_at_utc=datetime(2026, 6, 28, 14, 30, tzinfo=UTC),
+                hours_worked=Decimal("0.5000"),
+                summary_notes=f"Remote. Initial triage for {safe_ticket_number}.",
             ),
         ]
 
@@ -2310,7 +2391,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return contact_names
 
-    def _query_ticket_note_resource_names_by_id(self, client: httpx.Client, resource_ids: list[int]) -> dict[int, str]:
+    def _query_resource_names_by_id(
+        self,
+        client: httpx.Client,
+        resource_ids: list[int],
+        *,
+        action_description: str,
+    ) -> dict[int, str]:
         """Return bounded resource display names keyed by Autotask resource ID."""
 
         resource_names: dict[int, str] = {}
@@ -2331,7 +2418,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 client,
                 endpoint_path="/Resources/query",
                 query_payload=query_payload,
-                action_description="Autotask ticket note resource author lookup",
+                action_description=action_description,
                 max_records=len(resource_id_chunk),
                 follow_pagination=False,
             )
@@ -2344,6 +2431,15 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 resource_names[resource_id] = _resource_display_name(first_name, last_name, resource_id)
 
         return resource_names
+
+    def _query_ticket_note_resource_names_by_id(self, client: httpx.Client, resource_ids: list[int]) -> dict[int, str]:
+        """Return bounded resource display names for TicketNotes author IDs."""
+
+        return self._query_resource_names_by_id(
+            client,
+            resource_ids,
+            action_description="Autotask ticket note resource author lookup",
+        )
 
     def _query_ticket_note_author_names(self, client: httpx.Client, note_records: list[dict[str, Any]]) -> dict[tuple[str, int], str]:
         """Return safe display names for TicketNotes author IDs."""
@@ -2421,6 +2517,93 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             reverse=True,
         )
 
+    def _query_ticket_time_entries_for_ticket_id(self, client: httpx.Client, ticket_id: int) -> list[dict[str, Any]]:
+        """Return a bounded set of read-only TimeEntries rows for one ticket."""
+
+        query_payload = {
+            "IncludeFields": [
+                "id",
+                "ticketID",
+                "resourceID",
+                "startDateTime",
+                "endDateTime",
+                "hoursWorked",
+                "summaryNotes",
+            ],
+            "filter": [{"op": "eq", "field": "ticketID", "value": ticket_id}],
+        }
+        return self._query_paginated_items(
+            client,
+            endpoint_path="/TimeEntries/query",
+            query_payload=query_payload,
+            action_description="Autotask ticket time-entry lookup",
+            max_records=MAX_TICKET_TIME_ENTRY_LOOKUP_RESULTS,
+            follow_pagination=False,
+        )
+
+    def _query_ticket_time_entry_resource_names(
+        self,
+        client: httpx.Client,
+        time_entry_records: list[dict[str, Any]],
+    ) -> dict[int, str]:
+        """Return safe resource names for TimeEntries.resourceID values."""
+
+        resource_ids = sorted(
+            {
+                resource_id
+                for time_entry_record in time_entry_records
+                if (resource_id := _coerce_positive_autotask_id(time_entry_record.get("resourceID"))) is not None
+            }
+        )
+        try:
+            return self._query_resource_names_by_id(
+                client,
+                resource_ids,
+                action_description="Autotask ticket time-entry resource lookup",
+            )
+        except AutotaskSubmissionError:
+            return {}
+
+    def _build_ticket_time_entries_for_ticket_id(
+        self,
+        client: httpx.Client,
+        ticket_id: int,
+    ) -> list[AutotaskTicketTimeEntry]:
+        """Return safe time-entry view models for one selected Autotask ticket."""
+
+        time_entries: list[AutotaskTicketTimeEntry] = []
+        time_entry_records = self._query_ticket_time_entries_for_ticket_id(client, ticket_id)
+        resource_names = self._query_ticket_time_entry_resource_names(client, time_entry_records)
+        for time_entry_record in time_entry_records:
+            time_entry_id = _coerce_positive_autotask_id(time_entry_record.get("id"))
+            if time_entry_id is None:
+                continue
+
+            resource_id = _coerce_positive_autotask_id(time_entry_record.get("resourceID"))
+            resource_name = resource_names.get(resource_id or 0)
+            if not resource_name:
+                resource_name = f"Resource {resource_id}" if resource_id is not None else "Unknown resource"
+
+            time_entries.append(
+                AutotaskTicketTimeEntry(
+                    time_entry_id=time_entry_id,
+                    resource_name=resource_name,
+                    start_at_utc=_parse_autotask_datetime(time_entry_record.get("startDateTime")),
+                    end_at_utc=_parse_autotask_datetime(time_entry_record.get("endDateTime")),
+                    hours_worked=_coerce_time_entry_hours(time_entry_record.get("hoursWorked")),
+                    summary_notes=_safe_optional_ticket_time_entry_text(
+                        time_entry_record.get("summaryNotes"),
+                        MAX_TICKET_TIME_ENTRY_SUMMARY_LENGTH,
+                    ),
+                )
+            )
+
+        return sorted(
+            time_entries,
+            key=lambda time_entry: time_entry.start_at_utc or datetime.min.replace(tzinfo=UTC),
+            reverse=True,
+        )
+
     def list_open_tickets_for_client(
         self,
         client_name: str,
@@ -2493,6 +2676,17 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         with self._client() as client:
             ticket_id = self._query_ticket_id(client, safe_ticket_number)
             return self._build_ticket_notes_for_ticket_id(client, ticket_id)[:MAX_TICKET_NOTE_LOOKUP_RESULTS]
+
+    def list_ticket_time_entries(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketTimeEntry]:
+        """Return safe read-only TimeEntries rows for one selected ticket number."""
+
+        safe_ticket_number = ticket_number.strip().upper()
+        if not safe_ticket_number:
+            raise AutotaskSubmissionError("Ticket number is required before searching Autotask time entries.")
+
+        with self._client() as client:
+            ticket_id = self._query_ticket_id(client, safe_ticket_number)
+            return self._build_ticket_time_entries_for_ticket_id(client, ticket_id)[:MAX_TICKET_TIME_ENTRY_LOOKUP_RESULTS]
 
     def search_companies(self, query_text: str, *, resource_id: int | None = None) -> list[AutotaskCompanyOption]:
         """Return active Autotask companies matching a user-entered query."""

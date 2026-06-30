@@ -333,8 +333,8 @@ def test_mobile_summary_autosave_does_not_replace_typing_buffer(tmp_path: Path) 
     )
 
 
-def test_mobile_date_label_uses_today_or_weekday_from_date_only_value(tmp_path: Path) -> None:
-    """Work in Progress date labels should say Today only for the current date."""
+def test_mobile_date_label_uses_near_current_relative_text(tmp_path: Path) -> None:
+    """Work in Progress date labels should show only Today, Yesterday, or Tomorrow."""
 
     run_mobile_javascript_harness(
         tmp_path,
@@ -345,10 +345,9 @@ def test_mobile_date_label_uses_today_or_weekday_from_date_only_value(tmp_path: 
         assert.strictEqual(browserContext.__mobileTestApi.weekdayNameForDateValue("2026-06-20"), "Saturday");
         assert.strictEqual(browserContext.__mobileTestApi.weekdayNameForDateValue("bad-date"), "");
         assert.strictEqual(browserContext.__mobileTestApi.jobDateLabelForDateValue("2026-06-20", "2026-06-20"), "Today");
-        assert.strictEqual(browserContext.__mobileTestApi.jobDateLabelForDateValue("2026-06-20", "2026-06-21"), "Saturday");
-
-        browserContext.__mobileTestApi.setDateWeekdayLabelText(weekdayLabel, "2026-06-20");
-        assert.match(weekdayLabel.textContent, /^\\((Today|Saturday)\\)$/);
+        assert.strictEqual(browserContext.__mobileTestApi.jobDateLabelForDateValue("2026-06-20", "2026-06-21"), "Yesterday");
+        assert.strictEqual(browserContext.__mobileTestApi.jobDateLabelForDateValue("2026-06-22", "2026-06-21"), "Tomorrow");
+        assert.strictEqual(browserContext.__mobileTestApi.jobDateLabelForDateValue("2026-06-23", "2026-06-21"), "");
 
         browserContext.__mobileTestApi.setDateWeekdayLabelText(weekdayLabel, "bad-date");
         assert.strictEqual(weekdayLabel.textContent, "");

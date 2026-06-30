@@ -122,6 +122,20 @@ function currentDetroitDateValue() {
   return `${partValues.year}-${partValues.month}-${partValues.day}`;
 }
 
+function dateValueOffset(dateValue, dayOffset) {
+  const dateInfo = normalizedDateValue(dateValue);
+  if (!dateInfo) {
+    return "";
+  }
+
+  const adjustedDate = new Date(dateInfo.localDate);
+  adjustedDate.setDate(adjustedDate.getDate() + dayOffset);
+  const year = String(adjustedDate.getFullYear()).padStart(4, "0");
+  const month = String(adjustedDate.getMonth() + 1).padStart(2, "0");
+  const day = String(adjustedDate.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function jobDateLabelForDateValue(dateValue, currentDateValue = currentDetroitDateValue()) {
   const dateInfo = normalizedDateValue(dateValue);
   if (!dateInfo) {
@@ -131,8 +145,14 @@ function jobDateLabelForDateValue(dateValue, currentDateValue = currentDetroitDa
   if (dateInfo.normalizedDate === currentDateValue) {
     return "Today";
   }
+  if (dateInfo.normalizedDate === dateValueOffset(currentDateValue, -1)) {
+    return "Yesterday";
+  }
+  if (dateInfo.normalizedDate === dateValueOffset(currentDateValue, 1)) {
+    return "Tomorrow";
+  }
 
-  return WEEKDAY_NAMES[dateInfo.localDate.getDay()] || "";
+  return "";
 }
 
 function setDateWeekdayLabelText(labelElement, dateValue) {
@@ -1927,6 +1947,7 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   const ticketDescriptionDisplay = activeJobCard.querySelector("[data-active-ticket-description-display]");
   const ticketStatusInput = activeJobCard.querySelector("[data-active-ticket-status-input]");
   const ticketNotesButton = activeJobCard.querySelector("[data-ticket-notes-button]");
+  const ticketTimeEntriesButton = activeJobCard.querySelector("[data-ticket-time-entries-button]");
 
   if (ticketNumberCard && ticketNumber) {
     ticketNumberCard.classList.remove("is-hidden");
@@ -1955,6 +1976,12 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
     ticketNotesButton.dataset.ticketNotesTicketNumber = ticketNumber;
     if (window.JobLoggerTicketNotes) {
       window.JobLoggerTicketNotes.refreshButton(ticketNotesButton);
+    }
+  }
+  if (ticketTimeEntriesButton) {
+    ticketTimeEntriesButton.dataset.ticketTimeEntriesTicketNumber = ticketNumber;
+    if (window.JobLoggerTicketNotes) {
+      window.JobLoggerTicketNotes.refreshTimeEntriesButton(ticketTimeEntriesButton);
     }
   }
   if (ticketNumber) {

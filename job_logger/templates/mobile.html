@@ -120,15 +120,19 @@
             <dl class="metric-grid">
               <div class="metric-card job-date-card">
                 <label>
-                  <span class="metric-label">Job date <span class="date-weekday-label" data-date-weekday-label>({{ active_job_date|job_date_label }})</span></span>
-                  <input
-                    name="job_date"
-                    type="date"
-                    form="active-ticket-form-{{ active_job.id }}"
-                    data-active-job-date-input
-                    value="{{ active_job_date }}"
-                    required
-                  >
+                  <span class="metric-label">Job date</span>
+                  {% set active_job_date_label = active_job_date|job_date_label %}
+                  <span class="date-input-shell">
+                    <input
+                      name="job_date"
+                      type="date"
+                      form="active-ticket-form-{{ active_job.id }}"
+                      data-active-job-date-input
+                      value="{{ active_job_date }}"
+                      required
+                    >
+                    <span class="date-relative-label" data-date-weekday-label>{% if active_job_date_label %}({{ active_job_date_label }}){% endif %}</span>
+                  </span>
                 </label>
               </div>
               <div class="metric-card">
@@ -383,22 +387,42 @@
               >
                 <div class="ticket-context-header">
                   <dt>Ticket description</dt>
-                  <button
-                    class="secondary-button ticket-notes-button is-hidden"
-                    type="button"
-                    data-ticket-notes-button
-                    data-ticket-notes-url="/review/{{ active_job.id }}/ticket-notes"
-                    data-ticket-notes-ticket-number="{{ active_job.ticket_number or '' }}"
-                    aria-label="View ticket notes"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M6 3h9l3 3v15H6z"></path>
-                      <path d="M15 3v4h4"></path>
-                      <path d="M9 11h6"></path>
-                      <path d="M9 15h6"></path>
-                    </svg>
-                    Ticket notes
-                  </button>
+                  <div class="ticket-context-actions">
+                    <button
+                      class="secondary-button ticket-notes-button is-hidden"
+                      type="button"
+                      data-ticket-notes-button
+                      data-ticket-notes-url="/review/{{ active_job.id }}/ticket-notes"
+                      data-ticket-notes-ticket-number="{{ active_job.ticket_number or '' }}"
+                      aria-label="View ticket notes"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M6 3h9l3 3v15H6z"></path>
+                        <path d="M15 3v4h4"></path>
+                        <path d="M9 11h6"></path>
+                        <path d="M9 15h6"></path>
+                      </svg>
+                      Ticket notes
+                    </button>
+                    <button
+                      class="secondary-button ticket-notes-button is-hidden"
+                      type="button"
+                      data-ticket-time-entries-button
+                      data-ticket-time-entries-url="/review/{{ active_job.id }}/ticket-time-entries"
+                      data-ticket-time-entries-ticket-number="{{ active_job.ticket_number or '' }}"
+                      aria-label="View past time entries"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 5h16"></path>
+                        <path d="M4 12h16"></path>
+                        <path d="M4 19h16"></path>
+                        <path d="M8 3v4"></path>
+                        <path d="M8 10v4"></path>
+                        <path d="M8 17v4"></path>
+                      </svg>
+                      Past time entries
+                    </button>
+                  </div>
                 </div>
                 <dd class="active-ticket-description-display" data-active-ticket-description-display>{{ active_job.ticket_description or "No description exists for this ticket." }}</dd>
               </div>

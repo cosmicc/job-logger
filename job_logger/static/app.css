@@ -701,6 +701,37 @@ label {
   font-weight: 700;
 }
 
+.date-input-shell {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.date-input-shell input[type="date"] {
+  padding-right: 108px;
+}
+
+.date-relative-label {
+  position: absolute;
+  top: 50%;
+  right: 38px;
+  max-width: 78px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  text-transform: none;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+
+.date-relative-label:empty {
+  display: none;
+}
+
 .date-weekday-label {
   color: var(--muted);
   text-transform: none;
@@ -1470,6 +1501,14 @@ a:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ticket-context-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .ticket-notes-button {
@@ -1563,7 +1602,7 @@ a:focus-visible {
 .work-location-toggle span {
   display: grid;
   min-height: 28px;
-  min-width: 66px;
+  min-width: 84px;
   place-items: center;
   border-radius: 999px;
   color: var(--muted);
@@ -1780,7 +1819,7 @@ a:focus-visible {
 .work-location-toggle span {
   display: grid;
   min-height: 28px;
-  min-width: 66px;
+  min-width: 84px;
   place-items: center;
   border-radius: 999px;
   color: var(--muted);
@@ -2973,6 +3012,29 @@ td a {
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.ticket-time-entry-list-resource {
+  display: block;
+  min-width: 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.28;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ticket-time-entry-list-range {
+  display: block;
+  min-width: 0;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .ticket-note-meta {

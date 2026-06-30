@@ -95,12 +95,14 @@ def test_format_local_time_uses_detroit_twelve_hour_display() -> None:
 
 
 def test_format_job_date_label_uses_today_for_current_detroit_date(monkeypatch) -> None:
-    """Job date labels should say Today only for the current app-local date."""
+    """Job date labels should show only near-current relative days."""
 
     monkeypatch.setattr("job_logger.time_utils.now_utc", lambda: datetime(2026, 6, 29, 14, 0, tzinfo=UTC))
 
     assert format_job_date_label("2026-06-29") == "Today"
-    assert format_job_date_label(date(2026, 6, 30)) == "Tuesday"
+    assert format_job_date_label(date(2026, 6, 28)) == "Yesterday"
+    assert format_job_date_label(date(2026, 6, 30)) == "Tomorrow"
+    assert format_job_date_label(date(2026, 7, 1)) == ""
     assert format_job_date_label("not-a-date") == ""
 
 

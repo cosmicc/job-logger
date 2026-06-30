@@ -176,6 +176,20 @@ function currentDetroitDateValue() {
   return `${partValues.year}-${partValues.month}-${partValues.day}`;
 }
 
+function dateValueOffset(dateValue, dayOffset) {
+  const dateInfo = normalizedDateValue(dateValue);
+  if (!dateInfo) {
+    return "";
+  }
+
+  const adjustedDate = new Date(dateInfo.localDate);
+  adjustedDate.setDate(adjustedDate.getDate() + dayOffset);
+  const year = String(adjustedDate.getFullYear()).padStart(4, "0");
+  const month = String(adjustedDate.getMonth() + 1).padStart(2, "0");
+  const day = String(adjustedDate.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function jobDateLabelForDateValue(dateValue, currentDateValue = currentDetroitDateValue()) {
   const dateInfo = normalizedDateValue(dateValue);
   if (!dateInfo) {
@@ -185,8 +199,14 @@ function jobDateLabelForDateValue(dateValue, currentDateValue = currentDetroitDa
   if (dateInfo.normalizedDate === currentDateValue) {
     return "Today";
   }
+  if (dateInfo.normalizedDate === dateValueOffset(currentDateValue, -1)) {
+    return "Yesterday";
+  }
+  if (dateInfo.normalizedDate === dateValueOffset(currentDateValue, 1)) {
+    return "Tomorrow";
+  }
 
-  return WEEKDAY_NAMES[dateInfo.localDate.getDay()] || "";
+  return "";
 }
 
 function updateReviewDateWeekday(dateValue) {
@@ -1442,6 +1462,7 @@ function bindTicketLookup() {
   const ticketDescriptionCard = document.querySelector("[data-review-ticket-description-card]");
   const ticketDescriptionDisplay = document.querySelector("[data-review-ticket-description-display]");
   const ticketNotesButton = document.querySelector("[data-ticket-notes-button]");
+  const ticketTimeEntriesButton = document.querySelector("[data-ticket-time-entries-button]");
   const ticketHeading = document.querySelector("[data-selected-ticket-heading]");
   const selectedRowTicketDisplay = document.querySelector("[data-review-selected-row-ticket]");
   if (!lookupUrl || !ticketSelectUrl || !statusElement || !resultsElement || !ticketNumberInput) {
@@ -1535,6 +1556,12 @@ function bindTicketLookup() {
       ticketNotesButton.dataset.ticketNotesTicketNumber = selectedTicketNumber;
       if (window.JobLoggerTicketNotes) {
         window.JobLoggerTicketNotes.refreshButton(ticketNotesButton);
+      }
+    }
+    if (ticketTimeEntriesButton) {
+      ticketTimeEntriesButton.dataset.ticketTimeEntriesTicketNumber = selectedTicketNumber;
+      if (window.JobLoggerTicketNotes) {
+        window.JobLoggerTicketNotes.refreshTimeEntriesButton(ticketTimeEntriesButton);
       }
     }
   }

@@ -78,6 +78,7 @@ Current provider responsibilities:
 - Resolve service-call ticket/resource relationships before starting a job from
   a service call.
 - Query bounded read-only `TicketNotes` rows for a selected ticket number.
+- Query bounded read-only `TimeEntries` rows for a selected ticket number.
 - Query ticket status picklist metadata.
 - Query a ticket ID from a ticket number.
 - Keep service-call and open-ticket selection read-only against Autotask while
@@ -201,6 +202,18 @@ publish metadata. Return notes ordered by created date/time with newest first.
 Keep the Work in Progress and Review **Ticket notes** button hidden until this
 route returns at least one note. The overlay list cards should render only note
 titles; note body text and author metadata belong in the selected note detail.
+
+Past time entries use `GET /review/{job_id}/ticket-time-entries`. This route
+must require an authenticated session, enforce normal review visibility and
+ownership rules, use the stored ticket number from the database, and call the
+server-side provider. The provider should query the selected ticket ID, then
+bounded `TimeEntries` rows for that ticket, and resolve `resourceID` values
+through safe `Resources` display names. The response should contain only the
+fields needed by the overlay: time-entry ID, safe resource display name,
+formatted local start/stop/hours text, and bounded summary notes. Keep the Work
+in Progress and Review **Past time entries** button hidden until this route
+returns at least one row. The overlay list cards should show resource and time
+range only; summary notes belong in the selected detail pane.
 
 ## Service Call Lookup
 

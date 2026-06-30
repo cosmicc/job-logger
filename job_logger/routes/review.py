@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -27,6 +28,7 @@ from job_logger.services.autotask import (
     AutotaskSubmissionError,
     AutotaskTicketNote,
     AutotaskTicketOption,
+    AutotaskTicketTimeEntry,
     build_autotask_summary_notes,
     get_autotask_provider,
 )
@@ -55,7 +57,13 @@ from job_logger.services.jobs import (
     verify_autotask_client_selection,
 )
 from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
-from job_logger.time_utils import format_local_date, format_local_display, format_local_time, format_rounded_duration_label
+from job_logger.time_utils import (
+    format_local_date,
+    format_local_display,
+    format_local_time,
+    format_rounded_duration_label,
+    to_local,
+)
 from job_logger.ui import template_context, templates
 
 router = APIRouter(prefix="/review", tags=["review"])
@@ -219,6 +227,48 @@ def review_ticket_notes(
     )
 
 
+@router.get("/{job_id}/ticket-time-entries")
+def review_ticket_time_entries(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Return safe Autotask time entries for the selected job's stored ticket."""
+
+    try:
+        require_authenticated_username(request)
+        job = get_job_or_raise(database_session, job_id)
+        resource_id = None
+        if not is_super_admin_session(request.session):
+            web_user = _current_enabled_web_user(request, database_session)
+            ensure_job_owned_by_web_user(job, web_user.id)
+            resource_id = web_user.autotask_resource_id
+        if not job.ticket_number:
+            return JSONResponse({"ticket_number": "", "ticket_title": "", "time_entries": []})
+
+        ticket_time_entries = get_autotask_provider().list_ticket_time_entries(
+            job.ticket_number,
+            resource_id=resource_id,
+        )
+    except HTTPException:
+        raise
+    except (AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
+        return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
+
+    ordered_time_entries = sorted(
+        ticket_time_entries,
+        key=lambda time_entry: time_entry.start_at_utc or datetime.min.replace(tzinfo=UTC),
+        reverse=True,
+    )
+    return JSONResponse(
+        {
+            "ticket_number": job.ticket_number,
+            "ticket_title": job.ticket_title or "",
+            "time_entries": [_ticket_time_entry_payload(time_entry) for time_entry in ordered_time_entries],
+        }
+    )
+
+
 async def _form_values(request: Request) -> dict[str, str]:
     """Return submitted form values as a plain string dictionary."""
 
@@ -282,6 +332,71 @@ def _ticket_note_payload(ticket_note: AutotaskTicketNote) -> dict[str, object]:
         "updated_at": format_local_display(ticket_note.updated_at_utc) if ticket_note.updated_at_utc else "",
         "note_type": ticket_note.note_type or "",
         "publish": ticket_note.publish,
+    }
+
+
+def _format_ticket_time_entry_datetime(timestamp: datetime | None) -> str:
+    """Return a numeric local date and time for an Autotask time entry."""
+
+    if timestamp is None:
+        return ""
+
+    local_timestamp = to_local(timestamp)
+    return local_timestamp.strftime("%m/%d/%Y %I:%M %p")
+
+
+def _format_ticket_time_entry_time(timestamp: datetime | None) -> str:
+    """Return a numeric local time for an Autotask time entry."""
+
+    if timestamp is None:
+        return ""
+
+    return to_local(timestamp).strftime("%I:%M %p")
+
+
+def _format_ticket_time_entry_hours(hours_worked: Decimal | None) -> str:
+    """Return Autotask hours with four decimals for time-entry list rows."""
+
+    if hours_worked is None:
+        return ""
+
+    return f"{hours_worked:.4f}"
+
+
+def _ticket_time_entry_display_range(time_entry: AutotaskTicketTimeEntry) -> str:
+    """Return the requested time-entry list display string."""
+
+    start_text = _format_ticket_time_entry_datetime(time_entry.start_at_utc)
+    end_text = ""
+    if time_entry.end_at_utc is not None:
+        same_local_date = (
+            time_entry.start_at_utc is not None
+            and to_local(time_entry.start_at_utc).date() == to_local(time_entry.end_at_utc).date()
+        )
+        end_text = _format_ticket_time_entry_time(time_entry.end_at_utc) if same_local_date else _format_ticket_time_entry_datetime(time_entry.end_at_utc)
+
+    range_text = (
+        f"{start_text} - {end_text}"
+        if start_text and end_text
+        else start_text or end_text or "No time range"
+    )
+
+    hours_text = _format_ticket_time_entry_hours(time_entry.hours_worked)
+    if hours_text:
+        return f"{range_text} ({hours_text} hours)"
+
+    return range_text
+
+
+def _ticket_time_entry_payload(time_entry: AutotaskTicketTimeEntry) -> dict[str, object]:
+    """Return safe ticket time-entry fields for the authenticated overlay."""
+
+    return {
+        "time_entry_id": time_entry.time_entry_id,
+        "resource_name": time_entry.resource_name,
+        "display_range": _ticket_time_entry_display_range(time_entry),
+        "summary_notes": time_entry.summary_notes or "",
+        "hours_worked": _format_ticket_time_entry_hours(time_entry.hours_worked),
     }
 
 

@@ -111,10 +111,10 @@ Active jobs support these updates before completion:
 - Work location mode, either Remote or On-Site, which is stored separately from
   the visible notes.
 - Local job date through the Work in Progress **Job date** calendar field. The
-  label shows `(Today)` beside **Job date** when the selected date is the
-  current app-local date, and the weekday otherwise. The selected date replaces
-  the local date portion of the active rounded start time while preserving its
-  local time.
+  selector shows `(Today)`, `(Yesterday)`, or `(Tomorrow)` inside the date box
+  when the selected date is adjacent to the current app-local date; other dates
+  show only the date. The selected date replaces the local date portion of the
+  active rounded start time while preserving its local time.
 - Rounded start time through an editable 12-hour Work in Progress time field
   that matches the Review detail start-time treatment, plus server-validated
   `-15` and `+15` minute buttons on either side of the field.
@@ -169,14 +169,17 @@ start cards, with `.ticket-option-button` location classes, a visible location
 badge, title, ticket status, and company metadata. This label is display
 metadata only; do not trust it to override the active job's stored work-location
 or ticket-status values.
-When a selected ticket has Autotask notes, Work in Progress may show a compact
-**Ticket notes** button beside the ticket context. Keep the button hidden until
-the authenticated server note lookup confirms at least one note, and render
-notes inside the shared closeable overlay. The overlay list is newest-first by
-note creation time, and each selection card shows only the note title. The
-selection card title area should fit two lines and truncate longer titles
-inside the card. Author, created, updated, type, and note body content belong
-in the selected note detail pane.
+When a selected ticket has Autotask notes or time entries, Work in Progress may
+show compact **Ticket notes** and **Past time entries** buttons beside the
+ticket context. Keep each button hidden until its authenticated server lookup
+confirms at least one row, and render results inside the shared closeable
+overlay. The notes list is newest-first by note creation time, and each note
+selection card shows only the note title. The note selection card title area
+should fit two lines and truncate longer titles inside the card. Author,
+created, updated, type, and note body content belong in the selected note
+detail pane. Past time-entry list cards show the resource and formatted local
+start/stop/hours text, and the selected time-entry detail shows the summary of
+work.
 
 The work-location switch is intentionally not written into `summary_notes` or
 the mobile textarea. Store the mode on the job and let Autotask submission
@@ -449,12 +452,14 @@ Review supports:
   Review acceptance or by direct Work in Progress submission.
 - Looking up open Autotask tickets for the stored selected company ID and
   verified client name.
-- Viewing read-only Autotask ticket notes for the selected ticket through the
-  same shared overlay used by Work in Progress. The notes button must stay
-  hidden when the job has no selected ticket or when the server returns no
-  notes. The overlay list must stay title-only and newest-first, with safe
-  author metadata shown in note detail instead of the list cards. Long
-  selection titles should clamp to two visible lines inside larger cards.
+- Viewing read-only Autotask ticket notes and past time entries for the selected
+  ticket through the same shared overlay used by Work in Progress. Each button
+  must stay hidden when the job has no selected ticket or when the server
+  returns no rows for that lookup. The notes list must stay title-only and
+  newest-first, with safe author metadata shown in note detail instead of the
+  list cards. Long note selection titles should clamp to two visible lines
+  inside larger cards. Past time-entry list cards show resource plus local
+  start/stop/hours text, and the detail pane shows the summary of work.
 
 Ticket number is intentionally required only before Autotask submission, not for
 ordinary save operations.
@@ -540,11 +545,11 @@ dialog that warns the Autotask record may still exist before removing the Job
 Logger review row.
 
 The review detail uses one local job date with start and end times, and the
-**Job date** label shows `(Today)` when the selected date is the current
-app-local date or the weekday otherwise. Jobs do not span multiple dates;
-validation must reject edits where the end time is not after the start time on
-that same date. Keep the audit timeline collapsed by default with an expandable
-detail section.
+**Job date** selector shows `(Today)`, `(Yesterday)`, or `(Tomorrow)` inside the
+date box when applicable. Other selected dates show only the date. Jobs do not
+span multiple dates; validation must reject edits where the end time is not
+after the start time on that same date. Keep the audit timeline collapsed by
+default with an expandable detail section.
 
 ## Job Status Expectations
 

@@ -67,7 +67,7 @@
 .work-location-switch span,
 .work-location-toggle span {
   min-height: 28px;
-  min-width: 66px;
+  min-width: 84px;
   font-size: 12px;
   font-weight: 800;
   padding: 0 10px;
@@ -75,6 +75,40 @@
 
 .entry-type-switch span {
   min-width: 84px;
+}
+
+.review-job-date-field {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.review-entry-type-card {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.review-start-time-field {
+  grid-column: 1;
+  grid-row: 4;
+}
+
+.review-end-time-field {
+  grid-column: 2;
+  grid-row: 4;
+}
+
+.review-duration-row {
+  grid-row: 5;
+}
+
+.review-work-location-card {
+  grid-column: 1;
+  grid-row: 6;
+}
+
+.review-ticket-status-field {
+  grid-column: 2;
+  grid-row: 6;
 }
 
 .record-notes-button.is-recording,

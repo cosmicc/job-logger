@@ -282,11 +282,15 @@
                   </label>
                 </div>
               </div>
-              <label>
-                <span>Job date <span class="date-weekday-label" data-review-date-weekday-label>({{ selected_job_date|job_date_label }})</span></span>
-                <input name="job_date" type="date" value="{{ selected_job_date }}" required>
+              <label class="review-job-date-field">
+                <span>Job date</span>
+                {% set selected_job_date_label = selected_job_date|job_date_label %}
+                <span class="date-input-shell">
+                  <input name="job_date" type="date" value="{{ selected_job_date }}" required>
+                  <span class="date-relative-label" data-review-date-weekday-label>{% if selected_job_date_label %}({{ selected_job_date_label }}){% endif %}</span>
+                </span>
               </label>
-              <label data-review-time-field>
+              <label class="review-start-time-field" data-review-time-field>
                 <span>Start time</span>
                 <div class="time-step-controls {% if is_ticket_note %}time-controls-disabled{% endif %}">
                   <button
@@ -327,7 +331,7 @@
                   </button>
                 </div>
               </label>
-              <label data-review-time-field>
+              <label class="review-end-time-field" data-review-time-field>
                 <span>End time</span>
                 <div class="time-step-controls {% if is_ticket_note %}time-controls-disabled{% endif %}">
                   <button
@@ -413,22 +417,42 @@
             >
               <div class="ticket-context-header">
                 <span class="metric-label readonly-field-title">Ticket description</span>
-                <button
-                  class="secondary-button ticket-notes-button is-hidden"
-                  type="button"
-                  data-ticket-notes-button
-                  data-ticket-notes-url="/review/{{ selected_job.id }}/ticket-notes"
-                  data-ticket-notes-ticket-number="{{ selected_job.ticket_number or '' }}"
-                  aria-label="View ticket notes"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M6 3h9l3 3v15H6z"></path>
-                    <path d="M15 3v4h4"></path>
-                    <path d="M9 11h6"></path>
-                    <path d="M9 15h6"></path>
-                  </svg>
-                  Ticket notes
-                </button>
+                <div class="ticket-context-actions">
+                  <button
+                    class="secondary-button ticket-notes-button is-hidden"
+                    type="button"
+                    data-ticket-notes-button
+                    data-ticket-notes-url="/review/{{ selected_job.id }}/ticket-notes"
+                    data-ticket-notes-ticket-number="{{ selected_job.ticket_number or '' }}"
+                    aria-label="View ticket notes"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 3h9l3 3v15H6z"></path>
+                      <path d="M15 3v4h4"></path>
+                      <path d="M9 11h6"></path>
+                      <path d="M9 15h6"></path>
+                    </svg>
+                    Ticket notes
+                  </button>
+                  <button
+                    class="secondary-button ticket-notes-button is-hidden"
+                    type="button"
+                    data-ticket-time-entries-button
+                    data-ticket-time-entries-url="/review/{{ selected_job.id }}/ticket-time-entries"
+                    data-ticket-time-entries-ticket-number="{{ selected_job.ticket_number or '' }}"
+                    aria-label="View past time entries"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 5h16"></path>
+                      <path d="M4 12h16"></path>
+                      <path d="M4 19h16"></path>
+                      <path d="M8 3v4"></path>
+                      <path d="M8 10v4"></path>
+                      <path d="M8 17v4"></path>
+                    </svg>
+                    Past time entries
+                  </button>
+                </div>
               </div>
               <p data-review-ticket-description-display>{{ selected_job.ticket_description or "No description exists for this ticket." }}</p>
             </section>

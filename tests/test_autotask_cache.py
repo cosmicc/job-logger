@@ -327,6 +327,85 @@ class FakeTicketNotesLookupClient:
         raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
 
 
+class FakeTicketTimeEntriesLookupClient:
+    """Fake Autotask client that exposes ticket ID and TimeEntries queries."""
+
+    def __init__(self) -> None:
+        """Capture provider query payloads for TimeEntries assertions."""
+
+        self.post_requests: list[tuple[str, dict[str, Any]]] = []
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return one selected ticket and two time-entry rows."""
+
+        self.post_requests.append((endpoint_path, dict(json)))
+        if endpoint_path == "/Tickets/query":
+            assert json["MaxRecords"] == 1
+            assert json["IncludeFields"] == ["id", "ticketNumber"]
+            assert json["filter"] == [{"op": "eq", "field": "ticketNumber", "value": "T20260616.0001"}]
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 123456, "ticketNumber": "T20260616.0001"},
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/TimeEntries/query":
+            assert json["MaxRecords"] == 100
+            assert json["IncludeFields"] == [
+                "id",
+                "ticketID",
+                "resourceID",
+                "startDateTime",
+                "endDateTime",
+                "hoursWorked",
+                "summaryNotes",
+            ]
+            assert json["filter"] == [{"op": "eq", "field": "ticketID", "value": 123456}]
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "id": 81001,
+                            "ticketID": 123456,
+                            "resourceID": 9001,
+                            "startDateTime": "2026-06-29T14:00:00Z",
+                            "endDateTime": "2026-06-29T14:30:00Z",
+                            "hoursWorked": "0.5",
+                            "summaryNotes": "Remote. Initial triage.",
+                        },
+                        {
+                            "id": 81002,
+                            "ticketID": 123456,
+                            "resourceID": 9002,
+                            "startDateTime": "2026-06-29T17:30:00Z",
+                            "endDateTime": "2026-06-29T18:15:00Z",
+                            "hoursWorked": "0.75",
+                            "summaryNotes": "Remote. Confirmed backup job status.",
+                        },
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/Resources/query":
+            assert json["IncludeFields"] == ["id", "firstName", "lastName"]
+            assert json["filter"] == [{"op": "in", "field": "id", "value": [9001, 9002]}]
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {"id": 9001, "firstName": "Prior", "lastName": "Engineer"},
+                        {"id": 9002, "firstName": "Test", "lastName": "Technician"},
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        raise AssertionError(f"Unexpected fake Autotask POST endpoint: {endpoint_path}")
+
+
 class FakeServiceCallLookupClient:
     """Fake Autotask client that exposes the service-call relationship chain."""
 
@@ -1483,6 +1562,39 @@ def test_live_ticket_notes_lookup_uses_selected_ticket_id(monkeypatch: pytest.Mo
     assert notes[1].created_by == "Customer Contact"
     assert notes[1].created_at_utc == datetime(2026, 6, 16, 12, 0, tzinfo=UTC)
     assert notes[1].updated_at_utc == datetime(2026, 6, 16, 12, 30, tzinfo=UTC)
+
+
+def test_live_ticket_time_entries_lookup_uses_selected_ticket_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ticket time entries should be read through the selected ticket ID with safe resource labels."""
+
+    provider = _live_test_provider()
+    fake_client = FakeTicketTimeEntriesLookupClient()
+
+    def fake_client_context(timeout_seconds: float = 30.0) -> FakeConnectivityContext:
+        """Return one fake client while matching the provider client signature."""
+
+        assert timeout_seconds == 30.0
+        return FakeConnectivityContext(fake_client)
+
+    monkeypatch.setattr(provider, "_client", fake_client_context)
+
+    time_entries = provider.list_ticket_time_entries("T20260616.0001", resource_id=42)
+
+    assert [endpoint_path for endpoint_path, _payload in fake_client.post_requests] == [
+        "/Tickets/query",
+        "/TimeEntries/query",
+        "/Resources/query",
+    ]
+    assert len(time_entries) == 2
+    assert time_entries[0].time_entry_id == 81002
+    assert time_entries[0].resource_name == "Technician, Test"
+    assert time_entries[0].start_at_utc == datetime(2026, 6, 29, 17, 30, tzinfo=UTC)
+    assert time_entries[0].end_at_utc == datetime(2026, 6, 29, 18, 15, tzinfo=UTC)
+    assert str(time_entries[0].hours_worked) == "0.7500"
+    assert time_entries[0].summary_notes == "Remote. Confirmed backup job status."
+    assert time_entries[1].time_entry_id == 81001
+    assert time_entries[1].resource_name == "Engineer, Prior"
+    assert str(time_entries[1].hours_worked) == "0.5000"
 
 
 def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypatch: pytest.MonkeyPatch) -> None:

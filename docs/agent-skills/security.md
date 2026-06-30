@@ -386,13 +386,15 @@ context. Store only the bounded description returned by the server-side verified
 open-ticket lookup, render it escaped, and keep review save/accept handlers
 from trusting browser-submitted description values.
 
-Autotask ticket notes are also remote provider data. The notes overlay must load
-through an authenticated server route that enforces review ownership rules,
-uses the database ticket number, returns bounded safe fields, and renders text
-through normal escaping or `textContent`. Keep list cards title-only, put safe
-author/date/type metadata in the selected note detail, clamp long list-card
-titles to two visible lines, and do not expose raw Autotask responses,
-credentials, or direct provider URLs to browser JavaScript.
+Autotask ticket notes and past time entries are also remote provider data. The
+shared overlay must load through authenticated server routes that enforce
+review ownership rules, use the database ticket number, return bounded safe
+fields, and render text through normal escaping or `textContent`. Keep note
+list cards title-only, put safe author/date/type metadata in the selected note
+detail, clamp long note-card titles to two visible lines, and show time-entry
+resource/range metadata in list cards while keeping summary notes in the
+selected detail pane. Do not expose raw Autotask responses, credentials, or
+direct provider URLs to browser JavaScript.
 
 Autotask service-call starts must also be server verified. The mobile browser
 may submit only the service-call ticket association ID and CSRF token; the

@@ -38,6 +38,21 @@ def test_ticket_notes_overlay_list_cards_show_titles_only() -> None:
     assert "noteButton.append(meta)" not in ticket_notes_script
 
 
+def test_ticket_time_entries_overlay_list_cards_show_resource_and_range() -> None:
+    """Time-entry selection cards should show resource/range while detail shows summary."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    ticket_notes_script = (repository_root / "job_logger" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
+
+    assert 'const resource = ticketNotesCreateElement(' in ticket_notes_script
+    assert '"ticket-time-entry-list-resource"' in ticket_notes_script
+    assert '"ticket-time-entry-list-range"' in ticket_notes_script
+    assert "timeEntryButton.append(resource);" in ticket_notes_script
+    assert "timeEntryButton.append(range);" in ticket_notes_script
+    assert "renderTicketTimeEntryDetail(detailElement, timeEntry)" in ticket_notes_script
+    assert "ticketNotesSafeString(timeEntry.summary_notes)" in ticket_notes_script
+
+
 def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
     """Review edits must save through the background save endpoint without a button."""
 
@@ -360,7 +375,7 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
 
               jobDateInput.value = "2026-06-20";
               jobDateInput.eventHandlers.change();
-              assert.strictEqual(reviewDateWeekdayLabel.textContent, "(Saturday)");
+              assert.strictEqual(reviewDateWeekdayLabel.textContent, "");
               runQueuedTimers();
 
               await Promise.resolve();
@@ -369,7 +384,7 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
 
               assert.strictEqual(submittedRequests.length, 2);
               assert.strictEqual(submittedRequests[1].body.job_date, "2026-06-20");
-              assert.strictEqual(reviewDateWeekdayLabel.textContent, "(Saturday)");
+              assert.strictEqual(reviewDateWeekdayLabel.textContent, "");
 
               assert.strictEqual(typeof aiCleanupButton.eventHandlers.click, "function");
               summaryTextarea.value = "rough review wording";

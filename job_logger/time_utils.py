@@ -200,16 +200,21 @@ def format_weekday_name(value: date | datetime | str | None) -> str:
 
 
 def format_job_date_label(value: date | datetime | str | None) -> str:
-    """Return Today for the current local date, otherwise the weekday name."""
+    """Return a short relative label for dates adjacent to the current local day."""
 
     local_date = _date_value_for_label(value)
     if local_date is None:
         return ""
 
-    if local_date == local_date_for(now_utc()):
+    current_local_date = local_date_for(now_utc())
+    if local_date == current_local_date:
         return "Today"
+    if local_date == current_local_date - timedelta(days=1):
+        return "Yesterday"
+    if local_date == current_local_date + timedelta(days=1):
+        return "Tomorrow"
 
-    return local_date.strftime("%A")
+    return ""
 
 
 def _date_value_for_label(value: date | datetime | str | None) -> date | None:

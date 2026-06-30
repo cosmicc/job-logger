@@ -1,4 +1,5 @@
 const ticketNoteButtonCache = new WeakMap();
+const ticketTimeEntryButtonCache = new WeakMap();
 
 function ticketNotesSafeString(value) {
   return String(value || "");
@@ -19,6 +20,10 @@ function ticketNotesButtonHasTicket(button) {
   return Boolean(ticketNotesSafeString(button.dataset.ticketNotesTicketNumber).trim());
 }
 
+function ticketTimeEntriesButtonHasTicket(button) {
+  return Boolean(ticketNotesSafeString(button.dataset.ticketTimeEntriesTicketNumber).trim());
+}
+
 function setTicketNotesButtonVisible(button, isVisible, notes = []) {
   button.classList.toggle("is-hidden", !isVisible);
   button.disabled = !isVisible;
@@ -28,6 +33,18 @@ function setTicketNotesButtonVisible(button, isVisible, notes = []) {
     button.dataset.ticketNotesCount = String(noteCount);
   } else {
     delete button.dataset.ticketNotesCount;
+  }
+}
+
+function setTicketTimeEntriesButtonVisible(button, isVisible, timeEntries = []) {
+  button.classList.toggle("is-hidden", !isVisible);
+  button.disabled = !isVisible;
+  button.setAttribute("aria-hidden", isVisible ? "false" : "true");
+  if (isVisible) {
+    const entryCount = Array.isArray(timeEntries) ? timeEntries.length : 0;
+    button.dataset.ticketTimeEntriesCount = String(entryCount);
+  } else {
+    delete button.dataset.ticketTimeEntriesCount;
   }
 }
 
@@ -47,6 +64,25 @@ async function fetchTicketNotesForButton(button) {
     ticket_number: ticketNotesSafeString(payload.ticket_number).trim(),
     ticket_title: ticketNotesSafeString(payload.ticket_title).trim(),
     notes: Array.isArray(payload.notes) ? payload.notes : [],
+  };
+}
+
+async function fetchTicketTimeEntriesForButton(button) {
+  const timeEntriesUrl = ticketNotesSafeString(button.dataset.ticketTimeEntriesUrl).trim();
+  if (!timeEntriesUrl || !ticketTimeEntriesButtonHasTicket(button)) {
+    return {ticket_number: "", ticket_title: "", time_entries: []};
+  }
+
+  const response = await fetch(timeEntriesUrl, {headers: {Accept: "application/json"}});
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.detail || "Ticket time entries could not be loaded.");
+  }
+
+  return {
+    ticket_number: ticketNotesSafeString(payload.ticket_number).trim(),
+    ticket_title: ticketNotesSafeString(payload.ticket_title).trim(),
+    time_entries: Array.isArray(payload.time_entries) ? payload.time_entries : [],
   };
 }
 
@@ -71,11 +107,36 @@ async function refreshTicketNotesButton(button) {
   }
 }
 
+async function refreshTicketTimeEntriesButton(button) {
+  if (!button) {
+    return;
+  }
+
+  setTicketTimeEntriesButtonVisible(button, false);
+  if (!ticketTimeEntriesButtonHasTicket(button)) {
+    ticketTimeEntryButtonCache.delete(button);
+    return;
+  }
+
+  try {
+    const payload = await fetchTicketTimeEntriesForButton(button);
+    ticketTimeEntryButtonCache.set(button, payload);
+    setTicketTimeEntriesButtonVisible(button, payload.time_entries.length > 0, payload.time_entries);
+  } catch (error) {
+    ticketTimeEntryButtonCache.delete(button);
+    setTicketTimeEntriesButtonVisible(button, false);
+  }
+}
+
 function refreshTicketNotesWithin(rootElement) {
   const root = rootElement || document;
   const ticketNoteButtons = root.querySelectorAll("[data-ticket-notes-button]");
   for (const button of ticketNoteButtons) {
     refreshTicketNotesButton(button);
+  }
+  const ticketTimeEntryButtons = root.querySelectorAll("[data-ticket-time-entries-button]");
+  for (const button of ticketTimeEntryButtons) {
+    refreshTicketTimeEntriesButton(button);
   }
 }
 
@@ -83,6 +144,7 @@ function ticketNotesOverlayElements() {
   const overlay = document.querySelector("[data-ticket-notes-overlay]");
   return {
     overlay,
+    eyebrow: overlay ? overlay.querySelector("[data-ticket-notes-eyebrow]") : null,
     title: overlay ? overlay.querySelector("[data-ticket-notes-title]") : null,
     subtitle: overlay ? overlay.querySelector("[data-ticket-notes-subtitle]") : null,
     list: overlay ? overlay.querySelector("[data-ticket-notes-list]") : null,
@@ -128,6 +190,24 @@ function renderTicketNoteDetail(detailElement, note) {
   detailElement.append(body);
 }
 
+function renderTicketTimeEntryDetail(detailElement, timeEntry) {
+  if (!detailElement) {
+    return;
+  }
+
+  detailElement.replaceChildren();
+  const resourceName = ticketNotesSafeString(timeEntry.resource_name).trim() || "Unknown resource";
+  const displayRange = ticketNotesSafeString(timeEntry.display_range).trim();
+  const summaryText = ticketNotesSafeString(timeEntry.summary_notes).trim() || "No summary of work is available.";
+  const title = ticketNotesCreateElement("h3", "", resourceName);
+  const body = ticketNotesCreateElement("p", "ticket-note-body", summaryText);
+  detailElement.append(title);
+  if (displayRange) {
+    detailElement.append(ticketNotesCreateElement("p", "ticket-note-meta muted-text", displayRange));
+  }
+  detailElement.append(body);
+}
+
 function renderTicketNotesList(listElement, detailElement, notes) {
   if (!listElement) {
     return;
@@ -158,19 +238,62 @@ function renderTicketNotesList(listElement, detailElement, notes) {
   }
 }
 
+function renderTicketTimeEntriesList(listElement, detailElement, timeEntries) {
+  if (!listElement) {
+    return;
+  }
+
+  listElement.replaceChildren();
+  timeEntries.forEach((timeEntry, index) => {
+    const timeEntryButton = document.createElement("button");
+    timeEntryButton.type = "button";
+    timeEntryButton.className = "ticket-note-list-button";
+    timeEntryButton.setAttribute("aria-pressed", index === 0 ? "true" : "false");
+
+    const resource = ticketNotesCreateElement(
+      "span",
+      "ticket-time-entry-list-resource",
+      ticketNotesSafeString(timeEntry.resource_name).trim() || "Unknown resource",
+    );
+    const range = ticketNotesCreateElement(
+      "span",
+      "ticket-time-entry-list-range",
+      ticketNotesSafeString(timeEntry.display_range).trim() || "No time range",
+    );
+    timeEntryButton.append(resource);
+    timeEntryButton.append(range);
+
+    timeEntryButton.addEventListener("click", () => {
+      for (const siblingButton of listElement.querySelectorAll(".ticket-note-list-button")) {
+        siblingButton.setAttribute("aria-pressed", "false");
+      }
+      timeEntryButton.setAttribute("aria-pressed", "true");
+      renderTicketTimeEntryDetail(detailElement, timeEntry);
+    });
+    listElement.append(timeEntryButton);
+  });
+
+  if (timeEntries.length > 0) {
+    renderTicketTimeEntryDetail(detailElement, timeEntries[0]);
+  }
+}
+
 function openTicketNotesOverlay(button) {
   const cachedPayload = ticketNoteButtonCache.get(button);
   if (!cachedPayload || !cachedPayload.notes.length) {
     return;
   }
 
-  const {overlay, title, subtitle, list, detail} = ticketNotesOverlayElements();
+  const {overlay, eyebrow, title, subtitle, list, detail} = ticketNotesOverlayElements();
   if (!overlay || !list || !detail) {
     return;
   }
 
   const ticketNumber = cachedPayload.ticket_number || ticketNotesSafeString(button.dataset.ticketNotesTicketNumber).trim();
   const ticketTitle = cachedPayload.ticket_title;
+  if (eyebrow) {
+    eyebrow.textContent = "Ticket notes";
+  }
   if (title) {
     title.textContent = ticketTitle || ticketNumber || "Ticket notes";
   }
@@ -181,6 +304,41 @@ function openTicketNotesOverlay(button) {
   }
 
   renderTicketNotesList(list, detail, cachedPayload.notes);
+  overlay.classList.remove("is-hidden");
+  overlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("ticket-notes-overlay-open");
+  const closeButton = overlay.querySelector("[data-ticket-notes-close]");
+  if (closeButton) {
+    closeButton.focus();
+  }
+}
+
+function openTicketTimeEntriesOverlay(button) {
+  const cachedPayload = ticketTimeEntryButtonCache.get(button);
+  if (!cachedPayload || !cachedPayload.time_entries.length) {
+    return;
+  }
+
+  const {overlay, eyebrow, title, subtitle, list, detail} = ticketNotesOverlayElements();
+  if (!overlay || !list || !detail) {
+    return;
+  }
+
+  const ticketNumber = cachedPayload.ticket_number || ticketNotesSafeString(button.dataset.ticketTimeEntriesTicketNumber).trim();
+  const ticketTitle = cachedPayload.ticket_title;
+  if (eyebrow) {
+    eyebrow.textContent = "Past time entries";
+  }
+  if (title) {
+    title.textContent = ticketTitle || ticketNumber || "Past time entries";
+  }
+  if (subtitle) {
+    const entryCount = cachedPayload.time_entries.length;
+    const entryUnit = entryCount === 1 ? "time entry" : "time entries";
+    subtitle.textContent = ticketNumber ? `${ticketNumber} | ${entryCount} ${entryUnit}` : `${entryCount} ${entryUnit}`;
+  }
+
+  renderTicketTimeEntriesList(list, detail, cachedPayload.time_entries);
   overlay.classList.remove("is-hidden");
   overlay.setAttribute("aria-hidden", "false");
   document.body.classList.add("ticket-notes-overlay-open");
@@ -213,6 +371,12 @@ function initializeTicketNotesOverlay() {
       return;
     }
 
+    const timeEntriesButton = event.target.closest("[data-ticket-time-entries-button]");
+    if (timeEntriesButton) {
+      openTicketTimeEntriesOverlay(timeEntriesButton);
+      return;
+    }
+
     const closeButton = event.target.closest("[data-ticket-notes-close]");
     if (closeButton) {
       closeTicketNotesOverlay();
@@ -236,6 +400,7 @@ function initializeTicketNotesOverlay() {
 
 window.JobLoggerTicketNotes = {
   refreshButton: refreshTicketNotesButton,
+  refreshTimeEntriesButton: refreshTicketTimeEntriesButton,
   refreshWithin: refreshTicketNotesWithin,
 };
 

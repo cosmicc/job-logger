@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## v1.2.0 - Ticket note mode, notes overlay, alerts, and time totals
+## v1.2.0 - Ticket note mode, ticket history, alerts, and time totals
 
 - Advanced the source-controlled dev runtime version to `v1.2.0`, including
   the Python package metadata and PWA service worker cache version.
@@ -31,6 +31,17 @@ All notable changes to Job Logger are documented in this file.
   and notes are ordered by created date/time with the newest first. Note
   selector cards are sized for two title lines and clamp longer titles inside
   the card.
+- Added a read-only **Past time entries** overlay for Work in Progress and
+  Review detail. The button stays hidden until a ticket is selected and the
+  authenticated provider confirms bounded `TimeEntries` rows exist for that
+  ticket. The list shows each resource with local start/stop time and hours,
+  and the selected detail shows the summary of work.
+- Changed Work in Progress and Review **Job date** controls so `(Today)`,
+  `(Yesterday)`, or `(Tomorrow)` appears inside the date selector box when
+  applicable. Other dates show only the selected date.
+- Adjusted full-browser Review detail so **Entry type** sits beside **Job date**
+  and the start/end time controls share a row again. Remote/On-Site switch
+  pills now match the Time entry/Ticket note switch size.
 - Added an admin-only red health alert button to the authenticated desktop and
   phone top bars. The alert links to Diagnostics and appears when cached app
   health reports degraded state, such as low disk space or Autotask API
