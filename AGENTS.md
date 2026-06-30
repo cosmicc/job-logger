@@ -443,7 +443,7 @@ instead of a separate unaudited template branch. Super-admin pages always use
 dark mode.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
 must show the version link as one yellow badge that includes `DEV`, such as
-`v1.2.0 DEV`, so dev instances are visually distinct from production without
+`v1.2.1 DEV`, so dev instances are visually distinct from production without
 adding a separate pill.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
@@ -456,9 +456,11 @@ left, with logout on the right, and must not see the Config shortcut. The
 mobile logout button must post to `/logout` with the rendered CSRF token and
 must not use `window.close()` or a browser-only app close fallback. Full-width
 `/home`, review, debug, and other non-mobile authenticated views still expose
-the explicit desktop logout control. Full-browser top navigation should use
-raised blue icon-and-text buttons, including a **Log out** button with the
-logout icon and visible text, while preserving the phone-sized icon navigation.
+the explicit desktop logout control. Full-browser top navigation should be
+centered, use raised blue icon-and-text buttons, and show the source-controlled
+PWA home-screen icon as the authenticated desktop brand mark. It should include
+a **Log out** button with the logout icon and visible text while preserving the
+phone-sized icon navigation.
 Enabled buttons and button-like navigation controls should show a slight
 brighter hover state, and workflow action buttons should have a raised idle
 state plus a pressed-in active state. Destructive red controls should stay red
@@ -553,6 +555,9 @@ Docker Compose should include the Python application, PostgreSQL, and
 `cloudflared` when practical.
 Nginx host publishing must bind only to `127.0.0.1` and use `HTTP_PORT` for the
 host-networked Cloudflare Tunnel origin URL, such as `http://127.0.0.1:2082`.
+The internet-facing nginx template must block public API-style, generated docs,
+and public health paths and use app-styled Job Logger web service error pages
+for common nginx-generated 4xx and 5xx responses instead of stock server pages.
 Compose must fail closed when `APP_SECRET_KEY`, `APP_PASSWORD`, or
 `POSTGRES_PASSWORD` are missing instead of falling back to development secrets.
 Compose should default the optional Cloudflare Access header gate on for

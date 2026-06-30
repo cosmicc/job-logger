@@ -2,6 +2,14 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## v1.2.1 - Review note switching, ticket history cards, and header polish
+
+- Switching a Time entry to a Ticket note now removes the Remote. or On-Site. prefix from the note description.
+- Switching back to Time entry restores the Remote. or On-Site. prefix that matches the selected work type.
+- Past time entry cards now show compact hours beside the resource name, such as 1.5hrs.
+- Full-browser navigation is now centered and uses the app's home-screen icon in the header.
+- Web service error pages now match Job Logger's look instead of showing a generic server page.
+
 ## v1.2.0 - Ticket note mode, ticket time entry history, ticket note history, and time totals
 
 - Work entries can now be Time entries or customer-visible Ticket notes.

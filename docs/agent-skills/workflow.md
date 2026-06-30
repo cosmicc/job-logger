@@ -49,9 +49,11 @@ logout on the right, and must not see Config. The mobile logout button must
 submit the normal `/logout` form with the rendered CSRF token. Do not wire
 mobile logout through `window.close()`, `about:blank`, a GET link, or another
 browser-only action. Keep the explicit desktop logout form available on
-non-mobile authenticated pages. Full-browser top navigation should use raised
-blue icon-and-text buttons, including visible **Log out** text after the logout
-icon, while phone-sized navigation remains compact icon buttons.
+non-mobile authenticated pages. Full-browser top navigation should stay
+centered and use raised blue icon-and-text buttons, including visible
+**Log out** text after the logout icon. The authenticated desktop brand mark
+should use the source-controlled PWA home-screen icon while phone-sized
+navigation remains compact icon buttons.
 Enabled buttons and button-like navigation controls should visibly brighten on
 hover. Workflow actions such as **Record**, **AI Cleanup**, finish, delete, and
 review submit controls should look raised at rest and pressed in while active.
@@ -59,7 +61,7 @@ Destructive red controls must stay red on hover, using a brighter red instead
 of falling back to a neutral dark hover.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 one yellow version badge with `DEV` folded into the version text, such as
-`v1.2.0 DEV`. Keep the badge compact so it does not crowd the mobile
+`v1.2.1 DEV`. Keep the badge compact so it does not crowd the mobile
 navigation icons.
 When cached app health is degraded, Diagnostics-authorized users also see a red
 exclamation alert button that links to `/debug`. Do not show that alert to

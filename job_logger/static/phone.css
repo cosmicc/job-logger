@@ -28,6 +28,10 @@
   display: none;
 }
 
+.desktop-header-left {
+  display: none;
+}
+
 .login-header .login-brand {
   display: inline-flex;
   grid-column: 2;

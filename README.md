@@ -252,12 +252,13 @@ actual host-reachable Nginx URL.
 Nginx is the public web edge and intentionally blocks API-style, generated
 schema/documentation, and health-check paths such as `/api`, `/openapi.json`,
 `/docs`, `/redoc`, `/nginx-health`, and `/health/*`. The Docker health checks
-use private container networking instead of public URLs.
+use private container networking instead of public URLs. Proxy-generated common
+web errors use app-styled web service pages instead of the stock server page.
 
 The nginx container is built from `docker/nginx/Dockerfile` with this app's
-proxy template baked in. If blocked public paths do not return this app's nginx
-response, the running container may not be using this project's image/config and
-should be rebuilt.
+proxy template baked in. If blocked public paths do not return this app-styled
+web service error page, the running container may not be using this project's
+image/config and should be rebuilt.
 
 The normal Nginx startup log ends with `Configuration complete; ready for start
 up` and `start worker process`. If the log later says `signal 3 (SIGQUIT)
@@ -332,7 +333,7 @@ Check these items first:
   ```
 
 - Confirm the public health/API paths stay blocked at Nginx. These should
-  return HTTP 404:
+  return HTTP 404 with the app-styled web service error page:
 
   ```bash
   curl -i http://127.0.0.1:11030/health/live
@@ -433,7 +434,7 @@ Set these passkey variables for production when needed:
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.2.0`. Version history starts at `v1.0.0`.
+currently `v1.2.1`. Version history starts at `v1.0.0`.
 
 Authenticated pages show the current version discreetly in the shared header.
 Clicking that version opens `/changelog`, which displays the current version
@@ -445,7 +446,7 @@ diagnostics, debug-page, super-admin-only, operator-only, and agent-facing notes
 in `CHANGELOG.md` only. The changelog page uses the same authenticated session,
 dark/light theme variables, and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the same authenticated header also shows a
-yellow version badge on desktop and phone layouts, such as `v1.2.0 DEV`.
+yellow version badge on desktop and phone layouts, such as `v1.2.1 DEV`.
 
 ## Provider Modes
 

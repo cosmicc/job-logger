@@ -15,7 +15,7 @@ from tests.conftest import extract_csrf_token
 def test_app_version_matches_current_release() -> None:
     """The source-controlled version should match the current release."""
 
-    assert APP_VERSION == "1.2.0"
+    assert APP_VERSION == "1.2.1"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -25,6 +25,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
+    assert "## v1.2.1 - Review notes, ticket history cards, navigation, and web-edge errors" in changelog_text
     assert "## v1.2.0 - Ticket note mode, ticket history, alerts, and time totals" in changelog_text
     assert "## v1.1.6 - Cloudflare block controls, Review, Home, and header polish" in changelog_text
     assert "## v1.1.5 - AI cleanup revert, remote transcription, and login diagnostics" in changelog_text
@@ -37,6 +38,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
+    assert "## v1.2.1 - Review note switching, ticket history cards, and header polish" in web_changelog_text
     assert "## v1.2.0 - Ticket note mode, ticket time entry history, ticket note history, and time totals" in web_changelog_text
     assert "## v1.1.6 - Review, Home, and header polish" in web_changelog_text
     assert "## v1.1.5 - AI cleanup, speech-to-text, and sign-in updates" in web_changelog_text
@@ -78,22 +80,14 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="v1.2.0",
-        title="Ticket note mode, ticket time entry history, ticket note history, and time totals",
+        version="v1.2.1",
+        title="Review note switching, ticket history cards, and header polish",
         changes=(
-            "Work entries can now be Time entries or customer-visible Ticket notes.",
-            "Ticket note mode uses a required note title and note description instead of time and Remote/On-Site fields.",
-            "Append to resolution is available for both entry types, and submitted Ticket notes can be updated or deleted from Review.",
-            "Ticket notes now open from the selected ticket in a closeable newest-first overlay.",
-            "A Past time entries button now opens ticket time entries with clear technician names, large time details, and summary-of-work details.",
-            "Work entry save, recording, and AI Cleanup messages now share one status line.",
-            "Job date controls now center the date with Today, Yesterday, or Tomorrow inside the selector when applicable.",
-            "Ticket note fields are tighter, with Append to resolution below the note description.",
-            "Full-browser navigation now uses raised blue icon buttons with visible labels.",
-            "Buttons now have clear hover and pressed states, including red destructive actions staying red on hover.",
-            "Work in Progress and Review now have clean time controls, larger Remote/On-Site pills, and rounded total time shown.",
-            "Full-browser Review now keeps Entry type beside Job date so start and end times share a row.",
-            "Admins now see a top-bar alert when app health needs attention.",
+            "Switching a Time entry to a Ticket note now removes the Remote. or On-Site. prefix from the note description.",
+            "Switching back to Time entry restores the Remote. or On-Site. prefix that matches the selected work type.",
+            "Past time entry cards now show compact hours beside the resource name, such as 1.5hrs.",
+            "Full-browser navigation is now centered and uses the app's home-screen icon in the header.",
+            "Web service error pages now match Job Logger's look instead of showing a generic server page.",
         ),
     )
 
@@ -115,6 +109,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
+    assert "v1.2.1" in response.text
     assert "v1.2.0" in response.text
     assert "v1.1.6" in response.text
     assert "v1.1.5" in response.text
@@ -126,6 +121,12 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
+    assert "Review note switching, ticket history cards, and header polish" in response.text
+    assert "Switching a Time entry to a Ticket note now removes the Remote. or On-Site. prefix from the note description." in response.text
+    assert "Switching back to Time entry restores the Remote. or On-Site. prefix that matches the selected work type." in response.text
+    assert "Past time entry cards now show compact hours beside the resource name, such as 1.5hrs." in response.text
+    assert "Full-browser navigation is now centered and uses the app&#39;s home-screen icon in the header." in response.text
+    assert "Web service error pages now match Job Logger&#39;s look instead of showing a generic server page." in response.text
     assert "Ticket note mode, ticket time entry history, ticket note history, and time totals" in response.text
     assert "Work entries can now be Time entries or customer-visible Ticket notes." in response.text
     assert (
@@ -236,6 +237,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
+    v121_index = response.text.index("Review note switching, ticket history cards, and header polish")
     v120_index = response.text.index("Ticket note mode, ticket time entry history, ticket note history, and time totals")
     v116_index = response.text.index("Review, Home, and header polish")
     v115_index = response.text.index("AI cleanup, speech-to-text, and sign-in updates")
@@ -247,6 +249,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     v102_index = response.text.index("Autotask workflow and desktop layout updates")
     v101_index = response.text.index("Mobile shell navigation and close behavior")
     v100_index = response.text.index("Initial release")
+    assert v121_index < v120_index
     assert v120_index < v116_index
     assert v116_index < v115_index
     assert v115_index < v114_index
@@ -257,7 +260,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert v110_index < v102_index
     assert v102_index < v101_index
     assert v101_index < v100_index
-    assert '<h2 id="current-version-heading">Ticket note mode, ticket time entry history, ticket note history, and time totals</h2>' in response.text
+    assert '<h2 id="current-version-heading">Review note switching, ticket history cards, and header polish</h2>' in response.text
+    assert '<span class="release-version">v1.2.1</span>' in response.text
     assert '<span class="release-version">v1.2.0</span>' in response.text
     assert '<span class="release-version">v1.1.6</span>' in response.text
     assert '<span class="release-version">v1.1.5</span>' in response.text

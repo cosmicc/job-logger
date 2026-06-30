@@ -1309,6 +1309,8 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert "data-health-alert-button" not in response.text
     assert "Autotask API:" not in response.text
     assert "Secure session" not in response.text
+    assert 'class="desktop-header-left"' in response.text
+    assert 'class="brand-icon" src="/static/icons/job-logger-icon-192.png"' in response.text
     assert '<a href="/home">' in response.text
     assert "<span>Home</span>" in response.text
     assert '<a href="/home">Mobile</a>' not in response.text
@@ -1402,8 +1404,8 @@ def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_
     assert response.status_code == 200
     assert response.text.count("app-version-link app-version-link-dev") == 2
     assert "dev-build-pill" not in response.text
-    assert ">v1.2.0 DEV<" in response.text
-    assert 'aria-label="View changelog for version 1.2.0 development build"' in response.text
+    assert ">v1.2.1 DEV<" in response.text
+    assert 'aria-label="View changelog for version 1.2.1 development build"' in response.text
     assert response.text.index('class="header-status-group desktop-status-group"') < response.text.index('class="top-nav"')
     assert response.text.index('class="header-status-group mobile-version-group"') < response.text.index('class="mobile-nav-actions mobile-nav-right"')
 
@@ -1440,9 +1442,16 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".top-nav a" in stylesheet
     assert ".top-nav a svg" in stylesheet
     assert ".top-nav a:active" in stylesheet
+    assert ".desktop-header-left" in stylesheet
+    assert ".brand-icon" in stylesheet
+    assert "grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);" in stylesheet
+    assert "justify-self: center;" in stylesheet
     assert ".mobile-nav-action:active" in stylesheet
     assert ".desktop-logout-button" in stylesheet
+    assert ".desktop-logout-form" in stylesheet
     assert "box-shadow: var(--nav-action-shadow);" in stylesheet
+    assert ".ticket-time-entry-list-header" in stylesheet
+    assert ".ticket-time-entry-list-hours" in stylesheet
     assert ".health-alert-button" in stylesheet
     assert ".desktop-health-alert-group" in stylesheet
     assert ".dev-build-pill" not in stylesheet
@@ -1526,6 +1535,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".mobile-version-group .app-version-link-dev" in phone_stylesheet
     assert "transform: translateX(-8px);" in phone_stylesheet
     assert ".brand {\n  display: none;" in phone_stylesheet
+    assert ".desktop-header-left {\n  display: none;" in phone_stylesheet
     assert ".login-header .login-brand" in phone_stylesheet
     assert "grid-column: 2;" in phone_stylesheet
     assert ".mobile-version-group {\n  display: inline-flex;" in phone_stylesheet

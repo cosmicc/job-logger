@@ -204,7 +204,8 @@ svg {
   position: sticky;
   top: 0;
   z-index: 10;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
   align-items: center;
   gap: 18px;
   min-height: 64px;
@@ -215,6 +216,7 @@ svg {
 }
 
 .login-header {
+  display: flex;
   justify-content: center;
 }
 
@@ -238,6 +240,23 @@ svg {
   font-weight: 750;
 }
 
+.desktop-header-left {
+  display: inline-flex;
+  grid-column: 1;
+  align-items: center;
+  justify-self: start;
+  gap: 14px;
+  min-width: 0;
+}
+
+.brand-icon {
+  display: block;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: var(--radius);
+}
+
 .login-brand {
   gap: 0;
 }
@@ -256,8 +275,10 @@ svg {
 
 .top-nav {
   display: flex;
+  grid-column: 2;
+  justify-self: center;
   gap: 8px;
-  margin-left: auto;
+  margin: 0;
 }
 
 .header-status-group {
@@ -406,6 +427,11 @@ svg {
   font-size: 14px;
   font-weight: 800;
   line-height: 1;
+}
+
+.desktop-logout-form {
+  grid-column: 3;
+  justify-self: end;
 }
 
 .desktop-logout-button:hover {
@@ -3190,6 +3216,23 @@ td a {
   line-height: 1.28;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ticket-time-entry-list-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ticket-time-entry-list-hours {
+  justify-self: end;
+  color: var(--accent-strong);
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.28;
   white-space: nowrap;
 }
 

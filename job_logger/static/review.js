@@ -5,6 +5,7 @@ const MIN_COMPANY_SEARCH_CHARACTERS = 3;
 const RECORDING_CHUNK_INTERVAL_MS = 2500;
 const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
 const SUMMARY_WORK_LOCATION_PREFIX_PATTERN = /^\s*(on[\s-]?site|remote)\b(?:\s*[.:\-]\s*|\s+|$)([\s\S]*)$/i;
+const SUMMARY_WORK_LOCATION_DISPLAY_PREFIX_PATTERN = /^\s*(on[\s-]?site|remote)\s*[.:\-]\s*([\s\S]*)$/i;
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 const RECORD_AUDIO_LABEL = "Record";
 const STOP_RECORDING_LABEL = "Stop recording";
@@ -648,6 +649,27 @@ function replaceReviewSummaryPrefix(summaryText) {
   return summaryBody ? `${reviewSummaryPrefix()} ${summaryBody}` : reviewSummaryPrefix();
 }
 
+function stripReviewSummaryDisplayPrefix(summaryText) {
+  const safeSummaryText = String(summaryText || "").trim();
+  if (!safeSummaryText) {
+    return safeSummaryText;
+  }
+
+  const prefixMatch = safeSummaryText.match(SUMMARY_WORK_LOCATION_DISPLAY_PREFIX_PATTERN);
+  return prefixMatch ? String(prefixMatch[2] || "").trim() : safeSummaryText;
+}
+
+function syncReviewSummaryForEntryMode() {
+  const summaryTextarea = findReviewSummaryTextarea();
+  if (!summaryTextarea) {
+    return;
+  }
+
+  summaryTextarea.value = isReviewTicketNoteMode()
+    ? stripReviewSummaryDisplayPrefix(summaryTextarea.value)
+    : replaceReviewSummaryPrefix(summaryTextarea.value);
+}
+
 function syncReviewSummaryPrefixFromWorkLocation() {
   if (isReviewTicketNoteMode()) {
     return;
@@ -676,7 +698,7 @@ function isReviewTicketNoteMode() {
   return selectedReviewEntryType() === "ticket_note";
 }
 
-function syncReviewEntryMode() {
+function syncReviewEntryMode({syncSummaryPrefix = false} = {}) {
   const isTicketNote = isReviewTicketNoteMode();
   const formElement = document.querySelector("[data-review-task-form]");
   if (formElement) {
@@ -742,6 +764,10 @@ function syncReviewEntryMode() {
       ? "This will permanently remove this local note and related debug history. Continue?"
       : "This will permanently remove this local time entry and related debug history. Continue?";
   });
+
+  if (syncSummaryPrefix) {
+    syncReviewSummaryForEntryMode();
+  }
 }
 
 function updateReviewSummaryFromTranscription(activeJobId, payload) {
@@ -1404,7 +1430,7 @@ function bindReviewAutosave() {
           updateReviewDateWeekday(control.value);
         }
         if (control.name === "entry_type") {
-          syncReviewEntryMode();
+          syncReviewEntryMode({syncSummaryPrefix: true});
         }
         queueReviewAutosave(true);
       });
@@ -1729,7 +1755,7 @@ for (const reviewEntryTypeInput of reviewEntryTypeInputs) {
       return;
     }
 
-    syncReviewEntryMode();
+    syncReviewEntryMode({syncSummaryPrefix: true});
     queueReviewAutosave(true);
   });
 }

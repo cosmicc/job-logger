@@ -5,6 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 NGINX_TEMPLATE = Path(__file__).resolve().parents[1] / "docker/nginx/templates/default.conf.template"
+NGINX_DOCKERFILE = Path(__file__).resolve().parents[1] / "docker/nginx/Dockerfile"
+NGINX_ERROR_DIR = Path(__file__).resolve().parents[1] / "docker/nginx/errors"
+COMMON_ERROR_CODES = ("400", "401", "403", "404", "405", "408", "413", "429", "500", "502", "503", "504")
 
 
 def test_nginx_blocks_public_api_and_health_paths() -> None:
@@ -28,6 +31,30 @@ def test_nginx_blocks_public_api_and_health_paths() -> None:
         location_block = template_text[location_index:block_end_index]
         assert "return 404;" in location_block
         assert "proxy_pass" not in location_block
+
+
+def test_nginx_uses_app_styled_error_pages() -> None:
+    """Proxy-generated errors should use Job Logger pages without server branding."""
+
+    template_text = NGINX_TEMPLATE.read_text(encoding="utf-8")
+    dockerfile_text = NGINX_DOCKERFILE.read_text(encoding="utf-8")
+
+    assert "server_tokens off;" in template_text
+    assert "location ^~ /errors/" in template_text
+    assert "internal;" in template_text
+    assert 'add_header Cache-Control "no-store" always;' in template_text
+    assert "COPY errors/ /usr/share/nginx/html/errors/" in dockerfile_text
+
+    for error_code in COMMON_ERROR_CODES:
+        assert f"error_page {error_code} /errors/{error_code}.html;" in template_text
+        error_page = NGINX_ERROR_DIR / f"{error_code}.html"
+        error_html = error_page.read_text(encoding="utf-8")
+        assert f"Error {error_code}" in error_html
+        assert "Job Logger web service" in error_html
+        assert "nginx" not in error_html.lower()
+        assert "<title>" in error_html
+        assert "<h1>" in error_html
+        assert "<p>" in error_html
 
 
 def test_nginx_restore_upload_limit_is_scoped_to_restore_endpoint() -> None:

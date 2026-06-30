@@ -36,6 +36,25 @@ function ticketNotesResourceNameForDisplay(rawResourceName) {
   return `${firstName} ${lastName}`;
 }
 
+function ticketTimeEntryListRangeForDisplay(rawDisplayRange) {
+  const displayRange = ticketNotesSafeString(rawDisplayRange).trim();
+  if (!displayRange) {
+    return "No time range";
+  }
+
+  return displayRange.replace(/\s*\(\s*\d+(?:\.\d+)?\s+hours?\s*\)\s*$/i, "").trim() || "No time range";
+}
+
+function ticketTimeEntryHoursLabel(rawHoursWorked) {
+  const parsedHours = Number(ticketNotesSafeString(rawHoursWorked).trim());
+  if (!Number.isFinite(parsedHours) || parsedHours <= 0) {
+    return "";
+  }
+
+  const compactHours = parsedHours.toFixed(2).replace(/\.?0+$/, "");
+  return parsedHours === 1 ? `${compactHours}hr` : `${compactHours}hrs`;
+}
+
 function ticketNotesButtonHasTicket(button) {
   return Boolean(ticketNotesSafeString(button.dataset.ticketNotesTicketNumber).trim());
 }
@@ -270,17 +289,25 @@ function renderTicketTimeEntriesList(listElement, detailElement, timeEntries) {
     timeEntryButton.className = "ticket-note-list-button";
     timeEntryButton.setAttribute("aria-pressed", index === 0 ? "true" : "false");
 
+    const header = ticketNotesCreateElement("span", "ticket-time-entry-list-header");
     const resource = ticketNotesCreateElement(
       "span",
       "ticket-time-entry-list-resource",
       ticketNotesResourceNameForDisplay(timeEntry.resource_name),
     );
+    const hours = ticketTimeEntryHoursLabel(timeEntry.hours_worked);
+    if (hours) {
+      header.append(resource, ticketNotesCreateElement("span", "ticket-time-entry-list-hours", hours));
+    } else {
+      header.append(resource);
+    }
+
     const range = ticketNotesCreateElement(
       "span",
       "ticket-time-entry-list-range",
-      ticketNotesSafeString(timeEntry.display_range).trim() || "No time range",
+      ticketTimeEntryListRangeForDisplay(timeEntry.display_range),
     );
-    timeEntryButton.append(resource);
+    timeEntryButton.append(header);
     timeEntryButton.append(range);
 
     timeEntryButton.addEventListener("click", () => {

@@ -149,13 +149,13 @@ def _passkey_verification_error(
         if operation == "authentication":
             return PasskeyError(
                 "Passkey login failed because the app expected an HTTP origin. "
-                "Use your password this time, then restart the nginx/app containers so forwarded HTTPS headers are applied "
+                "Use your password this time, then restart the web service/app containers so forwarded HTTPS headers are applied "
                 "or set WEBAUTHN_ORIGIN to the public HTTPS URL.",
                 reason="origin_scheme_mismatch",
             )
         return PasskeyError(
             "Passkey setup failed because the app expected an HTTP origin. "
-            "Restart the nginx/app containers so forwarded HTTPS headers are applied, "
+            "Restart the web service/app containers so forwarded HTTPS headers are applied, "
             "or set WEBAUTHN_ORIGIN to the public HTTPS URL.",
             reason="origin_scheme_mismatch",
         )

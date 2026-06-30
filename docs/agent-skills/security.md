@@ -488,9 +488,11 @@ The internet-facing nginx template must expose only the web interface and the
 authenticated browser actions required by those pages. Keep API-style,
 generated schema/documentation, and public health paths blocked at nginx:
 `/api`, `/openapi.json`, `/docs`, `/redoc`, `/nginx-health`, and `/health/*`.
-Container health checks should use private Docker networking instead. Full
-restore uploads may have a larger nginx body limit, but that limit must stay
-scoped to `/debug/restore`.
+Container health checks should use private Docker networking instead. Common
+nginx-generated 4xx and 5xx responses should use internal app-styled Job Logger
+web service error pages and must not expose stock server branding. Full restore
+uploads may have a larger nginx body limit, but that limit must stay scoped to
+`/debug/restore`.
 
 Cloudflare Tunnel tokens, Cloudflare API tokens, and app secrets must remain
 outside source control. Docker Compose must not provide working default app,

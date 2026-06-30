@@ -44,16 +44,36 @@ def test_ticket_time_entries_overlay_list_cards_show_resource_and_range() -> Non
     repository_root = Path(__file__).resolve().parents[1]
     ticket_notes_script = (repository_root / "job_logger" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
 
+    assert "function ticketTimeEntryListRangeForDisplay(rawDisplayRange)" in ticket_notes_script
+    assert "function ticketTimeEntryHoursLabel(rawHoursWorked)" in ticket_notes_script
+    assert '"ticket-time-entry-list-header"' in ticket_notes_script
     assert 'const resource = ticketNotesCreateElement(' in ticket_notes_script
     assert '"ticket-time-entry-list-resource"' in ticket_notes_script
+    assert '"ticket-time-entry-list-hours"' in ticket_notes_script
     assert '"ticket-time-entry-list-range"' in ticket_notes_script
     assert "function ticketNotesResourceNameForDisplay(rawResourceName)" in ticket_notes_script
     assert 'ticketNotesResourceNameForDisplay(timeEntry.resource_name)' in ticket_notes_script
+    assert "ticketTimeEntryListRangeForDisplay(timeEntry.display_range)" in ticket_notes_script
     assert '"ticket-note-meta ticket-time-entry-detail-range muted-text"' in ticket_notes_script
-    assert "timeEntryButton.append(resource);" in ticket_notes_script
+    assert "header.append(resource, ticketNotesCreateElement" in ticket_notes_script
+    assert "timeEntryButton.append(header);" in ticket_notes_script
     assert "timeEntryButton.append(range);" in ticket_notes_script
     assert "renderTicketTimeEntryDetail(detailElement, timeEntry)" in ticket_notes_script
     assert "ticketNotesSafeString(timeEntry.summary_notes)" in ticket_notes_script
+
+
+def test_review_entry_type_switch_syncs_summary_prefix() -> None:
+    """Changing entry type should strip or restore only the visible work-location prefix."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    review_script = (repository_root / "job_logger" / "static" / "review.js").read_text(encoding="utf-8")
+
+    assert "SUMMARY_WORK_LOCATION_DISPLAY_PREFIX_PATTERN" in review_script
+    assert "function stripReviewSummaryDisplayPrefix(summaryText)" in review_script
+    assert "function syncReviewSummaryForEntryMode()" in review_script
+    assert "? stripReviewSummaryDisplayPrefix(summaryTextarea.value)" in review_script
+    assert ": replaceReviewSummaryPrefix(summaryTextarea.value);" in review_script
+    assert "syncReviewEntryMode({syncSummaryPrefix: true});" in review_script
 
 
 def test_workflow_status_messages_share_one_line() -> None:

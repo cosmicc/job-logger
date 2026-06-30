@@ -2,6 +2,30 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## v1.2.1 - Review notes, ticket history cards, navigation, and web-edge errors
+
+- Advanced the source-controlled dev runtime version to `v1.2.1`, including
+  the Python package metadata and PWA service worker cache version.
+- Changed Review entry-type switching so moving from Time entry to Ticket note
+  removes the visible `Remote. ` or `On-Site. ` summary prefix, and switching
+  back to Time entry reapplies the prefix that matches the selected work type.
+- Changed **Past time entries** selection cards so the resource row shows a
+  compact right-aligned hours label such as `1.5hrs`, while the card time
+  range and selected detail content keep their existing source data.
+- Centered the full-browser authenticated top navigation and replaced the
+  desktop header's text-only `JL` mark with the same source-controlled app icon
+  used for mobile home-screen installs.
+- Added app-styled nginx error documents for common 4xx and 5xx web errors,
+  disabled nginx server tokens, and kept proxy-generated failures branded as
+  the Job Logger web service instead of the stock server error page.
+- Added regression coverage for unauthenticated public-surface boundaries so
+  workflow pages, helper endpoints, diagnostics, user management, changelog,
+  generated API docs, and public health URLs stay behind login, passkey,
+  private Docker networking, or nginx blocking as appropriate.
+- Changed passkey origin troubleshooting text to refer to the web service/app
+  containers instead of naming the reverse-proxy implementation in the
+  user-facing error.
+
 ## v1.2.0 - Ticket note mode, ticket history, alerts, and time totals
 
 - Advanced the source-controlled dev runtime version to `v1.2.0`, including
