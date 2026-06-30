@@ -474,11 +474,11 @@ The review summary textarea displays the complete Autotask `summaryNotes`
 string for Time entry mode, including the leading `Remote. ` or `On-Site. `
 prefix. Review save, accept, retry, and submitted-entry update handlers must
 parse that prefix back into the stored work-location mode and keep the
-persisted note body clean. Ticket note mode must show **Append to resolution**
-above the required **Note title** field, then an unprefixed **Note
-description** textarea immediately below the title. It must hide Remote/On-Site,
-disable the start and end time controls, and hide the duration label. The
-review list must show each row's Remote or On-Site mode for time
+persisted note body clean. Ticket note mode must show the required **Note
+title** field, then an unprefixed **Note description** textarea, then
+**Append to resolution** directly above the action buttons. It must hide
+Remote/On-Site, disable the start and end time controls, and hide the duration
+label. The review list must show each row's Remote or On-Site mode for time
 entries and Ticket note for notes, and the review detail work-location control
 must rewrite the visible summary prefix when it changes on time entries. This
 allows the operator to correct the final Autotask notes without making

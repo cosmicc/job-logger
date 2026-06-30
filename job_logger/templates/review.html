@@ -452,17 +452,6 @@
               <p data-review-ticket-description-display>{{ selected_job.ticket_description or "No description exists for this ticket." }}</p>
             </section>
 
-            <label class="append-resolution-field review-append-resolution-field">
-              <input type="hidden" name="append_to_resolution" value="false">
-              <input
-                type="checkbox"
-                name="append_to_resolution"
-                value="true"
-                data-review-append-resolution-input
-                {% if selected_job.append_to_resolution %}checked{% endif %}
-              >
-              <span>Append to resolution</span>
-            </label>
             <label class="wide-field note-title-field {% if not is_ticket_note %}is-hidden{% endif %}" data-review-note-title-field>
               <span>Note title</span>
               <input
@@ -478,6 +467,17 @@
             <label class="wide-field">
               <span data-review-summary-label>{% if is_ticket_note %}Note description{% else %}Summary notes{% endif %}</span>
               <textarea name="summary_notes" rows="8" data-review-summary-textarea>{{ selected_job_autotask_summary_notes }}</textarea>
+            </label>
+            <label class="append-resolution-field review-append-resolution-field">
+              <input type="hidden" name="append_to_resolution" value="false">
+              <input
+                type="checkbox"
+                name="append_to_resolution"
+                value="true"
+                data-review-append-resolution-input
+                {% if selected_job.append_to_resolution %}checked{% endif %}
+              >
+              <span>Append to resolution</span>
             </label>
             {% if can_modify_selected_job and (not selected_job_submitted or ai_cleanup_enabled or selected_job.ai_cleanup_original_summary) %}
               <div class="summary-action-row review-summary-action-row recording-control-stack">

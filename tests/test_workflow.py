@@ -1498,6 +1498,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "display: none;" in stylesheet
     assert "[data-review-autosave-status]:empty" in stylesheet
     assert ".review-summary-action-row" in stylesheet
+    assert ".review-summary-action-row {\n  margin-top: 0;" in stylesheet
     assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in stylesheet
     assert ".recording-status:empty,\n[data-active-save-status]:empty" in stylesheet
     assert ".ai-cleanup-status:empty" in stylesheet
@@ -1542,14 +1543,14 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     active_append_index = mobile_template.index('class="append-resolution-field"')
     active_note_title_index = mobile_template.index("data-note-title-field")
     active_summary_label_index = mobile_template.index("data-summary-label")
-    assert active_append_index < active_note_title_index < active_summary_label_index
+    assert active_note_title_index < active_summary_label_index < active_append_index < summary_action_index
     assert 'class="summary-action-row review-summary-action-row recording-control-stack"' in review_template
     assert review_template.index("data-review-record-button") < review_template.index("data-ai-cleanup-button")
     review_append_index = review_template.index('class="append-resolution-field review-append-resolution-field"')
     review_note_title_index = review_template.index("data-review-note-title-field")
     review_summary_label_index = review_template.index("data-review-summary-label")
-    assert review_append_index < review_note_title_index < review_summary_label_index
     review_summary_action_index = review_template.index('class="summary-action-row review-summary-action-row recording-control-stack"')
+    assert review_note_title_index < review_summary_label_index < review_append_index < review_summary_action_index
     review_action_stack_index = review_template.index('class="review-action-stack"')
     review_status_stack_index = review_template.index("review-status-stack", review_action_stack_index)
     assert review_summary_action_index < review_action_stack_index < review_status_stack_index

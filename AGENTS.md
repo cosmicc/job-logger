@@ -483,8 +483,8 @@ that visible prefix, so the final payload can be corrected without exposing
 ticket or client identity to edits. Ticket-note mode hides Remote/On-Site,
 disables start/end time controls, shows a required note-title field above the
 note description, and keeps the description unprefixed. **Append to resolution**
-should sit above the note title in ticket-note mode so note title and note
-description stay visually grouped together. The selected Autotask
+should sit under the note description and above the action buttons. The
+selected Autotask
 client name, company ID, ticket number, and ticket title are read-only identity
 fields populated from Autotask lookup and must not be editable on the review
 page. The only exception is the empty-identity active-job case, where Review

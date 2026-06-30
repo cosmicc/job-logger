@@ -50,8 +50,8 @@ All notable changes to Job Logger are documented in this file.
   applicable. The date and relative label are centered together with two
   spaces between them, and other dates show only the centered selected date.
 - Changed Work in Progress and Review ticket-note layout so **Append to
-  resolution** sits above **Note title**, keeping **Note title** and **Note
-  description** grouped without extra vertical gaps.
+  resolution** sits below **Note description** and directly above the action
+  buttons, keeping the note fields grouped without extra vertical gaps.
 - Changed the full-browser authenticated top navigation to raised blue
   icon-and-text buttons, including a visible **Log out** label after the logout
   icon, with pressed-button feedback matching the phone header controls.

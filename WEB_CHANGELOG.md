@@ -11,7 +11,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - A Past time entries button now opens ticket time entries with clearer technician names, larger time details, and summary-of-work details.
 - Work entry save, recording, and AI Cleanup messages now share one status line.
 - Job date controls now center the date with Today, Yesterday, or Tomorrow inside the selector when applicable.
-- Ticket note fields are tighter, with Append to resolution above the note title.
+- Ticket note fields are tighter, with Append to resolution below the note description.
 - Full-browser navigation now uses raised blue icon buttons with visible labels.
 - Work in Progress and Review now have cleaner time controls, larger Remote/On-Site pills, and rounded total time shown.
 - Full-browser Review now keeps Entry type beside Job date so start and end times share a row.

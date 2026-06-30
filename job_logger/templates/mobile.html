@@ -494,18 +494,6 @@
             {% endif %}
 
             <div class="description-box">
-              <label class="append-resolution-field">
-                <input type="hidden" name="append_to_resolution" value="false" form="active-ticket-form-{{ active_job.id }}">
-                <input
-                  type="checkbox"
-                  name="append_to_resolution"
-                  value="true"
-                  form="active-ticket-form-{{ active_job.id }}"
-                  data-append-resolution-input
-                  {% if active_job.append_to_resolution %}checked{% endif %}
-                >
-                <span>Append to resolution</span>
-              </label>
               <label
                 class="note-title-field {% if not is_ticket_note %}is-hidden{% endif %}"
                 for="note-title-{{ active_job.id }}"
@@ -533,6 +521,18 @@
                   name="summary_notes"
                   placeholder="Type notes here, then refine with recorded speech if needed."
                 >{{ active_job.summary_notes or active_job.description_text or "" }}</textarea>
+              </label>
+              <label class="append-resolution-field">
+                <input type="hidden" name="append_to_resolution" value="false" form="active-ticket-form-{{ active_job.id }}">
+                <input
+                  type="checkbox"
+                  name="append_to_resolution"
+                  value="true"
+                  form="active-ticket-form-{{ active_job.id }}"
+                  data-append-resolution-input
+                  {% if active_job.append_to_resolution %}checked{% endif %}
+                >
+                <span>Append to resolution</span>
               </label>
               <div class="summary-action-row recording-control-stack">
                 <button
