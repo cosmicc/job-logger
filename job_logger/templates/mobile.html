@@ -116,6 +116,7 @@
             data-active-job-card="{{ active_job.id }}"
             data-active-job-slot="{{ job_label }}"
           >
+            <p class="eyebrow-text">Work in Progress</p>
             <div class="detail-heading-row active-detail-heading-row">
               <h2 data-active-ticket-heading>{{ active_job.ticket_title or active_job.ticket_number or "Unassigned Ticket" }}</h2>
               <span class="status-chip status-{{ active_job.status.value }}">{{ active_job.status.value.replace("_", " ") }}</span>

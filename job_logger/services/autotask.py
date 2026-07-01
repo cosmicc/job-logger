@@ -315,6 +315,7 @@ class AutotaskTicketNote:
 
 
 SYSTEM_TICKET_NOTE_CONTEXT_TYPES = frozenset({"workflow rule", "service desk notification"})
+SYSTEM_TICKET_NOTE_CONTEXT_TITLE_PREFIXES = ("workflow rule",)
 
 
 def _normalized_ticket_note_context_type(value: str | None) -> str:
@@ -328,7 +329,15 @@ def is_displayable_ticket_note_context(ticket_note: AutotaskTicketNote) -> bool:
 
     note_type = _normalized_ticket_note_context_type(ticket_note.note_type)
     note_title = _normalized_ticket_note_context_type(ticket_note.title)
-    return note_type not in SYSTEM_TICKET_NOTE_CONTEXT_TYPES and note_title not in SYSTEM_TICKET_NOTE_CONTEXT_TYPES
+    has_system_title_prefix = any(
+        note_title.startswith(system_title_prefix)
+        for system_title_prefix in SYSTEM_TICKET_NOTE_CONTEXT_TITLE_PREFIXES
+    )
+    return (
+        note_type not in SYSTEM_TICKET_NOTE_CONTEXT_TYPES
+        and note_title not in SYSTEM_TICKET_NOTE_CONTEXT_TYPES
+        and not has_system_title_prefix
+    )
 
 
 def filter_displayable_ticket_notes(ticket_notes: list[AutotaskTicketNote]) -> list[AutotaskTicketNote]:

@@ -493,6 +493,11 @@ nginx-generated 4xx and 5xx responses should use internal app-styled Job Logger
 web service error pages and must not expose stock server branding. Full restore
 uploads may have a larger nginx body limit, but that limit must stay scoped to
 `/debug/restore`.
+Browser navigation to app-generated HTTP errors, including missing FastAPI
+routes, should also render app-styled Job Logger error pages. Those pages must
+derive the **Back to Login** or **Back to Work** action from the current signed
+app session, and JSON/API clients that explicitly request JSON should keep
+receiving JSON error bodies.
 
 Cloudflare Tunnel tokens, Cloudflare API tokens, and app secrets must remain
 outside source control. Docker Compose must not provide working default app,

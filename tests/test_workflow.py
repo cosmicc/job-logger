@@ -1411,8 +1411,8 @@ def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_
     assert response.status_code == 200
     assert response.text.count("app-version-link app-version-link-dev") == 2
     assert "dev-build-pill" not in response.text
-    assert ">v1.2.1 DEV<" in response.text
-    assert 'aria-label="View changelog for version 1.2.1 development build"' in response.text
+    assert ">v1.2.0 DEV<" in response.text
+    assert 'aria-label="View changelog for version 1.2.0 development build"' in response.text
     assert response.text.index('class="header-status-group desktop-status-group"') < response.text.index('class="top-nav"')
     assert response.text.index('class="header-status-group mobile-version-group"') < response.text.index('class="mobile-nav-actions mobile-nav-right"')
 
@@ -1571,6 +1571,11 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".work-panel[data-active-job-card]" not in phone_stylesheet
     mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
     review_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+    active_work_label_index = mobile_template.index(">Work in Progress</p>")
+    active_detail_heading_index = mobile_template.index('class="detail-heading-row active-detail-heading-row"')
+    active_metric_grid_index = mobile_template.index('<dl class="metric-grid">')
+    active_summary_box_index = mobile_template.index('class="description-box"', active_metric_grid_index)
+    assert active_work_label_index < active_detail_heading_index < active_metric_grid_index < active_summary_box_index
     assert 'class="detail-heading-row active-detail-heading-row"' in mobile_template
     assert "data-active-ticket-heading" in mobile_template
     assert 'class="detail-heading-row review-detail-heading-row"' in review_template

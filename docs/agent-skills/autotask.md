@@ -198,12 +198,14 @@ use the stored ticket number from the database, and call the server-side
 provider. The browser must not call Autotask directly. The response should
 contain only bounded safe fields needed by the overlay, such as note ID, title,
 description, safe author display text, created/updated display times, type, and
-publish metadata. Filter out Autotask system notes whose note type or title is
-`Workflow Rule` or `Service Desk Notification` before sorting or deciding
-whether the ticket has notes. Return the remaining notes ordered by created
-date/time with newest first. Keep the Work in Progress and Review **Ticket
-notes** button hidden until a ticket exists and the authenticated lookup has
-completed. If the lookup returns zero displayable notes, show a disabled
+publish metadata. Filter out Autotask system notes whose note type is
+`Workflow Rule` or `Service Desk Notification`, whose title is
+`Service Desk Notification`, or whose title starts with `Workflow Rule` before
+sorting or deciding whether the ticket has notes. Return the remaining notes
+ordered by created date/time with newest first. Keep the Work in Progress and
+Review **Ticket notes** button hidden until a ticket exists and the
+authenticated lookup has completed. If the lookup returns zero displayable
+notes, show a disabled
 same-place **No Notes** button instead of opening the overlay. The overlay list
 cards should render only note titles; note body text and author metadata belong
 in the selected note detail.

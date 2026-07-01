@@ -437,6 +437,10 @@ and `+15` controls, open a 15-minute dropdown centered on the current field
 value when selected, and save only through server-validated active-job routes.
 Work in Progress and Review detail should center the rounded-duration label in
 the existing time area without reworking the mobile or full-browser layout.
+Active Work in Progress cards should keep a visible **Work in Progress** label
+above the selected ticket heading. The full-browser layout depends on that
+label row so the Summary notes panel starts flush with the top of the **Job
+date** card.
 
 Managed web-user pages must respect the current user's saved theme preference.
 The default is the dark theme. Light theme support must cover mobile, review,
@@ -445,7 +449,7 @@ instead of a separate unaudited template branch. Super-admin pages always use
 dark mode.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
 must show the version link as one yellow badge that includes `DEV`, such as
-`v1.2.1 DEV`, so dev instances are visually distinct from production without
+`v1.2.0 DEV`, so dev instances are visually distinct from production without
 adding a separate pill.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
@@ -515,7 +519,8 @@ the ticket context. Before a ticket is selected, keep the buttons hidden. After
 lookup, expose compact **Ticket notes** and **Past time entries** buttons when
 rows exist; when no displayable notes or no past time entries exist, show
 same-place disabled **No Notes** and **No past entries** buttons. Ticket-note
-lookups must filter out Workflow Rule and Service Desk Notification notes
+lookups must filter out Service Desk Notification notes and any note whose
+title starts with Workflow Rule
 before deciding whether any notes exist. The shared overlay must keep an X
 close button visible while the user reviews the list and detail panes. The note
 list should be ordered by created date/time with the newest note first, and
@@ -568,6 +573,11 @@ host-networked Cloudflare Tunnel origin URL, such as `http://127.0.0.1:2082`.
 The internet-facing nginx template must block public API-style, generated docs,
 and public health paths and use app-styled Job Logger web service error pages
 for common nginx-generated 4xx and 5xx responses instead of stock server pages.
+Browser navigation to app-generated HTTP errors, including missing FastAPI
+routes, must also render app-styled Job Logger error pages. Those pages should
+show **Back to Login** when there is no valid app session and **Back to Work**
+when the request already has a valid authenticated session, while API-style
+clients that request JSON should keep receiving JSON error bodies.
 Compose must fail closed when `APP_SECRET_KEY`, `APP_PASSWORD`, or
 `POSTGRES_PASSWORD` are missing instead of falling back to development secrets.
 Compose should default the optional Cloudflare Access header gate on for

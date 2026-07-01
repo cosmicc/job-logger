@@ -63,7 +63,7 @@ Destructive red controls must stay red on hover, using a brighter red instead
 of falling back to a neutral dark hover.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 one yellow version badge with `DEV` folded into the version text, such as
-`v1.2.1 DEV`. Keep the badge compact so it does not crowd the mobile
+`v1.2.0 DEV`. Keep the badge compact so it does not crowd the mobile
 navigation icons.
 When cached app health is degraded, Diagnostics-authorized users also see a red
 exclamation alert button that links to `/debug`. Do not show that alert to
@@ -145,6 +145,10 @@ Active jobs support these updates before completion:
   the canonical label after active time saves, and browser JavaScript should
   update the visible label immediately when the visible start or stop time
   changes.
+- A visible **Work in Progress** label above the selected ticket heading. The
+  full-browser grid expects that label row so the Summary notes panel starts
+  flush with the **Job date** card instead of dropping below the left-side
+  cards.
 
 When Ticket note is selected, the Work in Progress UI must change **Job date**
 to **Note Date**, hide the rounded start and rounded stop control rows while

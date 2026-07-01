@@ -7,15 +7,19 @@ from collections.abc import Awaitable, Callable
 from contextlib import suppress
 
 from fastapi import FastAPI, Request, Response
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.engine import make_url
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from job_logger.config import Settings, settings
 from job_logger.logging_config import configure_logging
 from job_logger.routes import auth, changelog, configuration, debug, health, mobile, passkeys, pwa, review, users
+from job_logger.security import current_username
 from job_logger.services.backups import automatic_backup_scheduler
 from job_logger.session_timeout import SessionTimeoutMiddleware
+from job_logger.ui import template_context, templates
 
 # These are unsafe sentinel values used only so startup can reject them.
 DEVELOPMENT_APP_PASSWORD = "admin"  # nosec B105
@@ -23,6 +27,26 @@ DEVELOPMENT_DATABASE_PASSWORD = "job_logger_password"  # nosec B105
 DEVELOPMENT_SECRET_KEY = "development-only-change-me"  # nosec B105
 HSTS_HEADER_VALUE = "max-age=15552000"
 PLACEHOLDER_SECRET_PREFIX = "replace-with-"  # nosec B105
+HTML_ERROR_TITLES = {
+    400: "Bad request",
+    401: "Sign-in required",
+    403: "Access denied",
+    404: "Page not found",
+    405: "Action not allowed",
+    408: "Request timeout",
+    413: "Upload too large",
+    429: "Too many requests",
+}
+HTML_ERROR_MESSAGES = {
+    400: "That request could not be used by Job Logger.",
+    401: "Sign in again to continue using Job Logger.",
+    403: "Your current session cannot open that Job Logger page.",
+    404: "That Job Logger page does not exist or is not available from this web address.",
+    405: "That action is not available for this Job Logger page.",
+    408: "The request took too long to complete.",
+    413: "That upload is larger than this Job Logger page accepts.",
+    429: "Too many requests reached Job Logger in a short time.",
+}
 
 
 def _database_password(database_url: str) -> str | None:
@@ -80,12 +104,44 @@ def validate_runtime_settings(application_settings: Settings) -> None:
         raise RuntimeError("AUTOTASK_PROVIDER=autotask is required in production.")
 
 
+def _request_accepts_html(request: Request) -> bool:
+    """Return whether the client is navigating as a browser page request."""
+
+    accept_header = request.headers.get("accept", "")
+    return "text/html" in accept_header.lower() or "application/xhtml+xml" in accept_header.lower()
+
+
+async def _http_exception_handler(request: Request, exc: StarletteHTTPException) -> Response:
+    """Render app-styled browser errors while preserving JSON API errors."""
+
+    if not _request_accepts_html(request):
+        return await http_exception_handler(request, exc)
+
+    status_code = int(exc.status_code)
+    authenticated = current_username(request) is not None
+    return templates.TemplateResponse(
+        request,
+        "error.html",
+        template_context(
+            request,
+            error_code=status_code,
+            error_title=HTML_ERROR_TITLES.get(status_code, "Request error"),
+            error_message=HTML_ERROR_MESSAGES.get(status_code, "Job Logger could not complete that request."),
+            back_link_href="/home" if authenticated else "/login",
+            back_link_label="Back to Work" if authenticated else "Back to Login",
+        ),
+        status_code=status_code,
+        headers=getattr(exc, "headers", None),
+    )
+
+
 def create_app(application_settings: Settings = settings) -> FastAPI:
     """Create and configure the FastAPI application."""
 
     configure_logging(application_settings)
     validate_runtime_settings(application_settings)
     fastapi_app = FastAPI(title="Job Logger", docs_url=None, redoc_url=None, openapi_url=None)
+    fastapi_app.add_exception_handler(StarletteHTTPException, _http_exception_handler)
 
     fastapi_app.add_middleware(SessionTimeoutMiddleware, application_settings=application_settings)
     fastapi_app.add_middleware(

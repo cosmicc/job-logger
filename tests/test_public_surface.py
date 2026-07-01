@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token
+
+BROWSER_ACCEPT_HEADER = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+
 
 def test_anonymous_sensitive_pages_redirect_to_login(client: TestClient) -> None:
     """Normal browser pages with app data should not render without a session."""
@@ -77,6 +81,74 @@ def test_public_app_shell_metadata_contains_no_private_workflow_data(client: Tes
     assert "ticket_number" not in public_text
     assert "summary_notes" not in public_text
     assert "caches.open" not in service_worker_response.text
+
+
+def test_browser_missing_page_renders_app_error_for_anonymous_users(client: TestClient) -> None:
+    """Browser navigation to a missing app route should show a Job Logger error page."""
+
+    response = client.get(
+        "/does-not-exist",
+        headers={"Accept": BROWSER_ACCEPT_HEADER},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 404
+    assert "text/html" in response.headers["content-type"]
+    assert "Page not found" in response.text
+    assert "Back to Login" in response.text
+    assert 'href="/login"' in response.text
+    assert '{"detail":"Not Found"}' not in response.text
+
+
+def test_browser_missing_page_renders_work_button_for_authenticated_users(authenticated_client: TestClient) -> None:
+    """Authenticated browser error pages should route the user back to Work."""
+
+    response = authenticated_client.get(
+        "/does-not-exist",
+        headers={"Accept": BROWSER_ACCEPT_HEADER},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 404
+    assert "Page not found" in response.text
+    assert "Back to Work" in response.text
+    assert 'href="/home"' in response.text
+    assert "Back to Login" not in response.text
+
+
+def test_json_missing_page_keeps_default_not_found_shape(client: TestClient) -> None:
+    """API-style clients should not receive the browser error page."""
+
+    response = client.get(
+        "/does-not-exist",
+        headers={"Accept": "application/json"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Not Found"}
+
+
+def test_login_after_error_page_uses_fresh_login_flow(client: TestClient) -> None:
+    """Returning to Login from an error page should not poison the next sign-in."""
+
+    error_response = client.get(
+        "/does-not-exist",
+        headers={"Accept": BROWSER_ACCEPT_HEADER},
+        follow_redirects=False,
+    )
+    assert error_response.status_code == 404
+
+    login_page_response = client.get("/login", follow_redirects=False)
+    csrf_token = extract_csrf_token(login_page_response.text)
+    login_response = client.post(
+        "/login",
+        data={"csrf_token": csrf_token, "username": "tech", "password": TEST_WEB_USER_PASSWORD},
+        follow_redirects=False,
+    )
+
+    assert login_response.status_code == 303
+    assert login_response.headers["location"] == "/home"
 
 
 def test_generated_api_docs_and_public_health_are_closed_at_app_or_proxy(client: TestClient) -> None:

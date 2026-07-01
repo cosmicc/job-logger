@@ -2,9 +2,9 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## v1.2.1 - Review notes, ticket history cards, navigation, and web-edge errors
+## v1.2.0 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge errors
 
-- Advanced the source-controlled dev runtime version to `v1.2.1`, including
+- Advanced the source-controlled dev runtime version to `v1.2.0`, including
   the Python package metadata and PWA service worker cache version.
 - Replaced native browser date pickers on Work in Progress, Review, and
   service-call date controls with the app's own calendar chooser using
@@ -20,8 +20,9 @@ All notable changes to Job Logger are documented in this file.
   disabled while their values remain available if the entry switches back to
   Time entry.
 - Filtered Workflow Rule and Service Desk Notification rows out of selected
-  ticket-note history, and changed empty selected-ticket history lookups to
-  show disabled **No Notes** or **No past entries** buttons after lookup.
+  ticket-note history, including note titles that start with Workflow Rule, and
+  changed empty selected-ticket history lookups to show disabled **No Notes**
+  or **No past entries** buttons after lookup.
 - Changed **Past time entries** selection cards so the resource row shows a
   compact right-aligned hours label such as `1.5hrs`, while the card time
   range and selected detail content keep their existing source data.
@@ -37,9 +38,16 @@ All notable changes to Job Logger are documented in this file.
   **Selected job** label, centered the main field labels, renamed active
   rounded-time controls to **Start time** and **End time**, and made Review
   detail action buttons match Work in Progress sizing.
+- Restored the **Work in Progress** label above active work entries and kept
+  the full-browser Summary notes panel aligned with the top of the **Job
+  date** card.
 - Added app-styled nginx error documents for common 4xx and 5xx web errors,
   disabled nginx server tokens, and kept proxy-generated failures branded as
   the Job Logger web service instead of the stock server error page.
+- Added app-styled FastAPI browser error pages for app-generated HTTP errors,
+  including missing routes. Unauthenticated users get **Back to Login**,
+  authenticated sessions get **Back to Work**, and JSON clients that request
+  JSON keep the normal JSON error body.
 - Added regression coverage for unauthenticated public-surface boundaries so
   workflow pages, helper endpoints, diagnostics, user management, changelog,
   generated API docs, and public health URLs stay behind login, passkey,
@@ -47,11 +55,6 @@ All notable changes to Job Logger are documented in this file.
 - Changed passkey origin troubleshooting text to refer to the web service/app
   containers instead of naming the reverse-proxy implementation in the
   user-facing error.
-
-## v1.2.0 - Ticket note mode, ticket history, alerts, and time totals
-
-- Advanced the source-controlled dev runtime version to `v1.2.0`, including
-  the Python package metadata and PWA service worker cache version.
 - Removed obsolete app host-header allowlist and alternate nginx bind/fallback
   port settings. Docker now publishes nginx only on localhost using
   `HTTP_PORT`, and the public browser URL should be configured with

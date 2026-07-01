@@ -523,7 +523,8 @@ svg {
 .debug-shell,
 .users-shell,
 .config-shell,
-.changelog-shell {
+.changelog-shell,
+.error-shell {
   width: min(1120px, calc(100% - 32px));
   margin: 32px auto;
 }
@@ -545,6 +546,7 @@ svg {
 }
 
 .login-panel,
+.error-panel,
 .work-panel,
 .table-panel,
 .edit-panel,
@@ -562,6 +564,30 @@ svg {
   gap: 18px;
   width: min(420px, 100%);
   padding: 28px;
+}
+
+.error-shell {
+  display: grid;
+  min-height: calc(100dvh - 118px);
+  padding-top: clamp(30px, 9vh, 84px);
+  place-items: start center;
+}
+
+.error-panel {
+  display: grid;
+  gap: 14px;
+  width: min(520px, 100%);
+  padding: 28px;
+}
+
+.error-panel h1,
+.error-panel p {
+  margin-bottom: 0;
+}
+
+.error-action-row {
+  display: flex;
+  margin-top: 8px;
 }
 
 .passkey-login-panel {

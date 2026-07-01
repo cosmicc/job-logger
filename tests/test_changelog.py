@@ -7,15 +7,25 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from job_logger.services.changelog import ChangelogEntry, current_changelog_entry, load_changelog_entries
+from job_logger.services.changelog import (
+    ChangelogEntry,
+    current_changelog_entry,
+    load_changelog_entries,
+)
 from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
+
+CURRENT_DETAILED_HEADING = (
+    "## v1.2.0 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge errors"
+)
+CURRENT_WEB_TITLE = "Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish"
+CURRENT_WEB_HEADING = f"## v1.2.0 - {CURRENT_WEB_TITLE}"
 
 
 def test_app_version_matches_current_release() -> None:
     """The source-controlled version should match the current release."""
 
-    assert APP_VERSION == "1.2.1"
+    assert APP_VERSION == "1.2.0"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -25,8 +35,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     changelog_text = (repository_root / "CHANGELOG.md").read_text(encoding="utf-8")
     web_changelog_text = (repository_root / "WEB_CHANGELOG.md").read_text(encoding="utf-8")
 
-    assert "## v1.2.1 - Review notes, ticket history cards, navigation, and web-edge errors" in changelog_text
-    assert "## v1.2.0 - Ticket note mode, ticket history, alerts, and time totals" in changelog_text
+    assert CURRENT_DETAILED_HEADING in changelog_text
     assert "## v1.1.6 - Cloudflare block controls, Review, Home, and header polish" in changelog_text
     assert "## v1.1.5 - AI cleanup revert, remote transcription, and login diagnostics" in changelog_text
     assert "## v1.1.4 - Login protection, Work in Progress controls, diagnostics, and deployment safety" in changelog_text
@@ -38,8 +47,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "## v1.0.1 - Mobile shell navigation and close behavior" in changelog_text
     assert "## v1.0.0 - Initial release" in changelog_text
     assert "- Initial release." in changelog_text
-    assert "## v1.2.1 - Review controls, ticket history, and header polish" in web_changelog_text
-    assert "## v1.2.0 - Ticket note mode, ticket time entry history, ticket note history, and time totals" in web_changelog_text
+    assert CURRENT_WEB_HEADING in web_changelog_text
     assert "## v1.1.6 - Review, Home, and header polish" in web_changelog_text
     assert "## v1.1.5 - AI cleanup, speech-to-text, and sign-in updates" in web_changelog_text
     assert "## v1.1.4 - Login protection, Work in Progress controls, and deployment safety" in web_changelog_text
@@ -80,8 +88,8 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="v1.2.1",
-        title="Review controls, ticket history, and header polish",
+        version="v1.2.0",
+        title=CURRENT_WEB_TITLE,
         changes=(
             "Date choosers now use Today, Cancel, and Set controls inside the app.",
             "Start and end time fields now open a 15-minute time dropdown.",
@@ -89,7 +97,8 @@ def test_changelog_parser_reads_current_release() -> None:
             "Switching back to Time entry restores the Remote. or On-Site. prefix that matches the selected work type.",
             "Ticket note mode now shows Note Date and hides start/end time fields until switching back to Time entry.",
             (
-                "Ticket history now filters system-generated notes and shows No Notes or No past entries "
+                "Ticket history now filters system-generated notes, including Workflow Rule title variants, "
+                "and shows No Notes or No past entries "
                 "when the selected ticket has no usable history."
             ),
             "Past time entry cards now show compact hours beside the resource name, such as 1.5hrs.",
@@ -102,7 +111,36 @@ def test_changelog_parser_reads_current_release() -> None:
                 "Work in Progress and Review detail now show the ticket title with the state pill beside it, "
                 "center key field labels, and use matching action button sizes."
             ),
-            "Web service error pages now match Job Logger's look instead of showing a generic server page.",
+            (
+                "Work in Progress active cards show the Work in Progress label again, "
+                "and full-browser summary notes line up with the job date cards."
+            ),
+            "Web service and missing-page errors now match Job Logger's look and offer Back to Login or Back to Work.",
+            "Work entries can now be Time entries or customer-visible Ticket notes.",
+            "Ticket note mode uses a required note title and note description instead of time and Remote/On-Site fields.",
+            (
+                "Append to resolution is available for both entry types, "
+                "and submitted Ticket notes can be updated or deleted from Review."
+            ),
+            "Ticket notes now open from the selected ticket in a closeable newest-first overlay.",
+            (
+                "A Past time entries button now opens ticket time entries with clear technician names, "
+                "large time details, and summary-of-work details."
+            ),
+            "Work entry save, recording, and AI Cleanup messages now share one status line.",
+            (
+                "Job date controls now center the date with Today, Yesterday, or Tomorrow "
+                "inside the selector when applicable."
+            ),
+            "Ticket note fields are tighter, with Append to resolution below the note description.",
+            "Full-browser navigation now uses raised blue icon buttons with visible labels.",
+            "Buttons now have clear hover and pressed states, including red destructive actions staying red on hover.",
+            (
+                "Work in Progress and Review now have clean time controls, larger Remote/On-Site pills, "
+                "and rounded total time shown."
+            ),
+            "Full-browser Review now keeps Entry type beside Job date so start and end times share a row.",
+            "Admins now see a top-bar alert when app health needs attention.",
         ),
     )
 
@@ -124,7 +162,6 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
-    assert "v1.2.1" in response.text
     assert "v1.2.0" in response.text
     assert "v1.1.6" in response.text
     assert "v1.1.5" in response.text
@@ -136,14 +173,15 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "v1.0.2" in response.text
     assert "v1.0.1" in response.text
     assert "v1.0.0" in response.text
-    assert "Review controls, ticket history, and header polish" in response.text
+    assert CURRENT_WEB_TITLE in response.text
     assert "Date choosers now use Today, Cancel, and Set controls inside the app." in response.text
     assert "Start and end time fields now open a 15-minute time dropdown." in response.text
     assert "Switching a Time entry to a Ticket note now removes the Remote. or On-Site. prefix from the note description." in response.text
     assert "Switching back to Time entry restores the Remote. or On-Site. prefix that matches the selected work type." in response.text
     assert "Ticket note mode now shows Note Date and hides start/end time fields until switching back to Time entry." in response.text
     assert (
-        "Ticket history now filters system-generated notes and shows No Notes or No past entries "
+        "Ticket history now filters system-generated notes, including Workflow Rule title variants, "
+        "and shows No Notes or No past entries "
         "when the selected ticket has no usable history."
     ) in response.text
     assert "Past time entry cards now show compact hours beside the resource name, such as 1.5hrs." in response.text
@@ -156,8 +194,11 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "Work in Progress and Review detail now show the ticket title with the state pill beside it, "
         "center key field labels, and use matching action button sizes."
     ) in response.text
-    assert "Web service error pages now match Job Logger&#39;s look instead of showing a generic server page." in response.text
-    assert "Ticket note mode, ticket time entry history, ticket note history, and time totals" in response.text
+    assert (
+        "Work in Progress active cards show the Work in Progress label again, "
+        "and full-browser summary notes line up with the job date cards."
+    ) in response.text
+    assert "Web service and missing-page errors now match Job Logger&#39;s look and offer Back to Login or Back to Work." in response.text
     assert "Work entries can now be Time entries or customer-visible Ticket notes." in response.text
     assert (
         "Ticket note mode uses a required note title and note description "
@@ -267,8 +308,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
-    v121_index = response.text.index("Review controls, ticket history, and header polish")
-    v120_index = response.text.index("Ticket note mode, ticket time entry history, ticket note history, and time totals")
+    v120_index = response.text.index(CURRENT_WEB_TITLE)
     v116_index = response.text.index("Review, Home, and header polish")
     v115_index = response.text.index("AI cleanup, speech-to-text, and sign-in updates")
     v114_index = response.text.index("Login protection, Work in Progress controls, and deployment safety")
@@ -279,7 +319,6 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     v102_index = response.text.index("Autotask workflow and desktop layout updates")
     v101_index = response.text.index("Mobile shell navigation and close behavior")
     v100_index = response.text.index("Initial release")
-    assert v121_index < v120_index
     assert v120_index < v116_index
     assert v116_index < v115_index
     assert v115_index < v114_index
@@ -290,8 +329,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert v110_index < v102_index
     assert v102_index < v101_index
     assert v101_index < v100_index
-    assert '<h2 id="current-version-heading">Review controls, ticket history, and header polish</h2>' in response.text
-    assert '<span class="release-version">v1.2.1</span>' in response.text
+    assert f'<h2 id="current-version-heading">{CURRENT_WEB_TITLE}</h2>' in response.text
     assert '<span class="release-version">v1.2.0</span>' in response.text
     assert '<span class="release-version">v1.1.6</span>' in response.text
     assert '<span class="release-version">v1.1.5</span>' in response.text
