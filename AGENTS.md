@@ -440,7 +440,7 @@ the existing time area without reworking the mobile or full-browser layout.
 Active Work in Progress cards should keep a visible **Work in Progress** label
 above the selected ticket heading. The full-browser layout depends on that
 label row so the Summary notes panel starts flush with the top of the **Job
-date** card.
+date** card; keep that label prominent enough to read quickly.
 
 Managed web-user pages must respect the current user's saved theme preference.
 The default is the dark theme. Light theme support must cover mobile, review,
@@ -499,9 +499,11 @@ that visible prefix, so the final payload can be corrected without exposing
 ticket or client identity to edits. Ticket-note mode hides Remote/On-Site,
 changes the date label from **Job date** to **Note Date**, hides start/end time
 controls while preserving their values for switching back to Time entry, shows
-a required note-title field above the note description, and keeps the
-description unprefixed. **Append to resolution** should sit under the note
-description and above the action buttons. The
+a required centered note-title field above the note description, and keeps the
+description unprefixed. Shared switch pills should show Time entry and Remote
+selected states in green and Ticket note and On-Site selected states in orange.
+**Append to resolution** should sit under the note description and above the
+action buttons. The
 selected Autotask
 client name, company ID, ticket number, and ticket title are read-only identity
 fields populated from Autotask lookup and must not be editable on the review
@@ -537,9 +539,10 @@ scannable on both phone and full browser layouts. Use paired button rows when
 two actions naturally belong together, such as **Record** with **AI Cleanup**,
 **End Work** with **Delete**, and review submit/edit actions with the matching
 delete action. Never place more than two action buttons in one row. Work in
-Progress and Review detail should use one shared status line below the action
-buttons for **Changes saved**, recording, and AI Cleanup messages; the newest
-message should replace the previous status instead of adding another line.
+Progress and Review detail should use one shared status line directly below the
+visible action-button group for **Changes saved**, recording, and AI Cleanup
+messages; the newest message should replace the previous status instead of
+adding another line.
 Status chips across review, diagnostics, and user management should use the
 shared outlined, all-caps pill treatment while preserving status-specific
 colors.

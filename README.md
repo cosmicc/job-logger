@@ -873,14 +873,17 @@ updates as those times change.
 Each Work in Progress card can switch between **Time entry** and **Ticket note**
 before Autotask submission. Ticket note mode changes **Job date** to **Note
 Date**, hides the start/end time controls while remembering their values, hides
-Remote/On-Site, shows a required note-title field above the note description,
-and changes the finish/delete labels to note wording. Both time entries and
-notes include an **Append to resolution** checkbox, checked by default.
+Remote/On-Site, shows a centered required note-title field above the note
+description, and changes the finish/delete labels to note wording. Shared
+switch pills use green for Time entry or Remote selections and orange for
+Ticket note or On-Site selections. Both time entries and notes include an
+**Append to resolution** checkbox, checked by default.
 In active mobile Work in Progress cards, **End Work**, **End Note**, or the
 direct-submit variant shares a row with the destructive delete action to keep
-the active-card controls compact. Active jobs selected on Review detail also
-show the matching end/delete labels, and the button returns to that review
-detail after the job is ended.
+the active-card controls compact, with save, recording, and AI Cleanup status
+messages directly below the action buttons. Active jobs selected on Review
+detail also show the matching end/delete labels, and the button returns to that
+review detail after the job is ended.
 The app also queries `Tickets` by `ticketNumber`, creates either a
 `TimeEntries` row or a customer-visible `TicketNotes` row, and records every
 attempt in `submission_attempts`.

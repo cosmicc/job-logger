@@ -148,16 +148,18 @@ Active jobs support these updates before completion:
 - A visible **Work in Progress** label above the selected ticket heading. The
   full-browser grid expects that label row so the Summary notes panel starts
   flush with the **Job date** card instead of dropping below the left-side
-  cards.
+  cards. Keep that label prominent enough to scan quickly.
 
 When Ticket note is selected, the Work in Progress UI must change **Job date**
 to **Note Date**, hide the rounded start and rounded stop control rows while
 preserving their current values for a switch back to Time entry, hide the
 duration label, hide Remote/On-Site, show the note-title field above the
-note-description textarea, and change the finish/delete labels to **End Note**
-and **Delete Note**. If the user's **Submit from Work in Progress** preference
-is enabled, the finish label should be a submit-note label while still posting
-through the normal end-work route.
+note-description textarea, center the note-title label and text field, and
+change the finish/delete labels to **End Note** and **Delete Note**. Shared
+switch pills use green for Time entry or Remote selected states and orange for
+Ticket note or On-Site selected states. If the user's **Submit from Work in
+Progress** preference is enabled, the finish label should be a submit-note
+label while still posting through the normal end-work route.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job client and summary edits, not ticket
@@ -518,9 +520,9 @@ submitted entries, and pair **Accept and Submit** with **Delete time entry** or
 **Delete note** for normal unsubmitted entries.
 Submission-failed jobs may use one row for **Retry** and **Accept and Submit**,
 with destructive local delete on its own following row. Review detail should
-place the shared **Changes saved**, recording, and AI Cleanup status line below
-the workflow action rows so the newest message replaces the previous status
-under all visible action buttons.
+place the shared **Changes saved**, recording, and AI Cleanup status line
+directly below the visible workflow action rows so the newest message replaces
+the previous status under all visible action buttons.
 
 Review ticket selection persists through `POST /review/{job_id}/ticket`. The
 route uses the recently loaded server-side open-ticket selection cache when it

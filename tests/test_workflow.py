@@ -1526,8 +1526,11 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "background: var(--danger-soft-hover);" in stylesheet
     assert ".summary-action-row" in stylesheet
     assert ".button-pair-row" in stylesheet
+    assert "--on-warning:" in stylesheet
     assert ".active-job-panel-slot-1" in stylesheet
     assert ".active-job-panel-slot-2" in stylesheet
+    assert ".active-job-panel > .eyebrow-text" in stylesheet
+    assert "font-size: 15px;" in stylesheet
     assert ".description-box > .button-grid" in stylesheet
     assert ".review-location-chip" in stylesheet
     assert ".detail-heading-row" in stylesheet
@@ -1540,6 +1543,12 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".ticket-context-header .centered-field-label" in stylesheet
     assert ".review-work-location-card .work-location-switch" in stylesheet
     assert "justify-self: center;" in stylesheet
+    assert ".note-title-field > span" in stylesheet
+    assert ".note-title-field input" in stylesheet
+    assert "text-align: center;" in stylesheet
+    assert '.work-location-switch input[type="radio"][value="ticket_note"]:checked + span' in stylesheet
+    assert '.work-location-switch input[type="radio"][value="on_site"]:checked + span' in stylesheet
+    assert "color: var(--on-warning);" in stylesheet
     assert ".review-detail-heading-row {\n  gap: 6px;" in phone_stylesheet
     assert ".review-action-stack" in stylesheet
     assert ".review-status-stack" in stylesheet

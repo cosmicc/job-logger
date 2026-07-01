@@ -45,6 +45,13 @@ All notable changes to Job Logger are documented in this file.
   surrounding cards while narrowing only the date selector inside the card.
 - Aligned the full-browser Work page note-title and summary text boxes with
   the top of the active **Job date** or **Note Date** card.
+- Centered Ticket note title labels and text fields on Work in Progress and
+  Review detail across phone and full-browser layouts.
+- Changed shared switch pills so Time entry and Remote selected states stay
+  green while Ticket note and On-Site selected states are orange.
+- Enlarged the active **Work in Progress** label and kept active save,
+  recording, and AI Cleanup status text directly under the Work in Progress
+  action buttons.
 - Made empty **No Notes** and **No past entries** history buttons fully inert,
   with no hover styling or click handling.
 - Changed the cached degraded app-health top-bar icon to render for every

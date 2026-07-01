@@ -123,6 +123,10 @@ def test_changelog_parser_reads_current_release() -> None:
                 "The full-browser Work page note-title and summary boxes now start flush "
                 "with the Job date or Note Date card."
             ),
+            (
+                "Note title fields are centered, Work in Progress status messages sit under the action buttons, "
+                "and Ticket note or On-Site switch selections are orange."
+            ),
             "Empty No Notes and No past entries buttons now stay fully disabled with no hover or click behavior.",
             "The app-health degraded icon now appears for every signed-in user without opening another page.",
             "Web service and missing-page errors now match Job Logger's look and offer Back to Login or Back to Work.",
@@ -206,6 +210,18 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert (
         "Work in Progress active cards show the Work in Progress label again, "
         "and full-browser summary notes line up with the job date cards."
+    ) in response.text
+    assert (
+        "The full-browser Work page Job date card stays full-width, "
+        "while the date selector inside it is compact."
+    ) in response.text
+    assert (
+        "The full-browser Work page note-title and summary boxes now start flush "
+        "with the Job date or Note Date card."
+    ) in response.text
+    assert (
+        "Note title fields are centered, Work in Progress status messages sit under the action buttons, "
+        "and Ticket note or On-Site switch selections are orange."
     ) in response.text
     assert "Web service and missing-page errors now match Job Logger&#39;s look and offer Back to Login or Back to Work." in response.text
     assert "Work entries can now be Time entries or customer-visible Ticket notes." in response.text

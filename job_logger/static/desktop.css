@@ -232,11 +232,6 @@
     grid-row: 4;
   }
 
-  .work-panel[data-active-job-card] > [data-active-save-status] {
-    grid-column: 2;
-    grid-row: 5;
-  }
-
   .work-panel[data-active-job-card] .job-description {
     min-height: 240px;
   }

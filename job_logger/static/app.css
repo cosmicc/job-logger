@@ -11,6 +11,7 @@
   --warning: #f59e0b;
   --warning-hover: #fbbf24;
   --warning-soft: rgba(245, 158, 11, 0.16);
+  --on-warning: #111827;
   --danger: #f87171;
   --danger-hover: #fca5a5;
   --danger-soft: rgba(248, 113, 113, 0.16);
@@ -68,6 +69,7 @@ html.theme-light {
   --warning: #b45309;
   --warning-hover: #d97706;
   --warning-soft: rgba(180, 83, 9, 0.14);
+  --on-warning: #ffffff;
   --danger: #dc2626;
   --danger-hover: #ef4444;
   --danger-soft: rgba(220, 38, 38, 0.11);
@@ -655,6 +657,10 @@ small {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0;
+}
+
+.active-job-panel > .eyebrow-text {
+  font-size: 15px;
 }
 
 .stack-form,
@@ -2031,6 +2037,13 @@ a:focus-visible {
   color: var(--on-accent);
 }
 
+.work-location-switch input[type="radio"][value="ticket_note"]:checked + span,
+.work-location-switch input[type="radio"][value="on_site"]:checked + span,
+.work-location-toggle input[type="radio"][value="on_site"]:checked + span {
+  background: var(--warning);
+  color: var(--on-warning);
+}
+
 .work-location-switch input[type="radio"]:focus-visible + span,
 .work-location-toggle input[type="radio"]:focus-visible + span {
   outline: 2px solid var(--focus-ring);
@@ -2081,8 +2094,14 @@ a:focus-visible {
   margin: 0;
 }
 
+.note-title-field > span {
+  display: block;
+  text-align: center;
+}
+
 .note-title-field input {
   width: 100%;
+  text-align: center;
 }
 
 .append-resolution-field {
@@ -2247,6 +2266,13 @@ a:focus-visible {
 .work-location-toggle input[type="radio"]:checked + span {
   background: var(--accent);
   color: var(--on-accent);
+}
+
+.work-location-switch input[type="radio"][value="ticket_note"]:checked + span,
+.work-location-switch input[type="radio"][value="on_site"]:checked + span,
+.work-location-toggle input[type="radio"][value="on_site"]:checked + span {
+  background: var(--warning);
+  color: var(--on-warning);
 }
 
 .work-location-switch input[type="radio"]:focus-visible + span,
