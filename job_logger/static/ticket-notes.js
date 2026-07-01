@@ -85,6 +85,10 @@ function setTicketContextButtonLabel(button, labelText, fallbackLabel) {
   labelElement.textContent = safeLabelText;
 }
 
+function ticketContextButtonIsUnavailable(button) {
+  return !button || button.disabled || button.classList.contains("is-empty-context");
+}
+
 function resetTicketContextButton(button, fallbackLabel, countDatasetName, ariaLabel) {
   ticketContextDefaultLabel(button, fallbackLabel);
   setTicketContextButtonLabel(button, button.dataset.ticketContextDefaultLabel, fallbackLabel);
@@ -369,6 +373,10 @@ function renderTicketTimeEntriesList(listElement, detailElement, timeEntries) {
 }
 
 function openTicketNotesOverlay(button) {
+  if (ticketContextButtonIsUnavailable(button)) {
+    return;
+  }
+
   const cachedPayload = ticketNoteButtonCache.get(button);
   if (!cachedPayload || !cachedPayload.notes.length) {
     return;
@@ -404,6 +412,10 @@ function openTicketNotesOverlay(button) {
 }
 
 function openTicketTimeEntriesOverlay(button) {
+  if (ticketContextButtonIsUnavailable(button)) {
+    return;
+  }
+
   const cachedPayload = ticketTimeEntryButtonCache.get(button);
   if (!cachedPayload || !cachedPayload.time_entries.length) {
     return;
@@ -457,7 +469,7 @@ function initializeTicketNotesOverlay() {
 
     const notesButton = event.target.closest("[data-ticket-notes-button]");
     if (notesButton) {
-      if (notesButton.disabled) {
+      if (ticketContextButtonIsUnavailable(notesButton)) {
         return;
       }
       openTicketNotesOverlay(notesButton);
@@ -466,7 +478,7 @@ function initializeTicketNotesOverlay() {
 
     const timeEntriesButton = event.target.closest("[data-ticket-time-entries-button]");
     if (timeEntriesButton) {
-      if (timeEntriesButton.disabled) {
+      if (ticketContextButtonIsUnavailable(timeEntriesButton)) {
         return;
       }
       openTicketTimeEntriesOverlay(timeEntriesButton);

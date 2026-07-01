@@ -15,6 +15,10 @@ Short release notes shown on the authenticated `/changelog` page.
 - The work-entry navigation button now says Work, uses a work-entry icon, and the mobile top-bar buttons use the same blue style as the full web nav.
 - Work in Progress and Review detail now show the ticket title with the state pill beside it, center key field labels, and use matching action button sizes.
 - Work in Progress active cards show the Work in Progress label again, and full-browser summary notes line up with the job date cards.
+- The full-browser Work page Job date card stays full-width, while the date selector inside it is compact.
+- The full-browser Work page note-title and summary boxes now start flush with the Job date or Note Date card.
+- Empty No Notes and No past entries buttons now stay fully disabled with no hover or click behavior.
+- The app-health degraded icon now appears for every signed-in user without opening another page.
 - Web service and missing-page errors now match Job Logger's look and offer Back to Login or Back to Work.
 - Work entries can now be Time entries or customer-visible Ticket notes.
 - Ticket note mode uses a required note title and note description instead of time and Remote/On-Site fields.
@@ -28,7 +32,6 @@ Short release notes shown on the authenticated `/changelog` page.
 - Buttons now have clear hover and pressed states, including red destructive actions staying red on hover.
 - Work in Progress and Review now have clean time controls, larger Remote/On-Site pills, and rounded total time shown.
 - Full-browser Review now keeps Entry type beside Job date so start and end times share a row.
-- Admins now see a top-bar alert when app health needs attention.
 
 ## v1.1.6 - Review, Home, and header polish
 

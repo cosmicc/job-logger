@@ -243,6 +243,7 @@ svg {
 .desktop-header-left {
   display: inline-flex;
   grid-column: 1;
+  grid-row: 1;
   align-items: center;
   justify-self: start;
   gap: 14px;
@@ -276,6 +277,7 @@ svg {
 .top-nav {
   display: flex;
   grid-column: 2;
+  grid-row: 1;
   justify-self: center;
   gap: 8px;
   margin: 0;
@@ -289,9 +291,9 @@ svg {
 }
 
 .desktop-health-alert-group {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: start;
 }
 
 .app-version-link {
@@ -431,6 +433,7 @@ svg {
 
 .desktop-logout-form {
   grid-column: 3;
+  grid-row: 1;
   justify-self: end;
 }
 
@@ -447,11 +450,16 @@ svg {
   color: var(--danger);
 }
 
+.health-alert-indicator {
+  cursor: default;
+  pointer-events: none;
+}
+
 .health-alert-button:hover {
-  border-color: var(--danger-hover);
-  background: var(--danger-hover);
-  box-shadow: var(--button-hover-shadow);
-  color: var(--on-danger);
+  border-color: rgba(248, 113, 113, 0.72);
+  background: var(--danger-soft);
+  box-shadow: var(--nav-action-shadow);
+  color: var(--danger);
 }
 
 .mobile-nav-actions,
@@ -479,10 +487,10 @@ svg {
 }
 
 .mobile-nav-action.health-alert-button:hover {
-  border-color: var(--danger-hover);
-  background: var(--danger-hover);
-  box-shadow: var(--button-hover-shadow);
-  color: var(--on-danger);
+  border-color: rgba(248, 113, 113, 0.72);
+  background: var(--danger-soft);
+  box-shadow: var(--nav-action-shadow);
+  color: var(--danger);
 }
 
 .mobile-logout-action:hover {
@@ -1900,12 +1908,27 @@ a:focus-visible {
   height: 16px;
 }
 
-.ticket-notes-button.is-empty-context {
+.ticket-notes-button.is-empty-context,
+.ticket-notes-button.is-empty-context:disabled {
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: none;
+  color: var(--muted);
   cursor: default;
+  filter: none;
+  pointer-events: none;
+  transform: none;
 }
 
-.ticket-notes-button.is-empty-context:hover {
+.ticket-notes-button.is-empty-context:hover,
+.ticket-notes-button.is-empty-context:focus,
+.ticket-notes-button.is-empty-context:active {
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: none;
+  color: var(--muted);
   filter: none;
+  transform: none;
 }
 
 .duration-inline {

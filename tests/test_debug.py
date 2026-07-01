@@ -419,8 +419,8 @@ def test_app_health_snapshot_includes_degraded_disk_state(monkeypatch) -> None:
     assert health_snapshot.issues[0].label == "Disk space nearing full"
 
 
-def test_cached_health_alert_is_visible_only_to_diagnostics_users(client: TestClient, monkeypatch) -> None:
-    """Cached degraded health should show a top-bar alert only for Diagnostics users."""
+def test_cached_health_alert_is_visible_to_all_authenticated_users(client: TestClient, monkeypatch) -> None:
+    """Cached degraded health should show a non-clickable top-bar indicator for every signed-in user."""
 
     healthy_disk_snapshot = system_health.DebugDiskUsageSnapshot(
         severity="ok",
@@ -436,19 +436,28 @@ def test_cached_health_alert_is_visible_only_to_diagnostics_users(client: TestCl
     login_as_web_user(client)
     non_admin_response = client.get("/home")
     assert non_admin_response.status_code == 200
-    assert "data-health-alert-button" not in non_admin_response.text
-    assert "data-mobile-health-alert-link" not in non_admin_response.text
+    assert "has-health-alert" in non_admin_response.text
+    assert 'data-health-alert-button' in non_admin_response.text
+    assert 'data-desktop-health-alert-indicator' in non_admin_response.text
+    assert 'data-mobile-health-alert-indicator' in non_admin_response.text
+    assert 'data-desktop-health-alert-link' not in non_admin_response.text
+    assert 'data-mobile-health-alert-link' not in non_admin_response.text
+    assert 'href="/debug"' not in non_admin_response.text
+    assert 'role="img"' in non_admin_response.text
+    assert 'aria-label="Application health is degraded"' in non_admin_response.text
+    assert "Autotask API needs attention" not in non_admin_response.text
 
     login_as_super_admin(client)
     admin_response = client.get("/users")
     assert admin_response.status_code == 200
     assert "has-health-alert" in admin_response.text
     assert 'data-health-alert-button' in admin_response.text
-    assert 'data-desktop-health-alert-link' in admin_response.text
-    assert 'data-mobile-health-alert-link' in admin_response.text
+    assert 'data-desktop-health-alert-indicator' in admin_response.text
+    assert 'data-mobile-health-alert-indicator' in admin_response.text
+    assert 'data-desktop-health-alert-link' not in admin_response.text
+    assert 'data-mobile-health-alert-link' not in admin_response.text
     assert 'href="/debug"' in admin_response.text
-    assert "Application needs attention:" in admin_response.text
-    assert "Autotask API needs attention" in admin_response.text
+    assert "Application health is degraded" in admin_response.text
 
     system_health.record_autotask_api_failure(
         "Autotask ticket lookup failed.",
@@ -465,8 +474,8 @@ def test_cached_health_alert_is_visible_only_to_diagnostics_users(client: TestCl
     assert "data-health-alert-button" not in cleared_response.text
 
 
-def test_managed_admin_sees_cached_health_alert(client: TestClient) -> None:
-    """Managed users marked Admin should see the same app-health alert."""
+def test_managed_admin_sees_same_non_clickable_cached_health_alert(client: TestClient) -> None:
+    """Managed users marked Admin should see the same non-clickable app-health alert."""
 
     with database.SessionLocal() as database_session:
         user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
@@ -485,6 +494,10 @@ def test_managed_admin_sees_cached_health_alert(client: TestClient) -> None:
     assert response.status_code == 200
     assert "has-health-alert" in response.text
     assert 'data-health-alert-button' in response.text
+    assert 'data-desktop-health-alert-indicator' in response.text
+    assert 'data-mobile-health-alert-indicator' in response.text
+    assert 'data-desktop-health-alert-link' not in response.text
+    assert 'data-mobile-health-alert-link' not in response.text
     assert 'href="/debug"' in response.text
 
 

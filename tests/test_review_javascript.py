@@ -69,12 +69,24 @@ def test_ticket_context_buttons_show_disabled_empty_states() -> None:
     ticket_notes_script = (repository_root / "job_logger" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
     mobile_template = (repository_root / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
     review_template = (repository_root / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+    stylesheet = (repository_root / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
 
     assert "No Notes" in ticket_notes_script
     assert "No past entries" in ticket_notes_script
     assert "is-empty-context" in ticket_notes_script
     assert "button.disabled = !hasNotes;" in ticket_notes_script
     assert "button.disabled = !hasTimeEntries;" in ticket_notes_script
+    assert "function ticketContextButtonIsUnavailable(button)" in ticket_notes_script
+    assert "ticketContextButtonIsUnavailable(notesButton)" in ticket_notes_script
+    assert "ticketContextButtonIsUnavailable(timeEntriesButton)" in ticket_notes_script
+    assert ".ticket-notes-button.is-empty-context,\n.ticket-notes-button.is-empty-context:disabled" in stylesheet
+    assert "pointer-events: none;" in stylesheet
+    empty_button_hover_selector = (
+        ".ticket-notes-button.is-empty-context:hover,\n"
+        ".ticket-notes-button.is-empty-context:focus,\n"
+        ".ticket-notes-button.is-empty-context:active"
+    )
+    assert empty_button_hover_selector in stylesheet
     assert "data-ticket-context-label" in mobile_template
     assert "data-ticket-context-label" in review_template
 

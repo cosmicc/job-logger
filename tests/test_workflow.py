@@ -15,6 +15,7 @@ from starlette.websockets import WebSocketDisconnect
 from job_logger import database, ui
 from job_logger.enums import EntryType, JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
 from job_logger.models import AuditEvent, Job, SubmissionAttempt, WebUser
+from job_logger.services import system_health
 from job_logger.services.ai_cleanup import AiCleanupResult
 from job_logger.services.autotask import AutotaskSubmissionResult
 from job_logger.services.jobs import get_active_job
@@ -1300,8 +1301,15 @@ def test_legacy_mobile_routes_redirect_to_home(authenticated_client: TestClient)
     assert typo_response.headers["location"] == "/home"
 
 
-def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated_client: TestClient) -> None:
+def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated_client: TestClient, monkeypatch) -> None:
     """Phone-sized headers should show version, icon navigation, and logout."""
+
+    healthy_disk_snapshot = system_health.DebugDiskUsageSnapshot(
+        severity="ok",
+        status_label="Disk space OK",
+        volumes=(),
+    )
+    monkeypatch.setattr(system_health, "collect_disk_usage_snapshot", lambda: healthy_disk_snapshot)
 
     response = authenticated_client.get("/home")
 
@@ -1312,6 +1320,7 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert "dev-build-pill" not in response.text
     assert "autotask-api-indicator" not in response.text
     assert "data-health-alert-button" not in response.text
+    assert "data-mobile-health-alert-indicator" not in response.text
     assert "Autotask API:" not in response.text
     assert "Secure session" not in response.text
     assert 'class="desktop-header-left"' in response.text
@@ -1463,7 +1472,10 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".ticket-time-entry-list-header" in stylesheet
     assert ".ticket-time-entry-list-hours" in stylesheet
     assert ".health-alert-button" in stylesheet
+    assert ".health-alert-indicator" in stylesheet
+    assert "pointer-events: none;" in stylesheet
     assert ".desktop-health-alert-group" in stylesheet
+    assert "grid-column: 3;" in stylesheet
     assert ".dev-build-pill" not in stylesheet
     assert "border: 1px solid rgba(245, 158, 11, 0.58);" in stylesheet
     assert ".status-chip" in stylesheet
@@ -1564,11 +1576,19 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".work-panel[data-active-job-card] > .detail-heading-row" in desktop_stylesheet
     assert "grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);" in desktop_stylesheet
     assert "grid-template-columns: minmax(0, 1fr) minmax(360px, 0.78fr);" in desktop_stylesheet
+    assert ".work-panel[data-active-job-card] .job-date-card .date-input-shell" in desktop_stylesheet
+    assert "width: min(100%, 270px);" in desktop_stylesheet
+    assert ".work-panel[data-active-job-card] > .description-box > .note-title-field:not(.is-hidden)" in desktop_stylesheet
+    assert ".work-panel[data-active-job-card] > .description-box > .note-title-field.is-hidden + label" in desktop_stylesheet
+    assert "bottom: calc(100% + 6px);" in desktop_stylesheet
     assert ".work-panel[data-active-job-card] .summary-action-row .secondary-button" in desktop_stylesheet
     assert ".edit-panel .review-summary-action-row .secondary-button" in desktop_stylesheet
     assert ".edit-panel .review-action-row button" in desktop_stylesheet
     assert ".active-jobs-stack > .work-panel:not([data-active-job-card])" not in phone_stylesheet
     assert ".work-panel[data-active-job-card]" not in phone_stylesheet
+    assert ".work-panel[data-active-job-card] .job-date-card .date-input-shell" not in phone_stylesheet
+    assert ".work-panel[data-active-job-card] > .description-box > .note-title-field:not(.is-hidden)" not in phone_stylesheet
+    assert ".work-panel[data-active-job-card] > .description-box > .note-title-field.is-hidden + label" not in phone_stylesheet
     mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
     review_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
     active_work_label_index = mobile_template.index(">Work in Progress</p>")

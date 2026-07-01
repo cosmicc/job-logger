@@ -202,10 +202,29 @@
     margin: 0;
   }
 
+  .work-panel[data-active-job-card] .job-date-card .date-input-shell {
+    justify-self: center;
+    width: min(100%, 270px);
+  }
+
   .work-panel[data-active-job-card] > .description-box {
     grid-column: 2;
     grid-row: 3;
     align-self: start;
+  }
+
+  .work-panel[data-active-job-card] > .description-box > .note-title-field:not(.is-hidden),
+  .work-panel[data-active-job-card] > .description-box > .note-title-field.is-hidden + label {
+    position: relative;
+    gap: 0;
+  }
+
+  .work-panel[data-active-job-card] > .description-box > .note-title-field:not(.is-hidden) > span:first-child,
+  .work-panel[data-active-job-card] > .description-box > .note-title-field.is-hidden + label > span:first-child {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 6px);
+    left: 0;
   }
 
   .work-panel[data-active-job-card] > .button-grid {

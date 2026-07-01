@@ -352,7 +352,7 @@ Autotask API errors must be recorded clearly for review and troubleshooting
 without exposing credentials or sensitive protocol details. Any failed live
 Autotask API request from any managed user, managed Admin user, or config
 super admin must mark cached app health degraded for that semantic operation
-type. The admin-only top-bar alert must remain degraded until the same
+type. The authenticated top-bar degraded icon must remain visible until the same
 operation type succeeds again; unrelated successful Autotask requests must not
 clear a different active failure.
 
@@ -474,12 +474,13 @@ Enabled buttons and button-like navigation controls should show a slight
 brighter hover state, and workflow action buttons should have a raised idle
 state plus a pressed-in active state. Destructive red controls should stay red
 on hover and use a brighter red treatment, not a neutral or black hover.
-When cached application health is degraded, only Diagnostics-authorized users
-may see a red exclamation alert button in the authenticated top bar. The
-desktop alert is centered in the header; the phone alert joins the compact
-right-side action group and links to `/debug`. Do not render this alert for
-ordinary managed users, and do not run live Autotask probes while rendering a
-page.
+When cached application health is degraded, every authenticated user sees a red
+exclamation status icon in the top bar. The icon is a non-clickable health
+indicator, does not open Diagnostics, and must not expose diagnostic details to
+ordinary managed users. The desktop icon sits in a reserved header status area
+between primary navigation and logout; the phone icon joins the compact
+right-side action group without crowding Config, Diagnostics, or logout
+controls. Do not run live Autotask probes while rendering a page.
 The unauthenticated login header centers a non-clickable `JL` brand mark on both
 phone and full-browser layouts and does not show the full Job Logger wordmark.
 
@@ -772,7 +773,7 @@ The application is a FastAPI project under `job_logger/`.
   cache authenticated job, session, Autotask, or transcription data.
 - `job_logger/services/system_health.py` owns shared disk-usage severity
   snapshots and cached Autotask API health state used by Diagnostics and the
-  admin-only top-bar alert.
+  authenticated top-bar degraded-health icon.
 - `job_logger/services/jobs.py` owns core job state transitions and must remain
   the primary place for workflow and job-ownership validation.
 - `job_logger/services/autotask.py` owns Autotask providers, connectivity tests,
@@ -996,9 +997,9 @@ In production:
 - Autotask provider HTTP/status failures, failed time-entry create/update/delete
   results, and failed Diagnostics connectivity tests must mark the cached
   Autotask health state as degraded until a later Autotask API request or
-  connectivity test succeeds. This cached state powers the admin-only top-bar
-  health alert; page rendering must not run a fresh Autotask contactability
-  probe.
+  connectivity test succeeds. This cached state powers the authenticated
+  top-bar degraded-health icon; page rendering must not run a fresh Autotask
+  contactability probe.
 - The `/debug` page provides a Diagnostics-admin **Log out web users** action
   that invalidates all managed web-user sessions without ending the config
   super-admin session. Managed Admin users are included in that invalidation

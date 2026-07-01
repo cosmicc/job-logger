@@ -65,10 +65,10 @@ When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 one yellow version badge with `DEV` folded into the version text, such as
 `v1.2.0 DEV`. Keep the badge compact so it does not crowd the mobile
 navigation icons.
-When cached app health is degraded, Diagnostics-authorized users also see a red
-exclamation alert button that links to `/debug`. Do not show that alert to
-ordinary managed users. On phone layouts, keep the alert in the right-side
-action group and compact the icon spacing only when the alert is present.
+When cached app health is degraded, every authenticated user sees a red
+exclamation status icon in the top bar. The icon is non-clickable and must not
+open Diagnostics. On phone layouts, keep the indicator in the right-side action
+group without crowding Config, Diagnostics, or logout controls.
 
 New blank work starts through `POST /jobs/start`. A user can also start work
 from an Autotask service call selected in the mobile day navigator through

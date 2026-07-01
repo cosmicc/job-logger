@@ -41,6 +41,15 @@ All notable changes to Job Logger are documented in this file.
 - Restored the **Work in Progress** label above active work entries and kept
   the full-browser Summary notes panel aligned with the top of the **Job
   date** card.
+- Kept the full-browser Work page **Job date** card at the same width as
+  surrounding cards while narrowing only the date selector inside the card.
+- Aligned the full-browser Work page note-title and summary text boxes with
+  the top of the active **Job date** or **Note Date** card.
+- Made empty **No Notes** and **No past entries** history buttons fully inert,
+  with no hover styling or click handling.
+- Changed the cached degraded app-health top-bar icon to render for every
+  signed-in user as a non-clickable status indicator that does not open
+  Diagnostics.
 - Added app-styled nginx error documents for common 4xx and 5xx web errors,
   disabled nginx server tokens, and kept proxy-generated failures branded as
   the Job Logger web service instead of the stock server error page.
@@ -111,18 +120,18 @@ All notable changes to Job Logger are documented in this file.
 - Adjusted full-browser Review detail so **Entry type** sits beside **Job date**
   and the start/end time controls share a row again. Remote/On-Site switch
   pills now match the Time entry/Ticket note switch size.
-- Added an admin-only red health alert button to the authenticated desktop and
-  phone top bars. The alert links to Diagnostics and appears when cached app
+- Added a red degraded-health status icon to the authenticated desktop and
+  phone top bars. The icon appears for every signed-in user when cached app
   health reports degraded state, such as low disk space or Autotask API
-  failures.
+  failures, and does not open Diagnostics.
 - Added cached Autotask API health tracking. A failed Diagnostics connectivity
   test, time-entry submission/update/delete failure, or live Autotask provider
-  request failure from any user keeps the alert active until the same
+  request failure from any user keeps the indicator active until the same
   Autotask operation type succeeds again. Successful unrelated Autotask
   operations no longer clear a different active failure.
 - Centralized Diagnostics disk-usage snapshot logic in the shared app-health
-  service so the Diagnostics page and top-bar alert use the same warning and
-  critical thresholds.
+  service so the Diagnostics page and top-bar indicator use the same warning
+  and critical thresholds.
 - Added centered rounded duration labels to Work in Progress and Review detail
   so the total time between the visible start and stop times appears under the
   time controls and updates as those times change. Work in Progress places the

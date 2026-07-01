@@ -68,8 +68,7 @@ def template_context(
     app_health_snapshot = AppHealthSnapshot(issues=())
     if database_session is not None and current_username(request):
         current_can_access_debug = session_has_debug_access(request.session, database_session)
-        if current_can_access_debug:
-            app_health_snapshot = collect_app_health_snapshot()
+        app_health_snapshot = collect_app_health_snapshot()
 
     context: dict[str, object] = {
         "request": request,

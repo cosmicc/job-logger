@@ -19,7 +19,7 @@
     <script src="/static/pwa.js?v={{ static_asset_version }}" defer></script>
   </head>
   <body class="theme-{{ current_theme|default('dark') }}">
-    <header class="app-header{% if not current_username %} login-header{% endif %}{% if current_can_access_debug and app_health_degraded %} has-health-alert{% endif %}">
+    <header class="app-header{% if not current_username %} login-header{% endif %}{% if app_health_degraded %} has-health-alert{% endif %}">
       {% if current_username %}
         <div class="desktop-header-left">
           <a class="brand" href="/home" aria-label="Job Logger home">
@@ -30,15 +30,15 @@
             <a class="app-version-link{% if dev_build %} app-version-link-dev{% endif %}" href="/changelog" aria-label="View changelog for version {{ app_version }}{% if dev_build %} development build{% endif %}">v{{ app_version }}{% if dev_build %} DEV{% endif %}</a>
           </div>
         </div>
-        {% if current_can_access_debug and app_health_degraded %}
-          <div class="header-status-group desktop-health-alert-group" aria-label="Application health alert">
-            <a class="icon-button health-alert-button" href="/debug" title="{{ app_health_alert_label }}" aria-label="{{ app_health_alert_label }}" data-health-alert-button data-desktop-health-alert-link>
+        {% if app_health_degraded %}
+          <div class="header-status-group desktop-health-alert-group" aria-label="Application health status">
+            <span class="icon-button health-alert-button health-alert-indicator" title="Application health is degraded" role="img" aria-label="Application health is degraded" data-health-alert-button data-desktop-health-alert-indicator>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 9v4"></path>
                 <path d="M12 17h.01"></path>
                 <path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.8 3h15.6a2 2 0 0 0 1.8-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
               </svg>
-            </a>
+            </span>
           </div>
         {% endif %}
         <nav class="top-nav" aria-label="Primary navigation">
@@ -124,14 +124,14 @@
           <a class="app-version-link{% if dev_build %} app-version-link-dev{% endif %}" href="/changelog" aria-label="View changelog for version {{ app_version }}{% if dev_build %} development build{% endif %}">v{{ app_version }}{% if dev_build %} DEV{% endif %}</a>
         </div>
         <nav class="mobile-nav-actions mobile-nav-right" aria-label="Mobile quick actions">
-          {% if current_can_access_debug and app_health_degraded %}
-            <a class="icon-button mobile-nav-action health-alert-button mobile-health-alert-action" href="/debug" title="{{ app_health_alert_label }}" aria-label="{{ app_health_alert_label }}" data-health-alert-button data-mobile-health-alert-link>
+          {% if app_health_degraded %}
+            <span class="icon-button mobile-nav-action health-alert-button health-alert-indicator mobile-health-alert-action" title="Application health is degraded" role="img" aria-label="Application health is degraded" data-health-alert-button data-mobile-health-alert-indicator>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 9v4"></path>
                 <path d="M12 17h.01"></path>
                 <path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.8 3h15.6a2 2 0 0 0 1.8-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path>
               </svg>
-            </a>
+            </span>
           {% endif %}
           {% if not current_is_super_admin %}
             <a class="icon-button mobile-nav-action mobile-config-action" href="/config" title="Config" aria-label="Config" data-mobile-config-link>

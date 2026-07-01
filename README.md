@@ -960,11 +960,12 @@ required workflow configuration and the live Companies/Tickets API calls used
 by the app. The **Test Autotask API** button is manual and always runs a fresh
 live check. It is not used by the
 initial mobile page or blank Start Work route.
-When cached app health is degraded, Diagnostics-authorized users see a red
-exclamation alert in the top bar. It links to Diagnostics and appears for
-conditions such as low disk space or a cached Autotask API failure. Autotask
-failures from any managed user, managed Admin user, or config super admin keep
-the alert visible until the same type of Autotask operation succeeds again.
+When cached app health is degraded, every signed-in user sees a red exclamation
+status icon in the top bar. The icon is only an indicator and does not open
+Diagnostics. It appears for conditions such as low disk space or a cached
+Autotask API failure. Autotask failures from any managed user, managed Admin
+user, or config super admin keep the indicator visible until the same type of
+Autotask operation succeeds again.
 Successful unrelated Autotask requests do not clear another active failure.
 
 The same `/debug` page also shows compact, paginated successful-login,
