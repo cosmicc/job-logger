@@ -934,10 +934,11 @@ start/end time controls. The value updates as those times change.
 Each Work in Progress card can switch between **Time entry** and **Ticket note**
 before Autotask submission. Ticket note mode changes **Job date** to **Note
 Date**, hides the start/end time controls while remembering their values, hides
-Remote/On-Site, shows a centered required note-title field above the note
-description, and changes the finish/delete labels to note wording. Shared
-switch pills use green for Time entry or Remote selections and orange for
-Ticket note or On-Site selections. Both time entries and notes include an
+the duration, keeps Work type visible as a disabled greyed-out Remote/On-Site
+card, shows a centered required note-title field above the note description,
+and changes the finish/delete labels to note wording. Shared switch pills use
+green for Time entry or Remote selections and orange for Ticket note or On-Site
+selections. Both time entries and notes include an
 **Append to resolution** checkbox, checked by default.
 In active mobile Work in Progress cards, **End Work**, **End Note**, or the
 direct-submit variant shares a row with the destructive delete action to keep
@@ -982,8 +983,9 @@ from the review detail when troubleshooting or checking history.
 The mobile Work in Progress card stores a work-location mode of `Remote` or
 `On-Site` for time entries, defaulting to `Remote`. This mode does not appear
 in the mobile summary text. The review list shows each time entry's Remote or
-On-Site mode and shows Ticket note for notes. Review detail exposes the
-Remote/On-Site choice only for time entries. Changing it updates the visible
+On-Site mode and shows Ticket note for notes. Review detail keeps the
+Remote/On-Site Work type card visible but disabled for Ticket notes, and allows
+the choice to be changed only for time entries. Changing it updates the visible
 Autotask-bound summary prefix, such as `Remote. Replaced firewall` or
 `On-Site. Replaced firewall`, so the prefix can be corrected before submission
 or **Submit changes**. Ticket-note descriptions remain unprefixed. The server

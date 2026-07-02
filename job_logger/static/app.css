@@ -2032,6 +2032,34 @@ a:focus-visible {
   color: var(--on-warning);
 }
 
+.work-location-card-disabled {
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.08);
+  opacity: 0.74;
+}
+
+.work-location-card-disabled .metric-label,
+.work-location-card-disabled .readonly-field-title {
+  color: var(--muted);
+}
+
+.work-location-card-disabled .work-location-switch {
+  border-color: rgba(148, 163, 184, 0.36);
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.work-location-card-disabled .work-location-switch label {
+  cursor: not-allowed;
+}
+
+.work-location-card-disabled .work-location-switch span,
+.work-location-card-disabled .work-location-switch input[type="radio"]:checked + span,
+.work-location-card-disabled .work-location-switch input[type="radio"][value="on_site"]:checked + span {
+  background: rgba(148, 163, 184, 0.18);
+  color: var(--muted);
+  box-shadow: none;
+}
+
 .work-location-switch input[type="radio"]:focus-visible + span,
 .work-location-toggle input[type="radio"]:focus-visible + span {
   outline: 2px solid var(--focus-ring);

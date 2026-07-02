@@ -32,6 +32,9 @@ All notable changes to Job Logger are documented in this file.
 - Kept the Work in Progress client search editable after a client is selected
   but before a ticket is chosen, allowing users to switch to another verified
   client and load that client's open tickets.
+- Changed Ticket note mode on Work in Progress and Review so **Work type**
+  remains visible as a disabled, greyed-out card instead of disappearing when
+  Remote/On-Site no longer applies.
 
 ## 1.2.0 - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge errors
 

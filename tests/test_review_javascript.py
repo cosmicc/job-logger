@@ -25,6 +25,25 @@ def test_open_ticket_renderers_share_status_and_company_metadata() -> None:
     assert expected_meta_line in review_script
 
 
+def test_ticket_note_mode_disables_work_type_instead_of_hiding_it() -> None:
+    """Ticket note mode should grey out Work type without removing the card."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    mobile_script = (repository_root / "job_logger" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "job_logger" / "static" / "review.js").read_text(encoding="utf-8")
+    mobile_template = (repository_root / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (repository_root / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+
+    assert 'workLocationCard.classList.toggle("is-hidden", isTicketNote);' not in mobile_script
+    assert 'workLocationCard.classList.toggle("is-hidden", isTicketNote);' not in review_script
+    assert 'workLocationCard.classList.toggle("work-location-card-disabled", isTicketNote);' in mobile_script
+    assert 'workLocationCard.classList.toggle("work-location-card-disabled", isTicketNote);' in review_script
+    assert 'work-location-card{% if is_ticket_note %} is-hidden' not in mobile_template
+    assert 'review-work-location-card{% if is_ticket_note %} is-hidden' not in review_template
+    assert "work-location-card-disabled" in mobile_template
+    assert "work-location-card-disabled" in review_template
+
+
 def test_ticket_notes_overlay_list_cards_show_titles_only() -> None:
     """Ticket note selection cards should leave metadata in detail."""
 
