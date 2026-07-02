@@ -96,7 +96,7 @@ services:
         failure_action: rollback
 
   nginx:
-    image: ${JOB_LOGGER_NGINX_IMAGE:?Set JOB_LOGGER_NGINX_IMAGE to a pushed nginx image}
+    image: ${JOB_LOGGER_NGINX_IMAGE:-replace-with-registry/job-logger-nginx:1.2.1}
     environment:
       APP_UPSTREAM_HOST: app
       NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-12m}
@@ -110,7 +110,7 @@ services:
       start_period: 20s
       retries: 3
     deploy:
-      replicas: 1
+      replicas: ${JOB_LOGGER_BUNDLED_EDGE_REPLICAS:-1}
       restart_policy:
         condition: any
 
@@ -121,11 +121,11 @@ services:
       - --no-autoupdate
       - run
       - --token
-      - ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN}
+      - ${CLOUDFLARE_TUNNEL_TOKEN:-not-set}
     networks:
       - job_logger
     deploy:
-      replicas: 1
+      replicas: ${JOB_LOGGER_BUNDLED_EDGE_REPLICAS:-1}
       restart_policy:
         condition: any
 

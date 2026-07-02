@@ -631,14 +631,26 @@ documented reason.
 Persistent PostgreSQL data must be stored in a Docker volume or another
 documented persistent storage location.
 
-Compose uses `COMPOSE_PROFILES=local-db` to decide whether the bundled
-PostgreSQL service is deployed. Local single-host installs should enable that
-profile and use the `db` service. Remote PostgreSQL installs should leave that
-profile disabled and set `DATABASE_URL` to the remote `postgresql+psycopg`
-connection URL. Provider-style `postgresql://` and `postgres://` URLs must be
-normalized to the installed psycopg 3 driver before app startup or Alembic
-migrations create a database engine. Keep app-side database connections bounded
-with the documented pool and timeout settings.
+Compose uses `COMPOSE_PROFILES=local-db,bundled-edge` by default.
+`local-db` decides whether the bundled PostgreSQL service is deployed.
+`bundled-edge` decides whether the bundled nginx and `cloudflared` services are
+deployed together. Local single-host installs should enable both profiles
+unless they intentionally use remote PostgreSQL, an external edge, or both.
+Remote PostgreSQL installs should disable `local-db` and set `DATABASE_URL` to
+the remote `postgresql+psycopg` connection URL. External nginx/cloudflared
+installs should disable `bundled-edge` and route through an nginx service that
+mirrors the bundled proxy's blocked paths, sanitized forwarded headers,
+WebSocket handling, scoped restore upload limit, and app-styled error pages.
+Provider-style `postgresql://` and `postgres://` URLs must be normalized to the
+installed psycopg 3 driver before app startup or Alembic migrations create a
+database engine. Keep app-side database connections bounded with the documented
+pool and timeout settings.
+
+Swarm deployment uses `JOB_LOGGER_BUNDLED_EDGE_REPLICAS` because Swarm does
+not support Compose profiles. The default value is `1`, which runs bundled
+nginx and `cloudflared`. Set it to `0` only when an external nginx and
+`cloudflared` stack in the same Swarm handles the public edge and proxies to
+the Job Logger app service on the shared overlay network.
 
 Health checks should be added for services where practical.
 PostgreSQL health checks must allow enough startup grace for first-time volume

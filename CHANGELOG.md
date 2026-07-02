@@ -6,6 +6,12 @@ All notable changes to Job Logger are documented in this file.
 
 - Advanced the source-controlled dev runtime version to `v1.2.1`, including
   the Python package metadata and PWA service worker cache version.
+- Added a `bundled-edge` Docker Compose profile so the bundled nginx and
+  `cloudflared` services can be enabled or omitted together while
+  `.env.example` keeps the current bundled behavior enabled by default.
+- Added `JOB_LOGGER_BUNDLED_EDGE_REPLICAS` for Swarm external-edge deployments
+  and documented an external nginx sample config that proxies to the app
+  service from the same Swarm overlay network.
 - Adjusted full-browser Review detail so **Entry type** sits beside **Work
   type**, **Job date** sits beside **Ticket status**, and the start/end time
   controls share equal-width rows. Remote/On-Site switch pills now match the
