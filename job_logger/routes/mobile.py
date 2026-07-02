@@ -1005,7 +1005,6 @@ async def save_ticket_number(
         ensure_job_owned_by_web_user(existing_job, web_user.id)
         if (
             submitted_client_name is not None
-            and existing_job.autotask_company_id is None
             and not existing_job.ticket_number
         ):
             verified_client_name, verified_company_id = verify_autotask_client_selection(
@@ -1386,7 +1385,10 @@ async def end_work(
         web_user = _current_enabled_web_user(request, database_session)
         existing_job = get_job_or_raise(database_session, job_id)
         ensure_job_owned_by_web_user(existing_job, web_user.id)
-        if existing_job.autotask_company_id is None and not existing_job.ticket_number:
+        if (
+            not existing_job.ticket_number
+            and (submitted_client_name is not None or existing_job.client_name is None)
+        ):
             verified_client_name, verified_company_id = verify_autotask_client_selection(
                 submitted_client_name,
                 submitted_autotask_company_id,

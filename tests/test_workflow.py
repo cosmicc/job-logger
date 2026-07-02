@@ -1542,15 +1542,32 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".review-work-location-card" in stylesheet
     assert ".review-shell > .review-header" in stylesheet
     assert "justify-content: flex-start;" in stylesheet
+    assert (
+        ".review-form .form-grid {\n"
+        "  grid-template-columns: repeat(2, minmax(0, 1fr));\n"
+        "}"
+    ) in desktop_stylesheet
+    assert ".review-form .form-grid > .readonly-field-card" in desktop_stylesheet
     assert ".review-entry-type-card {\n  grid-column: 1;\n  grid-row: 3;\n}" in desktop_stylesheet
     assert ".review-work-location-card {\n  grid-column: 2;\n  grid-row: 3;\n}" in desktop_stylesheet
+    assert ".review-client-name-card {\n  grid-column: 1;\n  grid-row: 1;\n}" in desktop_stylesheet
+    assert ".review-ticket-number-card {\n  grid-column: 2;\n  grid-row: 1;\n}" in desktop_stylesheet
     assert ".review-ticket-status-field {\n  grid-column: 1;\n  grid-row: 4;\n}" in desktop_stylesheet
     assert ".review-job-date-field {\n  grid-column: 2;\n  grid-row: 4;\n}" in desktop_stylesheet
+    assert ".ticket-description-card .ticket-context-actions-desktop {\n  display: contents;\n}" in desktop_stylesheet
+    assert ".ticket-description-card .ticket-context-actions-desktop .ticket-notes-button:first-child" in desktop_stylesheet
+    assert ".ticket-description-card .ticket-context-actions-desktop .ticket-notes-button:last-child" in desktop_stylesheet
     assert ".review-start-time-field {\n  grid-column: 1;\n  grid-row: 5;\n}" in desktop_stylesheet
     assert ".review-end-time-field {\n  grid-column: 2;\n  grid-row: 5;\n}" in desktop_stylesheet
     assert "active-start-time-card" in mobile_template
     assert "active-end-time-card" in mobile_template
     assert "active-duration-row" in mobile_template
+    assert (
+        "  .work-panel[data-active-job-card] > .metric-grid {\n"
+        "    grid-template-columns: repeat(2, minmax(0, 1fr));\n"
+        "    margin: 0;\n"
+        "  }"
+    ) in desktop_stylesheet
     assert (
         "  .work-panel[data-active-job-card] > .metric-grid > .entry-type-card {\n"
         "    grid-column: 1;\n"
@@ -1601,10 +1618,23 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     ) in desktop_stylesheet
     assert (
         "  .work-panel[data-active-job-card] > .metric-grid > .ticket-number-card {\n"
+        "    grid-column: 1 / -1;\n"
+        "    grid-row: 6;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        "  .work-panel[data-active-job-card] > .metric-grid > .ticket-title-card {\n"
         "    grid-column: 2;\n"
         "    grid-row: 5;\n"
         "  }"
     ) in desktop_stylesheet
+    assert (
+        "  .work-panel[data-active-job-card] > .metric-grid > .ticket-description-card {\n"
+        "    grid-column: 1 / -1;\n"
+        "    grid-row: 7;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert ".ticket-number-card .ticket-context-actions-desktop" in desktop_stylesheet
     assert ".metric-grid > .entry-type-card {\n  order: -70;\n}" in phone_stylesheet
     assert ".metric-grid > .work-location-card {\n  order: -60;\n}" in phone_stylesheet
     assert ".metric-grid > .ticket-status-card {\n  order: -50;\n}" in phone_stylesheet
@@ -1614,7 +1644,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".metric-grid > .active-duration-row {\n  order: -10;\n}" in phone_stylesheet
     assert ".form-grid > .review-entry-type-card {\n  order: 10;\n}" in phone_stylesheet
     assert ".form-grid > .review-work-location-card {\n  order: 20;\n}" in phone_stylesheet
-    assert ".form-grid > .review-ticket-number-card {\n  order: 25;\n}" in phone_stylesheet
+    assert ".form-grid > .review-ticket-number-card {\n  order: 80;\n}" in phone_stylesheet
     assert ".form-grid > .review-ticket-status-field {\n  order: 30;\n}" in phone_stylesheet
     assert ".form-grid > .review-job-date-field {\n  order: 40;\n}" in phone_stylesheet
     assert ".form-grid > .review-start-time-field {\n  order: 50;\n}" in phone_stylesheet
@@ -1933,8 +1963,8 @@ def test_review_detail_can_end_active_jobs(authenticated_client: TestClient) -> 
         assert ended_job.summary_notes == "Ready to end from review."
 
 
-def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_client: TestClient) -> None:
-    """The active mobile card renders selected Autotask clients as read-only."""
+def test_mobile_active_job_page_keeps_client_editable_until_ticket(authenticated_client: TestClient) -> None:
+    """The active mobile card keeps selected clients editable until a ticket is selected."""
 
     mobile_page_response = authenticated_client.get("/home")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -1960,11 +1990,17 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     updated_mobile_page_response = authenticated_client.get("/home")
     page_html = updated_mobile_page_response.text
 
-    assert 'data-locked-client-field' in page_html
+    assert 'data-locked-client-field' not in page_html
     assert "AUTOTASK SELECTED" not in page_html
     assert "Autotask selected" not in page_html
     assert 'class="metric-card client-name-card"' in page_html
-    assert f'id="active-client-name-{active_job_id}"' not in page_html
+    assert f'id="active-client-name-{active_job_id}"' in page_html
+    active_client_input = re.search(
+        rf'<input(?=[^>]*id="active-client-name-{active_job_id}")(?=[^>]*value="Acme Services")[^>]*>',
+        page_html,
+    )
+    assert active_client_input is not None
+    assert "readonly" not in active_client_input.group(0).lower()
     assert 'class="end-client-name"' in page_html
     assert 'class="end-autotask-company-id"' in page_html
     assert 'class="rounded-start-time-form active-time-step-controls"' in page_html
@@ -2019,7 +2055,7 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert 'data-active-ticket-lookup-button' not in page_html
     assert "Find tickets" not in page_html
     assert "Click this box to load open tickets." in page_html
-    assert page_html.index("<dt>Client name</dt>") < page_html.index("<h3>Open tickets</h3>")
+    assert page_html.index('<span class="metric-label">Client name</span>') < page_html.index("<h3>Open tickets</h3>")
     assert page_html.index(f'id="active-ticket-form-{active_job_id}"') < page_html.index("<h3>Open tickets</h3>")
     assert 'class="secondary-button active-save-button"' not in page_html
     assert "Save Active Changes" not in page_html
@@ -2042,8 +2078,8 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert page_html.index("data-duration-display") < page_html.index('class="metric-card work-location-card"')
 
 
-def test_mobile_active_job_locked_autotask_company_rejects_form_tampering(authenticated_client: TestClient) -> None:
-    """Mobile form handlers preserve an already selected active-job company."""
+def test_mobile_active_job_can_replace_client_before_ticket_selection(authenticated_client: TestClient) -> None:
+    """Mobile form handlers allow verified client replacement before ticket selection."""
 
     mobile_page_response = authenticated_client.get("/home")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -2066,17 +2102,16 @@ def test_mobile_active_job_locked_autotask_company_rejects_form_tampering(authen
     )
     assert save_client_response.status_code == 303
 
-    tampered_save_response = authenticated_client.post(
+    mismatched_save_response = authenticated_client.post(
         f"/jobs/{active_job_id}/ticket-number",
         data={
             "csrf_token": csrf_token,
-            "ticket_number": "T20260616.9999",
             "client_name": "Wrong Client",
             "autotask_company_id": "2002",
         },
         follow_redirects=False,
     )
-    assert tampered_save_response.status_code == 303
+    assert mismatched_save_response.status_code == 303
 
     with database.SessionLocal() as database_session:
         active_job = database_session.get(Job, active_job_id)
@@ -2086,26 +2121,35 @@ def test_mobile_active_job_locked_autotask_company_rejects_form_tampering(authen
         assert active_job.autotask_company_id == 1001
         assert active_job.ticket_number is None
 
-    tampered_end_response = authenticated_client.post(
-        f"/jobs/{active_job_id}/end",
-        data={"csrf_token": csrf_token, "client_name": "Wrong Client", "autotask_company_id": "2002"},
+    replace_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={"csrf_token": csrf_token, "client_name": "Acme Holdings", "autotask_company_id": "1002"},
         follow_redirects=False,
     )
-    assert tampered_end_response.status_code == 303
+    assert replace_client_response.status_code == 303
 
     with database.SessionLocal() as database_session:
         active_job = database_session.get(Job, active_job_id)
         assert active_job is not None
         assert active_job.status == JobStatus.ACTIVE
-        assert active_job.client_name == "Acme Services"
-        assert active_job.autotask_company_id == 1001
+        assert active_job.client_name == "Acme Holdings"
+        assert active_job.autotask_company_id == 1002
+        assert active_job.ticket_number is None
 
-    valid_end_response = authenticated_client.post(
+    ticket_lookup_response = authenticated_client.get(f"/review/{active_job_id}/tickets")
+    assert ticket_lookup_response.status_code == 200
+    ticket_lookup_payload = ticket_lookup_response.json()
+    assert ticket_lookup_payload["client_name"] == "Acme Holdings"
+    assert ticket_lookup_payload["autotask_company_id"] == 1002
+    assert ticket_lookup_payload["tickets"][0]["company_name"] == "Acme Holdings"
+    assert ticket_lookup_payload["tickets"][0]["title"] == "Mock open ticket for Acme Holdings"
+
+    replacement_end_response = authenticated_client.post(
         f"/jobs/{active_job_id}/end",
-        data={"csrf_token": csrf_token},
+        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
         follow_redirects=False,
     )
-    assert valid_end_response.status_code == 303
+    assert replacement_end_response.status_code == 303
 
     with database.SessionLocal() as database_session:
         reviewed_job = database_session.get(Job, active_job_id)
@@ -2660,6 +2704,7 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
     assert "T20260616.0001" in updated_review_html
     assert '<span class="metric-label readonly-field-title">Ticket number</span>' in updated_review_html
     assert '<span class="metric-label readonly-field-title">Client name</span>' in updated_review_html
+    assert 'class="readonly-field-card review-client-name-card"' in updated_review_html
     assert 'class="readonly-field-card review-ticket-number-card"' in updated_review_html
     review_ticket_number_card_index = updated_review_html.index('class="readonly-field-card review-ticket-number-card"')
     review_mobile_context_actions_index = updated_review_html.index(
@@ -3293,18 +3338,19 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
     assert "Mock follow-up description for Acme Services." in updated_mobile_html
     assert "data-active-ticket-title-card" in updated_mobile_html
     assert "data-active-ticket-description-card" in updated_mobile_html
+    active_ticket_number_card_index = updated_mobile_html.index("data-active-ticket-number-card")
+    active_desktop_context_actions_index = updated_mobile_html.index(
+        'class="ticket-context-actions ticket-context-actions-desktop"',
+        active_ticket_number_card_index,
+    )
     active_ticket_title_card_index = updated_mobile_html.index("data-active-ticket-title-card")
     active_mobile_context_actions_index = updated_mobile_html.index(
         'class="ticket-context-actions ticket-context-actions-mobile"',
         active_ticket_title_card_index,
     )
     active_ticket_description_card_index = updated_mobile_html.index("data-active-ticket-description-card")
-    active_desktop_context_actions_index = updated_mobile_html.index(
-        'class="ticket-context-actions ticket-context-actions-desktop"',
-        active_ticket_description_card_index,
-    )
+    assert active_ticket_number_card_index < active_desktop_context_actions_index < active_ticket_title_card_index
     assert active_ticket_title_card_index < active_mobile_context_actions_index < active_ticket_description_card_index
-    assert active_ticket_description_card_index < active_desktop_context_actions_index
 
 
 def test_mobile_active_ticket_status_is_editable(authenticated_client: TestClient) -> None:

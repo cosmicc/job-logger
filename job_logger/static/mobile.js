@@ -43,8 +43,9 @@ const lastSavedActiveTimeSnapshots = new WeakMap();
 const companySearchTimers = new Map();
 const lastSavedDescriptions = new Map();
 const pendingDescriptionSaves = new Set();
-const activeTicketLookupRequests = new WeakSet();
+const activeTicketLookupRequests = new WeakMap();
 const activeTicketLookupLoaded = new WeakSet();
+const activeTicketLookupGenerations = new WeakMap();
 
 let activeRecorder = null;
 let activeAudioStream = null;
@@ -233,6 +234,32 @@ function findActiveTicketPicker(jobId) {
   return document.querySelector(`[data-active-ticket-picker][data-ticket-form-job-id="${toSafeMapString(jobId)}"]`);
 }
 
+function resetActiveTicketPickerForClientChange(
+  jobId,
+  statusMessage = "Choose a client, then click this box to load open tickets.",
+) {
+  const ticketPicker = findActiveTicketPicker(jobId);
+  if (!ticketPicker) {
+    return;
+  }
+
+  activeTicketLookupGenerations.set(
+    ticketPicker,
+    (activeTicketLookupGenerations.get(ticketPicker) || 0) + 1,
+  );
+  activeTicketLookupLoaded.delete(ticketPicker);
+  activeTicketLookupRequests.delete(ticketPicker);
+  const statusElement = ticketPicker.querySelector("[data-active-ticket-lookup-status]");
+  const resultsElement = ticketPicker.querySelector("[data-active-ticket-lookup-results]");
+  if (resultsElement) {
+    resultsElement.replaceChildren();
+  }
+  if (statusElement) {
+    setTicketLookupStatus(statusElement, statusMessage);
+  }
+  setActiveTicketPickerClickable(ticketPicker, true);
+}
+
 function resolveFormForControl(controlElement) {
   if (!controlElement) {
     return null;
@@ -257,9 +284,9 @@ function readActiveJobClientFields(jobId) {
     return {clientName: "", autotaskCompanyId: ""};
   }
 
-  // The active job card has one authoritative client source. It may be a
-  // visible autocomplete input while unlocked, or a hidden value after an
-  // Autotask company has been selected and locked for the active job.
+  // The active job card has one authoritative client source. It is visible
+  // while the user may still change clients, and hidden only after ticket
+  // selection locks client identity.
   const formClientInput = activeTicketForm.querySelector("[data-active-client-source]");
   const formId = toSafeMapString(activeTicketForm.id);
   const formLinkedClientInput = formId
@@ -1170,6 +1197,7 @@ function renderCompanyResults(companyInput, companies) {
       setCompanyStatus(companyInput, "");
       if (parentForm && parentForm.classList.contains("active-ticket-form")) {
         const jobId = toSafeMapString(parentForm.dataset.jobId);
+        resetActiveTicketPickerForClientChange(jobId, "Loading open tickets...");
         const endJobForm = document.querySelector(
           `.end-job-form[data-job-id="${jobId}"]`,
         );
@@ -1180,7 +1208,6 @@ function renderCompanyResults(companyInput, companies) {
         if (ticketPicker) {
           loadActiveTicketOptions(ticketPicker, {saveActiveFormFirst: true})
             .then(() => {
-              companyInput.readOnly = true;
               setCompanyStatus(companyInput, "");
             })
             .catch((error) => {
@@ -1197,9 +1224,13 @@ function renderCompanyResults(companyInput, companies) {
 
 function queueCompanySearch(companyInput) {
   const queryText = toSafeMapString(companyInput.value).trim();
+  const parentForm = resolveFormForControl(companyInput);
   const {companyIdInput} = getCompanyPickerElements(companyInput);
   if (companyIdInput) {
     companyIdInput.value = "";
+  }
+  if (parentForm && parentForm.classList.contains("active-ticket-form")) {
+    resetActiveTicketPickerForClientChange(toSafeMapString(parentForm.dataset.jobId));
   }
 
   clearTimeout(companySearchTimers.get(companyInput));
@@ -2062,7 +2093,11 @@ function lockActiveClientInputForSelectedTicket(jobId) {
 }
 
 async function loadActiveTicketOptions(ticketPicker, options = {}) {
-  if (activeTicketLookupRequests.has(ticketPicker) || activeTicketLookupLoaded.has(ticketPicker)) {
+  const lookupGeneration = activeTicketLookupGenerations.get(ticketPicker) || 0;
+  if (
+    activeTicketLookupRequests.get(ticketPicker) === lookupGeneration
+    || activeTicketLookupLoaded.has(ticketPicker)
+  ) {
     return;
   }
 
@@ -2086,7 +2121,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
     return;
   }
 
-  activeTicketLookupRequests.add(ticketPicker);
+  activeTicketLookupRequests.set(ticketPicker, lookupGeneration);
   ticketPicker.classList.add("is-loading");
   ticketPicker.setAttribute("aria-busy", "true");
   setActiveTicketPickerClickable(ticketPicker, false);
@@ -2100,6 +2135,9 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
   try {
     if (saveActiveFormFirst) {
       await saveActiveJobFormInBackground(activeTicketForm);
+      if ((activeTicketLookupGenerations.get(ticketPicker) || 0) !== lookupGeneration) {
+        return;
+      }
       const endJobForm = document.querySelector(`.end-job-form[data-job-id="${jobId}"]`);
       if (endJobForm) {
         syncEndJobClientFields(endJobForm);
@@ -2109,6 +2147,9 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
     setTicketLookupStatus(statusElement, "Loading open tickets...", {isLoading: true});
     const response = await fetch(lookupUrl, {headers: {Accept: "application/json"}});
     const payload = await response.json();
+    if ((activeTicketLookupGenerations.get(ticketPicker) || 0) !== lookupGeneration) {
+      return;
+    }
     if (!response.ok) {
       throw new Error(payload.detail || "Autotask ticket lookup failed.");
     }
@@ -2185,9 +2226,11 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
     setTicketLookupStatus(statusElement, error.message || "Autotask ticket lookup failed.", {isError: true});
     setActiveTicketPickerClickable(ticketPicker, true);
   } finally {
-    activeTicketLookupRequests.delete(ticketPicker);
-    ticketPicker.classList.remove("is-loading");
-    ticketPicker.removeAttribute("aria-busy");
+    if (activeTicketLookupRequests.get(ticketPicker) === lookupGeneration) {
+      activeTicketLookupRequests.delete(ticketPicker);
+      ticketPicker.classList.remove("is-loading");
+      ticketPicker.removeAttribute("aria-busy");
+    }
   }
 }
 

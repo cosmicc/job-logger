@@ -540,6 +540,20 @@ def test_mobile_ticket_selection_locks_client_input(tmp_path: Path) -> None:
     )
 
 
+def test_mobile_company_selection_stays_editable_until_ticket() -> None:
+    """Selecting a company should clear stale tickets without locking the input."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    mobile_script = (repository_root / "job_logger" / "static" / "mobile.js").read_text(encoding="utf-8")
+
+    assert "function resetActiveTicketPickerForClientChange" in mobile_script
+    assert "activeTicketLookupGenerations.set(" in mobile_script
+    assert "activeTicketLookupLoaded.delete(ticketPicker);" in mobile_script
+    assert 'resetActiveTicketPickerForClientChange(jobId, "Loading open tickets...");' in mobile_script
+    assert "companyInput.readOnly = true;" not in mobile_script
+    assert "lockActiveClientInputForSelectedTicket(jobId);" in mobile_script
+
+
 def test_mobile_audio_stream_pastes_only_final_transcript(tmp_path: Path) -> None:
     """Interim audio text must not overwrite manual notes before the final transcript."""
 

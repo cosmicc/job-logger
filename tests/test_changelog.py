@@ -17,10 +17,10 @@ from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
 CURRENT_DETAILED_HEADING = (
-    "## 1.2.1 - 07.02.2026 - Work in Progress and Review field layout polish"
+    "## 1.2.1 - 07.02.2026 - Work in Progress and Review workflow polish"
 )
 CURRENT_RELEASE_DATE = "07.02.2026"
-CURRENT_WEB_TITLE = "Work in Progress and Review field layout polish"
+CURRENT_WEB_TITLE = "Work in Progress and Review workflow polish"
 CURRENT_WEB_HEADING = f"## 1.2.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
 PREVIOUS_WEB_TITLE = "Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish"
 RELEASE_HEADING_PATTERN = re.compile(r"^## \d+\.\d+\.\d+ - \d{2}\.\d{2}\.\d{4} - .+")
@@ -112,21 +112,35 @@ def test_changelog_parser_reads_current_release() -> None:
         title=CURRENT_WEB_TITLE,
         changes=(
             (
-                "Full-browser Review now pairs Entry type with Work type, pairs Ticket status with Job date, "
-                "and keeps start and end times together."
+                "Full-browser Review now pairs Entry type with Work type, puts Ticket status before Job date, "
+                "and keeps two-card rows evenly split."
+            ),
+            (
+                "Full-browser Review now shows Client name before Ticket number "
+                "and puts ticket-history buttons beside the Ticket description title."
             ),
             (
                 "Full-browser Work in Progress now pairs Entry type with Work type, "
-                "pairs Ticket status with Job date, centers duration under the time row, "
-                "and keeps Client name beside Ticket number."
+                "puts Ticket status before Job date, and centers duration under the time row."
+            ),
+            (
+                "Full-browser Work in Progress keeps Client name beside Ticket name "
+                "and makes Ticket number full width with ticket-history buttons under it."
+            ),
+            (
+                "Ticket description stays full width on Work in Progress so longer ticket details stay readable."
             ),
             (
                 "Mobile Work in Progress and Review now show Entry type, Work type, Ticket status, "
                 "Job date, Start time, End time, and duration in the same order."
             ),
             (
-                "On phones, Ticket notes and Past time entries now sit under Ticket name "
-                "on Work in Progress and under Ticket number on Review."
+                "On phones, Ticket notes and Past time entries sit under Ticket name on Work in Progress, "
+                "while Review moves Ticket number below duration."
+            ),
+            (
+                "Work in Progress now lets you change the selected client before choosing a ticket "
+                "and loads the new client's tickets."
             ),
         ),
     )
@@ -237,21 +251,35 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "and rounded total time shown."
     ) in response.text
     assert (
-        "Full-browser Review now pairs Entry type with Work type, pairs Ticket status with Job date, "
-        "and keeps start and end times together."
+        "Full-browser Review now pairs Entry type with Work type, puts Ticket status before Job date, "
+        "and keeps two-card rows evenly split."
+    ) in response.text
+    assert (
+        "Full-browser Review now shows Client name before Ticket number "
+        "and puts ticket-history buttons beside the Ticket description title."
     ) in response.text
     assert (
         "Full-browser Work in Progress now pairs Entry type with Work type, "
-        "pairs Ticket status with Job date, centers duration under the time row, "
-        "and keeps Client name beside Ticket number."
+        "puts Ticket status before Job date, and centers duration under the time row."
+    ) in response.text
+    assert (
+        "Full-browser Work in Progress keeps Client name beside Ticket name "
+        "and makes Ticket number full width with ticket-history buttons under it."
+    ) in response.text
+    assert (
+        "Ticket description stays full width on Work in Progress so longer ticket details stay readable."
     ) in response.text
     assert (
         "Mobile Work in Progress and Review now show Entry type, Work type, Ticket status, "
         "Job date, Start time, End time, and duration in the same order."
     ) in response.text
     assert (
-        "On phones, Ticket notes and Past time entries now sit under Ticket name "
-        "on Work in Progress and under Ticket number on Review."
+        "On phones, Ticket notes and Past time entries sit under Ticket name on Work in Progress, "
+        "while Review moves Ticket number below duration."
+    ) in response.text
+    assert (
+        "Work in Progress now lets you change the selected client before choosing a ticket "
+        "and loads the new client&#39;s tickets."
     ) in response.text
     assert "Review, Home, and header polish" in response.text
     assert "Review summaries now start with Remote. or On-Site. before the work notes." in response.text

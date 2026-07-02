@@ -783,11 +783,13 @@ The mobile page can search Autotask companies while entering the client name.
 Selecting a company stores the verified display name and Autotask company ID
 with the job so open-ticket lookup targets the exact selected company. Typed
 client text that was not selected from Autotask search results is rejected and
-not saved. During active work, that selected Autotask client is shown as
-read-only for the job so the client name cannot drift away from the company ID
-used for ticket lookup. Ticket numbers are populated from open-ticket selection
-instead of manual entry. If an active job is opened from Review before any
-client has been selected, Review detail shows the same authenticated Autotask
+not saved. During active work, that selected Autotask client can still be
+changed until a ticket is selected, so the technician can switch clients and
+load the new client's open tickets. After ticket selection, the client is shown
+as read-only for the job so the client name cannot drift away from the selected
+ticket. Ticket numbers are populated from open-ticket selection instead of
+manual entry. If an active job is opened from Review before any client has been
+selected, Review detail shows the same authenticated Autotask
 company search and saves the first verified client/company choice before ticket
 lookup. Typing in that Review client search does not trigger review autosave or
 summary-note warnings.
@@ -903,9 +905,12 @@ Review start/end time fields open a 15-minute time dropdown centered on the
 currently selected time while still allowing the `-15` and `+15` step buttons.
 Full-browser Work in Progress and Review detail cards group **Entry type** with
 **Work type**, **Ticket status** with **Job date**, and **Start time** with
-**End time**, with duration centered beneath the time row. Work in Progress
-also keeps **Client name** and **Ticket number** together on one row once a
-ticket is selected.
+**End time**, with duration centered beneath the time row. Paired full-browser
+Review detail cards split their rows evenly, while full-width detail rows stay
+full width. Work in Progress also keeps **Client name** and **Ticket name**
+together on one row once a ticket is selected, then shows **Ticket number**
+full width with ticket-history buttons under the number. **Ticket description**
+stays full width.
 The full-browser
 active-card finish/delete row sits directly below the **Record** and
 **AI Cleanup** row with recording and cleanup status text below all action
@@ -957,8 +962,9 @@ moving a previously `Complete` ticket to `In progress` before the external
 record patch when Autotask requires that sequence. Phone-sized workflow cards
 use the same scan order on Review and Work in Progress: Entry type, Work type,
 Ticket status, Job date, Start time, End time, then duration. The selected
-detail keeps the external Autotask record ID hidden because it is only needed
-internally for updates and deletion.
+Review detail then shows Ticket number and its ticket-history buttons before
+Ticket description. The selected detail keeps the external Autotask record ID
+hidden because it is only needed internally for updates and deletion.
 The same submitted detail also has **Delete From Autotask**, which deletes the
 existing Autotask record and returns the local job to review without
 removing the local job record. If Autotask refuses the delete, the job remains

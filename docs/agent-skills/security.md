@@ -374,10 +374,12 @@ save/accept/ticket routes must continue to use the database row as authoritative
 instead of trusting browser fields.
 Active Work in Progress saves and end-work requests must also treat client
 identity as a selected Autotask company before it can be saved or used for
-ticket lookup, and as locked after either an Autotask company or open ticket is
-selected. Readonly inputs and hidden client fields are only convenience values
-for normal form flow; crafted requests must not be able to change the stored
-client name or attach a different company ID after a ticket exists.
+ticket lookup. A saved Work in Progress client may be replaced by another
+verified Autotask company until an open ticket is selected. After a ticket
+exists, the database row is authoritative and crafted requests must not be able
+to change the stored client name or attach a different company ID. Readonly
+inputs and hidden client fields are only convenience values for normal form
+flow after that ticket-selected lock.
 
 Autotask ticket descriptions are remote provider data shown as read-only job
 context. Store only the bounded description returned by the server-side verified

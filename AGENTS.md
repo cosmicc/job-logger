@@ -203,10 +203,13 @@ Recorded jobs follow this lifecycle:
    Client identity must come from a selected Autotask company search result;
    typed names that do not match the verified selected company ID must be
    rejected and not saved.
-   If an active job is opened in Review before any client has been selected,
-   Review detail may save the first client/company through the authenticated
-   Autotask company search; after that selection, or after any open ticket is
-   chosen for the job, client identity is read-only.
+   Work in Progress may replace a verified client/company selection while no
+   open ticket has been chosen yet, so the user can search another client and
+   load that client's open tickets. Once an open ticket is chosen for the job,
+   client identity is read-only. If an active job is opened in Review before
+   any client has been selected, Review detail may save the first
+   client/company through the authenticated Autotask company search; after that
+   Review selection, client identity is read-only on Review.
 6. An accepted review job, or a directly submitted Work in Progress job,
    creates either an Autotask time entry or a customer-visible Autotask ticket
    note. The local entry type is editable only before successful Autotask
@@ -438,11 +441,17 @@ value when selected, and save only through server-validated active-job routes.
 Work in Progress and Review detail should center the rounded-duration label in
 the existing time area without reworking the mobile or full-browser layout.
 On full-browser Work in Progress and Review detail cards, the editable workflow
-cards should appear as **Entry type** with **Work type**, **Ticket status** with
-**Job date**, **Start time** with **End time**, then the centered duration under
-the time row. Full-browser Work in Progress cards should also place **Client
-name** and **Ticket number** together on the next row when a ticket number is
-shown.
+cards should appear as equal-width paired rows: **Entry type** with **Work
+type**, **Ticket status** with **Job date**, **Start time** with **End time**,
+then the centered duration under the time row. Full-width Review detail rows
+that do not share a row with another card should stay full width. Full-browser
+Work in Progress cards should also place **Client
+name** and **Ticket name** together on the next row when a ticket number is
+shown, then place **Ticket number** full width below that row with the desktop
+**Ticket notes** and **Past time entries** buttons under the number. Full-browser
+Work in Progress left-side context cards should use equal half-width card
+slots, except **Ticket number** and **Ticket description**, which remain full
+width.
 Active Work in Progress cards should keep a visible **Work in Progress** label
 above the selected ticket heading. The full-browser layout depends on that
 label row so the Summary notes panel starts flush with the top of the **Job
@@ -525,8 +534,9 @@ Review client searching must not run the generic review autosave or show
 summary-note validation while the user is typing a client; an empty summary
 warning should appear only when AI Cleanup is pressed without notes or when the
 user submits a workflow action that requires summary notes.
-Once an open ticket has been chosen, the stored client name becomes read-only
-everywhere for that job.
+On Work in Progress, a verified client may be changed while no ticket is
+selected yet. Once an open ticket has been chosen, the stored client name
+becomes read-only everywhere for that job.
 When a selected Autotask ticket exists, Work in Progress and Review detail
 should run authenticated lookups for ticket notes and past time entries near
 the ticket context. Before a ticket is selected, keep the buttons hidden. After
@@ -534,7 +544,10 @@ lookup, expose compact **Ticket notes** and **Past time entries** buttons when
 rows exist; when no displayable notes or no past time entries exist, show
 same-place disabled **No Notes** and **No past entries** buttons. On
 phone-sized layouts, Work in Progress places those buttons under the **Ticket
-name** card, and Review places them under the **Ticket number** card. Ticket-note
+name** card, and Review places the **Ticket number** card and those buttons
+below duration and above **Ticket description**. On full-browser Review, the
+**Ticket notes** and **Past time entries** buttons flank the **Ticket
+description** title inside the ticket description card. Ticket-note
 lookups must filter out Service Desk Notification notes and any note whose
 title starts with Workflow Rule
 before deciding whether any notes exist. The shared overlay must keep an X
@@ -906,7 +919,8 @@ The normal workflow is:
 7. After the job starts, the user may adjust the editable local **Job date** and
    search Autotask companies by client name. The saved client must be selected
    from a server-returned Autotask company option so the client display name and
-   company ID verify together; typed-only names must not be saved.
+   company ID verify together; typed-only names must not be saved. The selected
+   client may still be changed until an open ticket is selected for the job.
 8. User chooses an open Autotask ticket from the active-job ticket panel. If no
    tickets are loaded yet, the whole panel is the load control and shows a
    spinner while Autotask data is being queried. Ticket options show detected

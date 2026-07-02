@@ -699,17 +699,14 @@ def preserve_locked_active_autotask_client(
 ) -> bool:
     """Validate submitted active-job client fields once identity is locked.
 
-    Active mobile jobs lock client identity after an Autotask company or ticket
-    has been selected. The UI submits hidden copies for normal form flow, but
-    this service-level check is the authoritative guard against crafted
-    requests that try to replace the selected client while the job is still
-    active.
+    Active mobile jobs lock client identity only after an open ticket has been
+    selected. The UI submits hidden copies for normal form flow after that
+    point, but this service-level check is the authoritative guard against
+    crafted requests that try to replace the selected client while the job is
+    still active.
     """
 
-    client_identity_is_locked = (
-        job.autotask_company_id is not None
-        or bool(job.ticket_number)
-    )
+    client_identity_is_locked = bool(job.ticket_number)
     if not client_identity_is_locked:
         return False
 
