@@ -18,6 +18,10 @@ All notable changes to Job Logger are documented in this file.
   type**, **Work type**, **Ticket status**, **Job date**, **Start time**, **End
   time**, and duration appear in that sequence while leaving other fields in
   their existing positions.
+- Moved phone-sized ticket-history controls closer to the selected ticket
+  identity: Work in Progress now shows **Ticket notes** and **Past time
+  entries** under **Ticket name**, and Review shows them under **Ticket
+  number**.
 
 ## 1.2.0 - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge errors
 

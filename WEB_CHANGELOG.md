@@ -7,6 +7,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Full-browser Review now pairs Entry type with Work type, pairs Ticket status with Job date, and keeps start and end times together.
 - Full-browser Work in Progress now pairs Entry type with Work type, pairs Ticket status with Job date, centers duration under the time row, and keeps Client name beside Ticket number.
 - Mobile Work in Progress and Review now show Entry type, Work type, Ticket status, Job date, Start time, End time, and duration in the same order.
+- On phones, Ticket notes and Past time entries now sit under Ticket name on Work in Progress and under Ticket number on Review.
 
 ## 1.2.0 - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish
 

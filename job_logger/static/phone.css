@@ -182,6 +182,10 @@
   order: -10;
 }
 
+.form-grid > .review-ticket-number-card {
+  order: 25;
+}
+
 .form-grid > .review-entry-type-card {
   order: 10;
 }
@@ -441,6 +445,23 @@
 .ticket-description-card p {
   max-height: 18.125em;
   max-height: 12.5lh;
+}
+
+.ticket-context-actions-desktop {
+  display: none;
+}
+
+.ticket-context-actions-mobile {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.ticket-context-actions-mobile .ticket-notes-button {
+  flex: 1 1 134px;
+  justify-content: center;
 }
 
 h1 {

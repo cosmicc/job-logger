@@ -384,6 +384,42 @@
               >
                 <dt>Ticket name</dt>
                 <dd class="active-ticket-title-display" data-active-ticket-title-display>{{ active_job.ticket_title or "" }}</dd>
+                <div class="ticket-context-actions ticket-context-actions-mobile">
+                  <button
+                    class="secondary-button ticket-notes-button is-hidden"
+                    type="button"
+                    data-ticket-notes-button
+                    data-ticket-notes-url="/review/{{ active_job.id }}/ticket-notes"
+                    data-ticket-notes-ticket-number="{{ active_job.ticket_number or '' }}"
+                    aria-label="View ticket notes"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 3h9l3 3v15H6z"></path>
+                      <path d="M15 3v4h4"></path>
+                      <path d="M9 11h6"></path>
+                      <path d="M9 15h6"></path>
+                    </svg>
+                    <span data-ticket-context-label>Ticket notes</span>
+                  </button>
+                  <button
+                    class="secondary-button ticket-notes-button is-hidden"
+                    type="button"
+                    data-ticket-time-entries-button
+                    data-ticket-time-entries-url="/review/{{ active_job.id }}/ticket-time-entries"
+                    data-ticket-time-entries-ticket-number="{{ active_job.ticket_number or '' }}"
+                    aria-label="View past time entries"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 5h16"></path>
+                      <path d="M4 12h16"></path>
+                      <path d="M4 19h16"></path>
+                      <path d="M8 3v4"></path>
+                      <path d="M8 10v4"></path>
+                      <path d="M8 17v4"></path>
+                    </svg>
+                    <span data-ticket-context-label>Past time entries</span>
+                  </button>
+                </div>
               </div>
               <div
                 class="metric-card ticket-description-card {% if not active_job.ticket_number %}is-hidden{% endif %}"
@@ -391,7 +427,7 @@
               >
                 <div class="ticket-context-header">
                   <dt class="centered-field-label">Ticket description</dt>
-                  <div class="ticket-context-actions">
+                  <div class="ticket-context-actions ticket-context-actions-desktop">
                     <button
                       class="secondary-button ticket-notes-button is-hidden"
                       type="button"

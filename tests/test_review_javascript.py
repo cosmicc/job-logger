@@ -66,6 +66,8 @@ def test_ticket_context_buttons_show_disabled_empty_states() -> None:
     """Ticket context lookups should show same-place disabled buttons for empty results."""
 
     repository_root = Path(__file__).resolve().parents[1]
+    mobile_script = (repository_root / "job_logger" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "job_logger" / "static" / "review.js").read_text(encoding="utf-8")
     ticket_notes_script = (repository_root / "job_logger" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
     mobile_template = (repository_root / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
     review_template = (repository_root / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
@@ -74,6 +76,10 @@ def test_ticket_context_buttons_show_disabled_empty_states() -> None:
     assert "No Notes" in ticket_notes_script
     assert "No past entries" in ticket_notes_script
     assert "is-empty-context" in ticket_notes_script
+    assert "const ticketNoteRequestCache = new Map();" in ticket_notes_script
+    assert "const ticketTimeEntryRequestCache = new Map();" in ticket_notes_script
+    assert "ticketContextRequestCacheKey(notesUrl, ticketNumber)" in ticket_notes_script
+    assert "ticketContextRequestCacheKey(timeEntriesUrl, ticketNumber)" in ticket_notes_script
     assert "button.disabled = !hasNotes;" in ticket_notes_script
     assert "button.disabled = !hasTimeEntries;" in ticket_notes_script
     assert "function ticketContextButtonIsUnavailable(button)" in ticket_notes_script
@@ -89,6 +95,10 @@ def test_ticket_context_buttons_show_disabled_empty_states() -> None:
     assert empty_button_hover_selector in stylesheet
     assert "data-ticket-context-label" in mobile_template
     assert "data-ticket-context-label" in review_template
+    assert 'querySelectorAll("[data-ticket-notes-button]")' in mobile_script
+    assert 'querySelectorAll("[data-ticket-notes-button]")' in review_script
+    assert 'querySelectorAll("[data-ticket-time-entries-button]")' in mobile_script
+    assert 'querySelectorAll("[data-ticket-time-entries-button]")' in review_script
 
 
 def test_shared_date_time_controls_replace_native_picker_and_add_time_dropdown() -> None:

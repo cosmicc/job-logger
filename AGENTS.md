@@ -532,7 +532,9 @@ should run authenticated lookups for ticket notes and past time entries near
 the ticket context. Before a ticket is selected, keep the buttons hidden. After
 lookup, expose compact **Ticket notes** and **Past time entries** buttons when
 rows exist; when no displayable notes or no past time entries exist, show
-same-place disabled **No Notes** and **No past entries** buttons. Ticket-note
+same-place disabled **No Notes** and **No past entries** buttons. On
+phone-sized layouts, Work in Progress places those buttons under the **Ticket
+name** card, and Review places them under the **Ticket number** card. Ticket-note
 lookups must filter out Service Desk Notification notes and any note whose
 title starts with Workflow Rule
 before deciding whether any notes exist. The shared overlay must keep an X

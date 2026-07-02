@@ -1614,11 +1614,15 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".metric-grid > .active-duration-row {\n  order: -10;\n}" in phone_stylesheet
     assert ".form-grid > .review-entry-type-card {\n  order: 10;\n}" in phone_stylesheet
     assert ".form-grid > .review-work-location-card {\n  order: 20;\n}" in phone_stylesheet
+    assert ".form-grid > .review-ticket-number-card {\n  order: 25;\n}" in phone_stylesheet
     assert ".form-grid > .review-ticket-status-field {\n  order: 30;\n}" in phone_stylesheet
     assert ".form-grid > .review-job-date-field {\n  order: 40;\n}" in phone_stylesheet
     assert ".form-grid > .review-start-time-field {\n  order: 50;\n}" in phone_stylesheet
     assert ".form-grid > .review-end-time-field {\n  order: 60;\n}" in phone_stylesheet
     assert ".form-grid > .review-duration-row {\n  order: 70;\n}" in phone_stylesheet
+    assert ".ticket-context-actions-mobile {\n  display: none;\n}" in stylesheet
+    assert ".ticket-context-actions-desktop {\n  display: none;\n}" in phone_stylesheet
+    assert ".ticket-context-actions-mobile {\n  display: flex;" in phone_stylesheet
     assert ".ticket-context-header .centered-field-label" in stylesheet
     assert ".review-work-location-card .work-location-switch" in stylesheet
     assert "justify-self: center;" in stylesheet
@@ -2656,6 +2660,19 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
     assert "T20260616.0001" in updated_review_html
     assert '<span class="metric-label readonly-field-title">Ticket number</span>' in updated_review_html
     assert '<span class="metric-label readonly-field-title">Client name</span>' in updated_review_html
+    assert 'class="readonly-field-card review-ticket-number-card"' in updated_review_html
+    review_ticket_number_card_index = updated_review_html.index('class="readonly-field-card review-ticket-number-card"')
+    review_mobile_context_actions_index = updated_review_html.index(
+        'class="ticket-context-actions ticket-context-actions-mobile"',
+        review_ticket_number_card_index,
+    )
+    review_ticket_status_index = updated_review_html.index('class="review-ticket-status-field"')
+    review_description_context_actions_index = updated_review_html.index(
+        'class="ticket-context-actions ticket-context-actions-desktop"',
+        updated_review_html.index("data-review-ticket-description-card"),
+    )
+    assert review_ticket_number_card_index < review_mobile_context_actions_index < review_ticket_status_index
+    assert review_mobile_context_actions_index < review_description_context_actions_index
     assert re.search(r'<input(?=[^>]*name="ticket_number")(?=[^>]*type="hidden")', updated_review_html)
     assert re.search(r'<input(?=[^>]*name="client_name")(?=[^>]*type="hidden")', updated_review_html)
     assert not re.search(r'<input(?=[^>]*name="ticket_number")(?!(?=[^>]*type="hidden"))', updated_review_html)
@@ -3276,6 +3293,18 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
     assert "Mock follow-up description for Acme Services." in updated_mobile_html
     assert "data-active-ticket-title-card" in updated_mobile_html
     assert "data-active-ticket-description-card" in updated_mobile_html
+    active_ticket_title_card_index = updated_mobile_html.index("data-active-ticket-title-card")
+    active_mobile_context_actions_index = updated_mobile_html.index(
+        'class="ticket-context-actions ticket-context-actions-mobile"',
+        active_ticket_title_card_index,
+    )
+    active_ticket_description_card_index = updated_mobile_html.index("data-active-ticket-description-card")
+    active_desktop_context_actions_index = updated_mobile_html.index(
+        'class="ticket-context-actions ticket-context-actions-desktop"',
+        active_ticket_description_card_index,
+    )
+    assert active_ticket_title_card_index < active_mobile_context_actions_index < active_ticket_description_card_index
+    assert active_ticket_description_card_index < active_desktop_context_actions_index
 
 
 def test_mobile_active_ticket_status_is_editable(authenticated_client: TestClient) -> None:
