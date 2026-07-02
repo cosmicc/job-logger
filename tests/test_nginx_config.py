@@ -7,6 +7,7 @@ from pathlib import Path
 NGINX_TEMPLATE = Path(__file__).resolve().parents[1] / "docker/nginx/templates/default.conf.template"
 NGINX_DOCKERFILE = Path(__file__).resolve().parents[1] / "docker/nginx/Dockerfile"
 NGINX_ERROR_DIR = Path(__file__).resolve().parents[1] / "docker/nginx/errors"
+EXTERNAL_NGINX_SAMPLE = Path(__file__).resolve().parents[1] / "docs/external-nginx-job-logger.conf"
 COMMON_ERROR_CODES = ("400", "401", "403", "404", "405", "408", "413", "429", "500", "502", "503", "504")
 
 
@@ -91,3 +92,47 @@ def test_nginx_replaces_spoofable_forwarded_for_with_tunnel_client_ip() -> None:
     assert "proxy_set_header X-Forwarded-For $job_logger_client_ip;" in template_text
     assert "proxy_set_header X-Real-IP $job_logger_client_ip;" in template_text
     assert "$proxy_add_x_forwarded_for" not in template_text
+
+
+def test_external_nginx_sample_keeps_public_surface_controls() -> None:
+    """The external edge sample should mirror the bundled nginx security shape."""
+
+    sample_text = EXTERNAL_NGINX_SAMPLE.read_text(encoding="utf-8")
+    blocked_locations = (
+        "location = /nginx-health",
+        "location = /health",
+        "location ^~ /health/",
+        "location = /api",
+        "location ^~ /api/",
+        "location = /openapi.json",
+        "location ^~ /docs",
+        "location ^~ /redoc",
+    )
+
+    assert "server_tokens off;" in sample_text
+    assert "map $http_x_forwarded_proto $job_logger_forwarded_proto" in sample_text
+    assert "map $http_cf_connecting_ip $job_logger_client_ip" in sample_text
+    assert "$proxy_add_x_forwarded_for" not in sample_text
+
+    for location in blocked_locations:
+        location_index = sample_text.index(location)
+        block_end_index = sample_text.index("\n    }", location_index)
+        location_block = sample_text[location_index:block_end_index]
+        assert "return 404;" in location_block
+        assert "proxy_pass" not in location_block
+
+    restore_index = sample_text.index("location = /debug/restore")
+    restore_block_end_index = sample_text.index("\n    }", restore_index)
+    restore_block = sample_text[restore_index:restore_block_end_index]
+    assert "client_max_body_size 250m;" in restore_block
+    assert "proxy_pass http://job_logger_app:8000/debug/restore;" in restore_block
+
+    websocket_index = sample_text.index("location ~ ^/jobs/[^/]+/description/audio/stream$")
+    websocket_block_end_index = sample_text.index("\n    }", websocket_index)
+    websocket_block = sample_text[websocket_index:websocket_block_end_index]
+    assert "proxy_set_header Upgrade $http_upgrade;" in websocket_block
+    assert 'proxy_set_header Connection "upgrade";' in websocket_block
+
+    assert "proxy_set_header X-Forwarded-For $job_logger_client_ip;" in sample_text
+    assert "proxy_set_header X-Real-IP $job_logger_client_ip;" in sample_text
+    assert "proxy_set_header X-Forwarded-Proto $job_logger_forwarded_proto;" in sample_text

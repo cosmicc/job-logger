@@ -484,13 +484,18 @@ Do not make Compose or Portainer stack creation depend on PostgreSQL becoming
 healthy. Compose must also support remote PostgreSQL by keeping the bundled
 PostgreSQL service behind `COMPOSE_PROFILES=local-db` and by letting
 `DATABASE_URL` point at the remote server when that profile is disabled.
+Compose must keep the bundled nginx and `cloudflared` services behind the
+shared `bundled-edge` profile so they can be enabled or omitted together.
 Normalize plain `postgresql://` and `postgres://` URLs to the installed psycopg
 3 driver before creating app or Alembic engines. Keep remote database
 connections bounded with the documented pool and timeout settings.
 Swarm deployment must use `docker-swarm.yml`, prebuilt pushed images, a remote
 PostgreSQL `DATABASE_URL`, overlay networking, and stdout/stderr logging. Do not
 add a PostgreSQL service to the Swarm file unless the operator explicitly asks
-for a separate persistent Swarm database design.
+for a separate persistent Swarm database design. Swarm uses
+`JOB_LOGGER_BUNDLED_EDGE_REPLICAS` instead of Compose profiles; keep the
+default at `1`, and use `0` only when an external nginx and `cloudflared` stack
+in the same Swarm handles the public edge.
 
 The app entrypoint should wait briefly for database connectivity and emit
 sanitized diagnostics before migrations. If the database remains unavailable,
@@ -524,9 +529,15 @@ Production startup must still fail unless `APP_SESSION_COOKIE_SECURE=true`,
 non-default app/database secrets that are not copied placeholders are
 configured, and `AUTOTASK_PROVIDER=autotask` is used.
 Docker nginx publishing binds only to `127.0.0.1` and uses `HTTP_PORT` as the
-host-networked `cloudflared` origin URL port. The Cloudflare Tunnel public
-hostname should be recorded through `WEBAUTHN_ORIGIN` when the app needs the
-browser-facing URL, especially for passkeys.
+host-networked `cloudflared` origin URL port. External nginx deployments must
+attach to the same trusted Docker network or Swarm overlay as the app service
+and mirror the bundled nginx security behavior: blocked API/schema/docs/health
+paths, sanitized `X-Forwarded-For` and `X-Real-IP`, forwarded HTTPS scheme
+preservation, the audio WebSocket route, the scoped `/debug/restore` body
+limit, and app-styled proxy error pages. Use
+`docs/external-nginx-job-logger.conf` as the maintained sample. The Cloudflare
+Tunnel public hostname should be recorded through `WEBAUTHN_ORIGIN` when the
+app needs the browser-facing URL, especially for passkeys.
 
 ## Tests To Consider
 

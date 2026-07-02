@@ -106,6 +106,8 @@ services:
   nginx:
     build:
       context: ./docker/nginx
+    profiles:
+      - bundled-edge
     restart: unless-stopped
     environment:
       # APP_UPSTREAM_HOST is the Docker DNS name for the FastAPI service.
@@ -161,6 +163,8 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
+    profiles:
+      - bundled-edge
     restart: unless-stopped
     # Host networking lets remotely-managed tunnel service URLs use either
     # localhost or this server's LAN/internal IP as the origin address.

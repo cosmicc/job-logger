@@ -7,6 +7,8 @@ from pathlib import Path
 COMPOSE_FILE = Path(__file__).resolve().parents[1] / "docker-compose.yml"
 SWARM_FILE = Path(__file__).resolve().parents[1] / "docker-swarm.yml"
 ENV_EXAMPLE_FILE = Path(__file__).resolve().parents[1] / ".env.example"
+README_FILE = Path(__file__).resolve().parents[1] / "README.md"
+EXTERNAL_NGINX_FILE = Path(__file__).resolve().parents[1] / "docs/external-nginx-job-logger.conf"
 
 
 def test_compose_does_not_gate_stack_creation_on_health_conditions() -> None:
@@ -79,6 +81,22 @@ def test_compose_database_container_uses_local_profile() -> None:
     assert "depends_on:\n      - db" not in compose_text
 
 
+def test_compose_bundled_edge_services_use_shared_profile() -> None:
+    """Bundled nginx and cloudflared should be toggled together."""
+
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+    nginx_index = compose_text.index("  nginx:")
+    db_index = compose_text.index("\n  db:", nginx_index)
+    nginx_block = compose_text[nginx_index:db_index]
+    cloudflared_index = compose_text.index("  cloudflared:")
+    volumes_index = compose_text.index("\nvolumes:", cloudflared_index)
+    cloudflared_block = compose_text[cloudflared_index:volumes_index]
+
+    assert "profiles:\n      - bundled-edge" in nginx_block
+    assert "profiles:\n      - bundled-edge" in cloudflared_block
+    assert "depends_on:\n      - nginx" in cloudflared_block
+
+
 def test_compose_exposes_database_pool_settings() -> None:
     """Remote PostgreSQL deployments should have bounded reusable connections."""
 
@@ -92,13 +110,16 @@ def test_compose_exposes_database_pool_settings() -> None:
     assert "DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS: ${DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS:-5}" in compose_text
 
 
-def test_env_example_defaults_to_local_database_profile_and_documents_remote_database() -> None:
-    """The sample env should preserve local DB defaults and document remote DB switching."""
+def test_env_example_defaults_to_bundled_profiles_and_documents_switching() -> None:
+    """The sample env should preserve bundled defaults and document deployment switching."""
 
     env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
 
-    assert "COMPOSE_PROFILES=local-db" in env_example_text
-    assert "For a remote PostgreSQL server, set COMPOSE_PROFILES=" in env_example_text
+    assert "COMPOSE_PROFILES=local-db,bundled-edge" in env_example_text
+    assert "For a remote PostgreSQL server, remove `local-db`" in env_example_text
+    assert "For an external nginx and" in env_example_text
+    assert "remove `bundled-edge`" in env_example_text
+    assert "JOB_LOGGER_BUNDLED_EDGE_REPLICAS=1" in env_example_text
     assert "DATABASE_URL=" in env_example_text
     assert "DATABASE_POOL_RECYCLE_SECONDS=1800" in env_example_text
     assert "LOG_DIR=" not in env_example_text
@@ -116,14 +137,26 @@ def test_nginx_host_port_uses_localhost_and_http_port() -> None:
     assert "network_mode: \"host\"" in compose_text
 
 
-def test_swarm_compose_uses_images_remote_database_and_stdout_logs() -> None:
-    """Docker Swarm deployment should avoid build directives and local log files."""
+def test_swarm_compose_uses_images_remote_database_optional_edge_and_stdout_logs() -> None:
+    """Docker Swarm should use images, remote DB, optional edge, and runtime logs."""
 
     swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    app_index = swarm_text.index("  app:")
+    nginx_index = swarm_text.index("\n  nginx:", app_index)
+    app_block = swarm_text[app_index:nginx_index]
+    cloudflared_index = swarm_text.index("\n  cloudflared:", nginx_index)
+    nginx_block = swarm_text[nginx_index:cloudflared_index]
+    networks_index = swarm_text.index("\nnetworks:", cloudflared_index)
+    cloudflared_block = swarm_text[cloudflared_index:networks_index]
 
     assert "build:" not in swarm_text
     assert "image: ${JOB_LOGGER_APP_IMAGE" in swarm_text
     assert "image: ${JOB_LOGGER_NGINX_IMAGE" in swarm_text
+    assert "replicas: 1" in app_block
+    assert "JOB_LOGGER_BUNDLED_EDGE_REPLICAS" not in app_block
+    assert "replicas: ${JOB_LOGGER_BUNDLED_EDGE_REPLICAS:-1}" in nginx_block
+    assert "replicas: ${JOB_LOGGER_BUNDLED_EDGE_REPLICAS:-1}" in cloudflared_block
+    assert "${CLOUDFLARE_TUNNEL_TOKEN:-not-set}" in cloudflared_block
     assert "DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the remote PostgreSQL URL}" in swarm_text
     assert "LOG_LEVEL: ${LOG_LEVEL:-INFO}" in swarm_text
     assert "LOG_DIR" not in swarm_text
@@ -133,3 +166,17 @@ def test_swarm_compose_uses_images_remote_database_and_stdout_logs() -> None:
     assert "deploy:" in swarm_text
     assert "network_mode" not in swarm_text
     assert "postgres:16-alpine" not in swarm_text
+
+
+def test_readme_documents_external_edge_profile_and_swarm_nginx_sample() -> None:
+    """Operators should have clear docs for omitting the bundled web edge."""
+
+    readme_text = README_FILE.read_text(encoding="utf-8")
+    external_nginx_text = EXTERNAL_NGINX_FILE.read_text(encoding="utf-8")
+
+    assert "COMPOSE_PROFILES=local-db,bundled-edge" in readme_text
+    assert "COMPOSE_PROFILES=local-db" in readme_text
+    assert "JOB_LOGGER_BUNDLED_EDGE_REPLICAS=0" in readme_text
+    assert "docs/external-nginx-job-logger.conf" in readme_text
+    assert "proxy to `http://job_logger_app:8000`" in readme_text
+    assert "proxy_pass http://job_logger_app:8000" in external_nginx_text

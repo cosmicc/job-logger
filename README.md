@@ -67,9 +67,10 @@ Autotask REST API references used by this app:
    docker compose up -d --build
    ```
 
-   `.env.example` enables `COMPOSE_PROFILES=local-db`, so this starts the
-   bundled PostgreSQL container. For a remote PostgreSQL server, set
-   `COMPOSE_PROFILES=` and provide `DATABASE_URL`.
+   `.env.example` enables `COMPOSE_PROFILES=local-db,bundled-edge`, so this
+   starts the bundled PostgreSQL, nginx, and `cloudflared` containers. For a
+   remote PostgreSQL server, remove `local-db` and provide `DATABASE_URL`. For
+   an external nginx and `cloudflared` deployment, remove `bundled-edge`.
 
    If you do not have a tunnel token yet, run only local services first:
 
@@ -166,10 +167,12 @@ validation and a production release is ready.
 
 ## Cloudflare Tunnel
 
-The Compose file starts Nginx and `cloudflared` by default. This keeps the
-production deployment path simple: the app, Nginx reverse proxy, tunnel
-connector, and the optional local PostgreSQL profile can come up with one
-`docker compose up -d --build` command.
+The Compose sample starts Nginx and `cloudflared` by default through the
+`bundled-edge` profile. This keeps the single-host production path simple: the
+app, Nginx reverse proxy, tunnel connector, and optional local PostgreSQL
+container can come up with one `docker compose up -d --build` command. Remove
+`bundled-edge` from `COMPOSE_PROFILES` when an external nginx and
+`cloudflared` deployment handles the public edge.
 
 1. Create a Cloudflare Tunnel in the Zero Trust dashboard.
 2. Add a public hostname that routes to this Docker service URL:
@@ -183,7 +186,8 @@ connector, and the optional local PostgreSQL profile can come up with one
    Nginx port.
 
 3. Create a Cloudflare Access self-hosted application for that hostname.
-4. Put the tunnel token in `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
+4. Put the tunnel token in `.env` as `CLOUDFLARE_TUNNEL_TOKEN` when using the
+   bundled `cloudflared` service.
    If this token is missing or invalid, Cloudflare will return a 502 and
    `cloudflared` will repeatedly restart.
 5. Prefer `CLOUDFLARE_ACCESS_REQUIRED=true` for production when the matching
@@ -234,15 +238,24 @@ via environment:
 - App listens on container port `8000`.
 - PostgreSQL stays internal to Compose on container port `5432`.
 
-### PostgreSQL Deployment Mode
+### Compose Deployment Modes
 
-The default `.env.example` uses `COMPOSE_PROFILES=local-db`, which starts the
-bundled `db` service and stores data in the `postgres_data` Docker volume.
+The default `.env.example` uses `COMPOSE_PROFILES=local-db,bundled-edge`, which
+starts the bundled PostgreSQL, nginx, and `cloudflared` services.
 
-To use a remote PostgreSQL server instead:
+Use these profile combinations for standalone Compose:
+
+- `COMPOSE_PROFILES=local-db,bundled-edge`: bundled PostgreSQL and bundled
+  nginx/cloudflared.
+- `COMPOSE_PROFILES=bundled-edge`: remote PostgreSQL with bundled
+  nginx/cloudflared.
+- `COMPOSE_PROFILES=local-db`: bundled PostgreSQL with external
+  nginx/cloudflared.
+- `COMPOSE_PROFILES=`: remote PostgreSQL with external nginx/cloudflared.
+
+For a remote PostgreSQL server, provide:
 
 ```env
-COMPOSE_PROFILES=
 DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
 ```
 
@@ -268,6 +281,7 @@ and expects PostgreSQL to run outside the stack:
 ```bash
 export JOB_LOGGER_APP_IMAGE=registry.example.com/job-logger-app:1.2.1
 export JOB_LOGGER_NGINX_IMAGE=registry.example.com/job-logger-nginx:1.2.1
+export JOB_LOGGER_BUNDLED_EDGE_REPLICAS=1
 export DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
 export CLOUDFLARE_TUNNEL_TOKEN=<token>
 docker stack deploy -c docker-swarm.yml job_logger
@@ -279,10 +293,18 @@ public hostname to use the Swarm service origin `http://nginx:80`. Application
 logs go to stdout/stderr, so use `docker service logs job_logger_app` or the
 Swarm log driver configured for the cluster.
 
+For an external nginx/cloudflared Swarm edge, set
+`JOB_LOGGER_BUNDLED_EDGE_REPLICAS=0` before `docker stack deploy`. This keeps
+the Job Logger app service running while scaling the bundled nginx and
+`cloudflared` services to zero. Attach the external nginx service to the Job
+Logger overlay network created by the stack, usually `job_logger_job_logger`
+when the stack name is `job_logger`, and proxy to `http://job_logger_app:8000`.
+Use `docs/external-nginx-job-logger.conf` as the starting nginx config and copy
+`docker/nginx/errors/` into that nginx image if you want matching app-styled
+proxy error pages. Point external `cloudflared` to the external nginx service,
+not directly to the app container.
+
 The standalone `docker-compose.yml` remains the path for single-host installs.
-Set `COMPOSE_PROFILES=local-db` to run the bundled PostgreSQL container, or set
-`COMPOSE_PROFILES=` and provide `DATABASE_URL` to use a remote PostgreSQL
-server.
 
 If the local troubleshooting URL is changed to a different port, update only:
 
@@ -292,8 +314,7 @@ HTTP_PORT=<your-host-port>
 
 If `cloudflared` is not running in this Compose stack, it will not be able to
 resolve the Docker service name `nginx`. In that separate-deployment case,
-either move `cloudflared` into this Compose stack or point the tunnel at the
-actual host-reachable Nginx URL.
+point the tunnel at the actual host-reachable nginx URL.
 
 Nginx is the public web edge and intentionally blocks API-style, generated
 schema/documentation, and health-check paths such as `/api`, `/openapi.json`,
