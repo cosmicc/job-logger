@@ -152,15 +152,17 @@ Active jobs support these updates before completion:
   **Entry type** with **Work type**, **Job date** with **Ticket status**,
   **Start time** with **End time**, then duration centered under the time row.
 - Full-browser Work in Progress cards should place **Client name** and
-  **Ticket name** together on the next row when a ticket number is shown.
+  **Ticket number** together on the next row when a ticket number is shown.
 - Full-browser Work in Progress left-side context cards should use equal
-  half-width card slots, except **Ticket number** and **Ticket description**,
+  half-width card slots, except **Ticket name** and **Ticket description**,
   which stay full width. The desktop **Ticket notes** and **Past time entries**
-  buttons belong under the full-width **Ticket number**.
-- A visible **Work in Progress** label above the selected ticket heading. The
-  full-browser grid expects that label row so the Summary notes panel starts
-  flush with the **Job date** card instead of dropping below the left-side
-  cards. Keep that label prominent enough to scan quickly.
+  buttons belong under the full-width **Ticket name**.
+- A visible **Work in Progress** label above the selected ticket heading on
+  phone layouts. Full-browser active cards may use that heading row for the job
+  slot while the centered **Ticket name** card carries the selected ticket name.
+  The full-browser grid expects that label row so the Summary notes panel
+  starts flush with the **Job date** card instead of dropping below the
+  left-side cards. Keep that label prominent enough to scan quickly.
 
 When Ticket note is selected, the Work in Progress UI must change **Job date**
 to **Note Date**, hide the rounded start and rounded stop control rows while
@@ -485,9 +487,10 @@ Review supports:
   with **Ticket status**, **Start time** with **End time**, then duration centered
   under the time row. Full-width rows that do not share a row with another card
   should stay full width.
-- Full-browser Review detail should show **Client name** before **Ticket
-  number**, and the **Ticket notes** and **Past time entries** buttons should
-  flank the **Ticket description** title near the top of that card.
+- Full-browser Review detail should show **Client name** and **Ticket number**
+  together as the paired row directly above **Ticket description**, and the
+  **Ticket notes** and **Past time entries** buttons should flank the **Ticket
+  description** title near the top of that card.
 - Showing the rounded duration on a centered row under the selected detail
   start/end time controls and updating it from the server-normalized autosave
   response or the browser's current visible time values. Do not nest the

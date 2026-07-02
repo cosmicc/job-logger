@@ -1646,6 +1646,12 @@ a:focus-visible {
   overflow-wrap: anywhere;
 }
 
+.active-heading-desktop-label,
+.active-ticket-label-desktop,
+.active-ticket-value-desktop {
+  display: none;
+}
+
 .detail-heading-row .status-chip {
   flex: 0 0 auto;
 }

@@ -116,16 +116,16 @@ def test_changelog_parser_reads_current_release() -> None:
                 "and keeps two-card rows evenly split."
             ),
             (
-                "Full-browser Review now shows Client name before Ticket number "
-                "and puts ticket-history buttons beside the Ticket description title."
+                "Full-browser Review now keeps Client name and Ticket number together directly above "
+                "Ticket description, with ticket-history buttons still beside the Ticket description title."
             ),
             (
                 "Full-browser Work in Progress now pairs Entry type with Work type, "
                 "puts Job date before Ticket status, and centers duration under the time row."
             ),
             (
-                "Full-browser Work in Progress keeps Client name beside Ticket name "
-                "and makes Ticket number full width with ticket-history buttons under it."
+                "Full-browser Work in Progress now puts Ticket number beside Client name, centers "
+                "Ticket name in the full-width ticket-history card, and keeps the history buttons in place."
             ),
             (
                 "Ticket description stays full width on Work in Progress so longer ticket details stay readable."
@@ -261,16 +261,16 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "and keeps two-card rows evenly split."
     ) in response.text
     assert (
-        "Full-browser Review now shows Client name before Ticket number "
-        "and puts ticket-history buttons beside the Ticket description title."
+        "Full-browser Review now keeps Client name and Ticket number together directly above "
+        "Ticket description, with ticket-history buttons still beside the Ticket description title."
     ) in response.text
     assert (
         "Full-browser Work in Progress now pairs Entry type with Work type, "
         "puts Job date before Ticket status, and centers duration under the time row."
     ) in response.text
     assert (
-        "Full-browser Work in Progress keeps Client name beside Ticket name "
-        "and makes Ticket number full width with ticket-history buttons under it."
+        "Full-browser Work in Progress now puts Ticket number beside Client name, centers "
+        "Ticket name in the full-width ticket-history card, and keeps the history buttons in place."
     ) in response.text
     assert (
         "Ticket description stays full width on Work in Progress so longer ticket details stay readable."

@@ -2000,14 +2000,32 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
     return;
   }
 
+  const findDisplayElements = (selector) => {
+    const elements = [];
+    const firstMatch = activeJobCard.querySelector(selector);
+    if (firstMatch) {
+      elements.push(firstMatch);
+    }
+    if (activeJobCard.querySelectorAll) {
+      for (const element of activeJobCard.querySelectorAll(selector)) {
+        if (!elements.includes(element)) {
+          elements.push(element);
+        }
+      }
+    }
+    return elements;
+  };
+
   const ticketNumber = toSafeMapString(selectedTicket.ticket_number).trim().toUpperCase();
   const ticketTitle = toSafeMapString(selectedTicket.ticket_title || selectedTicket.title).trim();
   const ticketDescription = toSafeMapString(selectedTicket.ticket_description || selectedTicket.description).trim();
   const ticketDescriptionDisplayText = ticketDescription || "No description exists for this ticket.";
   const ticketNumberCard = activeJobCard.querySelector("[data-active-ticket-number-card]");
-  const ticketNumberDisplay = activeJobCard.querySelector("[data-active-ticket-number-display]");
+  const ticketNumberDisplays = findDisplayElements("[data-active-ticket-number-display]");
+  const desktopTicketNumberDisplays = findDisplayElements("[data-active-ticket-number-display-desktop]");
   const ticketTitleCard = activeJobCard.querySelector("[data-active-ticket-title-card]");
-  const ticketTitleDisplay = activeJobCard.querySelector("[data-active-ticket-title-display]");
+  const ticketTitleDisplays = findDisplayElements("[data-active-ticket-title-display]");
+  const desktopTicketTitleDisplays = findDisplayElements("[data-active-ticket-title-display-desktop]");
   const ticketHeading = activeJobCard.querySelector("[data-active-ticket-heading]");
   const ticketDescriptionCard = activeJobCard.querySelector("[data-active-ticket-description-card]");
   const ticketDescriptionDisplay = activeJobCard.querySelector("[data-active-ticket-description-display]");
@@ -2022,15 +2040,21 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   if (ticketNumberCard && ticketNumber) {
     ticketNumberCard.classList.remove("is-hidden");
   }
-  if (ticketNumberDisplay) {
+  for (const ticketNumberDisplay of ticketNumberDisplays) {
     ticketNumberDisplay.textContent = ticketNumber;
   }
+  for (const desktopTicketNumberDisplay of desktopTicketNumberDisplays) {
+    desktopTicketNumberDisplay.textContent = ticketNumber;
+  }
 
-  if (ticketTitleCard && ticketTitle) {
+  if (ticketTitleCard && ticketNumber) {
     ticketTitleCard.classList.remove("is-hidden");
   }
-  if (ticketTitleDisplay) {
+  for (const ticketTitleDisplay of ticketTitleDisplays) {
     ticketTitleDisplay.textContent = ticketTitle;
+  }
+  for (const desktopTicketTitleDisplay of desktopTicketTitleDisplays) {
+    desktopTicketTitleDisplay.textContent = ticketTitle || ticketNumber;
   }
   if (ticketHeading) {
     ticketHeading.textContent = ticketTitle || ticketNumber || "Unassigned Ticket";

@@ -10,17 +10,19 @@ All notable changes to Job Logger are documented in this file.
   type**, **Job date** sits beside **Ticket status**, and the start/end time
   controls share equal-width rows. Remote/On-Site switch pills now match the
   Time entry/Ticket note switch size.
-- Adjusted full-browser Review detail so **Client name** sits before
-  **Ticket number**, and the **Ticket notes** and **Past time entries** buttons
-  flank the **Ticket description** title near the top of that card.
+- Adjusted full-browser Review detail so **Client name** and **Ticket number**
+  stay paired together as the row immediately above **Ticket description**,
+  while the **Ticket notes** and **Past time entries** buttons still flank the
+  **Ticket description** title near the top of that card.
 - Adjusted full-browser Work in Progress cards so **Entry type** sits beside
   **Work type**, **Job date** sits beside **Ticket status**, start/end time
   controls share a row, duration is centered beneath the time row, and
-  **Client name** sits beside **Ticket name** when a ticket is selected.
+  **Client name** sits beside **Ticket number** when a ticket is selected.
 - Adjusted the full-browser Work in Progress left-side context cards so
-  **Ticket number** is full width with **Ticket notes** and **Past time
-  entries** under the number, while **Ticket description** remains full width
-  for readability.
+  **Ticket name** now uses the existing full-width ticket-history card with
+  **Ticket notes** and **Past time entries** still underneath, **Ticket number**
+  uses the existing paired context-card slot beside **Client name**, and the
+  desktop heading no longer duplicates the ticket name above those cards.
 - Changed phone-sized Work in Progress and Review detail card order so **Entry
   type**, **Work type**, **Ticket status**, **Job date**, **Start time**, **End
   time**, and duration appear in that sequence while leaving other fields in

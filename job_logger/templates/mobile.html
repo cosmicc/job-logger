@@ -118,7 +118,10 @@
           >
             <p class="eyebrow-text">Work in Progress</p>
             <div class="detail-heading-row active-detail-heading-row">
-              <h2 data-active-ticket-heading>{{ active_job.ticket_title or active_job.ticket_number or "Unassigned Ticket" }}</h2>
+              <h2>
+                <span class="active-heading-mobile-title" data-active-ticket-heading>{{ active_job.ticket_title or active_job.ticket_number or "Unassigned Ticket" }}</span>
+                <span class="active-heading-desktop-label">Job {{ job_label }}</span>
+              </h2>
               <span class="status-chip status-{{ active_job.status.value }}">{{ active_job.status.value.replace("_", " ") }}</span>
             </div>
             <dl class="metric-grid">
@@ -382,8 +385,14 @@
                 class="metric-card ticket-number-card {% if not active_job.ticket_number %}is-hidden{% endif %}"
                 data-active-ticket-number-card
               >
-                <dt>Ticket number</dt>
-                <dd class="active-ticket-number-display" data-active-ticket-number-display>{{ active_job.ticket_number or "" }}</dd>
+                <dt>
+                  <span class="active-ticket-label-mobile">Ticket number</span>
+                  <span class="active-ticket-label-desktop">Ticket name</span>
+                </dt>
+                <dd>
+                  <span class="active-ticket-value-mobile active-ticket-number-display" data-active-ticket-number-display>{{ active_job.ticket_number or "" }}</span>
+                  <span class="active-ticket-value-desktop active-ticket-title-display" data-active-ticket-title-display-desktop>{{ active_job.ticket_title or active_job.ticket_number or "" }}</span>
+                </dd>
                 <div class="ticket-context-actions ticket-context-actions-desktop">
                   <button
                     class="secondary-button ticket-notes-button is-hidden"
@@ -422,11 +431,17 @@
                 </div>
               </div>
               <div
-                class="metric-card ticket-title-card {% if not active_job.ticket_title %}is-hidden{% endif %}"
+                class="metric-card ticket-title-card {% if not active_job.ticket_number %}is-hidden{% endif %}"
                 data-active-ticket-title-card
               >
-                <dt>Ticket name</dt>
-                <dd class="active-ticket-title-display" data-active-ticket-title-display>{{ active_job.ticket_title or "" }}</dd>
+                <dt>
+                  <span class="active-ticket-label-mobile">Ticket name</span>
+                  <span class="active-ticket-label-desktop">Ticket number</span>
+                </dt>
+                <dd>
+                  <span class="active-ticket-value-mobile active-ticket-title-display" data-active-ticket-title-display>{{ active_job.ticket_title or "" }}</span>
+                  <span class="active-ticket-value-desktop active-ticket-number-display" data-active-ticket-number-display-desktop>{{ active_job.ticket_number or "" }}</span>
+                </dd>
                 <div class="ticket-context-actions ticket-context-actions-mobile">
                   <button
                     class="secondary-button ticket-notes-button is-hidden"
