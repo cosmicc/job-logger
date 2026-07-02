@@ -135,10 +135,11 @@ Important rules:
   either value is persisted.
 - Typed-only client names, missing company IDs, and names that do not match the
   selected Autotask company ID must be rejected and not saved.
-- On the active mobile card, a selected Autotask company or selected open
-  ticket locks the client identity and should be shown as read-only so the
-  visible client name cannot drift away from the identity used for ticket
-  lookup.
+- On the active mobile card, a selected Autotask company stays editable until
+  an open ticket is selected, so users can switch to another verified client
+  and load that client's open tickets. Once a ticket is selected, the client
+  identity is locked and should be shown as read-only so the visible client name
+  cannot drift away from the identity used for the selected ticket.
 - On review, stored client name, company ID, ticket number, ticket title, and
   ticket description are read-only identity/context fields. Save/accept
   handlers must overlay those values from the database before validation so
@@ -177,12 +178,15 @@ options are loaded, the mobile open-ticket panel itself is clickable and
 keyboard-activatable; that action first saves the active job's current client
 selection through `POST /jobs/{job_id}/ticket-number` with a JSON response, shows
 the spinner loading state, then loads open tickets from the server-verified
-lookup endpoint. The review open-ticket panel uses the same click-to-load
-pattern. When Review is opened for an active job that has no client yet, the
-review page exposes the same authenticated Autotask company search and saves
-the first selected client/company through `POST /review/{job_id}/client` before
-ticket lookup. Open-ticket options should include a display-only Remote, On-Site, or
-Not specified label inferred from safe ticket title/description text, falling
+lookup endpoint. A saved active-job client may be replaced through the same
+company search before ticket selection, and changing the client must clear any
+stale ticket options before loading that new client's tickets. The review
+open-ticket panel uses the same click-to-load pattern. When Review is opened
+for an active job that has no client yet, the review page exposes the same
+authenticated Autotask company search and saves the first selected
+client/company through `POST /review/{job_id}/client` before ticket lookup.
+Open-ticket options should include a display-only Remote, On-Site, or Not
+specified label inferred from safe ticket title/description text, falling
 back to remote-only ticket source labels when text has no result, and expose the
 matching `.ticket-location-*` CSS class for the browser. After mobile or review
 selection succeeds, the UI hides the open-ticket list and updates visible ticket

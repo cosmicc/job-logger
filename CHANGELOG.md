@@ -2,26 +2,36 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## 1.2.1 - 07.02.2026 - Work in Progress and Review field layout polish
+## 1.2.1 - 07.02.2026 - Work in Progress and Review workflow polish
 
 - Advanced the source-controlled dev runtime version to `v1.2.1`, including
   the Python package metadata and PWA service worker cache version.
 - Adjusted full-browser Review detail so **Entry type** sits beside **Work
   type**, **Ticket status** sits beside **Job date**, and the start/end time
-  controls share a row. Remote/On-Site switch pills now match the Time
-  entry/Ticket note switch size.
+  controls share equal-width rows. Remote/On-Site switch pills now match the
+  Time entry/Ticket note switch size.
+- Adjusted full-browser Review detail so **Client name** sits before
+  **Ticket number**, and the **Ticket notes** and **Past time entries** buttons
+  flank the **Ticket description** title near the top of that card.
 - Adjusted full-browser Work in Progress cards so **Entry type** sits beside
   **Work type**, **Ticket status** sits beside **Job date**, start/end time
   controls share a row, duration is centered beneath the time row, and
-  **Client name** sits beside **Ticket number** when a ticket is selected.
+  **Client name** sits beside **Ticket name** when a ticket is selected.
+- Adjusted the full-browser Work in Progress left-side context cards so
+  **Ticket number** is full width with **Ticket notes** and **Past time
+  entries** under the number, while **Ticket description** remains full width
+  for readability.
 - Changed phone-sized Work in Progress and Review detail card order so **Entry
   type**, **Work type**, **Ticket status**, **Job date**, **Start time**, **End
   time**, and duration appear in that sequence while leaving other fields in
   their existing positions.
 - Moved phone-sized ticket-history controls closer to the selected ticket
   identity: Work in Progress now shows **Ticket notes** and **Past time
-  entries** under **Ticket name**, and Review shows them under **Ticket
-  number**.
+  entries** under **Ticket name**, and Review moves **Ticket number** with
+  those buttons below duration and above **Ticket description**.
+- Kept the Work in Progress client search editable after a client is selected
+  but before a ticket is chosen, allowing users to switch to another verified
+  client and load that client's open tickets.
 
 ## 1.2.0 - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge errors
 

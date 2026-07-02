@@ -109,10 +109,11 @@ Active jobs support these updates before completion:
   read-only context after a ticket is chosen.
 - Open-ticket option work-location label inferred from ticket title/description
   text, displayed as Remote, On-Site, or Not specified in the picker.
-- Verified Autotask client selection while no Autotask company or open ticket
-  has been selected for the active job. The client name and company ID must
-  both come from the server-backed company search result and must verify
-  together before they are saved.
+- Verified Autotask client selection while no open ticket has been selected for
+  the active job. The client name and company ID must both come from the
+  server-backed company search result and must verify together before they are
+  saved. A saved active-job client may be replaced by another verified
+  client/company until a ticket is selected.
 - Summary notes.
 - Entry type, either Time entry or Ticket note. Time entry is the normal
   default. Ticket note mode may be selected only before successful Autotask
@@ -151,7 +152,11 @@ Active jobs support these updates before completion:
   **Entry type** with **Work type**, **Ticket status** with **Job date**,
   **Start time** with **End time**, then duration centered under the time row.
 - Full-browser Work in Progress cards should place **Client name** and
-  **Ticket number** together on the next row when a ticket number is shown.
+  **Ticket name** together on the next row when a ticket number is shown.
+- Full-browser Work in Progress left-side context cards should use equal
+  half-width card slots, except **Ticket number** and **Ticket description**,
+  which stay full width. The desktop **Ticket notes** and **Past time entries**
+  buttons belong under the full-width **Ticket number**.
 - A visible **Work in Progress** label above the selected ticket heading. The
   full-browser grid expects that label row so the Summary notes panel starts
   flush with the **Job date** card instead of dropping below the left-side
@@ -190,7 +195,7 @@ ticket options have been loaded; clicking or pressing Enter/Space on the panel
 saves the current verified active client selection before querying Autotask and shows the
 shared spinner loading state while the request is in flight. A job that already
 has a saved client does not auto-load the picker on mobile page open; the user
-must click or press Enter/Space on the panel to start the lookup. After
+must click or press Enter/Space on the panel to start the lookup. After ticket
 selection, the browser should immediately hide the open-ticket panel, make the
 current client input read-only, and show the selected ticket number, ticket
 title, and ticket description context in Work in Progress without waiting for a
@@ -204,9 +209,10 @@ or ticket-status values.
 When a selected ticket has Autotask notes or time entries, Work in Progress may
 show compact **Ticket notes** and **Past time entries** buttons beside the
 ticket context. On phone-sized layouts, those buttons belong under the Work in
-Progress **Ticket name** card and the Review **Ticket number** card. Keep each
-button hidden until its authenticated server lookup confirms at least one row,
-and render results inside the shared closeable overlay. The notes list is
+Progress **Ticket name** card. On phone-sized Review, the **Ticket number**
+card and those buttons belong below duration and above **Ticket description**.
+Keep each button hidden until its authenticated server lookup confirms at least
+one row, and render results inside the shared closeable overlay. The notes list is
 newest-first by note creation time, and each note
 selection card shows only the note title. The note selection card title area
 should fit two lines and truncate longer titles inside the card. Author,
@@ -272,10 +278,12 @@ about a 25-line cap. A selected ticket with an empty description should still
 show the description card with the standard no-description message.
 
 The active mobile card should expose only one client entry point for each job.
-After an Autotask company or open ticket is selected, the active job displays
-that client as a read-only value and submits hidden copies only for normal form
-flow. The service layer still enforces the lock because hidden fields and
-readonly inputs are not security controls.
+After an Autotask company is selected but before a ticket is selected, keep the
+client search editable so the user can choose another verified company and load
+that company's open tickets. After an open ticket is selected, the active job
+displays the client as a read-only value and submits hidden copies only for
+normal form flow. The service layer still enforces the post-ticket lock because
+hidden fields and readonly inputs are not security controls.
 
 Active jobs can be discarded through `POST /jobs/{job_id}/delete` from mobile
 or through the selected review detail **Delete time entry** action. Both routes
@@ -470,8 +478,13 @@ Review supports:
 - Editing note title for Ticket note entries before successful Autotask
   submission. Submitted entries must reject entry-type conversion.
 - Full-browser Review detail should order editable workflow cards as
-  **Entry type** with **Work type**, **Ticket status** with **Job date**,
-  **Start time** with **End time**, then duration centered under the time row.
+  equal-width paired rows: **Entry type** with **Work type**, **Ticket status**
+  with **Job date**, **Start time** with **End time**, then duration centered
+  under the time row. Full-width rows that do not share a row with another card
+  should stay full width.
+- Full-browser Review detail should show **Client name** before **Ticket
+  number**, and the **Ticket notes** and **Past time entries** buttons should
+  flank the **Ticket description** title near the top of that card.
 - Showing the rounded duration on a centered row under the selected detail
   start/end time controls and updating it from the server-normalized autosave
   response or the browser's current visible time values. Do not nest the
@@ -521,7 +534,9 @@ ticket/client identity editable.
 Phone-sized Work in Progress and Review detail layouts should order the editable
 workflow cards as **Entry type**, **Work type**, **Ticket status**, **Job date**
 or **Note Date**, **Start time**, **End time**, then duration, while leaving
-unmentioned fields in their existing relative positions.
+unmentioned fields in their existing relative positions, except Review places
+**Ticket number** and its ticket-history buttons below duration and above the
+ticket description.
 
 The review detail form does not expose a manual Save button. Editable review
 fields are saved through debounced background posts to `POST /review/{job_id}/save`.
