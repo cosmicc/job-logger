@@ -896,13 +896,14 @@ label {
   align-items: center;
   justify-content: center;
   min-width: 0;
-  padding: 0 42px 0 11px;
+  padding: 0 42px;
   overflow: hidden;
   color: var(--text);
   font-size: 14px;
   font-weight: 850;
   line-height: 1;
   pointer-events: none;
+  text-align: center;
   text-overflow: ellipsis;
   text-transform: none;
   white-space: pre;
@@ -1836,6 +1837,20 @@ a:focus-visible {
   font-size: 15px;
 }
 
+.client-name-card[data-locked-client-field],
+.ticket-title-card {
+  justify-items: center;
+  text-align: center;
+}
+
+.client-name-card[data-locked-client-field] dt,
+.client-name-card[data-locked-client-field] dd,
+.ticket-title-card dt,
+.ticket-title-card dd {
+  width: 100%;
+  text-align: center;
+}
+
 .ticket-number-card,
 .ticket-title-card,
 .ticket-description-card {
@@ -1936,13 +1951,14 @@ a:focus-visible {
   display: block;
   margin: 8px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 750;
   line-height: 1.25;
 }
 
 .duration-inline strong {
   color: var(--text);
+  font-size: 16px;
   font-weight: 850;
   white-space: nowrap;
 }
@@ -2179,6 +2195,13 @@ a:focus-visible {
   min-height: 38px;
   padding: 7px 9px;
   font-size: 14px;
+  text-align: center;
+  text-align-last: center;
+}
+
+.ticket-status-card select option,
+.review-ticket-status-field select option {
+  text-align: center;
 }
 
 .segmented-toggle {
@@ -3220,7 +3243,8 @@ td a {
 }
 
 .readonly-field-card.review-ticket-title-card {
-  display: none;
+  justify-items: center;
+  text-align: center;
 }
 
 .readonly-context-card {
@@ -3280,6 +3304,11 @@ td a {
 
 .review-ticket-status-field {
   grid-column: 1;
+}
+
+.review-ticket-status-field select {
+  text-align: center;
+  text-align-last: center;
 }
 
 .ticket-picker {

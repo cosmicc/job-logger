@@ -130,6 +130,9 @@ uses the managed-user complexity policy before hashing, and must audit only
 safe metadata such as user ID or username. The password card should show those
 requirements so users can fix validation failures before submitting. Never log,
 audit, or flash the raw submitted password.
+The `/config` page should keep its cards ordered as **Appearance**,
+**Password**, **Device sign-in**, then **Workflow** so routine password and
+passkey controls appear before the optional direct-submit workflow preference.
 
 Deleting a managed web user from `/users` must disable the account, invalidate
 that user's existing signed sessions, and preserve the row. Keeping the row lets
@@ -187,7 +190,10 @@ be limited to `DEBUG`, `INFO`, `WARNING`, or `ERROR`. `/debug` may also show
 disk usage for app-visible storage paths such as `/` and
 `${AUTOMATIC_BACKUP_DIR}`. Combine monitored paths when used bytes and total
 bytes match exactly, and keep disk diagnostics read-only and limited to path,
-usage, and warning/critical metadata.
+usage, and warning/critical metadata. On full-browser Diagnostics, keep the
+disk-space card and managed-web-user session-controls card together on the same
+row above the database card; phone layouts should continue stacking those
+cards.
 The `/debug` database card may run a cheap `SELECT 1` probe and show safe
 connectivity status, latency, backend/driver, migration revision, pool class,
 pool counters, and configured pool limits/timeouts. It must not display the

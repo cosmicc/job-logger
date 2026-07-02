@@ -132,6 +132,57 @@
   grid-row: 5;
 }
 
+.review-ticket-title-card {
+  grid-column: 1 / -1;
+  grid-row: 6;
+}
+
+.review-job-date-field .date-input-shell {
+  justify-self: center;
+  width: min(100%, 270px);
+}
+
+.review-ticket-title-card .ticket-context-actions-desktop {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  justify-content: stretch;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.review-ticket-title-card .ticket-context-actions-desktop .ticket-notes-button {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (min-width: 960px) {
+  .debug-shell {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .debug-shell > .review-header,
+  .debug-shell > .table-panel,
+  .debug-shell > .debug-table-panel {
+    grid-column: 1 / -1;
+  }
+
+  .debug-shell > #disk-space {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .debug-shell > #session-controls {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .debug-shell > #database-health {
+    grid-row: 3;
+  }
+}
+
 .ticket-description-card .ticket-context-header {
   display: grid;
   grid-template-columns: minmax(130px, 1fr) auto minmax(130px, 1fr);

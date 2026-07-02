@@ -17,9 +17,9 @@ All notable changes to Job Logger are documented in this file.
   controls share equal-width rows. Remote/On-Site switch pills now match the
   Time entry/Ticket note switch size.
 - Adjusted full-browser Review detail so **Client name** and **Ticket number**
-  stay paired together as the row immediately above **Ticket description**,
-  while the **Ticket notes** and **Past time entries** buttons still flank the
-  **Ticket description** title near the top of that card.
+  stay paired together above a new centered **Ticket name** card, and moved
+  **Ticket notes** and **Past time entries** to the bottom of that ticket-name
+  card directly above **Ticket description**.
 - Adjusted full-browser Work in Progress cards so **Entry type** sits beside
   **Work type**, **Job date** sits beside **Ticket status**, start/end time
   controls share a row, duration is centered beneath the time row, and
@@ -28,16 +28,27 @@ All notable changes to Job Logger are documented in this file.
   **Ticket name** now uses the existing full-width ticket-history card with
   **Ticket notes** and **Past time entries** still underneath, **Ticket number**
   uses the existing paired context-card slot beside **Client name**, and the
-  desktop heading no longer duplicates the ticket name above those cards.
+  desktop heading again shows the selected ticket name above those cards.
+- Centered Work in Progress locked **Client name** card text, centered ticket
+  status dropdown text on Work in Progress and Review, centered app date values
+  inside Work in Progress and Review date selectors, and changed the duration
+  label to **Work Duration** with a larger display treatment. Phone-sized Work
+  in Progress now also centers the display-only **Client name** and **Ticket
+  name** card titles and values.
+- Reordered `/config` cards to show **Appearance**, **Password**, **Device
+  sign-in**, then **Workflow**.
+- Adjusted full-browser Diagnostics so **Disk space** and **Session controls**
+  share one row above the **Database** card while preserving the stacked phone
+  layout.
 - Changed phone-sized Work in Progress and Review detail card order so **Entry
   type**, **Work type**, **Ticket status**, **Job date**, **Start time**, **End
   time**, and duration appear in that sequence while leaving other fields in
   their existing positions.
-- Moved phone-sized ticket-history controls closer to the selected ticket
-  identity: Work in Progress now shows **Ticket notes** and **Past time
-  entries** under **Ticket name**, while Review moves **Client name** directly
-  above the centered **Ticket number** card and places those buttons in a new
-  phone-only **Ticket name** card above **Ticket description**.
+- Moved selected ticket-history controls into the ticket identity cards: Work
+  in Progress now shows **Ticket notes** and **Past time entries** under
+  **Ticket name**, while Review keeps **Client name** and **Ticket number**
+  together above **Ticket description** and places those buttons in a centered
+  **Ticket name** card.
 - Kept the Work in Progress client search editable after a client is selected
   but before a ticket is chosen, allowing users to switch to another verified
   client and load that client's open tickets.
