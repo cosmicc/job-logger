@@ -1864,6 +1864,17 @@ a:focus-visible {
   text-align: center;
 }
 
+.readonly-field-card.review-client-name-card {
+  justify-items: center;
+  text-align: center;
+}
+
+.readonly-field-card.review-client-name-card .readonly-field-title,
+.readonly-field-card.review-client-name-card .readonly-field-value {
+  width: 100%;
+  text-align: center;
+}
+
 .ticket-number-card dd,
 .ticket-number-card strong,
 .ticket-title-card dd,
@@ -4775,10 +4786,12 @@ td a {
 
   .ticket-notes-overlay {
     padding: 0;
+    place-items: stretch;
   }
 
   .ticket-notes-dialog {
     width: 100vw;
+    height: 100dvh;
     max-height: 100dvh;
     border-radius: 0;
   }

@@ -1679,10 +1679,21 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".ticket-context-actions-mobile {\n  display: flex;" in phone_stylesheet
     assert "  flex-wrap: nowrap;" in phone_stylesheet
     assert ".readonly-field-card.review-ticket-title-card {\n  justify-items: center;\n  text-align: center;\n}" in stylesheet
+    assert ".readonly-field-card.review-client-name-card {\n  justify-items: center;\n  text-align: center;\n}" in stylesheet
+    assert (
+        ".readonly-field-card.review-client-name-card .readonly-field-title,\n"
+        ".readonly-field-card.review-client-name-card .readonly-field-value"
+    ) in stylesheet
     assert ".client-name-card[data-locked-client-field],\n.ticket-title-card" in stylesheet
     assert ".client-name-card[data-locked-client-field] dt,\n.client-name-card[data-locked-client-field] dd" in stylesheet
     assert ".ticket-title-card dt,\n.ticket-title-card dd" in stylesheet
     assert ".ticket-number-card,\n.review-ticket-number-card {\n  justify-items: center;\n  text-align: center;\n}" in stylesheet
+    assert (
+        ".ticket-notes-dialog {\n"
+        "  width: 100vw;\n"
+        "  height: 100dvh;\n"
+        "  max-height: 100dvh;"
+    ) in phone_stylesheet
     assert ".active-ticket-label-desktop" in stylesheet
     assert ".active-ticket-value-desktop" in desktop_stylesheet
     assert ".ticket-context-header .centered-field-label" in stylesheet

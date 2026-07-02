@@ -219,9 +219,11 @@ ticket context. On phone-sized layouts, those buttons belong under the Work in
 Progress **Ticket name** card. On phone-sized Review, **Client name** belongs
 directly above the centered **Ticket number** card, and a phone-only **Ticket
 name** card with the split-row **Ticket notes** and **Past time entries**
-buttons belongs above **Ticket description**. Keep each button hidden until its
-authenticated server lookup confirms at least one row, and render results
-inside the shared closeable overlay. The notes list is
+buttons belongs above **Ticket description**. Review's read-only **Client
+name** card should center its title and value on phone-sized layouts. Keep
+each button hidden until its authenticated server lookup confirms at least one
+row, and render results inside the shared closeable overlay, which should fill
+the phone viewport for both ticket notes and past time entries. The notes list is
 newest-first by note creation time, and each note
 selection card shows only the note title. The note selection card title area
 should fit two lines and truncate longer titles inside the card. Author,
@@ -546,9 +548,10 @@ Phone-sized Work in Progress and Review detail layouts should order the editable
 workflow cards as **Entry type**, **Work type**, **Ticket status**, **Job date**
 or **Note Date**, **Start time**, **End time**, then **Work Duration**, while
 leaving unmentioned fields in their existing relative positions, except Review
-places **Client name** directly above the centered **Ticket number** card and
-puts the ticket-history buttons inside the **Ticket name** card above the
-ticket description.
+places the centered **Client name** card directly above the centered **Ticket
+number** card and puts the ticket-history buttons inside the **Ticket name**
+card above the ticket description. On phone-sized layouts, both ticket-history
+buttons should open the same full-screen overlay.
 
 The review detail form does not expose a manual Save button. Editable review
 fields are saved through debounced background posts to `POST /review/{job_id}/save`.

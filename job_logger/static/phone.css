@@ -477,6 +477,18 @@
   padding-right: 8px;
 }
 
+.ticket-notes-overlay {
+  padding: 0;
+  place-items: stretch;
+}
+
+.ticket-notes-dialog {
+  width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 0;
+}
+
 h1 {
   font-size: 32px;
 }

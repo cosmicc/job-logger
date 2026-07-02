@@ -140,11 +140,13 @@ def test_changelog_parser_reads_current_release() -> None:
                 "Job date, Start time, End time, and duration in the same order."
             ),
             "On phones, Work in Progress now centers the selected Client name and Ticket name cards.",
+            "On phones, Review now centers the selected Client name card.",
             (
                 "On phones, Ticket notes and Past time entries sit under Ticket name on Work in Progress, "
                 "while Review puts Client name above Ticket number and moves those buttons into Ticket name "
                 "above Ticket description."
             ),
+            "On phones, Past time entries now open in the same full-screen overlay as Ticket notes.",
             (
                 "Work in Progress now lets you change the selected client before choosing a ticket "
                 "and loads the new client's tickets."
@@ -290,11 +292,13 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "Mobile Work in Progress and Review now show Entry type, Work type, Ticket status, "
         "Job date, Start time, End time, and duration in the same order."
     ) in response.text
+    assert "On phones, Review now centers the selected Client name card." in response.text
     assert (
         "On phones, Ticket notes and Past time entries sit under Ticket name on Work in Progress, "
         "while Review puts Client name above Ticket number and moves those buttons into Ticket name "
         "above Ticket description."
     ) in response.text
+    assert "On phones, Past time entries now open in the same full-screen overlay as Ticket notes." in response.text
     assert (
         "Work in Progress now lets you change the selected client before choosing a ticket "
         "and loads the new client&#39;s tickets."

@@ -556,11 +556,13 @@ the ticket context. Before a ticket is selected, keep the buttons hidden. After
 lookup, expose compact **Ticket notes** and **Past time entries** buttons when
 rows exist; when no displayable notes or no past time entries exist, show
 same-place disabled **No Notes** and **No past entries** buttons. On
-phone-sized layouts, Work in Progress places those buttons under the **Ticket
-name** card, and Review places **Client name** directly above the centered
-**Ticket number** card, then a **Ticket name** card with the
-**Ticket notes** and **Past time entries** buttons split across one row above
-**Ticket description**. On full-browser Review, the
+phone-sized layouts, Work in Progress places those buttons under the centered
+**Ticket name** card, and Review places a centered **Client name** card
+directly above the centered **Ticket number** card, then a centered **Ticket
+name** card with the **Ticket notes** and **Past time entries** buttons split
+across one row above **Ticket description**. On phone-sized layouts, both
+ticket-history buttons must open the same full-screen overlay. On full-browser
+Review, the
 **Client name** and **Ticket number** cards sit together above a centered
 **Ticket name** card, and the **Ticket notes** and **Past time entries**
 buttons sit at the bottom of that ticket-name card directly above **Ticket
@@ -1098,7 +1100,8 @@ In production:
   backend/driver, migration revision, and pool counters, but must not show
   connection strings, hosts, database names, usernames, or passwords. On
   full-browser Diagnostics, the disk-space and session-control cards should
-  share one row above the database card while phone layouts keep stacked cards.
+  share one same-height row above the database card while phone layouts keep
+  stacked cards.
   Wide Diagnostics tables, including Autotask submission attempts and retained
   automatic backups, should remain horizontally scrollable on phone layouts so
   row actions stay reachable.

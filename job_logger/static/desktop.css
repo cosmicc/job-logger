@@ -159,7 +159,7 @@
 @media (min-width: 960px) {
   .debug-shell {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
+    align-items: stretch;
   }
 
   .debug-shell > .review-header,
@@ -176,6 +176,8 @@
   .debug-shell > #session-controls {
     grid-column: 2;
     grid-row: 2;
+    align-self: stretch;
+    height: 100%;
   }
 
   .debug-shell > #database-health {
