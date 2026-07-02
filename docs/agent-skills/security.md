@@ -192,8 +192,8 @@ disk usage for app-visible storage paths such as `/` and
 bytes match exactly, and keep disk diagnostics read-only and limited to path,
 usage, and warning/critical metadata. On full-browser Diagnostics, keep the
 disk-space card and managed-web-user session-controls card together on the same
-row above the database card; phone layouts should continue stacking those
-cards.
+same-height row above the database card; phone layouts should continue stacking
+those cards.
 The `/debug` database card may run a cheap `SELECT 1` probe and show safe
 connectivity status, latency, backend/driver, migration revision, pool class,
 pool counters, and configured pool limits/timeouts. It must not display the

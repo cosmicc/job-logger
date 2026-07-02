@@ -40,10 +40,17 @@ All notable changes to Job Logger are documented in this file.
 - Adjusted full-browser Diagnostics so **Disk space** and **Session controls**
   share one row above the **Database** card while preserving the stacked phone
   layout.
+- Adjusted full-browser Diagnostics so the **Session controls** card stretches
+  to the same row height as **Disk space**, removing the open blank area below
+  the shorter card.
 - Changed phone-sized Work in Progress and Review detail card order so **Entry
   type**, **Work type**, **Ticket status**, **Job date**, **Start time**, **End
   time**, and duration appear in that sequence while leaving other fields in
   their existing positions.
+- Centered the phone-sized Review **Client name** card title and value to match
+  the surrounding ticket identity cards.
+- Changed the phone-sized **Past time entries** overlay on Work in Progress and
+  Review so it fills the screen like the **Ticket notes** overlay.
 - Moved selected ticket-history controls into the ticket identity cards: Work
   in Progress now shows **Ticket notes** and **Past time entries** under
   **Ticket name**, while Review keeps **Client name** and **Ticket number**

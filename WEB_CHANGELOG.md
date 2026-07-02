@@ -13,7 +13,9 @@ Short release notes shown on the authenticated `/changelog` page.
 - Ticket description stays full width on Work in Progress so longer ticket details stay readable.
 - Mobile Work in Progress and Review now show Entry type, Work type, Ticket status, Job date, Start time, End time, and duration in the same order.
 - On phones, Work in Progress now centers the selected Client name and Ticket name cards.
+- On phones, Review now centers the selected Client name card.
 - On phones, Ticket notes and Past time entries sit under Ticket name on Work in Progress, while Review puts Client name above Ticket number and moves those buttons into Ticket name above Ticket description.
+- On phones, Past time entries now open in the same full-screen overlay as Ticket notes.
 - Work in Progress now lets you change the selected client before choosing a ticket and loads the new client's tickets.
 - Ticket note mode now keeps Work type visible but greyed out instead of removing it.
 - The temporary outage page now uses a tighter card without the extra app header.
