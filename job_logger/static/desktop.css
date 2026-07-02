@@ -88,48 +88,48 @@
   min-width: 84px;
 }
 
+.review-entry-type-card {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.review-work-location-card {
+  grid-column: 2;
+  grid-row: 1;
+}
+
 .review-job-date-field {
   grid-column: 1;
+  grid-row: 2;
+}
+
+.review-ticket-status-field {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.review-start-time-field {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.review-end-time-field {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.review-duration-row {
   grid-row: 4;
 }
 
 .review-client-name-card {
   grid-column: 1;
-  grid-row: 1;
+  grid-row: 5;
 }
 
 .review-ticket-number-card {
   grid-column: 2;
-  grid-row: 1;
-}
-
-.review-entry-type-card {
-  grid-column: 1;
-  grid-row: 3;
-}
-
-.review-start-time-field {
-  grid-column: 1;
   grid-row: 5;
-}
-
-.review-end-time-field {
-  grid-column: 2;
-  grid-row: 5;
-}
-
-.review-duration-row {
-  grid-row: 6;
-}
-
-.review-work-location-card {
-  grid-column: 2;
-  grid-row: 3;
-}
-
-.review-ticket-status-field {
-  grid-column: 2;
-  grid-row: 4;
 }
 
 .ticket-description-card .ticket-context-header {
@@ -243,6 +243,18 @@
     margin-bottom: 0;
   }
 
+  .work-panel[data-active-job-card] .active-heading-mobile-title,
+  .work-panel[data-active-job-card] .active-ticket-label-mobile,
+  .work-panel[data-active-job-card] .active-ticket-value-mobile {
+    display: none;
+  }
+
+  .work-panel[data-active-job-card] .active-heading-desktop-label,
+  .work-panel[data-active-job-card] .active-ticket-label-desktop,
+  .work-panel[data-active-job-card] .active-ticket-value-desktop {
+    display: inline;
+  }
+
   .work-panel[data-active-job-card] > .metric-grid,
   .work-panel[data-active-job-card] > .ticket-number-form,
   .work-panel[data-active-job-card] > .mobile-ticket-picker {
@@ -302,6 +314,8 @@
   .work-panel[data-active-job-card] > .metric-grid > .ticket-title-card {
     grid-column: 2;
     grid-row: 5;
+    justify-items: center;
+    text-align: center;
   }
 
   .work-panel[data-active-job-card] > .metric-grid > .ticket-description-card {

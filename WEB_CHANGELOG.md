@@ -5,9 +5,9 @@ Short release notes shown on the authenticated `/changelog` page.
 ## 1.2.1 - 07.02.2026 - Work in Progress, Review, and outage-page polish
 
 - Full-browser Review now pairs Entry type with Work type, puts Job date before Ticket status, and keeps two-card rows evenly split.
-- Full-browser Review now shows Client name before Ticket number and puts ticket-history buttons beside the Ticket description title.
+- Full-browser Review now keeps Client name and Ticket number together directly above Ticket description, with ticket-history buttons still beside the Ticket description title.
 - Full-browser Work in Progress now pairs Entry type with Work type, puts Job date before Ticket status, and centers duration under the time row.
-- Full-browser Work in Progress keeps Client name beside Ticket name and makes Ticket number full width with ticket-history buttons under it.
+- Full-browser Work in Progress now puts Ticket number beside Client name, centers Ticket name in the full-width ticket-history card, and keeps the history buttons in place.
 - Ticket description stays full width on Work in Progress so longer ticket details stay readable.
 - Mobile Work in Progress and Review now show Entry type, Work type, Ticket status, Job date, Start time, End time, and duration in the same order.
 - On phones, Ticket notes and Past time entries sit under Ticket name on Work in Progress, while Review puts Client name above Ticket number and moves those buttons into Ticket name above Ticket description.

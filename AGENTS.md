@@ -445,15 +445,18 @@ cards should appear as equal-width paired rows: **Entry type** with **Work
 type**, **Job date** with **Ticket status**, **Start time** with **End time**,
 then the centered duration under the time row. Full-width Review detail rows
 that do not share a row with another card should stay full width. Full-browser
-Work in Progress cards should also place **Client
-name** and **Ticket name** together on the next row when a ticket number is
-shown, then place **Ticket number** full width below that row with the desktop
-**Ticket notes** and **Past time entries** buttons under the number. Full-browser
-Work in Progress left-side context cards should use equal half-width card
-slots, except **Ticket number** and **Ticket description**, which remain full
-width.
+Review detail should keep **Client name** and **Ticket number** together as the
+row directly above **Ticket description**. Full-browser Work in Progress cards
+should place **Client name** and **Ticket number** together on the next row when
+a ticket number is shown, then place **Ticket name** full width below that row
+with the desktop **Ticket notes** and **Past time entries** buttons under the
+ticket name. Full-browser Work in Progress left-side context cards should use
+equal half-width card slots, except **Ticket name** and **Ticket description**,
+which remain full width.
 Active Work in Progress cards should keep a visible **Work in Progress** label
-above the selected ticket heading. The full-browser layout depends on that
+above the selected ticket heading on phone layouts. Full-browser active cards
+may use that heading row for the job slot while the centered **Ticket name**
+card carries the selected ticket name. The full-browser layout depends on that
 label row so the Summary notes panel starts flush with the top of the **Job
 date** card; keep that label prominent enough to read quickly.
 
@@ -549,6 +552,8 @@ name** card, and Review places **Client name** directly above the centered
 **Ticket number** card, then a phone-only **Ticket name** card with the
 **Ticket notes** and **Past time entries** buttons split across one row above
 **Ticket description**. On full-browser Review, the
+**Client name** and **Ticket number** cards sit together directly above
+**Ticket description**, and the
 **Ticket notes** and **Past time entries** buttons flank the **Ticket
 description** title inside the ticket description card. Ticket-note
 lookups must filter out Service Desk Notification notes and any note whose

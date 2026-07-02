@@ -1568,17 +1568,17 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
         "}"
     ) in desktop_stylesheet
     assert ".review-form .form-grid > .readonly-field-card" in desktop_stylesheet
-    assert ".review-entry-type-card {\n  grid-column: 1;\n  grid-row: 3;\n}" in desktop_stylesheet
-    assert ".review-work-location-card {\n  grid-column: 2;\n  grid-row: 3;\n}" in desktop_stylesheet
-    assert ".review-client-name-card {\n  grid-column: 1;\n  grid-row: 1;\n}" in desktop_stylesheet
-    assert ".review-ticket-number-card {\n  grid-column: 2;\n  grid-row: 1;\n}" in desktop_stylesheet
-    assert ".review-ticket-status-field {\n  grid-column: 2;\n  grid-row: 4;\n}" in desktop_stylesheet
-    assert ".review-job-date-field {\n  grid-column: 1;\n  grid-row: 4;\n}" in desktop_stylesheet
+    assert ".review-entry-type-card {\n  grid-column: 1;\n  grid-row: 1;\n}" in desktop_stylesheet
+    assert ".review-work-location-card {\n  grid-column: 2;\n  grid-row: 1;\n}" in desktop_stylesheet
+    assert ".review-ticket-status-field {\n  grid-column: 2;\n  grid-row: 2;\n}" in desktop_stylesheet
+    assert ".review-job-date-field {\n  grid-column: 1;\n  grid-row: 2;\n}" in desktop_stylesheet
+    assert ".review-client-name-card {\n  grid-column: 1;\n  grid-row: 5;\n}" in desktop_stylesheet
+    assert ".review-ticket-number-card {\n  grid-column: 2;\n  grid-row: 5;\n}" in desktop_stylesheet
     assert ".ticket-description-card .ticket-context-actions-desktop {\n  display: contents;\n}" in desktop_stylesheet
     assert ".ticket-description-card .ticket-context-actions-desktop .ticket-notes-button:first-child" in desktop_stylesheet
     assert ".ticket-description-card .ticket-context-actions-desktop .ticket-notes-button:last-child" in desktop_stylesheet
-    assert ".review-start-time-field {\n  grid-column: 1;\n  grid-row: 5;\n}" in desktop_stylesheet
-    assert ".review-end-time-field {\n  grid-column: 2;\n  grid-row: 5;\n}" in desktop_stylesheet
+    assert ".review-start-time-field {\n  grid-column: 1;\n  grid-row: 3;\n}" in desktop_stylesheet
+    assert ".review-end-time-field {\n  grid-column: 2;\n  grid-row: 3;\n}" in desktop_stylesheet
     assert "active-start-time-card" in mobile_template
     assert "active-end-time-card" in mobile_template
     assert "active-duration-row" in mobile_template
@@ -1646,6 +1646,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
         "  .work-panel[data-active-job-card] > .metric-grid > .ticket-title-card {\n"
         "    grid-column: 2;\n"
         "    grid-row: 5;\n"
+        "    justify-items: center;\n"
+        "    text-align: center;\n"
         "  }"
     ) in desktop_stylesheet
     assert (
@@ -1678,6 +1680,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "  flex-wrap: nowrap;" in phone_stylesheet
     assert ".readonly-field-card.review-ticket-title-card {\n  display: none;\n}" in stylesheet
     assert ".ticket-number-card,\n.review-ticket-number-card {\n  justify-items: center;\n  text-align: center;\n}" in stylesheet
+    assert ".active-ticket-label-desktop" in stylesheet
+    assert ".active-ticket-value-desktop" in desktop_stylesheet
     assert ".ticket-context-header .centered-field-label" in stylesheet
     assert ".review-work-location-card .work-location-switch" in stylesheet
     assert "justify-self: center;" in stylesheet
@@ -3368,8 +3372,10 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
     updated_mobile_page_response = authenticated_client.get("/home")
     updated_mobile_html = updated_mobile_page_response.text
     assert "data-active-ticket-picker" not in updated_mobile_html
-    assert '<dt>Ticket number</dt>' in updated_mobile_html
-    assert '<dt>Ticket name</dt>' in updated_mobile_html
+    assert '<span class="active-ticket-label-mobile">Ticket number</span>' in updated_mobile_html
+    assert '<span class="active-ticket-label-mobile">Ticket name</span>' in updated_mobile_html
+    assert '<span class="active-ticket-label-desktop">Ticket name</span>' in updated_mobile_html
+    assert '<span class="active-ticket-label-desktop">Ticket number</span>' in updated_mobile_html
     assert "T20260616.0002" in updated_mobile_html
     assert "Mock follow-up ticket for Acme Services" in updated_mobile_html
     assert "Mock follow-up description for Acme Services." in updated_mobile_html
