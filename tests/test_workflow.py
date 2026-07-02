@@ -372,7 +372,8 @@ def test_ticket_note_can_be_submitted_from_review_without_time_fields(authentica
     assert "Note description" in active_html
     assert "End Note" in active_html
     assert "Delete Note" in active_html
-    assert "time-entry-time-card is-hidden" in active_html
+    assert "time-entry-time-card active-start-time-card is-hidden" in active_html
+    assert "time-entry-time-card active-end-time-card is-hidden" in active_html
     assert 'data-work-location-card' in active_html
     assert 'work-location-card is-hidden' in active_html
     assert 'data-duration-row' in active_html
@@ -1420,8 +1421,8 @@ def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_
     assert response.status_code == 200
     assert response.text.count("app-version-link app-version-link-dev") == 2
     assert "dev-build-pill" not in response.text
-    assert ">v1.2.0 DEV<" in response.text
-    assert 'aria-label="View changelog for version 1.2.0 development build"' in response.text
+    assert ">v1.2.1 DEV<" in response.text
+    assert 'aria-label="View changelog for version 1.2.1 development build"' in response.text
     assert response.text.index('class="header-status-group desktop-status-group"') < response.text.index('class="top-nav"')
     assert response.text.index('class="header-status-group mobile-version-group"') < response.text.index('class="mobile-nav-actions mobile-nav-right"')
 
@@ -1435,6 +1436,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     phone_stylesheet = phone_stylesheet_path.read_text(encoding="utf-8")
     desktop_stylesheet_path = Path(__file__).resolve().parents[1] / "job_logger" / "static" / "desktop.css"
     desktop_stylesheet = desktop_stylesheet_path.read_text(encoding="utf-8")
+    mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
 
     assert ".service-call-option-button.service-call-location-remote" in stylesheet
     assert ".service-call-option-button.service-call-location-on_site" in stylesheet
@@ -1540,6 +1542,83 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".review-work-location-card" in stylesheet
     assert ".review-shell > .review-header" in stylesheet
     assert "justify-content: flex-start;" in stylesheet
+    assert ".review-entry-type-card {\n  grid-column: 1;\n  grid-row: 3;\n}" in desktop_stylesheet
+    assert ".review-work-location-card {\n  grid-column: 2;\n  grid-row: 3;\n}" in desktop_stylesheet
+    assert ".review-ticket-status-field {\n  grid-column: 1;\n  grid-row: 4;\n}" in desktop_stylesheet
+    assert ".review-job-date-field {\n  grid-column: 2;\n  grid-row: 4;\n}" in desktop_stylesheet
+    assert ".review-start-time-field {\n  grid-column: 1;\n  grid-row: 5;\n}" in desktop_stylesheet
+    assert ".review-end-time-field {\n  grid-column: 2;\n  grid-row: 5;\n}" in desktop_stylesheet
+    assert "active-start-time-card" in mobile_template
+    assert "active-end-time-card" in mobile_template
+    assert "active-duration-row" in mobile_template
+    assert (
+        "  .work-panel[data-active-job-card] > .metric-grid > .entry-type-card {\n"
+        "    grid-column: 1;\n"
+        "    grid-row: 1;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        "  .work-panel[data-active-job-card] > .metric-grid > .work-location-card {\n"
+        "    grid-column: 2;\n"
+        "    grid-row: 1;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        "  .work-panel[data-active-job-card] > .metric-grid > .ticket-status-card {\n"
+        "    grid-column: 1;\n"
+        "    grid-row: 2;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        "  .work-panel[data-active-job-card] > .metric-grid > .job-date-card {\n"
+        "    grid-column: 2;\n"
+        "    grid-row: 2;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        "  .work-panel[data-active-job-card] > .metric-grid > .active-start-time-card {\n"
+        "    grid-column: 1;\n"
+        "    grid-row: 3;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        "  .work-panel[data-active-job-card] > .metric-grid > .active-end-time-card {\n"
+        "    grid-column: 2;\n"
+        "    grid-row: 3;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        "  .work-panel[data-active-job-card] > .metric-grid > .active-duration-row {\n"
+        "    grid-column: 1 / -1;\n"
+        "    grid-row: 4;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        "  .work-panel[data-active-job-card] > .metric-grid > .client-name-card {\n"
+        "    grid-column: 1;\n"
+        "    grid-row: 5;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        "  .work-panel[data-active-job-card] > .metric-grid > .ticket-number-card {\n"
+        "    grid-column: 2;\n"
+        "    grid-row: 5;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert ".metric-grid > .entry-type-card {\n  order: -70;\n}" in phone_stylesheet
+    assert ".metric-grid > .work-location-card {\n  order: -60;\n}" in phone_stylesheet
+    assert ".metric-grid > .ticket-status-card {\n  order: -50;\n}" in phone_stylesheet
+    assert ".metric-grid > .job-date-card {\n  order: -40;\n}" in phone_stylesheet
+    assert ".metric-grid > .active-start-time-card {\n  order: -30;\n}" in phone_stylesheet
+    assert ".metric-grid > .active-end-time-card {\n  order: -20;\n}" in phone_stylesheet
+    assert ".metric-grid > .active-duration-row {\n  order: -10;\n}" in phone_stylesheet
+    assert ".form-grid > .review-entry-type-card {\n  order: 10;\n}" in phone_stylesheet
+    assert ".form-grid > .review-work-location-card {\n  order: 20;\n}" in phone_stylesheet
+    assert ".form-grid > .review-ticket-status-field {\n  order: 30;\n}" in phone_stylesheet
+    assert ".form-grid > .review-job-date-field {\n  order: 40;\n}" in phone_stylesheet
+    assert ".form-grid > .review-start-time-field {\n  order: 50;\n}" in phone_stylesheet
+    assert ".form-grid > .review-end-time-field {\n  order: 60;\n}" in phone_stylesheet
+    assert ".form-grid > .review-duration-row {\n  order: 70;\n}" in phone_stylesheet
     assert ".ticket-context-header .centered-field-label" in stylesheet
     assert ".review-work-location-card .work-location-switch" in stylesheet
     assert "justify-self: center;" in stylesheet
@@ -1954,7 +2033,7 @@ def test_mobile_active_job_page_locks_selected_autotask_client(authenticated_cli
     assert page_html.index('class="time-field-input rounded-start-time-display"') < page_html.index('value="15"')
     assert page_html.index('<dt class="centered-field-label">Start time</dt>') < page_html.index('<dt class="centered-field-label">End time</dt>')
     assert page_html.index('<dt class="centered-field-label">End time</dt>') < page_html.index("data-duration-display")
-    assert 'class="duration-inline duration-centered"' in page_html
+    assert 'class="duration-inline duration-centered active-duration-row"' in page_html
     assert page_html.index('<dt class="centered-field-label">End time</dt>') < page_html.index('class="metric-card work-location-card"')
     assert page_html.index("data-duration-display") < page_html.index('class="metric-card work-location-card"')
 

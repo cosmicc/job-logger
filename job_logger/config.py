@@ -94,7 +94,7 @@ def _get_optional_integer(environment_variable_name: str) -> int | None:
 
 
 def _get_log_level() -> str:
-    """Return the validated app file logging level."""
+    """Return the validated application stdout logging level."""
 
     log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
     if log_level not in VALID_LOG_LEVELS:
@@ -146,10 +146,7 @@ class Settings:
     # DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS throttles limp-mode DB probes.
     database_unavailable_check_interval_seconds: int
 
-    # LOG_DIR stores host-mounted runtime logs inside the app container.
-    log_dir: str
-
-    # LOG_LEVEL controls how verbose host-mounted app.log should be.
+    # LOG_LEVEL controls how verbose stdout/stderr application logs should be.
     log_level: str
 
     # APP_USERNAME is the single local app account name.
@@ -158,17 +155,6 @@ class Settings:
     # APP_PASSWORD is the password for the single local application account.
     # It must be provided through a secret environment file or secret store.
     app_password: str | None
-
-    # LOGIN_FAILURE_LOG_PATH is a JSONL file for failed app-login attempts.
-    # It should live in a host-mounted log directory for Docker deployments.
-    login_failure_log_path: str
-
-    # LOGIN_SUCCESS_LOG_PATH is a JSONL file for successful app-login attempts.
-    # It should live in a host-mounted log directory for Docker deployments.
-    login_success_log_path: str
-
-    # LOGIN_FAILURE_DEBUG_ROWS limits failed-login rows shown on /debug.
-    login_failure_debug_rows: int
 
     # APP_SESSION_COOKIE_SECURE should be true when served through HTTPS/Cloudflare.
     session_cookie_secure: bool
@@ -209,7 +195,7 @@ class Settings:
     # AUTOMATIC_BACKUPS_ENABLED controls the hourly full-database backup task.
     automatic_backups_enabled: bool
 
-    # AUTOMATIC_BACKUP_DIR stores host-mounted hourly and daily backup files.
+    # AUTOMATIC_BACKUP_DIR stores hourly and daily backup files.
     automatic_backup_dir: str
 
     # FASTER_WHISPER_MODEL is a local model size, Hugging Face model name, or local model path.
@@ -385,19 +371,9 @@ def load_settings() -> Settings:
             "DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS",
             5,
         ),
-        log_dir=os.getenv("LOG_DIR", "logs"),
         log_level=_get_log_level(),
         app_username=os.getenv("APP_USERNAME", "admin"),
         app_password=os.getenv("APP_PASSWORD") or None,
-        login_failure_log_path=os.getenv(
-            "LOGIN_FAILURE_LOG_PATH",
-            f"{os.getenv('LOG_DIR', 'logs').rstrip('/')}/job-logger-login-failures.log",
-        ),
-        login_success_log_path=os.getenv(
-            "LOGIN_SUCCESS_LOG_PATH",
-            f"{os.getenv('LOG_DIR', 'logs').rstrip('/')}/job-logger-login-successes.log",
-        ),
-        login_failure_debug_rows=_get_integer("LOGIN_FAILURE_DEBUG_ROWS", 200),
         session_cookie_secure=_get_boolean("APP_SESSION_COOKIE_SECURE", False),
         session_timeout_hours=_get_positive_float("APP_SESSION_TIMEOUT_HOURS", 12.0),
         cloudflare_access_required=_get_boolean("CLOUDFLARE_ACCESS_REQUIRED", False),
@@ -416,7 +392,7 @@ def load_settings() -> Settings:
         automatic_backups_enabled=_get_boolean("AUTOMATIC_BACKUPS_ENABLED", True),
         automatic_backup_dir=os.getenv(
             "AUTOMATIC_BACKUP_DIR",
-            f"{os.getenv('LOG_DIR', 'logs').rstrip('/')}/backups",
+            "backups",
         ),
         faster_whisper_model=os.getenv("FASTER_WHISPER_MODEL", "base.en"),
         faster_whisper_device=os.getenv("FASTER_WHISPER_DEVICE", "cpu"),

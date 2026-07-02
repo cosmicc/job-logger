@@ -81,6 +81,7 @@ async def login(
         reset_login_failure_counter(database_session, request, submitted_username=submitted_username)
         login_session(request, submitted_username)
         log_successful_login_attempt(
+            database_session,
             request,
             username=submitted_username,
             user_kind="super_admin",
@@ -108,6 +109,7 @@ async def login(
         mark_web_user_login_succeeded(web_user)
         login_web_user_session(request, username=web_user.username, web_user_id=web_user.id)
         log_successful_login_attempt(
+            database_session,
             request,
             username=web_user.username,
             user_kind="web_user",

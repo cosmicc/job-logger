@@ -7,16 +7,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gosu \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create a dedicated unprivileged user before copying application files. The
-# fixed UID/GID keeps host-mounted log directories writable after chown 1000:1000.
+# Create a dedicated unprivileged user before copying application files.
 RUN groupadd --gid 1000 appuser \
     && useradd --uid 1000 --gid appuser --create-home --shell /usr/sbin/nologin appuser \
-    && mkdir -p /models/faster-whisper /data/logs \
-    && chown -R appuser:appuser /models /data/logs
+    && mkdir -p /models/faster-whisper /data/backups \
+    && chown -R appuser:appuser /models /data/backups
 
 COPY pyproject.toml README.md WEB_CHANGELOG.md /app/
 COPY job_logger /app/job_logger
@@ -28,6 +23,8 @@ RUN pip install --upgrade pip \
     && pip install ".[dev]" \
     && chmod +x /app/docker/entrypoint.sh \
     && chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8000
 

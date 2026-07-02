@@ -13,7 +13,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
-from sqlalchemy import func, select
+from sqlalchemy import desc, func, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from job_logger import database
@@ -22,8 +23,8 @@ from job_logger.enums import JobStatus, ThemeMode, TicketStatus, TranscriptionSt
 from job_logger.models import (
     AuditEvent,
     CloudflareIPBlock,
-    HiddenLoginFailure,
     Job,
+    LoginAttempt,
     LoginFailureCounter,
     SubmissionAttempt,
     UserPreference,
@@ -31,7 +32,7 @@ from job_logger.models import (
     WebUser,
 )
 from job_logger.routes import debug as debug_routes
-from job_logger.services import system_health
+from job_logger.services import database_diagnostics, system_health
 from job_logger.services.backups import (
     AUTOMATIC_BACKUP_FILENAME_PREFIX,
     AUTOMATIC_BACKUP_FILENAME_SUFFIX,
@@ -271,9 +272,9 @@ def test_debug_page_shows_disk_space_monitor(super_admin_client: TestClient, mon
         status_label="Disk space nearing full",
         volumes=(
             system_health.DebugDiskUsageVolume(
-                label="Log directory",
-                configured_path="/data/logs",
-                measured_path="/data/logs",
+                label="Backup directory",
+                configured_path="/data/backups",
+                measured_path="/data/backups",
                 total_display="100.0 GB",
                 used_display="88.6 GB",
                 free_display="11.4 GB",
@@ -293,11 +294,112 @@ def test_debug_page_shows_disk_space_monitor(super_admin_client: TestClient, mon
     assert "disk-space-card disk-space-warning" in response.text
     assert "Disk space nearing full" in response.text
     assert "Warning at 85% used or under 5 GB free" in response.text
-    assert "Log directory" in response.text
+    assert "Backup directory" in response.text
     assert "88.6 GB / 100.0 GB (88.6%)" in response.text
-    assert "/data/logs" in response.text
+    assert "/data/backups" in response.text
     assert 'class="disk-meter disk-meter-warning"' in response.text
     assert 'value="88.6"' in response.text
+
+
+def test_debug_page_shows_database_connectivity_card(super_admin_client: TestClient) -> None:
+    """Diagnostics should show safe database status and pool details."""
+
+    response = super_admin_client.get("/debug")
+
+    assert response.status_code == 200
+    assert 'id="database-health"' in response.text
+    assert "Database" in response.text
+    assert "Query latency" in response.text
+    assert "Connected" in response.text
+    assert "Backend" in response.text
+    assert "sqlite" in response.text
+    assert "Driver" in response.text
+    assert "pysqlite" in response.text
+    assert "Migration revision" in response.text
+    assert "Not recorded" in response.text
+    assert "Pool class" in response.text
+    assert "StaticPool" in response.text
+    assert "Checked out" in response.text
+    assert "DATABASE_URL" not in response.text
+    assert "postgresql://" not in response.text
+    assert "job_logger_password" not in response.text
+
+
+def test_database_diagnostics_snapshot_uses_safe_sqlite_metadata() -> None:
+    """Database diagnostics should avoid URL details while measuring connectivity."""
+
+    snapshot = database_diagnostics.collect_database_diagnostics_snapshot()
+
+    assert snapshot.available is True
+    assert snapshot.status_label == "Connected"
+    assert snapshot.latency_display.endswith(" ms")
+    assert snapshot.backend_display == "sqlite"
+    assert snapshot.driver_display == "pysqlite"
+    assert snapshot.migration_revision == "Not recorded"
+    assert snapshot.pool.class_name == "StaticPool"
+    assert snapshot.pool.configured_limit_display == "n/a"
+
+
+def test_database_diagnostics_snapshot_handles_failed_probe_safely(monkeypatch) -> None:
+    """Database diagnostics should not surface raw connection errors."""
+
+    class FakeDialect:
+        """Minimal SQLAlchemy dialect metadata used by the snapshot."""
+
+        name = "postgresql"
+        driver = "psycopg"
+
+    class FakePool:
+        """Minimal pool metrics exposed without endpoint details."""
+
+        @staticmethod
+        def size() -> int:
+            return 5
+
+        @staticmethod
+        def checkedin() -> int:
+            return 2
+
+        @staticmethod
+        def checkedout() -> int:
+            return 1
+
+        @staticmethod
+        def overflow() -> int:
+            return 0
+
+    class FailingEngine:
+        """Engine stub that fails before yielding connection details."""
+
+        dialect = FakeDialect()
+        pool = FakePool()
+
+        @staticmethod
+        def connect() -> None:
+            raise SQLAlchemyError("could not connect to secret-db.internal")
+
+    monkeypatch.setattr(database_diagnostics.database, "engine", FailingEngine())
+
+    snapshot = database_diagnostics.collect_database_diagnostics_snapshot()
+
+    rendered_values = [
+        snapshot.status_label,
+        snapshot.latency_display,
+        snapshot.backend_display,
+        snapshot.driver_display,
+        snapshot.migration_revision,
+        snapshot.pool.class_name,
+        snapshot.pool.size_display,
+        snapshot.pool.checked_in_display,
+        snapshot.pool.checked_out_display,
+        snapshot.pool.overflow_display,
+    ]
+    assert snapshot.available is False
+    assert snapshot.severity == "critical"
+    assert snapshot.status_label == "Needs attention"
+    assert snapshot.latency_display == "Unavailable"
+    assert snapshot.migration_revision == "Unavailable"
+    assert "secret-db.internal" not in " ".join(rendered_values)
 
 
 def test_debug_disk_usage_serializer_uses_existing_parent_for_missing_path(tmp_path: Path, monkeypatch) -> None:
@@ -353,9 +455,9 @@ def test_debug_disk_usage_combines_paths_on_same_storage() -> None:
         measured_paths=("/",),
     )
     second_volume = system_health.DebugDiskUsageVolume(
-        label="Log directory",
-        configured_path="/data/logs",
-        measured_path="/data/logs",
+        label="Backup directory",
+        configured_path="/data/backups",
+        measured_path="/data/backups",
         total_display="100.0 GB",
         used_display="40.0 GB",
         free_display="60.0 GB",
@@ -366,8 +468,8 @@ def test_debug_disk_usage_combines_paths_on_same_storage() -> None:
         total_bytes=100 * gibibyte,
         used_bytes=40 * gibibyte,
         free_bytes=60 * gibibyte,
-        configured_paths=("Log directory: /data/logs",),
-        measured_paths=("/data/logs",),
+        configured_paths=("Backup directory: /data/backups",),
+        measured_paths=("/data/backups",),
     )
     separate_volume = system_health.DebugDiskUsageVolume(
         label="Backup directory",
@@ -392,10 +494,10 @@ def test_debug_disk_usage_combines_paths_on_same_storage() -> None:
     )
 
     assert len(combined_volumes) == 2
-    assert combined_volumes[0].label == "App filesystem, Log directory"
+    assert combined_volumes[0].label == "App filesystem, Backup directory"
     assert combined_volumes[0].configured_paths == (
         "App filesystem: /",
-        "Log directory: /data/logs",
+        "Backup directory: /data/backups",
     )
     assert combined_volumes[1].label == "Backup directory"
 
@@ -509,7 +611,7 @@ def test_openapi_schema_route_is_disabled(client: TestClient) -> None:
     assert response.status_code == 404
 
 
-def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) -> None:
+def test_failed_login_writes_sanitized_database_row_and_debug_window(client: TestClient) -> None:
     """Failed app logins should be visible in diagnostics without raw passwords."""
 
     login_page_response = client.get("/login")
@@ -532,30 +634,28 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
     )
     assert failed_response.status_code == 303
 
-    log_path = Path(os.environ["LOGIN_FAILURE_LOG_PATH"])
-    log_text = log_path.read_text(encoding="utf-8")
-    assert failed_password not in log_text
-
-    log_payload = json.loads(log_text.strip())
-    assert log_payload["username"] == "bad-user"
-    assert log_payload["client_ip"] == "203.0.113.9"
-    assert log_payload["enforcement_client_ip"] == "198.51.100.7"
-    assert log_payload["x_real_ip"] == "198.51.100.7"
-    assert log_payload["x_forwarded_for"] == "203.0.113.9, 10.0.0.2"
-    assert log_payload["forwarded_proto"] == "https"
-    assert log_payload["host"] == "testserver"
-    assert log_payload["method"] == "POST"
-    assert log_payload["path"] == "/login"
-    assert log_payload["reason"] == "invalid_credentials"
-    assert log_payload["username_length"] == len("bad-user")
-    assert log_payload["username_truncated"] is False
-    assert log_payload["password_supplied"] is True
-    assert log_payload["password_length"] == len(failed_password)
-    assert log_payload["user_agent"] == "Failed Login Test"
-    assert log_payload["failed_count"] == 1
-    assert log_payload["max_attempts"] == 5
-    assert log_payload["lockout_applied"] is False
-    assert "created_at_utc" in log_payload
+    with database.SessionLocal() as database_session:
+        failed_attempt = database_session.scalar(select(LoginAttempt).where(LoginAttempt.succeeded.is_(False)))
+        assert failed_attempt is not None
+        assert failed_attempt.username == "bad-user"
+        assert failed_attempt.client_ip == "203.0.113.9"
+        assert failed_attempt.enforcement_client_ip == "198.51.100.7"
+        assert failed_attempt.x_real_ip == "198.51.100.7"
+        assert failed_attempt.x_forwarded_for == "203.0.113.9, 10.0.0.2"
+        assert failed_attempt.forwarded_proto == "https"
+        assert failed_attempt.host == "testserver"
+        assert failed_attempt.method == "POST"
+        assert failed_attempt.path == "/login"
+        assert failed_attempt.reason == "invalid_credentials"
+        assert failed_attempt.username_length == len("bad-user")
+        assert failed_attempt.username_truncated is False
+        assert failed_attempt.password_supplied is True
+        assert failed_attempt.password_length == len(failed_password)
+        assert failed_attempt.user_agent == "Failed Login Test"
+        assert failed_attempt.failed_count == 1
+        assert failed_attempt.max_attempts == 5
+        assert failed_attempt.lockout_applied is False
+        assert failed_password not in " ".join(str(value) for value in vars(failed_attempt).values())
 
     login_page_response = client.get("/login")
     csrf_token = extract_csrf_token(login_page_response.text)
@@ -569,14 +669,14 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
         follow_redirects=False,
     )
     assert success_response.status_code == 303
-    success_log_path = Path(os.environ["LOGIN_SUCCESS_LOG_PATH"])
-    success_log_text = success_log_path.read_text(encoding="utf-8")
-    success_payload = json.loads(success_log_text.strip())
-    assert success_payload["event"] == "web_login_succeeded"
-    assert success_payload["username"] == "admin"
-    assert success_payload["user_kind"] == "super_admin"
-    assert success_payload["authentication_method"] == "password"
-    assert "test-password" not in success_log_text
+    with database.SessionLocal() as database_session:
+        success_attempt = database_session.scalar(select(LoginAttempt).where(LoginAttempt.succeeded.is_(True)))
+        assert success_attempt is not None
+        assert success_attempt.event == "web_login_succeeded"
+        assert success_attempt.username == "admin"
+        assert success_attempt.user_kind == "super_admin"
+        assert success_attempt.authentication_method == "password"
+        assert "test-password" not in " ".join(str(value) for value in vars(success_attempt).values())
 
     debug_response = client.get("/debug")
     assert debug_response.status_code == 200
@@ -599,24 +699,29 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
     assert 'aria-label="Hide failed-login row"' in debug_response.text
     assert 'aria-label="Block IP at Cloudflare"' in debug_response.text
     assert "Cloudflare Blocked IPs" in debug_response.text
-    assert os.environ["LOGIN_FAILURE_LOG_PATH"] in debug_response.text
-    assert os.environ["LOGIN_SUCCESS_LOG_PATH"] in debug_response.text
+    assert "Newest database records first" in debug_response.text
+    assert "Download JSONL" in debug_response.text
+    assert "LOGIN_FAILURE_LOG_PATH" not in debug_response.text
+    assert "LOGIN_SUCCESS_LOG_PATH" not in debug_response.text
     assert failed_password not in debug_response.text
 
     download_response = client.get("/debug/logs/login-failures")
     assert download_response.status_code == 200
     assert "web_login_failed" in download_response.text
-    assert "job-logger-login-failures.log" in download_response.headers["content-disposition"]
+    assert "job-logger-login-failures.jsonl" in download_response.headers["content-disposition"]
     assert download_response.headers["cache-control"] == "no-store"
     assert failed_password not in download_response.text
+    log_payload = json.loads(download_response.text.strip())
+    assert log_payload["username"] == "bad-user"
+    assert log_payload["created_at_utc"]
 
     success_download_response = client.get("/debug/logs/login-successes")
     assert success_download_response.status_code == 200
     assert "web_login_succeeded" in success_download_response.text
-    assert "job-logger-login-successes.log" in success_download_response.headers["content-disposition"]
+    assert "job-logger-login-successes.jsonl" in success_download_response.headers["content-disposition"]
     assert success_download_response.headers["cache-control"] == "no-store"
 
-    entry_id_match = re.search(r'name="entry_id" value="([a-f0-9]{64})"', debug_response.text)
+    entry_id_match = re.search(r'name="entry_id" value="([a-f0-9-]{36})"', debug_response.text)
     assert entry_id_match is not None
     hide_response = client.post(
         "/debug/login-failures/hide",
@@ -633,12 +738,15 @@ def test_failed_login_writes_sanitized_log_and_debug_window(client: TestClient) 
 
     hidden_debug_response = client.get("/debug")
     assert "bad-user" not in hidden_debug_response.text
-    assert client.get("/debug/logs/login-failures").text == download_response.text
+    hidden_download_payload = json.loads(client.get("/debug/logs/login-failures").text.strip())
+    assert hidden_download_payload["username"] == "bad-user"
+    assert hidden_download_payload["hidden_from_debug"] is True
+    assert hidden_download_payload["created_at_utc"] == log_payload["created_at_utc"]
     with database.SessionLocal() as database_session:
-        hidden_entry = database_session.scalar(select(HiddenLoginFailure))
-        assert hidden_entry is not None
-        assert hidden_entry.entry_id == entry_id_match.group(1)
-        assert hidden_entry.client_ip == "203.0.113.9"
+        hidden_attempt = database_session.scalar(select(LoginAttempt).where(LoginAttempt.id == entry_id_match.group(1)))
+        assert hidden_attempt is not None
+        assert hidden_attempt.hidden_at_utc is not None
+        assert hidden_attempt.client_ip == "203.0.113.9"
 
 
 def test_cloudflare_ip_block_allowlist_matches_ips_and_cidrs() -> None:
@@ -770,13 +878,16 @@ def test_failed_login_auto_blocks_cloudflare_ip_after_five_consecutive_failures(
         assert audit_event.details["reason"] == "5 consecutive failed local app login attempts"
         assert audit_event.details["failure_count"] == 5
 
-    failure_payloads = [
-        json.loads(line)
-        for line in Path(os.environ["LOGIN_FAILURE_LOG_PATH"]).read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-    assert failure_payloads[-1]["failed_count"] == 5
-    assert failure_payloads[-1]["max_attempts"] == 5
+    with database.SessionLocal() as database_session:
+        latest_failure = database_session.scalar(
+            select(LoginAttempt)
+            .where(LoginAttempt.succeeded.is_(False))
+            .order_by(desc(LoginAttempt.created_at_utc))
+            .limit(1)
+        )
+        assert latest_failure is not None
+        assert latest_failure.failed_count == 5
+        assert latest_failure.max_attempts == 5
 
 
 def test_cloudflare_auto_block_uses_enforcement_ip_not_display_xff(
@@ -833,13 +944,16 @@ def test_cloudflare_auto_block_uses_enforcement_ip_not_display_xff(
         assert failed_response.status_code == 303
 
     assert created_blocks == ["198.51.100.70"]
-    failure_payloads = [
-        json.loads(line)
-        for line in Path(os.environ["LOGIN_FAILURE_LOG_PATH"]).read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-    assert failure_payloads[-1]["client_ip"] == "203.0.113.250"
-    assert failure_payloads[-1]["enforcement_client_ip"] == "198.51.100.70"
+    with database.SessionLocal() as database_session:
+        latest_failure = database_session.scalar(
+            select(LoginAttempt)
+            .where(LoginAttempt.succeeded.is_(False))
+            .order_by(desc(LoginAttempt.created_at_utc))
+            .limit(1)
+        )
+        assert latest_failure is not None
+        assert latest_failure.client_ip == "203.0.113.250"
+        assert latest_failure.enforcement_client_ip == "198.51.100.70"
 
     login_as_super_admin(client)
     debug_response = client.get("/debug")
@@ -874,16 +988,19 @@ def test_local_login_lockout_blocks_before_password_verification(client: TestCli
     assert "Too many failed sign-in attempts" in locked_response.text
     assert client.get("/users", follow_redirects=False).headers["location"] == "/login"
 
-    failure_payloads = [
-        json.loads(line)
-        for line in Path(os.environ["LOGIN_FAILURE_LOG_PATH"]).read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-    assert failure_payloads[-1]["reason"] == "local_lockout"
-    assert failure_payloads[-1]["lockout_applied"] is True
-    assert failure_payloads[-1]["failed_count"] == 5
-    assert failure_payloads[-1]["password_length"] == len("test-password")
-    assert "test-password" not in Path(os.environ["LOGIN_FAILURE_LOG_PATH"]).read_text(encoding="utf-8")
+    with database.SessionLocal() as database_session:
+        latest_failure = database_session.scalar(
+            select(LoginAttempt)
+            .where(LoginAttempt.succeeded.is_(False))
+            .order_by(desc(LoginAttempt.created_at_utc))
+            .limit(1)
+        )
+        assert latest_failure is not None
+        assert latest_failure.reason == "local_lockout"
+        assert latest_failure.lockout_applied is True
+        assert latest_failure.failed_count == 5
+        assert latest_failure.password_length == len("test-password")
+        assert "test-password" not in " ".join(str(value) for value in vars(latest_failure).values())
 
     with database.SessionLocal() as database_session:
         counter = database_session.scalar(
@@ -1113,98 +1230,67 @@ def test_debug_cloudflare_block_buttons_create_and_remove_app_managed_block(
         assert block.reason == "Operator reported credential stuffing"
 
 
-def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient) -> None:
-    """Diagnostics should page login tables and show newest sanitized app log lines."""
+def test_debug_login_pagination(super_admin_client: TestClient) -> None:
+    """Diagnostics should page database-backed login tables."""
 
-    login_failure_log_path = Path(os.environ["LOGIN_FAILURE_LOG_PATH"])
-    login_success_log_path = Path(os.environ["LOGIN_SUCCESS_LOG_PATH"])
     created_at = datetime(2026, 6, 21, 12, 0, tzinfo=UTC)
 
-    failure_payloads = [
-        {
-            "event": "web_login_failed",
-            "created_at_utc": created_at.isoformat(),
-            "client_ip": f"198.51.100.{index}",
-            "direct_client_ip": "testclient",
-            "x_real_ip": "",
-            "x_forwarded_for": "",
-            "forwarded_proto": "https",
-            "host": "testserver",
-            "username": f"failure-{index}",
-            "username_length": len(f"failure-{index}"),
-            "username_truncated": False,
-            "password_supplied": True,
-            "password_length": 8,
-            "user_agent": "Pagination Test",
-            "method": "POST",
-            "path": "/login",
-            "next_url": "",
-            "reason": "invalid_credentials",
-            "failed_count": 0,
-            "max_attempts": 0,
-            "lockout_applied": False,
-            "lockout_remaining_seconds": 0,
-        }
-        for index in range(12)
-    ]
-    success_payloads = [
-        {
-            "event": "web_login_succeeded",
-            "created_at_utc": created_at.isoformat(),
-            "client_ip": f"203.0.113.{index}",
-            "direct_client_ip": "testclient",
-            "x_real_ip": "",
-            "x_forwarded_for": "",
-            "forwarded_proto": "https",
-            "host": "testserver",
-            "username": f"success-{index}",
-            "user_kind": "web_user",
-            "web_user_id": f"user-{index}",
-            "authentication_method": "passkey" if index % 2 else "password",
-            "user_agent": "Pagination Test",
-            "method": "POST",
-            "path": "/login",
-        }
-        for index in range(12)
-    ]
-    login_failure_log_path.write_text(
-        "".join(f"{json.dumps(payload, sort_keys=True)}\n" for payload in failure_payloads),
-        encoding="utf-8",
-    )
-    login_success_log_path.write_text(
-        "".join(f"{json.dumps(payload, sort_keys=True)}\n" for payload in success_payloads),
-        encoding="utf-8",
-    )
-
-    log_dir = Path(os.environ["LOG_DIR"])
-    log_dir.mkdir(parents=True, exist_ok=True)
-    app_log_path = log_dir / "app.log"
-    app_log_path.write_text(
-        "".join(
-            f"line-{index} password=raw-secret-{index}\n"
-            for index in range(205)
-        ),
-        encoding="utf-8",
-    )
+    with database.SessionLocal() as database_session:
+        for index in range(12):
+            database_session.add(
+                LoginAttempt(
+                    succeeded=False,
+                    event="web_login_failed",
+                    created_at_utc=created_at + timedelta(seconds=index),
+                    client_ip=f"198.51.100.{index}",
+                    enforcement_client_ip=f"198.51.100.{index}",
+                    direct_client_ip="testclient",
+                    forwarded_proto="https",
+                    host="testserver",
+                    username=f"failure-{index}",
+                    username_length=len(f"failure-{index}"),
+                    username_truncated=False,
+                    password_supplied=True,
+                    password_length=8,
+                    user_agent="Pagination Test",
+                    method="POST",
+                    path="/login",
+                    reason="invalid_credentials",
+                )
+            )
+            database_session.add(
+                LoginAttempt(
+                    succeeded=True,
+                    event="web_login_succeeded",
+                    created_at_utc=created_at + timedelta(seconds=index),
+                    client_ip=f"203.0.113.{index}",
+                    enforcement_client_ip=f"203.0.113.{index}",
+                    direct_client_ip="testclient",
+                    forwarded_proto="https",
+                    host="testserver",
+                    username=f"success-{index}",
+                    user_kind="web_user",
+                    web_user_id=f"user-{index}",
+                    authentication_method="passkey" if index % 2 else "password",
+                    user_agent="Pagination Test",
+                    method="POST",
+                    path="/login",
+                )
+            )
+        database_session.commit()
 
     debug_response = super_admin_client.get("/debug?success_page=2&failure_page=2")
     assert debug_response.status_code == 200
     assert "Page 2 of 2" in debug_response.text
     assert 'class="status-chip login-method-chip login-method-password">Password</span>' in debug_response.text
     assert 'class="status-chip login-method-chip login-method-passkey">Passkey</span>' in debug_response.text
-    assert "Application Log" in debug_response.text
-    assert "last 10 lines" in debug_response.text
     assert "failure-1" in debug_response.text
     assert "failure-0" in debug_response.text
     assert "success-1" in debug_response.text
     assert "success-0" in debug_response.text
     assert "failure-11" not in debug_response.text
     assert "success-11" not in debug_response.text
-    assert debug_response.text.index("line-204") < debug_response.text.index("line-203")
-    assert "line-195 " in debug_response.text
-    assert "line-194 " not in debug_response.text
-    assert "password=***" in debug_response.text
-    assert "raw-secret" not in debug_response.text
+    assert "Application Log" not in debug_response.text
 
     stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
     phone_stylesheet = (
@@ -1225,10 +1311,12 @@ def test_debug_login_pagination_and_app_log_tail(super_admin_client: TestClient)
     assert ".login-attempt-extra" in stylesheet
     assert "position: absolute;" in stylesheet
     assert "width: min(760px, calc(100vw - 96px));" in stylesheet
-    assert "max-height: calc(10lh + 24px);" in stylesheet
+    assert "max-height: min(420px, calc(100vh - 160px));" in stylesheet
     assert ".disk-space-card.disk-space-warning" in stylesheet
     assert ".disk-space-card.disk-space-critical" in stylesheet
     assert ".disk-meter-critical" in stylesheet
+    assert ".database-health-grid" in stylesheet
+    assert ".database-health-card.database-health-critical" in stylesheet
     assert ".debug-shell {\n  display: grid;\n  gap: 12px;" in stylesheet
     assert ".debug-shell > .review-header {\n  margin-bottom: 0;" in stylesheet
 
@@ -1386,12 +1474,17 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert debug_response.status_code == 200
     assert "Diagnostics - Job Logger" in debug_response.text
     assert "<h1>Diagnostics</h1>" in debug_response.text
-    assert "Monitor storage, login activity, Cloudflare blocks, Autotask connectivity, submission history, logs, and backups." in debug_response.text
+    assert (
+        "Monitor storage, database connectivity, login activity, Cloudflare blocks, "
+        "Autotask connectivity, submission history, and backups."
+        in debug_response.text
+    )
     assert "Autotask debug" not in debug_response.text
     assert "Review provider configuration and the most recent submission attempts." not in debug_response.text
     assert "Application version" in debug_response.text
     assert APP_VERSION in debug_response.text
-    assert debug_response.text.index("Disk space") < debug_response.text.index("Session controls")
+    assert debug_response.text.index("Disk space") < debug_response.text.index("Database")
+    assert debug_response.text.index("Database") < debug_response.text.index("Session controls")
     assert debug_response.text.index("Session controls") < debug_response.text.index("Successful logins")
     assert debug_response.text.index("Successful logins") < debug_response.text.index("Login failures")
     assert debug_response.text.index("Login failures") < debug_response.text.index("Cloudflare Blocked IPs")
@@ -1399,8 +1492,8 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert debug_response.text.index("Autotask submission attempts") < debug_response.text.index("Autotask configuration snapshot")
     assert debug_response.text.index("Autotask configuration snapshot") < debug_response.text.index("Test Autotask API")
     assert debug_response.text.index("Autotask configuration snapshot") < debug_response.text.index("Full data backup")
-    assert debug_response.text.index("Full data backup") < debug_response.text.index("Application Log")
-    assert debug_response.text.index("Application Log") < debug_response.text.index("Automatic database backups")
+    assert debug_response.text.index("Full data backup") < debug_response.text.index("Automatic database backups")
+    assert "Application Log" not in debug_response.text
     assert 'class="autotask-config-list"' in debug_response.text
     assert "Time entry type" not in debug_response.text
     assert "Status mapping IDs" not in debug_response.text
@@ -2012,10 +2105,14 @@ def test_debug_restore_defaults_missing_cloudflare_security_tables_to_empty(
             )
         )
         database_session.add(
-            HiddenLoginFailure(
-                entry_id="a" * 64,
+            LoginAttempt(
+                succeeded=False,
+                event="web_login_failed",
+                created_at_utc=datetime(2026, 6, 24, 12, 0, tzinfo=UTC),
                 client_ip="198.51.100.77",
-                occurred_at_utc="2026-06-24T12:00:00+00:00",
+                enforcement_client_ip="198.51.100.77",
+                username="backup-user",
+                reason="invalid_credentials",
                 hidden_at_utc=datetime(2026, 6, 24, 12, 0, tzinfo=UTC),
             )
         )
@@ -2028,7 +2125,7 @@ def test_debug_restore_defaults_missing_cloudflare_security_tables_to_empty(
         data={"csrf_token": csrf_token},
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
-    for table_name in ("cloudflare_ip_blocks", "hidden_login_failures", "login_failure_counters"):
+    for table_name in ("cloudflare_ip_blocks", "login_attempts", "login_failure_counters"):
         payload["tables"].pop(table_name, None)
         payload["schema"].pop(table_name, None)
         payload["table_counts"].pop(table_name, None)
@@ -2055,7 +2152,7 @@ def test_debug_restore_defaults_missing_cloudflare_security_tables_to_empty(
     assert restore_response.status_code == 303
     with database.SessionLocal() as database_session:
         assert database_session.scalar(select(func.count(CloudflareIPBlock.id))) == 0
-        assert database_session.scalar(select(func.count(HiddenLoginFailure.id))) == 0
+        assert database_session.scalar(select(func.count(LoginAttempt.id))) == 0
         assert database_session.scalar(select(func.count(LoginFailureCounter.id))) == 0
 
 

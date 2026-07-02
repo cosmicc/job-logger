@@ -1941,6 +1941,11 @@ a:focus-visible {
   margin: -2px 0 2px;
 }
 
+.active-duration-row {
+  grid-column: 1 / -1;
+  margin: -2px 0 2px;
+}
+
 .work-location-card,
 .entry-type-card {
   display: grid;
@@ -3698,6 +3703,69 @@ td a {
   padding-left: 16px;
 }
 
+.database-health-card.database-health-critical {
+  border-color: var(--danger);
+  background: linear-gradient(135deg, var(--danger-soft), var(--surface) 58%);
+  box-shadow: 0 0 0 1px var(--danger-soft), var(--shadow);
+}
+
+.database-health-status {
+  white-space: nowrap;
+}
+
+.database-health-status-ok {
+  border-color: rgba(52, 211, 153, 0.48);
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.database-health-status-critical {
+  border-color: rgba(248, 113, 113, 0.5);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.database-health-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.database-health-item {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.database-health-primary {
+  border-color: rgba(45, 212, 191, 0.32);
+  background: rgba(45, 212, 191, 0.08);
+}
+
+.database-health-wide {
+  grid-column: span 2;
+}
+
+.database-health-item dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.database-health-item dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .debug-list {
   display: grid;
   gap: 12px;
@@ -4287,12 +4355,6 @@ td a {
   pointer-events: none;
 }
 
-.app-log-tail {
-  max-height: calc(10lh + 24px);
-  overflow: auto;
-  white-space: pre-wrap;
-}
-
 .compact-debug-list {
   margin-top: 10px;
   font-size: 12px;
@@ -4608,6 +4670,7 @@ td a {
   .metric-grid,
   .ticket-number-form,
   .form-grid,
+  .database-health-grid,
   .autotask-config-list,
   .backup-meta-grid,
   .backup-restore-form,
@@ -4626,6 +4689,10 @@ td a {
 
   .passkey-list-item {
     grid-template-columns: 1fr;
+  }
+
+  .database-health-wide {
+    grid-column: auto;
   }
 
   .ticket-notes-overlay {

@@ -154,6 +154,62 @@
   grid-template-columns: 1fr;
 }
 
+.metric-grid > .entry-type-card {
+  order: -70;
+}
+
+.metric-grid > .work-location-card {
+  order: -60;
+}
+
+.metric-grid > .ticket-status-card {
+  order: -50;
+}
+
+.metric-grid > .job-date-card {
+  order: -40;
+}
+
+.metric-grid > .active-start-time-card {
+  order: -30;
+}
+
+.metric-grid > .active-end-time-card {
+  order: -20;
+}
+
+.metric-grid > .active-duration-row {
+  order: -10;
+}
+
+.form-grid > .review-entry-type-card {
+  order: 10;
+}
+
+.form-grid > .review-work-location-card {
+  order: 20;
+}
+
+.form-grid > .review-ticket-status-field {
+  order: 30;
+}
+
+.form-grid > .review-job-date-field {
+  order: 40;
+}
+
+.form-grid > .review-start-time-field {
+  order: 50;
+}
+
+.form-grid > .review-end-time-field {
+  order: 60;
+}
+
+.form-grid > .review-duration-row {
+  order: 70;
+}
+
 .review-header,
 .users-page-header,
 .config-page-header,

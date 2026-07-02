@@ -1,12 +1,11 @@
-"""Runtime file logging configuration for Job Logger."""
+"""Runtime stdout logging configuration for Job Logger."""
 
 from __future__ import annotations
 
 import logging
 import re
+import sys
 from datetime import UTC, datetime
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
 
 from job_logger.config import Settings
 from job_logger.time_utils import to_local
@@ -45,12 +44,9 @@ class LocalTimezoneFormatter(logging.Formatter):
         return timestamp.isoformat(timespec="seconds")
 
 
-def configure_logging(application_settings: Settings) -> Path:
-    """Configure host-mounted application logging and return the app log path."""
+def configure_logging(application_settings: Settings) -> None:
+    """Configure application logging for Docker/Swarm stdout collection."""
 
-    log_dir = Path(application_settings.log_dir)
-    log_dir.mkdir(parents=True, exist_ok=True)
-    app_log_path = log_dir / "app.log"
     configured_log_level = logging.getLevelName(application_settings.log_level)
     formatter = LocalTimezoneFormatter(
         "%(asctime)s %(levelname)s [%(name)s] %(message)s",
@@ -63,19 +59,25 @@ def configure_logging(application_settings: Settings) -> Path:
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
-    for handler in root_logger.handlers:
+    stdout_handler: logging.Handler | None = None
+    for handler in list(root_logger.handlers):
+        if getattr(handler, "_job_logger_marker", "") == "job_logger_stdout":
+            stdout_handler = handler
+            continue
         if getattr(handler, "_job_logger_marker", "") == "job_logger_app_file":
-            handler_path = Path(getattr(handler, "baseFilename", ""))
-            if handler_path == app_log_path:
-                handler.setLevel(configured_log_level)
-                handler.setFormatter(formatter)
-                return app_log_path
             root_logger.removeHandler(handler)
             handler.close()
 
-    file_handler = RotatingFileHandler(app_log_path, maxBytes=1_000_000, backupCount=3)
-    file_handler.setLevel(configured_log_level)
-    file_handler.setFormatter(formatter)
-    file_handler._job_logger_marker = "job_logger_app_file"  # type: ignore[attr-defined]
-    root_logger.addHandler(file_handler)
-    return app_log_path
+    if stdout_handler is not None:
+        stdout_handler.setLevel(configured_log_level)
+        stdout_handler.setFormatter(formatter)
+        if isinstance(stdout_handler, logging.StreamHandler):
+            stdout_handler.setStream(sys.stdout)
+        return None
+
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setLevel(configured_log_level)
+    stream_handler.setFormatter(formatter)
+    stream_handler._job_logger_marker = "job_logger_stdout"  # type: ignore[attr-defined]
+    root_logger.addHandler(stream_handler)
+    return None

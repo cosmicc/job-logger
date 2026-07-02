@@ -5,9 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections import deque
 from dataclasses import dataclass
-from pathlib import Path
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -17,8 +16,7 @@ from starlette.datastructures import UploadFile
 
 from job_logger.config import settings
 from job_logger.database import get_database_session
-from job_logger.logging_config import redact_sensitive_text
-from job_logger.models import AuditEvent, CloudflareIPBlock, HiddenLoginFailure, Job, SubmissionAttempt, WebUser
+from job_logger.models import AuditEvent, CloudflareIPBlock, Job, LoginAttempt, SubmissionAttempt, WebUser
 from job_logger.security import add_flash_message, require_debug_access, validate_csrf_token
 from job_logger.services.audit import record_audit_event
 from job_logger.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
@@ -43,7 +41,8 @@ from job_logger.services.cloudflare_blocks import (
     remove_app_cloudflare_block,
     sanitize_cloudflare_block_reason,
 )
-from job_logger.services.login_failures import read_login_failures_page, read_login_successes_page
+from job_logger.services.database_diagnostics import collect_database_diagnostics_snapshot
+from job_logger.services.login_failures import login_attempts_jsonl, read_login_failures_page, read_login_successes_page
 from job_logger.services.session_control import invalidate_all_web_user_sessions
 from job_logger.services.system_health import (
     _format_file_size,
@@ -61,8 +60,6 @@ DIAGNOSTIC_TABLE_PAGE_SIZE = 10
 LOGIN_ATTEMPT_PAGE_SIZE = DIAGNOSTIC_TABLE_PAGE_SIZE
 CLOUDFLARE_BLOCK_PAGE_SIZE = DIAGNOSTIC_TABLE_PAGE_SIZE
 SUBMISSION_ATTEMPT_PAGE_SIZE = DIAGNOSTIC_TABLE_PAGE_SIZE
-APP_LOG_TAIL_LINES = 10
-MAX_APP_LOG_LINE_CHARS = 2000
 AUTOMATIC_BACKUP_TRIGGER_LABELS = {
     "startup": "Startup",
     "scheduled": "Hourly",
@@ -347,30 +344,6 @@ def _paginate_submission_attempts(
     )
 
 
-def _read_app_log_tail(log_dir: str, *, line_count: int = APP_LOG_TAIL_LINES) -> list[str]:
-    """Return newest-first sanitized app log lines for the debug page."""
-
-    app_log_path = Path(log_dir) / "app.log"
-    if line_count <= 0 or not app_log_path.exists():
-        return []
-
-    recent_lines: deque[str] = deque(maxlen=line_count)
-    try:
-        with app_log_path.open("r", encoding="utf-8", errors="replace") as app_log_file:
-            for raw_line in app_log_file:
-                stripped_line = raw_line.rstrip("\n")
-                if stripped_line:
-                    recent_lines.append(stripped_line)
-    except OSError as exc:
-        logger.warning("Failed to read app log tail at %s: %s", app_log_path, exc)
-        return []
-
-    return [
-        redact_sensitive_text(log_line)[:MAX_APP_LOG_LINE_CHARS]
-        for log_line in reversed(recent_lines)
-    ]
-
-
 def _redirect_anonymous_or_raise(exc: HTTPException) -> RedirectResponse:
     """Redirect anonymous users to login while preserving diagnostics 403s."""
 
@@ -416,11 +389,10 @@ def debug_page(
         page=attempt_page,
         page_size=SUBMISSION_ATTEMPT_PAGE_SIZE,
     )
-    hidden_login_failure_ids = set(database_session.scalars(select(HiddenLoginFailure.entry_id)))
     login_failures = read_login_failures_page(
+        database_session,
         page=failure_page,
         page_size=LOGIN_ATTEMPT_PAGE_SIZE,
-        hidden_entry_ids=hidden_login_failure_ids,
     )
     all_cloudflare_ip_blocks = list(
         database_session.scalars(
@@ -455,17 +427,15 @@ def debug_page(
             app_version=APP_VERSION,
             autotask_settings=_safe_autotask_config(),
             autotask_connectivity=request.session.get("autotask_connectivity_result"),
-            login_success_log_path=settings.login_success_log_path,
-            login_failure_log_path=settings.login_failure_log_path,
-            login_failure_debug_rows=settings.login_failure_debug_rows,
             login_attempt_page_size=LOGIN_ATTEMPT_PAGE_SIZE,
-            login_successes=read_login_successes_page(page=success_page, page_size=LOGIN_ATTEMPT_PAGE_SIZE),
+            login_successes=read_login_successes_page(database_session, page=success_page, page_size=LOGIN_ATTEMPT_PAGE_SIZE),
             login_failures=login_failures,
             login_failure_ip_statuses=login_failure_ip_statuses,
             cloudflare_ip_blocks=cloudflare_ip_blocks_page.records,
             cloudflare_ip_blocks_page=cloudflare_ip_blocks_page,
             cloudflare_ip_blocking_configured=cloudflare_ip_blocking_configured(),
             disk_usage=_collect_disk_usage_snapshot(),
+            database_diagnostics=collect_database_diagnostics_snapshot(),
             submission_attempts=submission_attempts_page.records,
             submission_attempts_page=submission_attempts_page,
             submission_attempt_page_size=SUBMISSION_ATTEMPT_PAGE_SIZE,
@@ -479,9 +449,6 @@ def debug_page(
             automatic_backups_enabled=settings.automatic_backups_enabled,
             automatic_backup_dir=settings.automatic_backup_dir,
             backup_upload_max_mb=_backup_upload_max_mb(),
-            app_log_path=str(Path(settings.log_dir) / "app.log"),
-            app_log_lines=_read_app_log_tail(settings.log_dir),
-            app_log_tail_lines=APP_LOG_TAIL_LINES,
         ),
     )
 
@@ -491,22 +458,18 @@ def download_login_failure_log(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> Response:
-    """Download the raw failed-login JSONL log for authenticated diagnostics."""
+    """Download failed-login rows as generated JSONL from the database."""
 
     try:
         require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
-    log_path = Path(settings.login_failure_log_path)
-    if not log_path.exists():
-        raise HTTPException(status_code=404, detail="Login failure log not found")
-
     return Response(
-        content=redact_sensitive_text(log_path.read_text(encoding="utf-8", errors="replace")),
+        content=login_attempts_jsonl(database_session, succeeded=False),
         media_type="application/jsonl; charset=utf-8",
         headers={
-            "Content-Disposition": 'attachment; filename="job-logger-login-failures.log"',
+            "Content-Disposition": 'attachment; filename="job-logger-login-failures.jsonl"',
             "Cache-Control": "no-store",
         },
     )
@@ -517,22 +480,18 @@ def download_login_success_log(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> Response:
-    """Download the raw successful-login JSONL log for authenticated diagnostics."""
+    """Download successful-login rows as generated JSONL from the database."""
 
     try:
         require_debug_access(request, database_session)
     except HTTPException as exc:
         return _redirect_anonymous_or_raise(exc)
 
-    log_path = Path(settings.login_success_log_path)
-    if not log_path.exists():
-        raise HTTPException(status_code=404, detail="Login success log not found")
-
     return Response(
-        content=redact_sensitive_text(log_path.read_text(encoding="utf-8", errors="replace")),
+        content=login_attempts_jsonl(database_session, succeeded=True),
         media_type="application/jsonl; charset=utf-8",
         headers={
-            "Content-Disposition": 'attachment; filename="job-logger-login-successes.log"',
+            "Content-Disposition": 'attachment; filename="job-logger-login-successes.jsonl"',
             "Cache-Control": "no-store",
         },
     )
@@ -543,7 +502,7 @@ async def hide_login_failure_entry(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> RedirectResponse:
-    """Hide one failed-login row from Diagnostics without editing the raw log."""
+    """Hide one failed-login row from Diagnostics without deleting its database history."""
 
     try:
         actor = require_debug_access(request, database_session)
@@ -552,22 +511,19 @@ async def hide_login_failure_entry(
 
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
-    cleaned_entry_id = str(form_data.get("entry_id", "")).strip().lower()
-    if not re.fullmatch(r"[a-f0-9]{64}", cleaned_entry_id):
+    cleaned_entry_id = str(form_data.get("entry_id", "")).strip()
+    if not re.fullmatch(r"[a-f0-9-]{36}", cleaned_entry_id):
         raise HTTPException(status_code=400, detail="Invalid failed-login entry ID.")
 
-    existing = database_session.scalar(
-        select(HiddenLoginFailure)
-        .where(HiddenLoginFailure.entry_id == cleaned_entry_id)
+    login_attempt = database_session.scalar(
+        select(LoginAttempt)
+        .where(LoginAttempt.id == cleaned_entry_id, LoginAttempt.succeeded.is_(False))
         .limit(1)
     )
-    if existing is None:
-        hidden_entry = HiddenLoginFailure(
-            entry_id=cleaned_entry_id,
-            client_ip=str(form_data.get("client_ip", "")).strip()[:64],
-            occurred_at_utc=str(form_data.get("created_at_utc", "")).strip()[:40],
-        )
-        database_session.add(hidden_entry)
+    if login_attempt is None:
+        raise HTTPException(status_code=404, detail="Failed-login row not found.")
+    if login_attempt.hidden_at_utc is None:
+        login_attempt.hidden_at_utc = datetime.now(UTC)
         record_audit_event(
             database_session,
             actor=actor,
@@ -575,7 +531,7 @@ async def hide_login_failure_entry(
             request=request,
             details={
                 "entry_id": cleaned_entry_id,
-                "client_ip": hidden_entry.client_ip,
+                "client_ip": login_attempt.client_ip,
             },
         )
         database_session.commit()
@@ -779,7 +735,7 @@ async def restore_full_backup_form(
         return RedirectResponse(url="/debug#full-backup", status_code=303)
     except Exception:
         logger.exception("Full Job Logger restore failed unexpectedly")
-        add_flash_message(request, "Restore failed. Check the app log before trying again.", "error")
+        add_flash_message(request, "Restore failed. Check the service logs before trying again.", "error")
         return RedirectResponse(url="/debug#full-backup", status_code=303)
 
     record_audit_event(
@@ -835,7 +791,7 @@ async def restore_automatic_backup_form(
         return RedirectResponse(url="/debug#automatic-backups", status_code=303)
     except Exception:
         logger.exception("Automatic Job Logger restore failed unexpectedly filename=%s", backup_filename)
-        add_flash_message(request, "Restore failed. Check the app log before trying again.", "error")
+        add_flash_message(request, "Restore failed. Check the service logs before trying again.", "error")
         return RedirectResponse(url="/debug#automatic-backups", status_code=303)
 
     record_audit_event(

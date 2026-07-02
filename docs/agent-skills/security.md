@@ -146,14 +146,11 @@ Application setup in `job_logger/main.py` configures:
 
 Production must not use default secrets or missing passwords.
 
-Successful and failed local app login attempts are recorded in configured JSONL
-files, defaulting to `${LOG_DIR}/job-logger-login-successes.log` and
-`${LOG_DIR}/job-logger-login-failures.log`. Docker Compose sets
-`LOG_DIR=/data/logs` and bind-mounts `HOST_LOG_DIR=/var/log/job-logger` there
-so operators can read log files from the Docker host. The login logs and
-`/debug` login windows may show timestamp, client IP details, submitted
-username, account kind, authentication method, username length/truncation for
-failures, user agent, request path, host/proxy metadata, reason, and
+Successful and failed local app login attempts are recorded as sanitized
+database rows in `login_attempts`. The `/debug` login windows and generated
+JSONL downloads may show timestamp, client IP details, submitted username,
+account kind, authentication method, username length/truncation for failures,
+user agent, request path, host/proxy metadata, reason, and
 password-present/length metadata for failures. They must never include the raw
 submitted password, session tokens, authentication headers, or Cloudflare
 Access JWTs. The visible `client_ip` is diagnostics-only. In the bundled Docker
@@ -164,8 +161,8 @@ decisions must use the trusted enforcement IP from nginx-sanitized
 `X-Real-IP`/`X-Forwarded-For`, falling back to the direct app socket peer only
 outside the bundled proxy path. Retain direct socket and proxy headers as
 supporting metadata only. Failed-login rows may be hidden from the `/debug`
-table by storing their raw-line hash in `hidden_login_failures`; never edit or
-truncate the raw JSONL audit download. `login_failure_counters` stores
+table by setting `login_attempts.hidden_at_utc`; JSONL downloads are generated
+from database rows and must remain sanitized. `login_failure_counters` stores
 consecutive failures by trusted enforcement IP and case-insensitive submitted
 username, and must reset to zero after a successful password or Device sign-in
 login for that same IP/username key. When the counter reaches
@@ -181,19 +178,20 @@ also used in the Cloudflare rule note. The successful-login table may use a
 yellow account-kind chip for config
 super-admin rows so they are easy to distinguish from managed web users, and
 may show `Password` or `Passkey` method pills for the already-sanitized
-authentication method. Near the bottom of `/debug`, the page may show a
-sanitized newest-first tail of `${LOG_DIR}/app.log`; keep that bounded to the
-newest 10 displayed lines and redacted. Login failure, Cloudflare blocked-IP,
-and Autotask submission-attempt diagnostics must stay paginated at 10 rows per
-page. Wide Diagnostics tables should stay horizontally scrollable on phone
-layouts instead of compressing columns, especially when they include per-row
-backup or Cloudflare actions. `LOG_LEVEL` controls app-log verbosity and must
+authentication method. Login failure, Cloudflare blocked-IP, and Autotask
+submission-attempt diagnostics must stay paginated at 10 rows per page. Wide
+Diagnostics tables should stay horizontally scrollable on phone layouts instead
+of compressing columns, especially when they include per-row backup or
+Cloudflare actions. `LOG_LEVEL` controls stdout/stderr log verbosity and must
 be limited to `DEBUG`, `INFO`, `WARNING`, or `ERROR`. `/debug` may also show
-disk usage for
-app-visible storage paths such as `/`, `${LOG_DIR}`, and
+disk usage for app-visible storage paths such as `/` and
 `${AUTOMATIC_BACKUP_DIR}`. Combine monitored paths when used bytes and total
 bytes match exactly, and keep disk diagnostics read-only and limited to path,
 usage, and warning/critical metadata.
+The `/debug` database card may run a cheap `SELECT 1` probe and show safe
+connectivity status, latency, backend/driver, migration revision, pool class,
+pool counters, and configured pool limits/timeouts. It must not display the
+database URL, host, database name, username, password, or raw exception details.
 The shared app-health service uses the same disk warning/critical thresholds
 for the authenticated top-bar degraded-health icon. Page rendering may read
 cached health and local disk usage, but it must not run fresh external Autotask
@@ -457,9 +455,9 @@ rows untouched.
 
 Automatic backups use the same full-backup content format and restore path.
 The scheduler writes one startup file and then hourly files under
-`AUTOMATIC_BACKUP_DIR`, defaulting to a host-mounted runtime backup directory in
-Docker. Keep the backup directory
-private: files must be written through owner-only temporary files when possible,
+`AUTOMATIC_BACKUP_DIR`, defaulting to `/data/backups` in Docker. Keep the
+backup directory private: files must be written through owner-only temporary
+files when possible,
 directory listings and downloads must be Diagnostics-authorized only, selected
 download or restore filenames must be strictly validated instead of trusting
 form paths, and retention must purge expired automatic backups after successful
@@ -470,9 +468,9 @@ sensitive runtime state for older files that lack that metadata.
 
 ## Docker And Runtime Safety
 
-The application container starts as root only long enough to prepare
-host-mounted log paths, then runs migrations and Uvicorn as the fixed
-unprivileged `appuser` account.
+The application container runs as the fixed unprivileged `appuser` account.
+Application logs must go to stdout/stderr so standalone Compose and Docker
+Swarm deployments can collect them through the container runtime.
 
 PostgreSQL data must live in a persistent volume or documented persistent
 storage.
@@ -487,6 +485,10 @@ PostgreSQL service behind `COMPOSE_PROFILES=local-db` and by letting
 Normalize plain `postgresql://` and `postgres://` URLs to the installed psycopg
 3 driver before creating app or Alembic engines. Keep remote database
 connections bounded with the documented pool and timeout settings.
+Swarm deployment must use `docker-swarm.yml`, prebuilt pushed images, a remote
+PostgreSQL `DATABASE_URL`, overlay networking, and stdout/stderr logging. Do not
+add a PostgreSQL service to the Swarm file unless the operator explicitly asks
+for a separate persistent Swarm database design.
 
 The app entrypoint should wait briefly for database connectivity and emit
 sanitized diagnostics before migrations. If the database remains unavailable,

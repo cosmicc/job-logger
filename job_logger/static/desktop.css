@@ -78,37 +78,37 @@
 }
 
 .review-job-date-field {
-  grid-column: 1;
-  grid-row: 3;
+  grid-column: 2;
+  grid-row: 4;
 }
 
 .review-entry-type-card {
-  grid-column: 2;
+  grid-column: 1;
   grid-row: 3;
 }
 
 .review-start-time-field {
   grid-column: 1;
-  grid-row: 4;
+  grid-row: 5;
 }
 
 .review-end-time-field {
   grid-column: 2;
-  grid-row: 4;
-}
-
-.review-duration-row {
   grid-row: 5;
 }
 
-.review-work-location-card {
-  grid-column: 1;
+.review-duration-row {
   grid-row: 6;
 }
 
-.review-ticket-status-field {
+.review-work-location-card {
   grid-column: 2;
-  grid-row: 6;
+  grid-row: 3;
+}
+
+.review-ticket-status-field {
+  grid-column: 1;
+  grid-row: 4;
 }
 
 .record-notes-button.is-recording,
@@ -200,6 +200,51 @@
 
   .work-panel[data-active-job-card] > .metric-grid {
     margin: 0;
+  }
+
+  .work-panel[data-active-job-card] > .metric-grid > .entry-type-card {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .work-panel[data-active-job-card] > .metric-grid > .work-location-card {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .work-panel[data-active-job-card] > .metric-grid > .ticket-status-card {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .work-panel[data-active-job-card] > .metric-grid > .job-date-card {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .work-panel[data-active-job-card] > .metric-grid > .active-start-time-card {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .work-panel[data-active-job-card] > .metric-grid > .active-end-time-card {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .work-panel[data-active-job-card] > .metric-grid > .active-duration-row {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+
+  .work-panel[data-active-job-card] > .metric-grid > .client-name-card {
+    grid-column: 1;
+    grid-row: 5;
+  }
+
+  .work-panel[data-active-job-card] > .metric-grid > .ticket-number-card {
+    grid-column: 2;
+    grid-row: 5;
   }
 
   .work-panel[data-active-job-card] .job-date-card .date-input-shell {

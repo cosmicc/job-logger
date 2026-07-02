@@ -109,6 +109,7 @@ def record_local_login_lockout(
     """Log a pre-authentication local lockout without checking credentials."""
 
     log_failed_login_attempt(
+        database_session,
         request,
         submitted_username=submitted_username,
         submitted_password=submitted_password,
@@ -117,7 +118,6 @@ def record_local_login_lockout(
         max_attempts=lockout_state.max_attempts,
         lockout_applied=True,
         lockout_remaining_seconds=lockout_state.remaining_seconds,
-        application_settings=application_settings,
     )
     record_audit_event(
         database_session,
@@ -150,13 +150,13 @@ def record_failed_login_attempt_and_maybe_block(
         submitted_username=submitted_username,
     )
     log_failed_login_attempt(
+        database_session,
         request,
         submitted_username=submitted_username,
         submitted_password=submitted_password,
         reason=reason,
         failed_count=failed_count,
         max_attempts=application_settings.cloudflare_auto_block_failed_login_attempts,
-        application_settings=application_settings,
     )
     maybe_auto_block_failed_login_ip(
         database_session,
