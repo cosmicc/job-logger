@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en" class="theme-dark">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="{{ retry_seconds }};url={{ retry_url }}">
+    <title>Service Temporarily Unavailable</title>
+    <link rel="stylesheet" href="/static/app.css?v={{ static_asset_version }}">
+    <link rel="stylesheet" href="/static/service-unavailable.css?v={{ static_asset_version }}">
+  </head>
+  <body class="service-unavailable-body">
+    <main class="service-unavailable-shell" aria-labelledby="service-unavailable-title">
+      <section class="service-unavailable-panel">
+        <div class="service-unavailable-brand">
+          <img
+            class="service-unavailable-brand-icon"
+            src="/static/icons/job-logger-icon-maskable-512.png"
+            alt=""
+            width="52"
+            height="52"
+            aria-hidden="true"
+          >
+          <div class="service-unavailable-brand-copy">
+            <p class="eyebrow-text">Job Logger</p>
+            <p class="muted-text">Work logging service</p>
+          </div>
+        </div>
+        <span class="service-unavailable-status">Temporary outage</span>
+        <h1 id="service-unavailable-title">Service Temporarily Unavailable</h1>
+        <p>Job Logger is temporarily unavailable. This page will retry the sign-in page automatically.</p>
+      </section>
+    </main>
+  </body>
+</html>

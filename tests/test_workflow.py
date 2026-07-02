@@ -1324,7 +1324,7 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert "Autotask API:" not in response.text
     assert "Secure session" not in response.text
     assert 'class="desktop-header-left"' in response.text
-    assert 'class="brand-icon" src="/static/icons/job-logger-icon-192.png"' in response.text
+    assert 'class="brand-icon" src="/static/icons/job-logger-icon-maskable-512.png"' in response.text
     assert '<a href="/home">' in response.text
     assert "<span>Work</span>" in response.text
     assert '<path d="M12 11v6"></path>' in response.text
@@ -1569,8 +1569,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "transform: translateX(-8px);" in phone_stylesheet
     assert ".brand {\n  display: none;" in phone_stylesheet
     assert ".desktop-header-left {\n  display: none;" in phone_stylesheet
-    assert ".login-header .login-brand" in phone_stylesheet
-    assert "grid-column: 2;" in phone_stylesheet
+    assert ".login-header .login-brand" not in phone_stylesheet
     assert ".mobile-version-group {\n  display: inline-flex;" in phone_stylesheet
     assert ".dev-build-pill" not in phone_stylesheet
     assert ".mobile-nav-actions {\n  display: flex;" in phone_stylesheet

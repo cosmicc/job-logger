@@ -143,7 +143,8 @@ def test_login_page_exposes_password_fallback_and_passkey_button(client: TestCli
     assert "<h1>Sign in</h1>" not in response.text
     assert "Use the local app account configured for this deployment." not in response.text
     assert response.text.index('type="submit"') < response.text.index("data-passkey-login-panel")
-    assert 'class="brand login-brand"' in response.text
+    assert "login-brand" not in response.text
+    assert '<header class="app-header' not in response.text
     assert 'aria-label="Job Logger home"' not in response.text
 
 

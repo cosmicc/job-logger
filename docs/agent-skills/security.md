@@ -481,8 +481,19 @@ initialization on slower Docker hosts. Add a startup grace period instead of
 forcing operators to remove volumes when the database is merely still
 bootstrapping.
 Do not make Compose or Portainer stack creation depend on PostgreSQL becoming
-healthy. Preserve start order, then let the app entrypoint wait for database
-connectivity and emit sanitized diagnostics before migrations.
+healthy. Compose must also support remote PostgreSQL by keeping the bundled
+PostgreSQL service behind `COMPOSE_PROFILES=local-db` and by letting
+`DATABASE_URL` point at the remote server when that profile is disabled. Keep
+remote database connections bounded with the documented pool and timeout
+settings.
+
+The app entrypoint should wait briefly for database connectivity and emit
+sanitized diagnostics before migrations. If the database remains unavailable,
+the web process must still start in temporary-service mode. DB-backed browser
+routes should return an app-branded **Service Temporarily Unavailable** page
+that auto-refreshes `/login` and does not expose database, network, code,
+stack, or credential details. API-style requests should receive only a generic
+503 body.
 
 The internet-facing nginx template must expose only the web interface and the
 authenticated browser actions required by those pages. Keep API-style,

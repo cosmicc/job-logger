@@ -54,7 +54,7 @@ browser-only action. Keep the explicit desktop logout form available on
 non-mobile authenticated pages. Full-browser top navigation should stay
 centered and use raised blue icon-and-text buttons, including visible
 **Log out** text after the logout icon. The authenticated desktop brand mark
-should use the source-controlled PWA home-screen icon while phone-sized
+should use the source-controlled PWA installed-app icon asset while phone-sized
 navigation remains compact blue icon buttons.
 Enabled buttons and button-like navigation controls should visibly brighten on
 hover. Workflow actions such as **Record**, **AI Cleanup**, finish, delete, and
@@ -69,6 +69,8 @@ When cached app health is degraded, every authenticated user sees a red
 exclamation status icon in the top bar. The icon is non-clickable and must not
 open Diagnostics. On phone layouts, keep the indicator in the right-side action
 group without crowding Config, Diagnostics, or logout controls.
+The unauthenticated login page should render the sign-in form without a top app
+icon or wordmark.
 
 New blank work starts through `POST /jobs/start`. A user can also start work
 from an Autotask service call selected in the mobile day navigator through

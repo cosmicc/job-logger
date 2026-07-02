@@ -75,6 +75,10 @@ Autotask REST API references used by this app:
    docker compose up -d --build
    ```
 
+   `.env.example` enables `COMPOSE_PROFILES=local-db`, so this starts the
+   bundled PostgreSQL container. For a remote PostgreSQL server, set
+   `COMPOSE_PROFILES=` and provide `DATABASE_URL`.
+
    If you do not have a tunnel token yet, run only local services first:
 
    ```bash
@@ -172,8 +176,9 @@ validation and a production release is ready.
 ## Cloudflare Tunnel
 
 The Compose file starts Nginx and `cloudflared` by default. This keeps the
-production deployment path simple: the app, PostgreSQL, Nginx reverse proxy, and
-tunnel connector all come up with one `docker compose up -d --build` command.
+production deployment path simple: the app, Nginx reverse proxy, tunnel
+connector, and the optional local PostgreSQL profile can come up with one
+`docker compose up -d --build` command.
 
 1. Create a Cloudflare Tunnel in the Zero Trust dashboard.
 2. Add a public hostname that routes to this Docker service URL:
@@ -238,6 +243,28 @@ via environment:
 - App listens on container port `8000`.
 - PostgreSQL stays internal to Compose on container port `5432`.
 
+### PostgreSQL Deployment Mode
+
+The default `.env.example` uses `COMPOSE_PROFILES=local-db`, which starts the
+bundled `db` service and stores data in the `postgres_data` Docker volume.
+
+To use a remote PostgreSQL server instead:
+
+```env
+COMPOSE_PROFILES=
+DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
+```
+
+Keep the remote database private to trusted networks or TLS-protected
+connections. The app uses pooled connections with `pool_pre_ping`, bounded
+timeouts, and configurable `DATABASE_POOL_*` settings so remote connections are
+reused without growing unbounded.
+
+If the database is temporarily unavailable, the web container still starts and
+DB-backed pages show an app-branded **Service Temporarily Unavailable** page
+with automatic retry to the login page. The page intentionally does not expose
+database, network, or code details.
+
 If the local troubleshooting URL is changed to a different port, update only:
 
 ```env
@@ -283,11 +310,14 @@ docker inspect --format '{{.State.Health.Status}}' job-logger-dev-db-1
 
 The database service healthcheck has a startup grace period, and Compose starts
 the app after the database container is started rather than aborting the stack
-on the DB health status. The app entrypoint then waits for real database
-connectivity before running migrations. If the DB container remains unhealthy,
-treat it as a real database startup problem. The most common causes are a stale
-dev stack volume with different PostgreSQL credentials, a damaged/incompatible
-data directory, or an environment mismatch in the deployed stack.
+on the DB health status. The app entrypoint waits briefly for real database
+connectivity and runs migrations when it can. If the database remains
+unavailable, the web process stays up in temporary-service mode and retries
+normal startup work before serving DB-backed pages again. If the DB container
+remains unhealthy, treat it as a real database startup problem. The most common
+causes are a stale dev stack volume with different PostgreSQL credentials, a
+damaged/incompatible data directory, or an environment mismatch in the deployed
+stack.
 
 For disposable dev stacks only, the fastest reset is to remove the failed dev
 stack and its dev PostgreSQL volume, then redeploy with the intended `.env`.
@@ -298,8 +328,9 @@ history is intentionally being discarded or a current backup has been verified.
 
 The PostgreSQL Docker image only applies `POSTGRES_PASSWORD` when the database
 volume is first initialized. If `.env` is changed later while keeping the same
-`postgres_data` volume, the app can loop at startup with database retry messages
-or PostgreSQL can log `password authentication failed for user "job_logger"`.
+`postgres_data` volume, the app can show the temporary service page while
+retrying the database, or PostgreSQL can log `password authentication failed for
+user "job_logger"`.
 
 Do not delete the database volume to fix a password mismatch unless the stored
 job history is intentionally being discarded. Instead, update the existing
@@ -442,13 +473,14 @@ currently `v1.2.0`. Version history starts at `v1.0.0`.
 
 Authenticated pages show the current version discreetly in the shared header.
 Clicking that version opens `/changelog`, which displays the current version
-and concise release notes parsed from `WEB_CHANGELOG.md`. The current-version
-panel lists short user-facing changes directly, and the timeline keeps prior
-versions visible. `CHANGELOG.md` remains the detailed source changelog for
-operators and agents. `WEB_CHANGELOG.md` is only for user-facing changes; keep
-diagnostics, debug-page, super-admin-only, operator-only, and agent-facing notes
-in `CHANGELOG.md` only. The changelog page uses the same authenticated session,
-dark/light theme variables, and responsive layout system as the rest of the app.
+and concise release notes parsed from `WEB_CHANGELOG.md`. The changelog page
+shows bracketed version numbers, release dates in `MM.DD.YYYY` format, and
+short user-facing changes for each version. `CHANGELOG.md` remains the detailed
+source changelog for operators and agents. `WEB_CHANGELOG.md` is only for
+user-facing changes; keep diagnostics, debug-page, super-admin-only,
+operator-only, and agent-facing notes in `CHANGELOG.md` only. The changelog page
+uses the same authenticated session, dark/light theme variables, and responsive
+layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the same authenticated header also shows a
 yellow version badge on desktop and phone layouts, such as `v1.2.0 DEV`.
 

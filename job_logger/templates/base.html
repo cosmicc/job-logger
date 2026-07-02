@@ -19,11 +19,11 @@
     <script src="/static/pwa.js?v={{ static_asset_version }}" defer></script>
   </head>
   <body class="theme-{{ current_theme|default('dark') }}">
-    <header class="app-header{% if not current_username %} login-header{% endif %}{% if app_health_degraded %} has-health-alert{% endif %}">
-      {% if current_username %}
+    {% if current_username %}
+      <header class="app-header{% if app_health_degraded %} has-health-alert{% endif %}">
         <div class="desktop-header-left">
           <a class="brand" href="/home" aria-label="Job Logger home">
-            <img class="brand-icon" src="/static/icons/job-logger-icon-192.png" alt="" width="34" height="34" aria-hidden="true">
+            <img class="brand-icon" src="/static/icons/job-logger-icon-maskable-512.png" alt="" width="34" height="34" aria-hidden="true">
             <span>Job Logger</span>
           </a>
           <div class="header-status-group desktop-status-group" aria-label="Application version">
@@ -170,12 +170,8 @@
             <span>Log out</span>
           </button>
         </form>
-      {% else %}
-        <div class="brand login-brand" aria-label="Job Logger">
-          <span class="brand-mark" aria-hidden="true">JL</span>
-        </div>
-      {% endif %}
-    </header>
+      </header>
+    {% endif %}
 
     {% if flash_messages %}
       <section class="flash-stack" aria-label="Messages">

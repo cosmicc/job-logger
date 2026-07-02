@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## v1.2.0 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge errors
+## [1.2.0] - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge errors
 
 - Advanced the source-controlled dev runtime version to `v1.2.0`, including
   the Python package metadata and PWA service worker cache version.
@@ -29,10 +29,29 @@ All notable changes to Job Logger are documented in this file.
 - Centered the full-browser authenticated top navigation and replaced the
   desktop header's text-only `JL` mark with the same source-controlled app icon
   used for mobile home-screen installs.
+- Removed the unauthenticated login page's top app mark so the sign-in form is
+  the first visible login-page element.
+- Changed the authenticated full-browser header image to use the maskable
+  installed-app icon asset.
 - Renamed the authenticated `/home` navigation item from **Home** to **Work**,
   changed its desktop and phone icon to a work-entry add icon, and changed
   phone top-bar navigation buttons to use the same blue treatment as the
   full-browser navigation buttons.
+- Added a database-unavailable limp mode that starts the web process even when
+  PostgreSQL is unreachable, serves an app-branded **Service Temporarily
+  Unavailable** page for DB-backed routes, retries `/login` automatically, and
+  avoids exposing database, network, or code details in the browser.
+- Changed the detailed and web changelog headings to bracket version numbers
+  without a `v`, include release dates in `MM.DD.YYYY` format, and render those
+  dates on the authenticated changelog page.
+- Changed the Docker entrypoint so failed startup database waits or migrations
+  no longer stop the web container; pending migrations are retried by the app
+  before normal DB-backed pages resume.
+- Added `COMPOSE_PROFILES=local-db` support so Compose can either deploy the
+  bundled PostgreSQL container or connect the app to a remote PostgreSQL server
+  through `DATABASE_URL`.
+- Added database connection-pool and connection-timeout environment settings
+  for remote PostgreSQL deployments.
 - Changed Work in Progress and Review detail headings to show the selected
   ticket title with the job state pill beside it instead of a separate
   **Selected job** label, centered the main field labels, renamed active
@@ -145,7 +164,7 @@ All notable changes to Job Logger are documented in this file.
   label under **Rounded stop**, while Review keeps it on a separate centered
   row so full-browser start and end time fields stay aligned.
 
-## v1.1.6 - Cloudflare block controls, Review, Home, and header polish
+## [1.1.6] - 06.29.2026 - Cloudflare block controls, Review, Home, and header polish
 
 - Advanced the source-controlled dev runtime version to `v1.1.6`, including
   the Python package metadata and PWA service worker cache version.
@@ -180,7 +199,7 @@ All notable changes to Job Logger are documented in this file.
 - Renamed the authenticated header debug navigation item to **Diag** and
   retitled the debug page to **Diagnostics** with a broader page summary.
 
-## v1.1.5 - AI cleanup revert, remote transcription, and login diagnostics
+## [1.1.5] - 06.26.2026 - AI cleanup revert, remote transcription, and login diagnostics
 
 - Advanced the source-controlled dev runtime version to `v1.1.5`, including
   the Python package metadata and PWA service worker cache version.
@@ -246,7 +265,7 @@ All notable changes to Job Logger are documented in this file.
   deployments.
 - Added production `Strict-Transport-Security` response headers.
 
-## v1.1.4 - Login protection, Work in Progress controls, diagnostics, and deployment safety
+## [1.1.4] - 06.24.2026 - Login protection, Work in Progress controls, diagnostics, and deployment safety
 
 - Advanced the source-controlled dev runtime version to `v1.1.4`, including
   the Python package metadata and PWA service worker cache version.
@@ -290,7 +309,7 @@ All notable changes to Job Logger are documented in this file.
   for selected tickets that have no Autotask description, showing a clear
   left-aligned no-description message instead of hiding the card.
 
-## v1.1.3 - Review visibility and Work in Progress refinements
+## [1.1.3] - 06.23.2026 - Review visibility and Work in Progress refinements
 
 - Advanced the source-controlled dev runtime version to `v1.1.3`, including
   the Python package metadata and PWA service worker cache version.
@@ -352,7 +371,7 @@ All notable changes to Job Logger are documented in this file.
 - Added Docker/runtime `LOG_LEVEL` support for `${LOG_DIR}/app.log`, limited to
   `DEBUG`, `INFO`, `WARNING`, or `ERROR`, with Docker defaulting to `INFO`.
 
-## v1.1.2 - User management, ticket status, and Device sign-in updates
+## [1.1.2] - 06.22.2026 - User management, ticket status, and Device sign-in updates
 
 - Advanced the source-controlled runtime version to `v1.1.2`, including the
   Python package metadata and PWA service worker cache version.
@@ -380,7 +399,7 @@ All notable changes to Job Logger are documented in this file.
   so users understand the feature can use a phone, browser, biometric unlock,
   PIN, or other passkey-capable device.
 
-## v1.1.1 - Review cleanup, Autotask roles, Docker startup, and diagnostics
+## [1.1.1] - 06.21.2026 - Review cleanup, Autotask roles, Docker startup, and diagnostics
 
 - Advanced the source-controlled dev runtime version to `v1.1.1`, including the
   Python package metadata and PWA service worker cache version.
@@ -427,7 +446,7 @@ All notable changes to Job Logger are documented in this file.
   `Roles.name` when available while still storing the selected numeric role ID
   on the managed web-user account.
 
-## v1.1.0 - Direct submission, backups, and passkeys
+## [1.1.0] - 06.21.2026 - Direct submission, backups, and passkeys
 
 - Added a default-off per-user **Submit from Work in Progress** setting on
   `/config`. When enabled, ending an active job submits the time entry directly
@@ -517,7 +536,7 @@ All notable changes to Job Logger are documented in this file.
 - Clarified Cloudflare Tunnel setup to prefer the Compose-managed loopback
   Nginx origin instead of a changing LAN address.
 
-## v1.0.2 - Autotask workflow and desktop layout updates
+## [1.0.2] - 06.20.2026 - Autotask workflow and desktop layout updates
 
 - Renamed the work-entry route from `/mobile` to `/home` so the URL no longer
   implies a phone-only page. The old `/mobile` route and service-call endpoint
@@ -540,7 +559,7 @@ All notable changes to Job Logger are documented in this file.
 - Improved the full browser `/home` home and Work in Progress layouts through
   desktop-only CSS so phones keep the existing touch-first layout.
 
-## v1.0.1 - Mobile shell navigation and close behavior
+## [1.0.1] - 06.20.2026 - Mobile shell navigation and close behavior
 
 - Added a managed-web-user-only Config gear icon to the phone-sized
   authenticated top bar so mobile users can reach `/config` when the full
@@ -561,6 +580,6 @@ All notable changes to Job Logger are documented in this file.
   the start-work panel and moving the main work-entry card closer to the app
   header.
 
-## v1.0.0 - Initial release
+## [1.0.0] - 06.16.2026 - Initial release
 
 - Initial release.

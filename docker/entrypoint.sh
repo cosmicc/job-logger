@@ -114,19 +114,29 @@ run_as_appuser() {
   exec "$@"
 }
 
+run_database_migrations() {
+  # Run migrations before serving normal traffic so the app and database schema
+  # stay in sync whenever the database is reachable during container startup.
+  if [ "$(id -u)" = "0" ]; then
+    gosu appuser alembic upgrade head
+  else
+    alembic upgrade head
+  fi
+}
+
 if [ "$(id -u)" = "0" ]; then
   prepare_log_paths
 fi
 
-# Run migrations after the database is reachable so startup does not fail at image
-# boot when DNS or startup ordering is temporarily out of sync.
-wait_for_database
-
-# Run migrations before serving traffic so the app and database schema stay in sync.
-if [ "$(id -u)" = "0" ]; then
-  gosu appuser alembic upgrade head
+# Prefer the normal path: wait briefly for the database, then migrate before
+# serving traffic. If the database stays unavailable, still start the web
+# process in temporary-service mode so users receive a controlled 503 page
+# instead of a stopped container or a traceback.
+if wait_for_database && run_database_migrations; then
+  export DATABASE_STARTUP_MIGRATIONS_PENDING=false
 else
-  alembic upgrade head
+  echo "Database is not ready for normal startup; starting web service in temporary unavailable mode."
+  export DATABASE_STARTUP_MIGRATIONS_PENDING=true
 fi
 
 # Start the FastAPI application. Uvicorn is used directly to keep the container simple.

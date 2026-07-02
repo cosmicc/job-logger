@@ -2,11 +2,34 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from fastapi.testclient import TestClient
 
+from job_logger.config import settings
+from job_logger.main import create_app
 from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token
 
 BROWSER_ACCEPT_HEADER = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+
+
+class UnavailableDatabaseMonitor:
+    """Test double that keeps the app in database-unavailable mode."""
+
+    def __init__(self) -> None:
+        """Track whether the app records an unavailable operation."""
+
+        self.marked_unavailable = False
+
+    def database_available(self, application_settings, *, force: bool = False) -> bool:
+        """Return unavailable for every DB-backed request."""
+
+        return False
+
+    def mark_unavailable(self) -> None:
+        """Record that an exception path marked the database unavailable."""
+
+        self.marked_unavailable = True
 
 
 def test_anonymous_sensitive_pages_redirect_to_login(client: TestClient) -> None:
@@ -161,3 +184,46 @@ def test_generated_api_docs_and_public_health_are_closed_at_app_or_proxy(client:
     # The app health endpoint is intentionally unauthenticated for private
     # Docker health checks; the internet-facing nginx template blocks it.
     assert client.get("/health/live").status_code == 200
+
+
+def test_database_unavailable_mode_serves_branded_retry_page() -> None:
+    """DB-backed pages should show a safe app-branded page while PostgreSQL is down."""
+
+    monitor = UnavailableDatabaseMonitor()
+    test_app = create_app(
+        replace(settings, automatic_backups_enabled=False),
+        database_availability_monitor=monitor,
+    )
+    with TestClient(test_app) as test_client:
+        login_response = test_client.get(
+            "/login",
+            headers={"Accept": BROWSER_ACCEPT_HEADER},
+            follow_redirects=False,
+        )
+        json_response = test_client.get(
+            "/home/service-calls",
+            headers={"Accept": "application/json"},
+            follow_redirects=False,
+        )
+        health_response = test_client.get("/health/live", follow_redirects=False)
+        stylesheet_response = test_client.get("/static/service-unavailable.css", follow_redirects=False)
+
+    assert login_response.status_code == 503
+    assert "text/html" in login_response.headers["content-type"]
+    assert login_response.headers["cache-control"] == "no-store"
+    assert login_response.headers["retry-after"] == "10"
+    assert "Service Temporarily Unavailable" in login_response.text
+    assert '<meta http-equiv="refresh" content="10;url=/login">' in login_response.text
+    assert "/static/app.css" in login_response.text
+    assert "/static/service-unavailable.css" in login_response.text
+    assert "Job Logger" in login_response.text
+    assert "job-logger-icon-maskable-512.png" in login_response.text
+    assert "Temporary outage" in login_response.text
+    assert "database" not in login_response.text.lower()
+    assert "postgres" not in login_response.text.lower()
+    assert "traceback" not in login_response.text.lower()
+    assert "DATABASE_URL" not in login_response.text
+    assert json_response.status_code == 503
+    assert json_response.json() == {"detail": "Service temporarily unavailable."}
+    assert health_response.status_code == 200
+    assert stylesheet_response.status_code == 200

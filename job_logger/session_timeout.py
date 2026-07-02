@@ -13,6 +13,21 @@ from job_logger.config import Settings
 from job_logger.security import expire_authenticated_session_if_needed
 from job_logger.services.session_control import expire_invalid_web_user_session_if_needed
 
+DATABASE_INDEPENDENT_PATHS = {
+    "/health/live",
+    "/manifest.webmanifest",
+    "/service-worker.js",
+}
+DATABASE_INDEPENDENT_PREFIXES = (
+    "/static/",
+)
+
+
+def _database_independent_path(path: str) -> bool:
+    """Return whether a request can be served without database session checks."""
+
+    return path in DATABASE_INDEPENDENT_PATHS or any(path.startswith(prefix) for prefix in DATABASE_INDEPENDENT_PREFIXES)
+
 
 class SessionTimeoutMiddleware(BaseHTTPMiddleware):
     """Clear authenticated session state after the configured timeout expires."""
@@ -31,7 +46,10 @@ class SessionTimeoutMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         """Expire stale authenticated sessions before the endpoint runs."""
 
-        if not expire_authenticated_session_if_needed(request, self._application_settings):
+        if (
+            not _database_independent_path(request.url.path)
+            and not expire_authenticated_session_if_needed(request, self._application_settings)
+        ):
             with database.SessionLocal() as database_session:
                 expire_invalid_web_user_session_if_needed(request, database_session)
         return await call_next(request)

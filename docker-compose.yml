@@ -7,7 +7,13 @@ services:
     # transcription is the memory-heavy path in this service.
     mem_limit: ${FASTER_WHISPER_MEMORY_LIMIT:-8g}
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-job_logger}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-job_logger}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-job_logger}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-job_logger}}
+      DATABASE_CONNECT_TIMEOUT_SECONDS: ${DATABASE_CONNECT_TIMEOUT_SECONDS:-5}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-10}
+      DATABASE_POOL_TIMEOUT_SECONDS: ${DATABASE_POOL_TIMEOUT_SECONDS:-30}
+      DATABASE_POOL_RECYCLE_SECONDS: ${DATABASE_POOL_RECYCLE_SECONDS:-1800}
+      DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS: ${DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS:-5}
       APP_HOST: 0.0.0.0
       APP_ENV: ${APP_ENV:-production}
       DEV_BUILD: ${DEV_BUILD:-false}
@@ -84,12 +90,9 @@ services:
       # processes through host.docker.internal. Private LAN model servers can
       # be configured directly with their private IP base URLs.
       - "host.docker.internal:host-gateway"
-    # Start the database container first, but do not gate stack creation on the
-    # healthcheck. The app entrypoint waits for real database connectivity and
-    # prints sanitized startup diagnostics when credentials or volume state are
-    # wrong.
-    depends_on:
-      - db
+    # The app entrypoint waits briefly for real database connectivity and starts
+    # in temporary-service mode if PostgreSQL is unreachable. That keeps remote
+    # database deployments and slow local starts from stopping the web process.
     expose:
       # The app is intentionally exposed only to the private Compose network.
       # Nginx is the public-facing internal origin for Cloudflare Tunnel.
@@ -136,11 +139,13 @@ services:
 
   db:
     image: postgres:16-alpine
+    profiles:
+      - local-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-job_logger}
       POSTGRES_USER: ${POSTGRES_USER:-job_logger}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
     volumes:
       # Keep PostgreSQL data persistent across container rebuilds/recreates.
       - postgres_data:/var/lib/postgresql/data

@@ -217,11 +217,6 @@ svg {
   backdrop-filter: blur(10px);
 }
 
-.login-header {
-  display: flex;
-  justify-content: center;
-}
-
 @media (display-mode: standalone) {
   body {
     padding-bottom: env(safe-area-inset-bottom);
@@ -258,22 +253,6 @@ svg {
   height: 34px;
   flex: 0 0 auto;
   border-radius: var(--radius);
-}
-
-.login-brand {
-  gap: 0;
-}
-
-.brand-mark {
-  display: inline-grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: var(--radius);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 13px;
-  letter-spacing: 0;
 }
 
 .top-nav {
@@ -4379,7 +4358,8 @@ td a {
 }
 
 .version-chip,
-.release-version {
+.release-version,
+.release-date {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
@@ -4401,6 +4381,12 @@ td a {
   border: 1px solid var(--border);
   background: var(--surface-muted);
   color: var(--text);
+}
+
+.release-date {
+  border: 1px solid rgba(245, 158, 11, 0.34);
+  background: var(--warning-soft);
+  color: var(--warning-hover);
 }
 
 .changelog-timeline {

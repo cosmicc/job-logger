@@ -128,6 +128,24 @@ class Settings:
     # DATABASE_URL points SQLAlchemy at PostgreSQL in Docker or SQLite in tests.
     database_url: str
 
+    # DATABASE_CONNECT_TIMEOUT_SECONDS bounds new PostgreSQL TCP connection waits.
+    database_connect_timeout_seconds: int
+
+    # DATABASE_POOL_SIZE keeps a bounded pool of reusable PostgreSQL connections.
+    database_pool_size: int
+
+    # DATABASE_MAX_OVERFLOW allows short bursts above DATABASE_POOL_SIZE.
+    database_max_overflow: int
+
+    # DATABASE_POOL_TIMEOUT_SECONDS bounds how long requests wait for a pooled connection.
+    database_pool_timeout_seconds: int
+
+    # DATABASE_POOL_RECYCLE_SECONDS refreshes long-lived pooled connections.
+    database_pool_recycle_seconds: int
+
+    # DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS throttles limp-mode DB probes.
+    database_unavailable_check_interval_seconds: int
+
     # LOG_DIR stores host-mounted runtime logs inside the app container.
     log_dir: str
 
@@ -357,6 +375,15 @@ def load_settings() -> Settings:
         database_url=os.getenv(
             "DATABASE_URL",
             "postgresql+psycopg://job_logger:job_logger_password@db:5432/job_logger",
+        ),
+        database_connect_timeout_seconds=_get_positive_integer("DATABASE_CONNECT_TIMEOUT_SECONDS", 5),
+        database_pool_size=_get_positive_integer("DATABASE_POOL_SIZE", 5),
+        database_max_overflow=_get_integer("DATABASE_MAX_OVERFLOW", 10),
+        database_pool_timeout_seconds=_get_positive_integer("DATABASE_POOL_TIMEOUT_SECONDS", 30),
+        database_pool_recycle_seconds=_get_positive_integer("DATABASE_POOL_RECYCLE_SECONDS", 1800),
+        database_unavailable_check_interval_seconds=_get_positive_integer(
+            "DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS",
+            5,
         ),
         log_dir=os.getenv("LOG_DIR", "logs"),
         log_level=_get_log_level(),

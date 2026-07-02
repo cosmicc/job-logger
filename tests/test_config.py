@@ -115,6 +115,26 @@ def test_cloudflare_block_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.cloudflare_auto_block_failed_login_attempts == 7
 
 
+def test_database_pool_settings_load_from_environment(monkeypatch) -> None:
+    """Database connection tuning should stay environment-backed."""
+
+    monkeypatch.setenv("DATABASE_CONNECT_TIMEOUT_SECONDS", "4")
+    monkeypatch.setenv("DATABASE_POOL_SIZE", "8")
+    monkeypatch.setenv("DATABASE_MAX_OVERFLOW", "3")
+    monkeypatch.setenv("DATABASE_POOL_TIMEOUT_SECONDS", "12")
+    monkeypatch.setenv("DATABASE_POOL_RECYCLE_SECONDS", "900")
+    monkeypatch.setenv("DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS", "6")
+
+    loaded_settings = load_settings()
+
+    assert loaded_settings.database_connect_timeout_seconds == 4
+    assert loaded_settings.database_pool_size == 8
+    assert loaded_settings.database_max_overflow == 3
+    assert loaded_settings.database_pool_timeout_seconds == 12
+    assert loaded_settings.database_pool_recycle_seconds == 900
+    assert loaded_settings.database_unavailable_check_interval_seconds == 6
+
+
 def test_local_login_lockout_duration_loads_from_environment(monkeypatch) -> None:
     """Local lockout duration should be configurable and positive."""
 

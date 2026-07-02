@@ -8,8 +8,10 @@ from contextlib import suppress
 
 from fastapi import FastAPI, Request, Response
 from fastapi.exception_handlers import http_exception_handler
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import DBAPIError, OperationalError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -18,8 +20,12 @@ from job_logger.logging_config import configure_logging
 from job_logger.routes import auth, changelog, configuration, debug, health, mobile, passkeys, pwa, review, users
 from job_logger.security import current_username
 from job_logger.services.backups import automatic_backup_scheduler
+from job_logger.services.database_availability import (
+    DatabaseAvailabilityMonitor,
+    startup_migrations_are_pending,
+)
 from job_logger.session_timeout import SessionTimeoutMiddleware
-from job_logger.ui import template_context, templates
+from job_logger.ui import static_asset_version, template_context, templates
 
 # These are unsafe sentinel values used only so startup can reject them.
 DEVELOPMENT_APP_PASSWORD = "admin"  # nosec B105
@@ -27,6 +33,15 @@ DEVELOPMENT_DATABASE_PASSWORD = "job_logger_password"  # nosec B105
 DEVELOPMENT_SECRET_KEY = "development-only-change-me"  # nosec B105
 HSTS_HEADER_VALUE = "max-age=15552000"
 PLACEHOLDER_SECRET_PREFIX = "replace-with-"  # nosec B105
+SERVICE_UNAVAILABLE_RETRY_SECONDS = 10
+DATABASE_INDEPENDENT_PATHS = {
+    "/health/live",
+    "/manifest.webmanifest",
+    "/service-worker.js",
+}
+DATABASE_INDEPENDENT_PREFIXES = (
+    "/static/",
+)
 HTML_ERROR_TITLES = {
     400: "Bad request",
     401: "Sign-in required",
@@ -111,6 +126,31 @@ def _request_accepts_html(request: Request) -> bool:
     return "text/html" in accept_header.lower() or "application/xhtml+xml" in accept_header.lower()
 
 
+def _apply_security_headers(response: Response, application_settings: Settings) -> Response:
+    """Add defensive browser headers to a response before returning it."""
+
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), geolocation=(), microphone=(self)"
+    if application_settings.is_production:
+        response.headers["Strict-Transport-Security"] = HSTS_HEADER_VALUE
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "worker-src 'self'; "
+        "style-src 'self'; "
+        "img-src 'self' data:; "
+        "media-src 'self' blob:; "
+        "connect-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none'; "
+        "form-action 'self'"
+    )
+    return response
+
+
 async def _http_exception_handler(request: Request, exc: StarletteHTTPException) -> Response:
     """Render app-styled browser errors while preserving JSON API errors."""
 
@@ -135,13 +175,67 @@ async def _http_exception_handler(request: Request, exc: StarletteHTTPException)
     )
 
 
-def create_app(application_settings: Settings = settings) -> FastAPI:
+def _database_independent_path(path: str) -> bool:
+    """Return whether a request can be served without database access."""
+
+    return path in DATABASE_INDEPENDENT_PATHS or any(path.startswith(prefix) for prefix in DATABASE_INDEPENDENT_PREFIXES)
+
+
+def _service_temporarily_unavailable_response(request: Request) -> Response:
+    """Return a non-revealing temporary service page or JSON error."""
+
+    application_settings = getattr(request.app.state, "application_settings", settings)
+    headers = {
+        "Cache-Control": "no-store",
+        "Retry-After": str(SERVICE_UNAVAILABLE_RETRY_SECONDS),
+    }
+    if not _request_accepts_html(request):
+        return _apply_security_headers(JSONResponse(
+            {"detail": "Service temporarily unavailable."},
+            status_code=503,
+            headers=headers,
+        ), application_settings)
+
+    return _apply_security_headers(templates.TemplateResponse(
+        request,
+        "service_unavailable.html",
+        {
+            "request": request,
+            "retry_seconds": SERVICE_UNAVAILABLE_RETRY_SECONDS,
+            "retry_url": "/login",
+            "static_asset_version": static_asset_version(),
+        },
+        status_code=503,
+        headers=headers,
+    ), application_settings)
+
+
+async def _database_exception_handler(request: Request, exc: DBAPIError) -> Response:
+    """Convert database outages into the same controlled temporary page."""
+
+    database_monitor = getattr(request.app.state, "database_availability_monitor", None)
+    if database_monitor is not None:
+        database_monitor.mark_unavailable()
+    return _service_temporarily_unavailable_response(request)
+
+
+def create_app(
+    application_settings: Settings = settings,
+    database_availability_monitor: DatabaseAvailabilityMonitor | None = None,
+) -> FastAPI:
     """Create and configure the FastAPI application."""
 
     configure_logging(application_settings)
     validate_runtime_settings(application_settings)
     fastapi_app = FastAPI(title="Job Logger", docs_url=None, redoc_url=None, openapi_url=None)
+    fastapi_app.state.application_settings = application_settings
     fastapi_app.add_exception_handler(StarletteHTTPException, _http_exception_handler)
+    fastapi_app.add_exception_handler(OperationalError, _database_exception_handler)
+    fastapi_app.add_exception_handler(DBAPIError, _database_exception_handler)
+    fastapi_app.state.database_availability_monitor = (
+        database_availability_monitor
+        or DatabaseAvailabilityMonitor(migrations_pending=startup_migrations_are_pending())
+    )
 
     fastapi_app.add_middleware(SessionTimeoutMiddleware, application_settings=application_settings)
     fastapi_app.add_middleware(
@@ -185,26 +279,27 @@ def create_app(application_settings: Settings = settings) -> FastAPI:
         """Add defensive browser headers to every response."""
 
         response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["Permissions-Policy"] = "camera=(), geolocation=(), microphone=(self)"
-        if application_settings.is_production:
-            response.headers["Strict-Transport-Security"] = HSTS_HEADER_VALUE
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "script-src 'self'; "
-            "worker-src 'self'; "
-            "style-src 'self'; "
-            "img-src 'self' data:; "
-            "media-src 'self' blob:; "
-            "connect-src 'self'; "
-            "object-src 'none'; "
-            "base-uri 'self'; "
-            "frame-ancestors 'none'; "
-            "form-action 'self'"
+        return _apply_security_headers(response, application_settings)
+
+    @fastapi_app.middleware("http")
+    async def require_database(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        """Serve a safe branded temporary page while the database is unavailable."""
+
+        if _database_independent_path(request.url.path):
+            return await call_next(request)
+
+        database_monitor = request.app.state.database_availability_monitor
+        database_is_available = await asyncio.to_thread(
+            database_monitor.database_available,
+            application_settings,
         )
-        return response
+        if not database_is_available:
+            return _service_temporarily_unavailable_response(request)
+
+        return await call_next(request)
 
     @fastapi_app.middleware("http")
     async def require_cloudflare_access(

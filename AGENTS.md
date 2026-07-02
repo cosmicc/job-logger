@@ -466,10 +466,11 @@ must not use `window.close()` or a browser-only app close fallback. Full-width
 `/home`, review, debug, and other non-mobile authenticated views still expose
 the explicit desktop logout control. Full-browser top navigation should be
 centered, use raised blue icon-and-text buttons, and show the source-controlled
-PWA home-screen icon as the authenticated desktop brand mark. It should include
-a **Log out** button with the logout icon and visible text while preserving the
-phone-sized icon navigation. Phone top-bar navigation buttons should use the
-same blue visual treatment as the full-browser navigation buttons.
+PWA installed-app icon asset as the authenticated desktop brand mark. It should
+include a **Log out** button with the logout icon and visible text while
+preserving the phone-sized icon navigation. Phone top-bar navigation buttons
+should use the same blue visual treatment as the full-browser navigation
+buttons.
 Enabled buttons and button-like navigation controls should show a slight
 brighter hover state, and workflow action buttons should have a raised idle
 state plus a pressed-in active state. Destructive red controls should stay red
@@ -481,8 +482,8 @@ ordinary managed users. The desktop icon sits in a reserved header status area
 between primary navigation and logout; the phone icon joins the compact
 right-side action group without crowding Config, Diagnostics, or logout
 controls. Do not run live Autotask probes while rendering a page.
-The unauthenticated login header centers a non-clickable `JL` brand mark on both
-phone and full-browser layouts and does not show the full Job Logger wordmark.
+The unauthenticated login page should not show a top app icon or wordmark above
+the sign-in form.
 
 The standard review interface must work well on a full computer screen.
 
@@ -582,8 +583,10 @@ routes, must also render app-styled Job Logger error pages. Those pages should
 show **Back to Login** when there is no valid app session and **Back to Work**
 when the request already has a valid authenticated session, while API-style
 clients that request JSON should keep receiving JSON error bodies.
-Compose must fail closed when `APP_SECRET_KEY`, `APP_PASSWORD`, or
-`POSTGRES_PASSWORD` are missing instead of falling back to development secrets.
+Compose must fail closed when `APP_SECRET_KEY`, `APP_PASSWORD`, or the selected
+database credential source is missing instead of falling back to development
+secrets. Local-db deployments use `POSTGRES_PASSWORD`; remote database
+deployments use `DATABASE_URL`.
 Compose should default the optional Cloudflare Access header gate on for
 production, but production startup must only hard-require secure session
 cookies, non-default app/database secrets that are not copied placeholders, and
@@ -595,13 +598,24 @@ documented reason.
 Persistent PostgreSQL data must be stored in a Docker volume or another
 documented persistent storage location.
 
+Compose uses `COMPOSE_PROFILES=local-db` to decide whether the bundled
+PostgreSQL service is deployed. Local single-host installs should enable that
+profile and use the `db` service. Remote PostgreSQL installs should leave that
+profile disabled and set `DATABASE_URL` to the remote `postgresql+psycopg`
+connection URL. Keep app-side database connections bounded with the documented
+pool and timeout settings.
+
 Health checks should be added for services where practical.
 PostgreSQL health checks must allow enough startup grace for first-time volume
 initialization so Docker Compose or Portainer does not abort the app stack while
 the database is still bootstrapping.
-Compose dependencies should preserve container start order without using
-`service_healthy` as a hard stack-creation gate; the app entrypoint owns the
-database connectivity wait before migrations.
+Compose dependencies must not require the local PostgreSQL service when the app
+is configured for a remote database. The app entrypoint should wait briefly for
+database connectivity, run migrations when possible, and then start the web
+process in temporary-service mode if PostgreSQL remains unavailable. While the
+database is unavailable, DB-backed routes must render an app-branded **Service
+Temporarily Unavailable** page that auto-refreshes `/login` and does not expose
+database, network, code, or stack details.
 
 ## Python Standards
 
@@ -654,6 +668,10 @@ or at least the major user-facing and operational themes. Diagnostics
 page changes, debug tooling, super-admin-only behavior, operator-only
 deployment details, and agent-facing notes belong only in `CHANGELOG.md`, never
 in `WEB_CHANGELOG.md`.
+Use changelog headings in the form
+`## [1.2.0] - 07.02.2026 - Release title`: bracket the version number without a
+leading `v`, use `MM.DD.YYYY` release dates, then place the version title after
+the date.
 
 ## Development Process
 

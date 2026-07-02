@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 COMPOSE_FILE = Path(__file__).resolve().parents[1] / "docker-compose.yml"
+ENV_EXAMPLE_FILE = Path(__file__).resolve().parents[1] / ".env.example"
 
 
 def test_compose_does_not_gate_stack_creation_on_health_conditions() -> None:
@@ -13,7 +14,7 @@ def test_compose_does_not_gate_stack_creation_on_health_conditions() -> None:
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
 
     assert "condition: service_healthy" not in compose_text
-    assert "The app entrypoint waits for real database connectivity" in compose_text
+    assert "The app entrypoint waits briefly for real database connectivity" in compose_text
     assert "start_period: 60s" in compose_text
     assert "retries: 12" in compose_text
 
@@ -52,6 +53,7 @@ def test_compose_requires_app_and_database_secrets() -> None:
 
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
 
+    assert "DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://" in compose_text
     assert "APP_ENV: ${APP_ENV:-production}" in compose_text
     assert "APP_SECRET_KEY: ${APP_SECRET_KEY:?Set APP_SECRET_KEY in .env}" in compose_text
     assert "APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in .env}" in compose_text
@@ -61,6 +63,39 @@ def test_compose_requires_app_and_database_secrets() -> None:
     assert "job_logger_password" not in compose_text
     assert "APP_SESSION_COOKIE_SECURE: ${APP_SESSION_COOKIE_SECURE:-true}" in compose_text
     assert "CLOUDFLARE_ACCESS_REQUIRED: ${CLOUDFLARE_ACCESS_REQUIRED:-true}" in compose_text
+
+
+def test_compose_database_container_uses_local_profile() -> None:
+    """The bundled PostgreSQL service should be optional for remote DB deployments."""
+
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+
+    assert "profiles:\n      - local-db" in compose_text
+    assert "depends_on:\n      - db" not in compose_text
+
+
+def test_compose_exposes_database_pool_settings() -> None:
+    """Remote PostgreSQL deployments should have bounded reusable connections."""
+
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+
+    assert "DATABASE_CONNECT_TIMEOUT_SECONDS: ${DATABASE_CONNECT_TIMEOUT_SECONDS:-5}" in compose_text
+    assert "DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}" in compose_text
+    assert "DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-10}" in compose_text
+    assert "DATABASE_POOL_TIMEOUT_SECONDS: ${DATABASE_POOL_TIMEOUT_SECONDS:-30}" in compose_text
+    assert "DATABASE_POOL_RECYCLE_SECONDS: ${DATABASE_POOL_RECYCLE_SECONDS:-1800}" in compose_text
+    assert "DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS: ${DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS:-5}" in compose_text
+
+
+def test_env_example_defaults_to_local_database_profile_and_documents_remote_database() -> None:
+    """The sample env should preserve local DB defaults and document remote DB switching."""
+
+    env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+
+    assert "COMPOSE_PROFILES=local-db" in env_example_text
+    assert "For a remote PostgreSQL server, set COMPOSE_PROFILES=" in env_example_text
+    assert "DATABASE_URL=" in env_example_text
+    assert "DATABASE_POOL_RECYCLE_SECONDS=1800" in env_example_text
 
 
 def test_nginx_host_port_uses_localhost_and_http_port() -> None:

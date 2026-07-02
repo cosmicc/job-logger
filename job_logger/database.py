@@ -34,7 +34,16 @@ def create_database_engine(database_url: str) -> Engine:
             future=True,
         )
 
-    return create_engine(database_url, pool_pre_ping=True, future=True)
+    return create_engine(
+        database_url,
+        pool_pre_ping=True,
+        pool_size=settings.database_pool_size,
+        max_overflow=settings.database_max_overflow,
+        pool_timeout=settings.database_pool_timeout_seconds,
+        pool_recycle=settings.database_pool_recycle_seconds,
+        connect_args={"connect_timeout": settings.database_connect_timeout_seconds},
+        future=True,
+    )
 
 
 def configure_database(database_url: str) -> None:
@@ -57,4 +66,3 @@ def get_database_session() -> Generator[Session, None, None]:
 
 
 configure_database(settings.database_url)
-
