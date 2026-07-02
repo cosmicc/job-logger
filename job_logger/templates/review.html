@@ -155,42 +155,6 @@
               <div class="readonly-field-card review-ticket-number-card">
                 <span class="metric-label readonly-field-title">Ticket number</span>
                 <strong class="readonly-field-value" data-review-ticket-number-display>{{ selected_job.ticket_number or "Unassigned Ticket" }}</strong>
-                <div class="ticket-context-actions ticket-context-actions-mobile">
-                  <button
-                    class="secondary-button ticket-notes-button is-hidden"
-                    type="button"
-                    data-ticket-notes-button
-                    data-ticket-notes-url="/review/{{ selected_job.id }}/ticket-notes"
-                    data-ticket-notes-ticket-number="{{ selected_job.ticket_number or '' }}"
-                    aria-label="View ticket notes"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M6 3h9l3 3v15H6z"></path>
-                      <path d="M15 3v4h4"></path>
-                      <path d="M9 11h6"></path>
-                      <path d="M9 15h6"></path>
-                    </svg>
-                    <span data-ticket-context-label>Ticket notes</span>
-                  </button>
-                  <button
-                    class="secondary-button ticket-notes-button is-hidden"
-                    type="button"
-                    data-ticket-time-entries-button
-                    data-ticket-time-entries-url="/review/{{ selected_job.id }}/ticket-time-entries"
-                    data-ticket-time-entries-ticket-number="{{ selected_job.ticket_number or '' }}"
-                    aria-label="View past time entries"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M4 5h16"></path>
-                      <path d="M4 12h16"></path>
-                      <path d="M4 19h16"></path>
-                      <path d="M8 3v4"></path>
-                      <path d="M8 10v4"></path>
-                      <path d="M8 17v4"></path>
-                    </svg>
-                    <span data-ticket-context-label>Past time entries</span>
-                  </button>
-                </div>
               </div>
               <input
                 type="hidden"
@@ -250,6 +214,49 @@
                   value="{{ selected_job.client_name or '' }}"
                 >
               {% endif %}
+              <div
+                class="readonly-field-card review-ticket-title-card {% if not selected_job.ticket_number %}is-hidden{% endif %}"
+                data-review-ticket-title-card
+              >
+                <span class="metric-label readonly-field-title">Ticket name</span>
+                <strong class="readonly-field-value" data-review-ticket-title-display>{{ selected_job.ticket_title or selected_job.ticket_number or "Unassigned Ticket" }}</strong>
+                <div class="ticket-context-actions ticket-context-actions-mobile">
+                  <button
+                    class="secondary-button ticket-notes-button is-hidden"
+                    type="button"
+                    data-ticket-notes-button
+                    data-ticket-notes-url="/review/{{ selected_job.id }}/ticket-notes"
+                    data-ticket-notes-ticket-number="{{ selected_job.ticket_number or '' }}"
+                    aria-label="View ticket notes"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 3h9l3 3v15H6z"></path>
+                      <path d="M15 3v4h4"></path>
+                      <path d="M9 11h6"></path>
+                      <path d="M9 15h6"></path>
+                    </svg>
+                    <span data-ticket-context-label>Ticket notes</span>
+                  </button>
+                  <button
+                    class="secondary-button ticket-notes-button is-hidden"
+                    type="button"
+                    data-ticket-time-entries-button
+                    data-ticket-time-entries-url="/review/{{ selected_job.id }}/ticket-time-entries"
+                    data-ticket-time-entries-ticket-number="{{ selected_job.ticket_number or '' }}"
+                    aria-label="View past time entries"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 5h16"></path>
+                      <path d="M4 12h16"></path>
+                      <path d="M4 19h16"></path>
+                      <path d="M8 3v4"></path>
+                      <path d="M8 10v4"></path>
+                      <path d="M8 17v4"></path>
+                    </svg>
+                    <span data-ticket-context-label>Past time entries</span>
+                  </button>
+                </div>
+              </div>
               <input
                 type="hidden"
                 data-review-company-id-input

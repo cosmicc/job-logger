@@ -149,7 +149,7 @@ Active jobs support these updates before completion:
   JavaScript should update the visible label immediately when the visible start
   or stop time changes.
 - Full-browser Work in Progress cards should order editable workflow cards as
-  **Entry type** with **Work type**, **Ticket status** with **Job date**,
+  **Entry type** with **Work type**, **Job date** with **Ticket status**,
   **Start time** with **End time**, then duration centered under the time row.
 - Full-browser Work in Progress cards should place **Client name** and
   **Ticket name** together on the next row when a ticket number is shown.
@@ -210,10 +210,12 @@ or ticket-status values.
 When a selected ticket has Autotask notes or time entries, Work in Progress may
 show compact **Ticket notes** and **Past time entries** buttons beside the
 ticket context. On phone-sized layouts, those buttons belong under the Work in
-Progress **Ticket name** card. On phone-sized Review, the **Ticket number**
-card and those buttons belong below duration and above **Ticket description**.
-Keep each button hidden until its authenticated server lookup confirms at least
-one row, and render results inside the shared closeable overlay. The notes list is
+Progress **Ticket name** card. On phone-sized Review, **Client name** belongs
+directly above the centered **Ticket number** card, and a phone-only **Ticket
+name** card with the split-row **Ticket notes** and **Past time entries**
+buttons belongs above **Ticket description**. Keep each button hidden until its
+authenticated server lookup confirms at least one row, and render results
+inside the shared closeable overlay. The notes list is
 newest-first by note creation time, and each note
 selection card shows only the note title. The note selection card title area
 should fit two lines and truncate longer titles inside the card. Author,
@@ -479,8 +481,8 @@ Review supports:
 - Editing note title for Ticket note entries before successful Autotask
   submission. Submitted entries must reject entry-type conversion.
 - Full-browser Review detail should order editable workflow cards as
-  equal-width paired rows: **Entry type** with **Work type**, **Ticket status**
-  with **Job date**, **Start time** with **End time**, then duration centered
+  equal-width paired rows: **Entry type** with **Work type**, **Job date**
+  with **Ticket status**, **Start time** with **End time**, then duration centered
   under the time row. Full-width rows that do not share a row with another card
   should stay full width.
 - Full-browser Review detail should show **Client name** before **Ticket
@@ -537,8 +539,9 @@ Phone-sized Work in Progress and Review detail layouts should order the editable
 workflow cards as **Entry type**, **Work type**, **Ticket status**, **Job date**
 or **Note Date**, **Start time**, **End time**, then duration, while leaving
 unmentioned fields in their existing relative positions, except Review places
-**Ticket number** and its ticket-history buttons below duration and above the
-ticket description.
+**Client name** directly above the centered **Ticket number** card and puts the
+ticket-history buttons inside a phone-only **Ticket name** card above the ticket
+description.
 
 The review detail form does not expose a manual Save button. Editable review
 fields are saved through debounced background posts to `POST /review/{job_id}/save`.

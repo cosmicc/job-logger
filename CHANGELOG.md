@@ -2,19 +2,19 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## 1.2.1 - 07.02.2026 - Work in Progress and Review workflow polish
+## 1.2.1 - 07.02.2026 - Work in Progress, Review, and outage-page polish
 
 - Advanced the source-controlled dev runtime version to `v1.2.1`, including
   the Python package metadata and PWA service worker cache version.
 - Adjusted full-browser Review detail so **Entry type** sits beside **Work
-  type**, **Ticket status** sits beside **Job date**, and the start/end time
+  type**, **Job date** sits beside **Ticket status**, and the start/end time
   controls share equal-width rows. Remote/On-Site switch pills now match the
   Time entry/Ticket note switch size.
 - Adjusted full-browser Review detail so **Client name** sits before
   **Ticket number**, and the **Ticket notes** and **Past time entries** buttons
   flank the **Ticket description** title near the top of that card.
 - Adjusted full-browser Work in Progress cards so **Entry type** sits beside
-  **Work type**, **Ticket status** sits beside **Job date**, start/end time
+  **Work type**, **Job date** sits beside **Ticket status**, start/end time
   controls share a row, duration is centered beneath the time row, and
   **Client name** sits beside **Ticket name** when a ticket is selected.
 - Adjusted the full-browser Work in Progress left-side context cards so
@@ -27,14 +27,18 @@ All notable changes to Job Logger are documented in this file.
   their existing positions.
 - Moved phone-sized ticket-history controls closer to the selected ticket
   identity: Work in Progress now shows **Ticket notes** and **Past time
-  entries** under **Ticket name**, and Review moves **Ticket number** with
-  those buttons below duration and above **Ticket description**.
+  entries** under **Ticket name**, while Review moves **Client name** directly
+  above the centered **Ticket number** card and places those buttons in a new
+  phone-only **Ticket name** card above **Ticket description**.
 - Kept the Work in Progress client search editable after a client is selected
   but before a ticket is chosen, allowing users to switch to another verified
   client and load that client's open tickets.
 - Changed Ticket note mode on Work in Progress and Review so **Work type**
   remains visible as a disabled, greyed-out card instead of disappearing when
   Remote/On-Site no longer applies.
+- Simplified the temporary outage page by removing its app-header icon, title,
+  description, and divider line, then tightening the card spacing around the
+  remaining outage message.
 
 ## 1.2.0 - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge errors
 
@@ -72,7 +76,7 @@ All notable changes to Job Logger are documented in this file.
   phone top-bar navigation buttons to use the same blue treatment as the
   full-browser navigation buttons.
 - Added a database-unavailable limp mode that starts the web process even when
-  PostgreSQL is unreachable, serves an app-branded **Service Temporarily
+  PostgreSQL is unreachable, serves an app-styled **Service Temporarily
   Unavailable** page for DB-backed routes, retries `/login` automatically, and
   avoids exposing database, network, or code details in the browser.
 - Added a Diagnostics **Database** card with display-safe connectivity status,

@@ -256,7 +256,7 @@ timeouts, and configurable `DATABASE_POOL_*` settings so remote connections are
 reused without growing unbounded.
 
 If the database is temporarily unavailable, the web container still starts and
-DB-backed pages show an app-branded **Service Temporarily Unavailable** page
+DB-backed pages show an app-styled **Service Temporarily Unavailable** page
 with automatic retry to the login page. The page intentionally does not expose
 database, network, or code details.
 

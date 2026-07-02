@@ -182,10 +182,6 @@
   order: -10;
 }
 
-.form-grid > .review-ticket-number-card {
-  order: 80;
-}
-
 .form-grid > .review-entry-type-card {
   order: 10;
 }
@@ -212,6 +208,19 @@
 
 .form-grid > .review-duration-row {
   order: 70;
+}
+
+.form-grid > .review-client-name-card {
+  order: 80;
+}
+
+.form-grid > .review-ticket-number-card {
+  order: 90;
+}
+
+.form-grid > .review-ticket-title-card {
+  display: grid;
+  order: 100;
 }
 
 .review-header,
@@ -453,6 +462,7 @@
 
 .ticket-context-actions-mobile {
   display: flex;
+  flex-wrap: nowrap;
   justify-content: center;
   gap: 8px;
   margin-top: 8px;
@@ -460,8 +470,11 @@
 }
 
 .ticket-context-actions-mobile .ticket-notes-button {
-  flex: 1 1 134px;
+  flex: 1 1 0;
   justify-content: center;
+  min-width: 0;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 h1 {

@@ -442,7 +442,7 @@ Work in Progress and Review detail should center the rounded-duration label in
 the existing time area without reworking the mobile or full-browser layout.
 On full-browser Work in Progress and Review detail cards, the editable workflow
 cards should appear as equal-width paired rows: **Entry type** with **Work
-type**, **Ticket status** with **Job date**, **Start time** with **End time**,
+type**, **Job date** with **Ticket status**, **Start time** with **End time**,
 then the centered duration under the time row. Full-width Review detail rows
 that do not share a row with another card should stay full width. Full-browser
 Work in Progress cards should also place **Client
@@ -545,8 +545,10 @@ lookup, expose compact **Ticket notes** and **Past time entries** buttons when
 rows exist; when no displayable notes or no past time entries exist, show
 same-place disabled **No Notes** and **No past entries** buttons. On
 phone-sized layouts, Work in Progress places those buttons under the **Ticket
-name** card, and Review places the **Ticket number** card and those buttons
-below duration and above **Ticket description**. On full-browser Review, the
+name** card, and Review places **Client name** directly above the centered
+**Ticket number** card, then a phone-only **Ticket name** card with the
+**Ticket notes** and **Past time entries** buttons split across one row above
+**Ticket description**. On full-browser Review, the
 **Ticket notes** and **Past time entries** buttons flank the **Ticket
 description** title inside the ticket description card. Ticket-note
 lookups must filter out Service Desk Notification notes and any note whose
@@ -641,7 +643,7 @@ Compose dependencies must not require the local PostgreSQL service when the app
 is configured for a remote database. The app entrypoint should wait briefly for
 database connectivity, run migrations when possible, and then start the web
 process in temporary-service mode if PostgreSQL remains unavailable. While the
-database is unavailable, DB-backed routes must render an app-branded **Service
+database is unavailable, DB-backed routes must render an app-styled **Service
 Temporarily Unavailable** page that auto-refreshes `/login` and does not expose
 database, network, code, or stack details.
 
