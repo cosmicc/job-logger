@@ -495,7 +495,7 @@ for a separate persistent Swarm database design.
 The app entrypoint should wait briefly for database connectivity and emit
 sanitized diagnostics before migrations. If the database remains unavailable,
 the web process must still start in temporary-service mode. DB-backed browser
-routes should return an app-branded **Service Temporarily Unavailable** page
+routes should return an app-styled **Service Temporarily Unavailable** page
 that auto-refreshes `/login` and does not expose database, network, code,
 stack, or credential details. API-style requests should receive only a generic
 503 body.

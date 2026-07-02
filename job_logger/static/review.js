@@ -1542,6 +1542,8 @@ function bindTicketLookup() {
   const reviewClientNameInput = document.querySelector("[data-review-client-name-input]");
   const ticketNumberInput = document.querySelector("[data-review-ticket-number-input]");
   const ticketNumberDisplay = document.querySelector("[data-review-ticket-number-display]");
+  const ticketTitleCard = document.querySelector("[data-review-ticket-title-card]");
+  const ticketTitleDisplay = document.querySelector("[data-review-ticket-title-display]");
   const ticketTitleInput = document.querySelector("[data-review-ticket-title-input]");
   const ticketDescriptionInput = document.querySelector("[data-review-ticket-description-input]");
   const ticketDescriptionCard = document.querySelector("[data-review-ticket-description-card]");
@@ -1621,6 +1623,12 @@ function bindTicketLookup() {
     }
     if (ticketTitleInput) {
       ticketTitleInput.value = selectedTicketTitle;
+    }
+    if (ticketTitleDisplay) {
+      ticketTitleDisplay.textContent = selectedTicketTitle || selectedTicketNumber || "Unassigned Ticket";
+    }
+    if (ticketTitleCard) {
+      ticketTitleCard.classList.toggle("is-hidden", !selectedTicketNumber);
     }
     if (ticketDescriptionInput) {
       ticketDescriptionInput.value = selectedTicketDescription;

@@ -1837,6 +1837,12 @@ a:focus-visible {
   gap: 5px;
 }
 
+.ticket-number-card,
+.review-ticket-number-card {
+  justify-items: center;
+  text-align: center;
+}
+
 .ticket-number-card dd,
 .ticket-number-card strong,
 .ticket-title-card dd,
@@ -2073,7 +2079,8 @@ a:focus-visible {
 .ticket-number-card,
 .ticket-title-card,
 .ticket-description-card,
-.review-client-name-card {
+.review-client-name-card,
+.review-ticket-title-card {
   min-width: 0;
 }
 
@@ -3204,6 +3211,10 @@ td a {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-muted);
+}
+
+.readonly-field-card.review-ticket-title-card {
+  display: none;
 }
 
 .readonly-context-card {

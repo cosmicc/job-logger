@@ -17,10 +17,10 @@ from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
 CURRENT_DETAILED_HEADING = (
-    "## 1.2.1 - 07.02.2026 - Work in Progress and Review workflow polish"
+    "## 1.2.1 - 07.02.2026 - Work in Progress, Review, and outage-page polish"
 )
 CURRENT_RELEASE_DATE = "07.02.2026"
-CURRENT_WEB_TITLE = "Work in Progress and Review workflow polish"
+CURRENT_WEB_TITLE = "Work in Progress, Review, and outage-page polish"
 CURRENT_WEB_HEADING = f"## 1.2.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
 PREVIOUS_WEB_TITLE = "Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish"
 RELEASE_HEADING_PATTERN = re.compile(r"^## \d+\.\d+\.\d+ - \d{2}\.\d{2}\.\d{4} - .+")
@@ -112,7 +112,7 @@ def test_changelog_parser_reads_current_release() -> None:
         title=CURRENT_WEB_TITLE,
         changes=(
             (
-                "Full-browser Review now pairs Entry type with Work type, puts Ticket status before Job date, "
+                "Full-browser Review now pairs Entry type with Work type, puts Job date before Ticket status, "
                 "and keeps two-card rows evenly split."
             ),
             (
@@ -121,7 +121,7 @@ def test_changelog_parser_reads_current_release() -> None:
             ),
             (
                 "Full-browser Work in Progress now pairs Entry type with Work type, "
-                "puts Ticket status before Job date, and centers duration under the time row."
+                "puts Job date before Ticket status, and centers duration under the time row."
             ),
             (
                 "Full-browser Work in Progress keeps Client name beside Ticket name "
@@ -136,7 +136,8 @@ def test_changelog_parser_reads_current_release() -> None:
             ),
             (
                 "On phones, Ticket notes and Past time entries sit under Ticket name on Work in Progress, "
-                "while Review moves Ticket number below duration."
+                "while Review puts Client name above Ticket number and moves those buttons into Ticket name "
+                "above Ticket description."
             ),
             (
                 "Work in Progress now lets you change the selected client before choosing a ticket "
@@ -145,6 +146,7 @@ def test_changelog_parser_reads_current_release() -> None:
             (
                 "Ticket note mode now keeps Work type visible but greyed out instead of removing it."
             ),
+            "The temporary outage page now uses a tighter card without the extra app header.",
         ),
     )
 
@@ -227,6 +229,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "and Ticket note or On-Site switch selections are orange."
     ) in response.text
     assert "Web service and missing-page errors now match Job Logger&#39;s look and offer Back to Login or Back to Work." in response.text
+    assert "The temporary outage page now uses a tighter card without the extra app header." in response.text
     assert "Work entries can now be Time entries or customer-visible Ticket notes." in response.text
     assert (
         "Ticket note mode uses a required note title and note description "
@@ -254,7 +257,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "and rounded total time shown."
     ) in response.text
     assert (
-        "Full-browser Review now pairs Entry type with Work type, puts Ticket status before Job date, "
+        "Full-browser Review now pairs Entry type with Work type, puts Job date before Ticket status, "
         "and keeps two-card rows evenly split."
     ) in response.text
     assert (
@@ -263,7 +266,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     ) in response.text
     assert (
         "Full-browser Work in Progress now pairs Entry type with Work type, "
-        "puts Ticket status before Job date, and centers duration under the time row."
+        "puts Job date before Ticket status, and centers duration under the time row."
     ) in response.text
     assert (
         "Full-browser Work in Progress keeps Client name beside Ticket name "
@@ -278,7 +281,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     ) in response.text
     assert (
         "On phones, Ticket notes and Past time entries sit under Ticket name on Work in Progress, "
-        "while Review moves Ticket number below duration."
+        "while Review puts Client name above Ticket number and moves those buttons into Ticket name "
+        "above Ticket description."
     ) in response.text
     assert (
         "Work in Progress now lets you change the selected client before choosing a ticket "

@@ -186,8 +186,8 @@ def test_generated_api_docs_and_public_health_are_closed_at_app_or_proxy(client:
     assert client.get("/health/live").status_code == 200
 
 
-def test_database_unavailable_mode_serves_branded_retry_page() -> None:
-    """DB-backed pages should show a safe app-branded page while PostgreSQL is down."""
+def test_database_unavailable_mode_serves_styled_retry_page() -> None:
+    """DB-backed pages should show a safe app-styled page while PostgreSQL is down."""
 
     monitor = UnavailableDatabaseMonitor()
     test_app = create_app(
@@ -216,8 +216,10 @@ def test_database_unavailable_mode_serves_branded_retry_page() -> None:
     assert '<meta http-equiv="refresh" content="10;url=/login">' in login_response.text
     assert "/static/app.css" in login_response.text
     assert "/static/service-unavailable.css" in login_response.text
-    assert "Job Logger" in login_response.text
-    assert "job-logger-icon-maskable-512.png" in login_response.text
+    assert "service-unavailable-brand" not in login_response.text
+    assert "Job Logger" not in login_response.text
+    assert "job-logger-icon-maskable-512.png" not in login_response.text
+    assert "Work logging service" not in login_response.text
     assert "Temporary outage" in login_response.text
     assert "database" not in login_response.text.lower()
     assert "postgres" not in login_response.text.lower()

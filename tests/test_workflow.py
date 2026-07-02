@@ -1572,8 +1572,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".review-work-location-card {\n  grid-column: 2;\n  grid-row: 3;\n}" in desktop_stylesheet
     assert ".review-client-name-card {\n  grid-column: 1;\n  grid-row: 1;\n}" in desktop_stylesheet
     assert ".review-ticket-number-card {\n  grid-column: 2;\n  grid-row: 1;\n}" in desktop_stylesheet
-    assert ".review-ticket-status-field {\n  grid-column: 1;\n  grid-row: 4;\n}" in desktop_stylesheet
-    assert ".review-job-date-field {\n  grid-column: 2;\n  grid-row: 4;\n}" in desktop_stylesheet
+    assert ".review-ticket-status-field {\n  grid-column: 2;\n  grid-row: 4;\n}" in desktop_stylesheet
+    assert ".review-job-date-field {\n  grid-column: 1;\n  grid-row: 4;\n}" in desktop_stylesheet
     assert ".ticket-description-card .ticket-context-actions-desktop {\n  display: contents;\n}" in desktop_stylesheet
     assert ".ticket-description-card .ticket-context-actions-desktop .ticket-notes-button:first-child" in desktop_stylesheet
     assert ".ticket-description-card .ticket-context-actions-desktop .ticket-notes-button:last-child" in desktop_stylesheet
@@ -1602,13 +1602,13 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     ) in desktop_stylesheet
     assert (
         "  .work-panel[data-active-job-card] > .metric-grid > .ticket-status-card {\n"
-        "    grid-column: 1;\n"
+        "    grid-column: 2;\n"
         "    grid-row: 2;\n"
         "  }"
     ) in desktop_stylesheet
     assert (
         "  .work-panel[data-active-job-card] > .metric-grid > .job-date-card {\n"
-        "    grid-column: 2;\n"
+        "    grid-column: 1;\n"
         "    grid-row: 2;\n"
         "  }"
     ) in desktop_stylesheet
@@ -1664,15 +1664,20 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".metric-grid > .active-duration-row {\n  order: -10;\n}" in phone_stylesheet
     assert ".form-grid > .review-entry-type-card {\n  order: 10;\n}" in phone_stylesheet
     assert ".form-grid > .review-work-location-card {\n  order: 20;\n}" in phone_stylesheet
-    assert ".form-grid > .review-ticket-number-card {\n  order: 80;\n}" in phone_stylesheet
     assert ".form-grid > .review-ticket-status-field {\n  order: 30;\n}" in phone_stylesheet
     assert ".form-grid > .review-job-date-field {\n  order: 40;\n}" in phone_stylesheet
     assert ".form-grid > .review-start-time-field {\n  order: 50;\n}" in phone_stylesheet
     assert ".form-grid > .review-end-time-field {\n  order: 60;\n}" in phone_stylesheet
     assert ".form-grid > .review-duration-row {\n  order: 70;\n}" in phone_stylesheet
+    assert ".form-grid > .review-client-name-card {\n  order: 80;\n}" in phone_stylesheet
+    assert ".form-grid > .review-ticket-number-card {\n  order: 90;\n}" in phone_stylesheet
+    assert ".form-grid > .review-ticket-title-card {\n  display: grid;\n  order: 100;\n}" in phone_stylesheet
     assert ".ticket-context-actions-mobile {\n  display: none;\n}" in stylesheet
     assert ".ticket-context-actions-desktop {\n  display: none;\n}" in phone_stylesheet
     assert ".ticket-context-actions-mobile {\n  display: flex;" in phone_stylesheet
+    assert "  flex-wrap: nowrap;" in phone_stylesheet
+    assert ".readonly-field-card.review-ticket-title-card {\n  display: none;\n}" in stylesheet
+    assert ".ticket-number-card,\n.review-ticket-number-card {\n  justify-items: center;\n  text-align: center;\n}" in stylesheet
     assert ".ticket-context-header .centered-field-label" in stylesheet
     assert ".review-work-location-card .work-location-switch" in stylesheet
     assert "justify-self: center;" in stylesheet
@@ -2731,19 +2736,24 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
     assert "T20260616.0001" in updated_review_html
     assert '<span class="metric-label readonly-field-title">Ticket number</span>' in updated_review_html
     assert '<span class="metric-label readonly-field-title">Client name</span>' in updated_review_html
+    assert '<span class="metric-label readonly-field-title">Ticket name</span>' in updated_review_html
     assert 'class="readonly-field-card review-client-name-card"' in updated_review_html
     assert 'class="readonly-field-card review-ticket-number-card"' in updated_review_html
+    assert 'data-review-ticket-title-card' in updated_review_html
+    review_client_name_card_index = updated_review_html.index('class="readonly-field-card review-client-name-card"')
     review_ticket_number_card_index = updated_review_html.index('class="readonly-field-card review-ticket-number-card"')
+    review_ticket_title_card_index = updated_review_html.index("data-review-ticket-title-card")
     review_mobile_context_actions_index = updated_review_html.index(
         'class="ticket-context-actions ticket-context-actions-mobile"',
-        review_ticket_number_card_index,
+        review_ticket_title_card_index,
     )
     review_ticket_status_index = updated_review_html.index('class="review-ticket-status-field"')
     review_description_context_actions_index = updated_review_html.index(
         'class="ticket-context-actions ticket-context-actions-desktop"',
         updated_review_html.index("data-review-ticket-description-card"),
     )
-    assert review_ticket_number_card_index < review_mobile_context_actions_index < review_ticket_status_index
+    assert review_ticket_number_card_index < review_client_name_card_index < review_ticket_title_card_index
+    assert review_ticket_title_card_index < review_mobile_context_actions_index < review_ticket_status_index
     assert review_mobile_context_actions_index < review_description_context_actions_index
     assert re.search(r'<input(?=[^>]*name="ticket_number")(?=[^>]*type="hidden")', updated_review_html)
     assert re.search(r'<input(?=[^>]*name="client_name")(?=[^>]*type="hidden")', updated_review_html)

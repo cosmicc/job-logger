@@ -1,5 +1,7 @@
 .service-unavailable-body {
+  box-sizing: border-box;
   display: grid;
+  width: 100%;
   min-height: 100dvh;
   margin: 0;
   padding: 24px;
@@ -8,48 +10,22 @@
 }
 
 .service-unavailable-shell {
-  width: min(100%, 520px);
+  box-sizing: border-box;
+  width: min(100%, 460px);
   min-height: 0;
   margin: 0;
 }
 
 .service-unavailable-panel {
+  box-sizing: border-box;
   display: grid;
-  gap: 16px;
-  padding: 28px;
+  width: 100%;
+  gap: 12px;
+  padding: 24px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow);
-}
-
-.service-unavailable-brand {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.service-unavailable-brand-icon {
-  width: 52px;
-  height: 52px;
-  flex: 0 0 auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-muted);
-  box-shadow: var(--button-shadow);
-}
-
-.service-unavailable-brand-copy {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.service-unavailable-brand-copy p {
-  margin: 0;
 }
 
 .service-unavailable-status {
@@ -70,9 +46,9 @@
 }
 
 .service-unavailable-panel h1 {
-  max-width: 14ch;
+  max-width: 15ch;
   margin: 0;
-  font-size: clamp(30px, 7vw, 42px);
+  font-size: clamp(28px, 6vw, 38px);
   line-height: 1.04;
   letter-spacing: 0;
 }
@@ -90,15 +66,6 @@
   }
 
   .service-unavailable-panel {
-    padding: 22px;
-  }
-
-  .service-unavailable-brand {
-    gap: 12px;
-  }
-
-  .service-unavailable-brand-icon {
-    width: 46px;
-    height: 46px;
+    padding: 20px;
   }
 }
