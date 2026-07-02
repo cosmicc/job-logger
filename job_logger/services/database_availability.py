@@ -87,9 +87,10 @@ class DatabaseAvailabilityMonitor:
         """Run Alembic after a database outage prevented entrypoint migrations."""
 
         alembic_config = Config("alembic.ini")
-        alembic_config.set_main_option("sqlalchemy.url", application_settings.database_url)
+        database_url = database.normalize_database_url(application_settings.database_url)
+        alembic_config.set_main_option("sqlalchemy.url", database_url)
         previous_database_url = os.environ.get("DATABASE_URL")
-        os.environ["DATABASE_URL"] = application_settings.database_url
+        os.environ["DATABASE_URL"] = database_url
         try:
             command.upgrade(alembic_config, "head")
         finally:

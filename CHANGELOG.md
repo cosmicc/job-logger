@@ -52,6 +52,9 @@ All notable changes to Job Logger are documented in this file.
   through `DATABASE_URL`.
 - Added database connection-pool and connection-timeout environment settings
   for remote PostgreSQL deployments.
+- Fixed remote PostgreSQL startup and Alembic migrations so provider-style
+  `postgresql://` and `postgres://` database URLs are normalized to the
+  installed psycopg 3 SQLAlchemy driver instead of trying to import `psycopg2`.
 - Changed Work in Progress and Review detail headings to show the selected
   ticket title with the job state pill beside it instead of a separate
   **Selected job** label, centered the main field labels, renamed active

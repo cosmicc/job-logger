@@ -10,7 +10,7 @@ from sqlalchemy import engine_from_config, pool
 
 from job_logger import models  # noqa: F401  # Import models so metadata is populated.
 from job_logger.config import settings
-from job_logger.database import Base
+from job_logger.database import Base, normalize_database_url
 
 config = context.config
 
@@ -23,7 +23,7 @@ target_metadata = Base.metadata
 def _database_url() -> str:
     """Return the migration database URL from the environment or app settings."""
 
-    return os.getenv("DATABASE_URL", settings.database_url)
+    return normalize_database_url(os.getenv("DATABASE_URL", settings.database_url))
 
 
 def run_migrations_offline() -> None:
@@ -58,4 +58,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-

@@ -11,6 +11,10 @@ from sqlalchemy.pool import StaticPool
 
 from job_logger.config import settings
 
+POSTGRESQL_PLAIN_PREFIX = "postgresql://"
+POSTGRESQL_SHORT_PREFIX = "postgres://"
+POSTGRESQL_PSYCOPG_PREFIX = "postgresql+psycopg://"
+
 
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy ORM models."""
@@ -23,19 +27,31 @@ engine: Engine
 SessionLocal: sessionmaker[Session]
 
 
+def normalize_database_url(database_url: str) -> str:
+    """Return a SQLAlchemy URL that uses the installed PostgreSQL driver."""
+
+    normalized_database_url = database_url.strip()
+    if normalized_database_url.startswith(POSTGRESQL_PLAIN_PREFIX):
+        return normalized_database_url.replace(POSTGRESQL_PLAIN_PREFIX, POSTGRESQL_PSYCOPG_PREFIX, 1)
+    if normalized_database_url.startswith(POSTGRESQL_SHORT_PREFIX):
+        return normalized_database_url.replace(POSTGRESQL_SHORT_PREFIX, POSTGRESQL_PSYCOPG_PREFIX, 1)
+    return normalized_database_url
+
+
 def create_database_engine(database_url: str) -> Engine:
     """Create a SQLAlchemy engine with safe defaults for the configured backend."""
 
-    if database_url.startswith("sqlite"):
+    normalized_database_url = normalize_database_url(database_url)
+    if normalized_database_url.startswith("sqlite"):
         return create_engine(
-            database_url,
+            normalized_database_url,
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
             future=True,
         )
 
     return create_engine(
-        database_url,
+        normalized_database_url,
         pool_pre_ping=True,
         pool_size=settings.database_pool_size,
         max_overflow=settings.database_max_overflow,

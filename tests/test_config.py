@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from job_logger import database
 from job_logger.config import load_settings, settings
+from job_logger.database import create_database_engine, normalize_database_url
 from job_logger.enums import ThemeMode
 from job_logger.main import create_app, validate_runtime_settings
 from job_logger.models import AuditEvent, UserPreference, WebUser
@@ -133,6 +134,24 @@ def test_database_pool_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.database_pool_timeout_seconds == 12
     assert loaded_settings.database_pool_recycle_seconds == 900
     assert loaded_settings.database_unavailable_check_interval_seconds == 6
+
+
+def test_plain_postgresql_urls_use_installed_psycopg_driver() -> None:
+    """Provider-style PostgreSQL URLs should not require the psycopg2 package."""
+
+    normalized_full_url = normalize_database_url("postgresql://job_logger:not-default@db:5432/job_logger")
+    normalized_short_url = normalize_database_url("postgres://job_logger:not-default@db:5432/job_logger")
+    full_url_engine = create_database_engine("postgresql://job_logger:not-default@db:5432/job_logger")
+    short_url_engine = create_database_engine("postgres://job_logger:not-default@db:5432/job_logger")
+
+    try:
+        assert normalized_full_url == "postgresql+psycopg://job_logger:not-default@db:5432/job_logger"
+        assert normalized_short_url == "postgresql+psycopg://job_logger:not-default@db:5432/job_logger"
+        assert full_url_engine.url.drivername == "postgresql+psycopg"
+        assert short_url_engine.url.drivername == "postgresql+psycopg"
+    finally:
+        full_url_engine.dispose()
+        short_url_engine.dispose()
 
 
 def test_local_login_lockout_duration_loads_from_environment(monkeypatch) -> None:

@@ -602,8 +602,10 @@ Compose uses `COMPOSE_PROFILES=local-db` to decide whether the bundled
 PostgreSQL service is deployed. Local single-host installs should enable that
 profile and use the `db` service. Remote PostgreSQL installs should leave that
 profile disabled and set `DATABASE_URL` to the remote `postgresql+psycopg`
-connection URL. Keep app-side database connections bounded with the documented
-pool and timeout settings.
+connection URL. Provider-style `postgresql://` and `postgres://` URLs must be
+normalized to the installed psycopg 3 driver before app startup or Alembic
+migrations create a database engine. Keep app-side database connections bounded
+with the documented pool and timeout settings.
 
 Health checks should be added for services where practical.
 PostgreSQL health checks must allow enough startup grace for first-time volume

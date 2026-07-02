@@ -255,6 +255,10 @@ COMPOSE_PROFILES=
 DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
 ```
 
+If a managed PostgreSQL provider supplies a `postgresql://` or `postgres://`
+URL, Job Logger normalizes it to the installed psycopg 3 driver before app
+startup and migrations create database engines.
+
 Keep the remote database private to trusted networks or TLS-protected
 connections. The app uses pooled connections with `pool_pre_ping`, bounded
 timeouts, and configurable `DATABASE_POOL_*` settings so remote connections are

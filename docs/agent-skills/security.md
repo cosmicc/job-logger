@@ -483,9 +483,10 @@ bootstrapping.
 Do not make Compose or Portainer stack creation depend on PostgreSQL becoming
 healthy. Compose must also support remote PostgreSQL by keeping the bundled
 PostgreSQL service behind `COMPOSE_PROFILES=local-db` and by letting
-`DATABASE_URL` point at the remote server when that profile is disabled. Keep
-remote database connections bounded with the documented pool and timeout
-settings.
+`DATABASE_URL` point at the remote server when that profile is disabled.
+Normalize plain `postgresql://` and `postgres://` URLs to the installed psycopg
+3 driver before creating app or Alembic engines. Keep remote database
+connections bounded with the documented pool and timeout settings.
 
 The app entrypoint should wait briefly for database connectivity and emit
 sanitized diagnostics before migrations. If the database remains unavailable,
