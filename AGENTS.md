@@ -114,20 +114,21 @@ another approved secret store.
 
 Do not log secrets, session tokens, raw authentication headers, Cloudflare Access
 JWTs, Autotask API credentials, transcription provider credentials, raw audio,
-or other sensitive values. Successful and failed app-login attempts may be
-written to host-mounted JSONL login-attempt logs and shown on `/debug`, but only
-with sanitized metadata such as timestamp, client IP, submitted username,
-account kind, authentication method, user agent, request/proxy details, failure
-reason, and password-present/length for failures. Never write or display the raw
-submitted password. For login diagnostics, display the sanitized proxy client IP
-provided by nginx while retaining the direct socket peer and proxy headers as
-supporting metadata. Do not use display-only request headers as authorization or
-blocking decisions. Local login lockout and automatic Cloudflare blocking must
-use the trusted enforcement IP from nginx-sanitized `X-Real-IP`/`X-Forwarded-For`
-or, outside the bundled proxy path, the direct socket peer. The failed-login
-table may hide individual rows through `hidden_login_failures`, but the raw
-JSONL download must remain append-only. Cloudflare IP blocking on `/debug` may
-create or remove only app-managed zone IP Access Rules tracked in
+or other sensitive values. Successful and failed app-login attempts must be
+stored in the database as sanitized `login_attempts` records and shown on
+`/debug` only with safe metadata such as timestamp, client IP, submitted
+username, account kind, authentication method, user agent, request/proxy
+details, failure reason, and password-present/length for failures. Never store,
+write, or display the raw submitted password. For login diagnostics, display the
+sanitized proxy client IP provided by nginx while retaining the direct socket
+peer and proxy headers as supporting metadata. Do not use display-only request
+headers as authorization or blocking decisions. Local login lockout and
+automatic Cloudflare blocking must use the trusted enforcement IP from
+nginx-sanitized `X-Real-IP`/`X-Forwarded-For` or, outside the bundled proxy
+path, the direct socket peer. The failed-login table may hide individual rows by
+setting `login_attempts.hidden_at_utc`; JSONL downloads are generated from the
+database for diagnostics and must remain sanitized. Cloudflare IP blocking on
+`/debug` may create or remove only app-managed zone IP Access Rules tracked in
 `cloudflare_ip_blocks`; it must honor `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, use the
 trusted enforcement IP, store a safe reason for every block, and reset
 `login_failure_counters` to zero after a successful local login for the same
@@ -255,10 +256,9 @@ Job start times must round to the closest 15-minute interval.
 Job end times and job duration must also round to 15-minute intervals.
 Work in Progress and Review detail must show the rounded start-to-stop duration
 using labels such as `15 Minutes`, `1 Hour`, or `1.25 Hours`, and must update
-that label as the visible rounded times change. Work in Progress shows the
-centered duration under **End time**. Review detail shows the centered duration
-on its own row under the start/end time controls so the full-browser start and
-end fields stay aligned.
+that label as the visible rounded times change. Work in Progress and Review
+detail show the centered duration on its own row under the start/end time
+controls so full-browser start and end fields stay aligned.
 Ticket-note mode hides this duration because start and stop times are not used
 for Autotask ticket notes.
 
@@ -437,6 +437,12 @@ and `+15` controls, open a 15-minute dropdown centered on the current field
 value when selected, and save only through server-validated active-job routes.
 Work in Progress and Review detail should center the rounded-duration label in
 the existing time area without reworking the mobile or full-browser layout.
+On full-browser Work in Progress and Review detail cards, the editable workflow
+cards should appear as **Entry type** with **Work type**, **Ticket status** with
+**Job date**, **Start time** with **End time**, then the centered duration under
+the time row. Full-browser Work in Progress cards should also place **Client
+name** and **Ticket number** together on the next row when a ticket number is
+shown.
 Active Work in Progress cards should keep a visible **Work in Progress** label
 above the selected ticket heading. The full-browser layout depends on that
 label row so the Summary notes panel starts flush with the top of the **Job
@@ -449,7 +455,7 @@ instead of a separate unaudited template branch. Super-admin pages always use
 dark mode.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
 must show the version link as one yellow badge that includes `DEV`, such as
-`v1.2.0 DEV`, so dev instances are visually distinct from production without
+`v1.2.1 DEV`, so dev instances are visually distinct from production without
 adding a separate pill.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
@@ -503,6 +509,10 @@ controls while preserving their values for switching back to Time entry, shows
 a required centered note-title field above the note description, and keeps the
 description unprefixed. Shared switch pills should show Time entry and Remote
 selected states in green and Ticket note and On-Site selected states in orange.
+On phone-sized Work in Progress and Review detail layouts, the editable
+workflow cards should appear in this order: **Entry type**, **Work type**,
+**Ticket status**, **Job date** or **Note Date**, **Start time**, **End time**,
+then duration.
 **Append to resolution** should sit under the note description and above the
 action buttons. The
 selected Autotask
@@ -671,9 +681,9 @@ page changes, debug tooling, super-admin-only behavior, operator-only
 deployment details, and agent-facing notes belong only in `CHANGELOG.md`, never
 in `WEB_CHANGELOG.md`.
 Use changelog headings in the form
-`## [1.2.0] - 07.02.2026 - Release title`: bracket the version number without a
-leading `v`, use `MM.DD.YYYY` release dates, then place the version title after
-the date.
+`## 1.2.0 - 07.02.2026 - Release title`: write the version number without a
+leading `v` and without brackets, use `MM.DD.YYYY` release dates, then place
+the version title after the date.
 
 ## Development Process
 
@@ -706,10 +716,10 @@ branch. Do not merge `dev` into `main`, tag a release, or report production
 deployment readiness unless the user explicitly asks for that release step.
 
 The dev deployment should run as a separate instance from production, with its
-own checkout or worktree, Docker Compose project name, `.env`, database volume,
-backup path, host log path, Cloudflare Tunnel token, public hostname, WebAuthn
-origin, and host-facing `HTTP_PORT`. This keeps dev testing from sharing
-production sessions, logs, backups, database state, or tunnel credentials.
+own checkout or worktree, Docker Compose project name, `.env`, database volume
+or remote database, backup path, Cloudflare Tunnel token, public hostname,
+WebAuthn origin, and host-facing `HTTP_PORT`. This keeps dev testing from
+sharing production sessions, backups, database state, or tunnel credentials.
 
 ## Agent Orientation Map
 
@@ -748,7 +758,7 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.
 - `job_logger/models.py` defines persistent tables for managed web users,
   managed-user session invalidation cutoffs, per-user preferences, jobs, audit
-  events, and Autotask submission attempts.
+  events, sanitized login attempts, and Autotask submission attempts.
 - `job_logger/enums.py` defines workflow, transcription, and ticket-status
   enums used by routes, services, templates, and migrations.
 - `job_logger/time_utils.py` centralizes UTC/local conversion and 15-minute
@@ -766,7 +776,7 @@ The application is a FastAPI project under `job_logger/`.
   `WEB_CHANGELOG.md` contains short user-facing release notes for `/changelog`.
 - `job_logger/routes/auth.py` handles config super-admin login, managed web-user
   login, logout, and local authenticated sessions, including sanitized
-  failed-login file logging.
+  database-backed login-attempt records.
 - `job_logger/routes/passkeys.py` handles managed-user passkey registration,
   deletion, and passkey login challenge/verification routes.
 - `job_logger/routes/mobile.py` handles `/home`, active job start/end/save,
@@ -787,9 +797,9 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/routes/changelog.py` handles authenticated `/changelog` release
   history for the discreet version link shown in the shared app header.
 - `job_logger/routes/debug.py` handles the super-admin diagnostic page, the
-  sanitized successful/failed login windows, disk-space monitor, app log tail,
-  full backup/restore actions, managed web-user session invalidation, and the
-  Autotask API connectivity test.
+  sanitized successful/failed login windows, disk-space monitor, database
+  diagnostics, full backup/restore actions, managed web-user session
+  invalidation, and the Autotask API connectivity test.
 - `job_logger/routes/health.py` exposes private container health endpoints.
 - `job_logger/routes/pwa.py` serves the web app manifest and root-scoped
   service worker for installed mobile app behavior. The service worker must not
@@ -797,6 +807,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/system_health.py` owns shared disk-usage severity
   snapshots and cached Autotask API health state used by Diagnostics and the
   authenticated top-bar degraded-health icon.
+- `job_logger/services/database_diagnostics.py` collects display-safe database
+  connectivity, latency, migration, and connection-pool stats for Diagnostics.
 - `job_logger/services/jobs.py` owns core job state transitions and must remain
   the primary place for workflow and job-ownership validation.
 - `job_logger/services/autotask.py` owns Autotask providers, connectivity tests,
@@ -824,14 +836,13 @@ The application is a FastAPI project under `job_logger/`.
   enforces automatic backup retention. `/debug` may download retained automatic
   backups only after strict filename validation, and labels retained automatic
   backups as startup or hourly when creation audit metadata is available.
-- `job_logger/services/login_failures.py` writes and reads the host-mounted
-  sanitized successful/failed login JSONL logs in `LOG_DIR`, defaulting to
-  `job-logger-login-successes.log` and `job-logger-login-failures.log` inside
-  Docker's `/data/logs` mount. `LOG_LEVEL` controls how verbose `${LOG_DIR}/app.log`
-  is and must be one of `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
+- `job_logger/services/login_failures.py` writes and reads sanitized
+  successful/failed login attempts from the database and generates sanitized
+  JSONL downloads for Diagnostics. `LOG_LEVEL` controls stdout/stderr log
+  verbosity and must be one of `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
 - `job_logger/services/login_protection.py` enforces local pre-authentication
   lockout, increments persistent consecutive failed-login counters by trusted
-  enforcement IP and username, appends sanitized failed-login JSONL records,
+  enforcement IP and username, stores sanitized failed-login database records,
   and triggers Cloudflare auto-blocking at the configured threshold.
 - `job_logger/services/cloudflare_blocks.py` owns app-managed Cloudflare zone
   IP Access Rule create/delete calls and allowlist checks. It must never list,
@@ -1037,11 +1048,13 @@ In production:
   zero. The same threshold also starts the local
   `LOGIN_LOCAL_LOCKOUT_MINUTES` pre-authentication lockout.
 - The `/debug` disk-space card combines monitored paths when used bytes and
-  total bytes match exactly. The app log preview shows only the newest 10
-  sanitized lines, and the automatic-backup card belongs below the app-log
-  card. Wide Diagnostics tables, including Autotask submission attempts and
-  retained automatic backups, should remain horizontally scrollable on phone
-  layouts so row actions stay reachable.
+  total bytes match exactly. The `/debug` database card may show safe
+  connectivity, latency,
+  backend/driver, migration revision, and pool counters, but must not show
+  connection strings, hosts, database names, usernames, or passwords. Wide
+  Diagnostics tables, including Autotask submission attempts and retained
+  automatic backups, should remain horizontally scrollable on phone layouts so
+  row actions stay reachable.
 - Mock Autotask mode is only for tests and isolated development.
 
 ## Documentation Maintenance Rules For Agents

@@ -63,7 +63,7 @@ Destructive red controls must stay red on hover, using a brighter red instead
 of falling back to a neutral dark hover.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 one yellow version badge with `DEV` folded into the version text, such as
-`v1.2.0 DEV`. Keep the badge compact so it does not crowd the mobile
+`v1.2.1 DEV`. Keep the badge compact so it does not crowd the mobile
 navigation icons.
 When cached app health is degraded, every authenticated user sees a red
 exclamation status icon in the top bar. The icon is non-clickable and must not
@@ -142,11 +142,16 @@ Active jobs support these updates before completion:
   server-validated `-15` and `+15` minute buttons on either side of the field.
   These controls must not use the full-page status overlay because the
   adjustment should feel immediate.
-- A centered rounded duration label under the Work in Progress **End time**
-  control, such as `15 Minutes`, `1 Hour`, or `1.25 Hours`. The server returns
-  the canonical label after active time saves, and browser JavaScript should
-  update the visible label immediately when the visible start or stop time
-  changes.
+- A centered rounded duration label on its own row under the Work in Progress
+  start/end time controls, such as `15 Minutes`, `1 Hour`, or `1.25 Hours`.
+  The server returns the canonical label after active time saves, and browser
+  JavaScript should update the visible label immediately when the visible start
+  or stop time changes.
+- Full-browser Work in Progress cards should order editable workflow cards as
+  **Entry type** with **Work type**, **Ticket status** with **Job date**,
+  **Start time** with **End time**, then duration centered under the time row.
+- Full-browser Work in Progress cards should place **Client name** and
+  **Ticket number** together on the next row when a ticket number is shown.
 - A visible **Work in Progress** label above the selected ticket heading. The
   full-browser grid expects that label row so the Summary notes panel starts
   flush with the **Job date** card instead of dropping below the left-side
@@ -462,6 +467,9 @@ Review supports:
   end date/time, and summary notes before successful Autotask submission.
 - Editing note title for Ticket note entries before successful Autotask
   submission. Submitted entries must reject entry-type conversion.
+- Full-browser Review detail should order editable workflow cards as
+  **Entry type** with **Work type**, **Ticket status** with **Job date**,
+  **Start time** with **End time**, then duration centered under the time row.
 - Showing the rounded duration on a centered row under the selected detail
   start/end time controls and updating it from the server-normalized autosave
   response or the browser's current visible time values. Do not nest the
@@ -508,6 +516,10 @@ detail work-location control
 must rewrite the visible summary prefix when it changes on time entries. This
 allows the operator to correct the final Autotask notes without making
 ticket/client identity editable.
+Phone-sized Work in Progress and Review detail layouts should order the editable
+workflow cards as **Entry type**, **Work type**, **Ticket status**, **Job date**
+or **Note Date**, **Start time**, **End time**, then duration, while leaving
+unmentioned fields in their existing relative positions.
 
 The review detail form does not expose a manual Save button. Editable review
 fields are saved through debounced background posts to `POST /review/{job_id}/save`.

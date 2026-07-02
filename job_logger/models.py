@@ -302,6 +302,76 @@ class LoginFailureCounter(Base):
     )
 
 
+class LoginAttempt(Base):
+    """Sanitized successful or failed app-login attempt stored in the database."""
+
+    __tablename__ = "login_attempts"
+
+    # id is a UUID so diagnostics can hide one row without relying on file hashes.
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string, comment="Stable login-attempt UUID.")
+
+    # succeeded separates successful-login rows from failed-login rows.
+    succeeded: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Whether local authentication succeeded.",
+    )
+
+    # event is a bounded internal event key such as web_login_failed.
+    event: Mapped[str] = mapped_column(String(64), nullable=False, comment="Safe login-attempt event key.")
+
+    # created_at_utc stores the attempt time in UTC for pagination and audit review.
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    # client_ip is display metadata only. enforcement_client_ip is the trusted
+    # lockout/blocking IP from sanitized proxy headers or the direct socket.
+    client_ip: Mapped[str] = mapped_column(String(64), nullable=False, default="unknown", server_default="unknown")
+    enforcement_client_ip: Mapped[str] = mapped_column(String(64), nullable=False, default="unknown", server_default="unknown")
+    direct_client_ip: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    x_real_ip: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    x_forwarded_for: Mapped[str] = mapped_column(String(512), nullable=False, default="", server_default="")
+    forwarded_proto: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    host: Mapped[str] = mapped_column(String(512), nullable=False, default="", server_default="")
+    username: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
+    user_agent: Mapped[str] = mapped_column(String(255), nullable=False, default="", server_default="")
+    method: Mapped[str] = mapped_column(String(24), nullable=False, default="", server_default="")
+    path: Mapped[str] = mapped_column(String(512), nullable=False, default="", server_default="")
+
+    # Successful-login-only metadata. user_kind is super_admin or web_user.
+    user_kind: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    web_user_id: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    authentication_method: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+
+    # Failed-login-only metadata. Raw submitted passwords are never stored.
+    username_length: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    username_truncated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    password_supplied: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    password_length: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    next_url: Mapped[str] = mapped_column(String(512), nullable=False, default="", server_default="")
+    reason: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
+    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    lockout_applied: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    lockout_remaining_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+    # Hiding affects only the Diagnostics table. Downloaded DB exports still
+    # include the row because it remains part of the audit trail.
+    hidden_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="UTC time when this failed-login row was hidden from Diagnostics.",
+    )
+
+    __table_args__ = (
+        Index("ix_login_attempts_created_at", "created_at_utc"),
+        Index("ix_login_attempts_succeeded_created_at", "succeeded", "created_at_utc"),
+        Index("ix_login_attempts_enforcement_client_ip", "enforcement_client_ip"),
+        Index("ix_login_attempts_hidden_at", "hidden_at_utc"),
+    )
+
+
 class CloudflareIPBlock(Base):
     """App-managed Cloudflare zone IP Access Rule block for a failed-login IP."""
 
@@ -364,41 +434,6 @@ class CloudflareIPBlock(Base):
         Index("ix_cloudflare_ip_blocks_ip_address", "ip_address"),
         Index("ix_cloudflare_ip_blocks_created_at", "created_at_utc"),
     )
-
-
-class HiddenLoginFailure(Base):
-    """Failed-login log entry hidden from `/debug` while preserving raw JSONL logs."""
-
-    __tablename__ = "hidden_login_failures"
-
-    # id is a UUID for backup portability.
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string, comment="Stable hidden login-failure UUID.")
-
-    # entry_id is the SHA-256 hash of the raw JSONL line shown on `/debug`.
-    entry_id: Mapped[str] = mapped_column(
-        String(64),
-        nullable=False,
-        unique=True,
-        comment="Stable hash of the raw failed-login JSONL line hidden from diagnostics.",
-    )
-
-    client_ip: Mapped[str] = mapped_column(
-        String(64),
-        nullable=False,
-        default="",
-        server_default="",
-        comment="Displayed client IP from the hidden failed-login row.",
-    )
-    occurred_at_utc: Mapped[str] = mapped_column(
-        String(40),
-        nullable=False,
-        default="",
-        server_default="",
-        comment="Raw UTC timestamp string from the hidden failed-login log row.",
-    )
-    hidden_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
-
-    __table_args__ = (Index("ix_hidden_login_failures_entry_id", "entry_id"),)
 
 
 class Job(Base):

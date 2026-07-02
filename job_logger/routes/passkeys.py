@@ -231,6 +231,7 @@ async def passkey_login_verify(
             authentication_method=PASSKEY_AUTH_METHOD,
         )
         log_successful_login_attempt(
+            database_session,
             request,
             username=web_user.username,
             user_kind="web_user",

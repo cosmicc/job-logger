@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 COMPOSE_FILE = Path(__file__).resolve().parents[1] / "docker-compose.yml"
+SWARM_FILE = Path(__file__).resolve().parents[1] / "docker-swarm.yml"
 ENV_EXAMPLE_FILE = Path(__file__).resolve().parents[1] / ".env.example"
 
 
@@ -20,11 +21,15 @@ def test_compose_does_not_gate_stack_creation_on_health_conditions() -> None:
 
 
 def test_compose_exposes_log_level_setting() -> None:
-    """Docker Compose should pass the app log level into the container."""
+    """Docker Compose should pass the stdout app log level into the container."""
 
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
 
     assert "LOG_LEVEL: ${LOG_LEVEL:-INFO}" in compose_text
+    assert "LOG_DIR:" not in compose_text
+    assert "HOST_LOG_DIR" not in compose_text
+    assert "LOGIN_FAILURE_LOG_PATH" not in compose_text
+    assert "LOGIN_SUCCESS_LOG_PATH" not in compose_text
 
 
 def test_compose_exposes_dev_build_setting() -> None:
@@ -96,6 +101,10 @@ def test_env_example_defaults_to_local_database_profile_and_documents_remote_dat
     assert "For a remote PostgreSQL server, set COMPOSE_PROFILES=" in env_example_text
     assert "DATABASE_URL=" in env_example_text
     assert "DATABASE_POOL_RECYCLE_SECONDS=1800" in env_example_text
+    assert "LOG_DIR=" not in env_example_text
+    assert "HOST_LOG_DIR=" not in env_example_text
+    assert "LOGIN_FAILURE_LOG_PATH=" not in env_example_text
+    assert "LOGIN_SUCCESS_LOG_PATH=" not in env_example_text
 
 
 def test_nginx_host_port_uses_localhost_and_http_port() -> None:
@@ -105,3 +114,22 @@ def test_nginx_host_port_uses_localhost_and_http_port() -> None:
 
     assert '"127.0.0.1:${HTTP_PORT:-11030}:80"' in compose_text
     assert "network_mode: \"host\"" in compose_text
+
+
+def test_swarm_compose_uses_images_remote_database_and_stdout_logs() -> None:
+    """Docker Swarm deployment should avoid build directives and local log files."""
+
+    swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+
+    assert "build:" not in swarm_text
+    assert "image: ${JOB_LOGGER_APP_IMAGE" in swarm_text
+    assert "image: ${JOB_LOGGER_NGINX_IMAGE" in swarm_text
+    assert "DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the remote PostgreSQL URL}" in swarm_text
+    assert "LOG_LEVEL: ${LOG_LEVEL:-INFO}" in swarm_text
+    assert "LOG_DIR" not in swarm_text
+    assert "LOGIN_FAILURE_LOG_PATH" not in swarm_text
+    assert "LOGIN_SUCCESS_LOG_PATH" not in swarm_text
+    assert "driver: overlay" in swarm_text
+    assert "deploy:" in swarm_text
+    assert "network_mode" not in swarm_text
+    assert "postgres:16-alpine" not in swarm_text

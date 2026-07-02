@@ -1,13 +1,8 @@
 services:
   app:
-    build:
-      context: .
-    restart: unless-stopped
-    # FASTER_WHISPER_MEMORY_LIMIT caps the app container because local model
-    # transcription is the memory-heavy path in this service.
-    mem_limit: ${FASTER_WHISPER_MEMORY_LIMIT:-8g}
+    image: ${JOB_LOGGER_APP_IMAGE:?Set JOB_LOGGER_APP_IMAGE to a pushed app image}
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-job_logger}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-job_logger}}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the remote PostgreSQL URL}
       DATABASE_CONNECT_TIMEOUT_SECONDS: ${DATABASE_CONNECT_TIMEOUT_SECONDS:-5}
       DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
       DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-10}
@@ -17,9 +12,9 @@ services:
       APP_HOST: 0.0.0.0
       APP_ENV: ${APP_ENV:-production}
       DEV_BUILD: ${DEV_BUILD:-false}
-      APP_SECRET_KEY: ${APP_SECRET_KEY:?Set APP_SECRET_KEY in .env}
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?Set APP_SECRET_KEY}
       APP_USERNAME: ${APP_USERNAME:-admin}
-      APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD in .env}
+      APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       APP_SESSION_COOKIE_SECURE: ${APP_SESSION_COOKIE_SECURE:-true}
       APP_SESSION_TIMEOUT_HOURS: ${APP_SESSION_TIMEOUT_HOURS:-12}
@@ -36,7 +31,7 @@ services:
       TRANSCRIPTION_PROVIDER: ${TRANSCRIPTION_PROVIDER:-mock}
       MAX_AUDIO_UPLOAD_BYTES: ${MAX_AUDIO_UPLOAD_BYTES:-10485760}
       MAX_BACKUP_RESTORE_BYTES: ${MAX_BACKUP_RESTORE_BYTES:-262144000}
-      AUTOMATIC_BACKUPS_ENABLED: ${AUTOMATIC_BACKUPS_ENABLED:-true}
+      AUTOMATIC_BACKUPS_ENABLED: ${AUTOMATIC_BACKUPS_ENABLED:-false}
       AUTOMATIC_BACKUP_DIR: ${AUTOMATIC_BACKUP_DIR:-/data/backups}
       FASTER_WHISPER_MODEL: ${FASTER_WHISPER_MODEL:-base.en}
       FASTER_WHISPER_DEVICE: ${FASTER_WHISPER_DEVICE:-cpu}
@@ -66,9 +61,9 @@ services:
       GROQ_CLEANUP_API_BASE_URL: ${GROQ_CLEANUP_API_BASE_URL:-}
       GROK_CLEANUP_API_BASE_URL: ${GROK_CLEANUP_API_BASE_URL:-}
       OLLAMA_CLEANUP_MODEL: ${OLLAMA_CLEANUP_MODEL:-llama3.1}
-      OLLAMA_CLEANUP_API_BASE_URL: ${OLLAMA_CLEANUP_API_BASE_URL:-http://host.docker.internal:11434/api}
+      OLLAMA_CLEANUP_API_BASE_URL: ${OLLAMA_CLEANUP_API_BASE_URL:-http://127.0.0.1:11434/api}
       LM_STUDIO_CLEANUP_MODEL: ${LM_STUDIO_CLEANUP_MODEL:-local-model}
-      LM_STUDIO_CLEANUP_API_BASE_URL: ${LM_STUDIO_CLEANUP_API_BASE_URL:-http://host.docker.internal:1234/v1}
+      LM_STUDIO_CLEANUP_API_BASE_URL: ${LM_STUDIO_CLEANUP_API_BASE_URL:-http://127.0.0.1:1234/v1}
       LM_STUDIO_API_KEY: ${LM_STUDIO_API_KEY:-}
       AUTOTASK_PROVIDER: ${AUTOTASK_PROVIDER:-autotask}
       AUTOTASK_BASE_URL: ${AUTOTASK_BASE_URL:-}
@@ -81,102 +76,63 @@ services:
       AUTOTASK_STATUS_WAITING_PARTS_ID: ${AUTOTASK_STATUS_WAITING_PARTS_ID:-}
       AUTOTASK_STATUS_FOLLOW_UP_ID: ${AUTOTASK_STATUS_FOLLOW_UP_ID:-}
       AUTOTASK_STATUS_COMPLETE_ID: ${AUTOTASK_STATUS_COMPLETE_ID:-}
-    extra_hosts:
-      # Allows the app container to reach same-host Ollama or LM Studio
-      # processes through host.docker.internal. Private LAN model servers can
-      # be configured directly with their private IP base URLs.
-      - "host.docker.internal:host-gateway"
-    # The app entrypoint waits briefly for real database connectivity and starts
-    # in temporary-service mode if PostgreSQL is unreachable. That keeps remote
-    # database deployments and slow local starts from stopping the web process.
-    expose:
-      # The app is intentionally exposed only to the private Compose network.
-      # Nginx is the public-facing internal origin for Cloudflare Tunnel.
-      - "8000"
     volumes:
       - faster_whisper_models:/models/faster-whisper
       - automatic_backups:/data/backups
+    networks:
+      - job_logger
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3).read()\""]
       interval: 30s
       timeout: 5s
       start_period: 20s
       retries: 3
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      update_config:
+        order: start-first
+        failure_action: rollback
 
   nginx:
-    build:
-      context: ./docker/nginx
-    restart: unless-stopped
+    image: ${JOB_LOGGER_NGINX_IMAGE:?Set JOB_LOGGER_NGINX_IMAGE to a pushed nginx image}
     environment:
-      # APP_UPSTREAM_HOST is the Docker DNS name for the FastAPI service.
       APP_UPSTREAM_HOST: app
-      # NGINX_CLIENT_MAX_BODY_SIZE bounds compatibility uploads and streamed audio.
       NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-12m}
-      # NGINX_RESTORE_MAX_BODY_SIZE applies only to /debug/restore uploads.
       NGINX_RESTORE_MAX_BODY_SIZE: ${NGINX_RESTORE_MAX_BODY_SIZE:-250m}
-    # Nginx can start before the app is healthy; Docker health status and the
-    # app entrypoint make readiness visible without aborting Portainer stack
-    # creation.
-    depends_on:
-      - app
-    ports:
-      # Bind Nginx only on localhost so the host-networked Cloudflare Tunnel
-      # connector is the intended origin client. HTTP_PORT selects that local
-      # tunnel origin port, such as http://127.0.0.1:2082.
-      - "127.0.0.1:${HTTP_PORT:-11030}:80"
+    networks:
+      - job_logger
     healthcheck:
-      # Check that the Nginx master process is alive.
-      # This avoids failures when the container image does not include wget/curl.
       test: ["CMD-SHELL", "[ -f /var/run/nginx.pid ] && kill -0 \"$(cat /var/run/nginx.pid)\""]
       interval: 30s
       timeout: 5s
       start_period: 20s
       retries: 3
-
-  db:
-    image: postgres:16-alpine
-    profiles:
-      - local-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-job_logger}
-      POSTGRES_USER: ${POSTGRES_USER:-job_logger}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
-    volumes:
-      # Keep PostgreSQL data persistent across container rebuilds/recreates.
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
-      interval: 10s
-      timeout: 5s
-      # First-time volume initialization can take longer on small or busy
-      # Docker hosts. Give Postgres time to bootstrap before the DB container
-      # reports a failing health state.
-      start_period: 60s
-      retries: 12
-    networks:
-      default:
-        aliases:
-          - db
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    restart: unless-stopped
-    # Host networking lets remotely-managed tunnel service URLs use either
-    # localhost or this server's LAN/internal IP as the origin address.
-    network_mode: "host"
-    # The cloudflared image is a distroless runtime without /bin/sh, so the
-    # command is passed directly as arguments for the image entrypoint.
     command:
       - tunnel
       - --no-autoupdate
       - run
       - --token
-      - ${CLOUDFLARE_TUNNEL_TOKEN:-not-set}
-    depends_on:
-      - nginx
+      - ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - job_logger
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+networks:
+  job_logger:
+    driver: overlay
 
 volumes:
-  postgres_data:
   faster_whisper_models:
   automatic_backups:

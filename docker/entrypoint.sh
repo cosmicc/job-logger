@@ -89,44 +89,11 @@ PY
   return 1
 }
 
-prepare_log_paths() {
-  # LOG_DIR is the app-side path; Docker Compose bind-mounts the host log
-  # directory there so operators can read app.log and failed-login JSONL files.
-  log_dir="${LOG_DIR:-/data/logs}"
-  login_failure_log_path="${LOGIN_FAILURE_LOG_PATH:-${log_dir%/}/job-logger-login-failures.log}"
-
-  mkdir -p "$log_dir" "$(dirname "$login_failure_log_path")"
-  if [ -d "$login_failure_log_path" ]; then
-    echo "LOGIN_FAILURE_LOG_PATH points to a directory, expected a writable log file: ${login_failure_log_path}" >&2
-    exit 1
-  fi
-  touch "$login_failure_log_path"
-  chown -R appuser:appuser "$log_dir"
-  chown appuser:appuser "$login_failure_log_path"
-  chmod 0750 "$log_dir"
-  chmod 0640 "$login_failure_log_path"
-}
-
-run_as_appuser() {
-  if [ "$(id -u)" = "0" ]; then
-    exec gosu appuser "$@"
-  fi
-  exec "$@"
-}
-
 run_database_migrations() {
   # Run migrations before serving normal traffic so the app and database schema
   # stay in sync whenever the database is reachable during container startup.
-  if [ "$(id -u)" = "0" ]; then
-    gosu appuser alembic upgrade head
-  else
-    alembic upgrade head
-  fi
+  alembic upgrade head
 }
-
-if [ "$(id -u)" = "0" ]; then
-  prepare_log_paths
-fi
 
 # Prefer the normal path: wait briefly for the database, then migrate before
 # serving traffic. If the database stays unavailable, still start the web
@@ -140,4 +107,4 @@ else
 fi
 
 # Start the FastAPI application. Uvicorn is used directly to keep the container simple.
-run_as_appuser uvicorn job_logger.main:app --host "${APP_HOST:-0.0.0.0}" --port "${APP_PORT:-8000}" --proxy-headers
+exec uvicorn job_logger.main:app --host "${APP_HOST:-0.0.0.0}" --port "${APP_PORT:-8000}" --proxy-headers

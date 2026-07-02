@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import json
-import os
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
@@ -16,7 +13,7 @@ from webauthn.helpers.exceptions import InvalidAuthenticationResponse
 
 from job_logger import database
 from job_logger.config import settings
-from job_logger.models import AuditEvent, WebAuthnCredential, WebUser
+from job_logger.models import AuditEvent, LoginAttempt, WebAuthnCredential, WebUser
 from job_logger.security import (
     SESSION_AUTHENTICATED_AT_UTC_KEY,
     SESSION_USERNAME_KEY,
@@ -235,11 +232,16 @@ def test_passkey_login_creates_managed_user_session(client: TestClient, monkeypa
     assert verify_response.status_code == 200
     assert verify_response.json()["redirect_url"] == "/home"
     assert client.get("/home").status_code == 200
-    success_log_lines = Path(os.environ["LOGIN_SUCCESS_LOG_PATH"]).read_text(encoding="utf-8").strip().splitlines()
-    success_log_payload = json.loads(success_log_lines[-1])
-    assert success_log_payload["username"] == "tech"
-    assert success_log_payload["authentication_method"] == "passkey"
     with database.SessionLocal() as database_session:
+        success_attempt = database_session.scalar(
+            select(LoginAttempt).where(
+                LoginAttempt.succeeded.is_(True),
+                LoginAttempt.authentication_method == "passkey",
+            )
+        )
+        assert success_attempt is not None
+        assert success_attempt.username == "tech"
+        assert success_attempt.authentication_method == "passkey"
         updated_credential = database_session.get(WebAuthnCredential, credential.id)
         assert updated_credential is not None
         assert updated_credential.sign_count == 12

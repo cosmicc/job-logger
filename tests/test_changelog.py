@@ -17,44 +17,47 @@ from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
 CURRENT_DETAILED_HEADING = (
-    "## [1.2.0] - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge errors"
+    "## 1.2.1 - 07.02.2026 - Work in Progress and Review field layout polish"
 )
 CURRENT_RELEASE_DATE = "07.02.2026"
-CURRENT_WEB_TITLE = "Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish"
-CURRENT_WEB_HEADING = f"## [1.2.0] - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
-RELEASE_HEADING_PATTERN = re.compile(r"^## \[\d+\.\d+\.\d+\] - \d{2}\.\d{2}\.\d{4} - .+")
+CURRENT_WEB_TITLE = "Work in Progress and Review field layout polish"
+CURRENT_WEB_HEADING = f"## 1.2.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+PREVIOUS_WEB_TITLE = "Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish"
+RELEASE_HEADING_PATTERN = re.compile(r"^## \d+\.\d+\.\d+ - \d{2}\.\d{2}\.\d{4} - .+")
 DETAILED_RELEASE_HEADINGS = (
     CURRENT_DETAILED_HEADING,
-    "## [1.1.6] - 06.29.2026 - Cloudflare block controls, Review, Home, and header polish",
-    "## [1.1.5] - 06.26.2026 - AI cleanup revert, remote transcription, and login diagnostics",
-    "## [1.1.4] - 06.24.2026 - Login protection, Work in Progress controls, diagnostics, and deployment safety",
-    "## [1.1.3] - 06.23.2026 - Review visibility and Work in Progress refinements",
-    "## [1.1.2] - 06.22.2026 - User management, ticket status, and Device sign-in updates",
-    "## [1.1.1] - 06.21.2026 - Review cleanup, Autotask roles, Docker startup, and diagnostics",
-    "## [1.1.0] - 06.21.2026 - Direct submission, backups, and passkeys",
-    "## [1.0.2] - 06.20.2026 - Autotask workflow and desktop layout updates",
-    "## [1.0.1] - 06.20.2026 - Mobile shell navigation and close behavior",
-    "## [1.0.0] - 06.16.2026 - Initial release",
+    "## 1.2.0 - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge errors",
+    "## 1.1.6 - 06.29.2026 - Cloudflare block controls, Review, Home, and header polish",
+    "## 1.1.5 - 06.26.2026 - AI cleanup revert, remote transcription, and login diagnostics",
+    "## 1.1.4 - 06.24.2026 - Login protection, Work in Progress controls, diagnostics, and deployment safety",
+    "## 1.1.3 - 06.23.2026 - Review visibility and Work in Progress refinements",
+    "## 1.1.2 - 06.22.2026 - User management, ticket status, and Device sign-in updates",
+    "## 1.1.1 - 06.21.2026 - Review cleanup, Autotask roles, Docker startup, and diagnostics",
+    "## 1.1.0 - 06.21.2026 - Direct submission, backups, and passkeys",
+    "## 1.0.2 - 06.20.2026 - Autotask workflow and desktop layout updates",
+    "## 1.0.1 - 06.20.2026 - Mobile shell navigation and close behavior",
+    "## 1.0.0 - 06.16.2026 - Initial release",
 )
 WEB_RELEASE_HEADINGS = (
     CURRENT_WEB_HEADING,
-    "## [1.1.6] - 06.29.2026 - Review, Home, and header polish",
-    "## [1.1.5] - 06.26.2026 - AI cleanup, speech-to-text, and sign-in updates",
-    "## [1.1.4] - 06.24.2026 - Login protection, Work in Progress controls, and deployment safety",
-    "## [1.1.3] - 06.23.2026 - Review visibility and Work in Progress refinements",
-    "## [1.1.2] - 06.22.2026 - User management, ticket status, and Device sign-in updates",
-    "## [1.1.1] - 06.21.2026 - Review action cleanup and Autotask role fixes",
-    "## [1.1.0] - 06.21.2026 - Direct submission and passkeys",
-    "## [1.0.2] - 06.20.2026 - Autotask workflow and desktop layout updates",
-    "## [1.0.1] - 06.20.2026 - Mobile shell navigation and close behavior",
-    "## [1.0.0] - 06.16.2026 - Initial release",
+    f"## 1.2.0 - {CURRENT_RELEASE_DATE} - {PREVIOUS_WEB_TITLE}",
+    "## 1.1.6 - 06.29.2026 - Review, Home, and header polish",
+    "## 1.1.5 - 06.26.2026 - AI cleanup, speech-to-text, and sign-in updates",
+    "## 1.1.4 - 06.24.2026 - Login protection, Work in Progress controls, and deployment safety",
+    "## 1.1.3 - 06.23.2026 - Review visibility and Work in Progress refinements",
+    "## 1.1.2 - 06.22.2026 - User management, ticket status, and Device sign-in updates",
+    "## 1.1.1 - 06.21.2026 - Review action cleanup and Autotask role fixes",
+    "## 1.1.0 - 06.21.2026 - Direct submission and passkeys",
+    "## 1.0.2 - 06.20.2026 - Autotask workflow and desktop layout updates",
+    "## 1.0.1 - 06.20.2026 - Mobile shell navigation and close behavior",
+    "## 1.0.0 - 06.16.2026 - Initial release",
 )
 
 
 def test_app_version_matches_current_release() -> None:
     """The source-controlled version should match the current release."""
 
-    assert APP_VERSION == "1.2.0"
+    assert APP_VERSION == "1.2.1"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -71,6 +74,7 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert web_headings == list(WEB_RELEASE_HEADINGS)
     for heading in detailed_headings + web_headings:
         assert RELEASE_HEADING_PATTERN.fullmatch(heading)
+        assert not heading.startswith("## [")
         assert not heading.startswith("## v")
     assert "- Initial release." in changelog_text
     assert "- Initial release." in web_changelog_text
@@ -103,80 +107,23 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="1.2.0",
+        version="1.2.1",
         release_date=CURRENT_RELEASE_DATE,
         title=CURRENT_WEB_TITLE,
         changes=(
-            "Date choosers now use Today, Cancel, and Set controls inside the app.",
-            "Start and end time fields now open a 15-minute time dropdown.",
-            "Switching a Time entry to a Ticket note now removes the Remote. or On-Site. prefix from the note description.",
-            "Switching back to Time entry restores the Remote. or On-Site. prefix that matches the selected work type.",
-            "Ticket note mode now shows Note Date and hides start/end time fields until switching back to Time entry.",
             (
-                "Ticket history now filters system-generated notes, including Workflow Rule title variants, "
-                "and shows No Notes or No past entries "
-                "when the selected ticket has no usable history."
-            ),
-            "Past time entry cards now show compact hours beside the resource name, such as 1.5hrs.",
-            "Full-browser navigation is now centered and uses the app's home-screen icon in the header.",
-            "The login page no longer shows a top app mark above the sign-in form.",
-            "The full-browser header now uses the same installed-app icon asset.",
-            (
-                "If storage is temporarily unavailable, the browser now shows a Job Logger-styled "
-                "Service Temporarily Unavailable page that retries sign-in automatically."
-            ),
-            "The changelog now shows bracketed version numbers with release dates for each version.",
-            (
-                "The work-entry navigation button now says Work, uses a work-entry icon, "
-                "and the mobile top-bar buttons use the same blue style as the full web nav."
+                "Full-browser Review now pairs Entry type with Work type, pairs Ticket status with Job date, "
+                "and keeps start and end times together."
             ),
             (
-                "Work in Progress and Review detail now show the ticket title with the state pill beside it, "
-                "center key field labels, and use matching action button sizes."
+                "Full-browser Work in Progress now pairs Entry type with Work type, "
+                "pairs Ticket status with Job date, centers duration under the time row, "
+                "and keeps Client name beside Ticket number."
             ),
             (
-                "Work in Progress active cards show the Work in Progress label again, "
-                "and full-browser summary notes line up with the job date cards."
+                "Mobile Work in Progress and Review now show Entry type, Work type, Ticket status, "
+                "Job date, Start time, End time, and duration in the same order."
             ),
-            (
-                "The full-browser Work page Job date card stays full-width, "
-                "while the date selector inside it is compact."
-            ),
-            (
-                "The full-browser Work page note-title and summary boxes now start flush "
-                "with the Job date or Note Date card."
-            ),
-            (
-                "Note title fields are centered, Work in Progress status messages sit under the action buttons, "
-                "and Ticket note or On-Site switch selections are orange."
-            ),
-            "Empty No Notes and No past entries buttons now stay fully disabled with no hover or click behavior.",
-            "The app-health degraded icon now appears for every signed-in user without opening another page.",
-            "Web service and missing-page errors now match Job Logger's look and offer Back to Login or Back to Work.",
-            "Work entries can now be Time entries or customer-visible Ticket notes.",
-            "Ticket note mode uses a required note title and note description instead of time and Remote/On-Site fields.",
-            (
-                "Append to resolution is available for both entry types, "
-                "and submitted Ticket notes can be updated or deleted from Review."
-            ),
-            "Ticket notes now open from the selected ticket in a closeable newest-first overlay.",
-            (
-                "A Past time entries button now opens ticket time entries with clear technician names, "
-                "large time details, and summary-of-work details."
-            ),
-            "Work entry save, recording, and AI Cleanup messages now share one status line.",
-            (
-                "Job date controls now center the date with Today, Yesterday, or Tomorrow "
-                "inside the selector when applicable."
-            ),
-            "Ticket note fields are tighter, with Append to resolution below the note description.",
-            "Full-browser navigation now uses raised blue icon buttons with visible labels.",
-            "Buttons now have clear hover and pressed states, including red destructive actions staying red on hover.",
-            (
-                "Work in Progress and Review now have clean time controls, larger Remote/On-Site pills, "
-                "and rounded total time shown."
-            ),
-            "Full-browser Review now keeps Entry type beside Job date so start and end times share a row.",
         ),
     )
 
@@ -198,19 +145,23 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
-    assert "[1.2.0]" in response.text
-    assert "[1.1.6]" in response.text
-    assert "[1.1.5]" in response.text
-    assert "[1.1.4]" in response.text
-    assert "[1.1.3]" in response.text
-    assert "[1.1.2]" in response.text
-    assert "[1.1.1]" in response.text
-    assert "[1.1.0]" in response.text
-    assert "[1.0.2]" in response.text
-    assert "[1.0.1]" in response.text
-    assert "[1.0.0]" in response.text
+    assert ">1.2.1<" in response.text
+    assert ">1.2.0<" in response.text
+    assert ">1.1.6<" in response.text
+    assert ">1.1.5<" in response.text
+    assert ">1.1.4<" in response.text
+    assert ">1.1.3<" in response.text
+    assert ">1.1.2<" in response.text
+    assert ">1.1.1<" in response.text
+    assert ">1.1.0<" in response.text
+    assert ">1.0.2<" in response.text
+    assert ">1.0.1<" in response.text
+    assert ">1.0.0<" in response.text
+    assert "[1.2.1]" not in response.text
+    assert "[1.2.0]" not in response.text
     assert CURRENT_RELEASE_DATE in response.text
     assert CURRENT_WEB_TITLE in response.text
+    assert PREVIOUS_WEB_TITLE in response.text
     assert "Date choosers now use Today, Cancel, and Set controls inside the app." in response.text
     assert "Start and end time fields now open a 15-minute time dropdown." in response.text
     assert "Switching a Time entry to a Ticket note now removes the Remote. or On-Site. prefix from the note description." in response.text
@@ -229,7 +180,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "If storage is temporarily unavailable, the browser now shows a Job Logger-styled "
         "Service Temporarily Unavailable page that retries sign-in automatically."
     ) in response.text
-    assert "The changelog now shows bracketed version numbers with release dates for each version." in response.text
+    assert "The changelog now shows version numbers without brackets and release dates for each version." in response.text
     assert (
         "The work-entry navigation button now says Work, uses a work-entry icon, "
         "and the mobile top-bar buttons use the same blue style as the full web nav."
@@ -281,7 +232,19 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "Work in Progress and Review now have clean time controls, larger Remote/On-Site pills, "
         "and rounded total time shown."
     ) in response.text
-    assert "Full-browser Review now keeps Entry type beside Job date so start and end times share a row." in response.text
+    assert (
+        "Full-browser Review now pairs Entry type with Work type, pairs Ticket status with Job date, "
+        "and keeps start and end times together."
+    ) in response.text
+    assert (
+        "Full-browser Work in Progress now pairs Entry type with Work type, "
+        "pairs Ticket status with Job date, centers duration under the time row, "
+        "and keeps Client name beside Ticket number."
+    ) in response.text
+    assert (
+        "Mobile Work in Progress and Review now show Entry type, Work type, Ticket status, "
+        "Job date, Start time, End time, and duration in the same order."
+    ) in response.text
     assert "Review, Home, and header polish" in response.text
     assert "Review summaries now start with Remote. or On-Site. before the work notes." in response.text
     assert "The Home start button now says Start Work." in response.text
@@ -363,7 +326,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
-    v120_index = response.text.index(CURRENT_WEB_TITLE)
+    v121_index = response.text.index(CURRENT_WEB_TITLE)
+    v120_index = response.text.index(PREVIOUS_WEB_TITLE)
     v116_index = response.text.index("Review, Home, and header polish")
     v115_index = response.text.index("AI cleanup, speech-to-text, and sign-in updates")
     v114_index = response.text.index("Login protection, Work in Progress controls, and deployment safety")
@@ -374,6 +338,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     v102_index = response.text.index("Autotask workflow and desktop layout updates")
     v101_index = response.text.index("Mobile shell navigation and close behavior")
     v100_index = response.text.index("Initial release")
+    assert v121_index < v120_index
     assert v120_index < v116_index
     assert v116_index < v115_index
     assert v115_index < v114_index
@@ -385,32 +350,34 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert v102_index < v101_index
     assert v101_index < v100_index
     assert f'<h2 id="current-version-heading">{CURRENT_WEB_TITLE}</h2>' in response.text
-    assert '<span class="release-version">[1.2.0]</span>' in response.text
+    assert '<span class="release-version">1.2.1</span>' in response.text
+    assert '<span class="release-version">1.2.0</span>' in response.text
     assert '<span class="release-date">07.02.2026</span>' in response.text
-    assert '<span class="release-version">[1.1.6]</span>' in response.text
+    assert '<span class="release-version">1.1.6</span>' in response.text
     assert '<span class="release-date">06.29.2026</span>' in response.text
-    assert '<span class="release-version">[1.1.5]</span>' in response.text
+    assert '<span class="release-version">1.1.5</span>' in response.text
     assert '<span class="release-date">06.26.2026</span>' in response.text
-    assert '<span class="release-version">[1.1.4]</span>' in response.text
+    assert '<span class="release-version">1.1.4</span>' in response.text
     assert '<span class="release-date">06.24.2026</span>' in response.text
-    assert '<span class="release-version">[1.1.3]</span>' in response.text
+    assert '<span class="release-version">1.1.3</span>' in response.text
     assert '<span class="release-date">06.23.2026</span>' in response.text
-    assert '<span class="release-version">[1.1.2]</span>' in response.text
+    assert '<span class="release-version">1.1.2</span>' in response.text
     assert '<span class="release-date">06.22.2026</span>' in response.text
-    assert '<span class="release-version">[1.1.1]</span>' in response.text
+    assert '<span class="release-version">1.1.1</span>' in response.text
     assert '<span class="release-date">06.21.2026</span>' in response.text
-    assert '<span class="release-version">[1.1.0]</span>' in response.text
-    assert '<span class="release-version">[1.0.2]</span>' in response.text
+    assert '<span class="release-version">1.1.0</span>' in response.text
+    assert '<span class="release-version">1.0.2</span>' in response.text
     assert '<span class="release-date">06.20.2026</span>' in response.text
-    assert '<span class="release-version">[1.0.1]</span>' in response.text
-    assert '<span class="release-version">[1.0.0]</span>' in response.text
+    assert '<span class="release-version">1.0.1</span>' in response.text
+    assert '<span class="release-version">1.0.0</span>' in response.text
     assert '<span class="release-date">06.16.2026</span>' in response.text
     assert 'class="changelog-entry is-current"' not in response.text
     assert 'class="secondary-link-button" href="/review"' not in response.text
     assert "managed-web-user-only Config gear icon" not in response.text
     assert "direct app-shell close behavior first" not in response.text
     for entry in load_changelog_entries():
-        assert f"[{entry.version}]" in response.text
+        assert f'<span class="release-version">{entry.version}</span>' in response.text
+        assert f"[{entry.version}]" not in response.text
         assert entry.release_date in response.text
         for change in entry.changes:
             assert change.replace("'", "&#39;") in response.text
@@ -452,4 +419,5 @@ def test_super_admin_can_view_changelog_in_dark_theme(super_admin_client: TestCl
 
     assert response.status_code == 200
     assert 'class="theme-dark"' in response.text
-    assert "[1.1.4]" in response.text
+    assert "1.1.4" in response.text
+    assert "[1.1.4]" not in response.text

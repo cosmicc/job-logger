@@ -279,7 +279,6 @@ def collect_disk_usage_snapshot() -> DebugDiskUsageSnapshot:
 
     monitored_paths = (
         ("App filesystem", "/"),
-        ("Log directory", settings.log_dir),
         ("Backup directory", settings.automatic_backup_dir),
     )
     volumes = tuple(

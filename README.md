@@ -12,7 +12,7 @@ accepted records to Autotask.
 - Jinja templates render the mobile capture page, desktop review page, user
   manager, config page, and diagnostics.
 - PostgreSQL stores managed web users, jobs, review fields, submission attempts,
-  per-user preferences, and audit events.
+  per-user preferences, sanitized login attempts, and audit events.
 - Alembic manages database migrations.
 - Cloudflare Tunnel publishes the app without opening an inbound firewall port.
 - Cloudflare Access can protect the public hostname before the app login page.
@@ -54,17 +54,9 @@ Autotask REST API references used by this app:
    Docker Compose fails closed if these secrets are missing, and production
    startup rejects the documented `replace-with-*` placeholders.
 
-4. Create the host-mounted log directory:
-
-   ```bash
-   sudo install -d -m 0750 /var/log/job-logger
-   ```
-
-   Docker Compose sets `LOG_DIR=/data/logs` inside the app container and
-   mounts `${HOST_LOG_DIR:-/var/log/job-logger}` there. The entrypoint prepares
-   ownership before it drops to the unprivileged `appuser`. Set `LOG_LEVEL` to
-   `DEBUG`, `INFO`, `WARNING`, or `ERROR` to control how much detail is written
-   to `${LOG_DIR}/app.log`; Docker defaults to `INFO`.
+4. Set `LOG_LEVEL` to `DEBUG`, `INFO`, `WARNING`, or `ERROR` to control stdout
+   and stderr log verbosity. Docker defaults to `INFO`; use `docker compose
+   logs app` or the runtime log collector for history.
    Set `DEV_BUILD=true` only for dev deployments that should show the
    authenticated desktop and mobile version badge in yellow with `DEV` folded
    into the version text.
@@ -146,8 +138,8 @@ Keep the dev instance isolated from production:
 - Use a separate `.env` with its own `APP_SECRET_KEY`, database password,
   Cloudflare tunnel token, public hostname, and WebAuthn origin.
 - Use a separate Cloudflare Tunnel and public hostname for dev testing.
-- Use a separate Docker Compose project name, PostgreSQL volume, backup
-  directory, and host log directory so dev cannot overwrite production data.
+- Use a separate Docker Compose project name, PostgreSQL volume or remote
+  database, and backup directory so dev cannot overwrite production data.
 - Use a different `HTTP_PORT`, such as `11031`, if production and dev
   run on the same Docker host.
 - Set `DEV_BUILD=true` in the dev `.env` so the authenticated header clearly
@@ -164,7 +156,6 @@ Example same-host dev startup:
 
 ```bash
 COMPOSE_PROJECT_NAME=job_logger_dev \
-HOST_LOG_DIR=/var/log/job-logger-dev \
 HTTP_PORT=11031 \
 DEV_BUILD=true \
 docker compose up -d --build
@@ -268,6 +259,30 @@ If the database is temporarily unavailable, the web container still starts and
 DB-backed pages show an app-branded **Service Temporarily Unavailable** page
 with automatic retry to the login page. The page intentionally does not expose
 database, network, or code details.
+
+### Docker Swarm Deployment
+
+Use `docker-swarm.yml` for Swarm. It is image-based, does not build locally,
+and expects PostgreSQL to run outside the stack:
+
+```bash
+export JOB_LOGGER_APP_IMAGE=registry.example.com/job-logger-app:1.2.1
+export JOB_LOGGER_NGINX_IMAGE=registry.example.com/job-logger-nginx:1.2.1
+export DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
+export CLOUDFLARE_TUNNEL_TOKEN=<token>
+docker stack deploy -c docker-swarm.yml job_logger
+```
+
+Build and push the app image from the root `Dockerfile` and the Nginx image
+from `docker/nginx/Dockerfile` before deploying. Configure the Cloudflare Tunnel
+public hostname to use the Swarm service origin `http://nginx:80`. Application
+logs go to stdout/stderr, so use `docker service logs job_logger_app` or the
+Swarm log driver configured for the cluster.
+
+The standalone `docker-compose.yml` remains the path for single-host installs.
+Set `COMPOSE_PROFILES=local-db` to run the bundled PostgreSQL container, or set
+`COMPOSE_PROFILES=` and provide `DATABASE_URL` to use a remote PostgreSQL
+server.
 
 If the local troubleshooting URL is changed to a different port, update only:
 
@@ -473,20 +488,20 @@ Set these passkey variables for production when needed:
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.2.0`. Version history starts at `v1.0.0`.
+currently `v1.2.1`. Version history starts at `v1.0.0`.
 
 Authenticated pages show the current version discreetly in the shared header.
 Clicking that version opens `/changelog`, which displays the current version
 and concise release notes parsed from `WEB_CHANGELOG.md`. The changelog page
-shows bracketed version numbers, release dates in `MM.DD.YYYY` format, and
-short user-facing changes for each version. `CHANGELOG.md` remains the detailed
-source changelog for operators and agents. `WEB_CHANGELOG.md` is only for
-user-facing changes; keep diagnostics, debug-page, super-admin-only,
-operator-only, and agent-facing notes in `CHANGELOG.md` only. The changelog page
-uses the same authenticated session, dark/light theme variables, and responsive
-layout system as the rest of the app.
+shows version numbers without brackets, release dates in `MM.DD.YYYY` format,
+and short user-facing changes for each version. `CHANGELOG.md` remains the
+detailed source changelog for operators and agents. `WEB_CHANGELOG.md` is only
+for user-facing changes; keep diagnostics, debug-page, super-admin-only,
+operator-only, and agent-facing notes in `CHANGELOG.md` only. The changelog
+page uses the same authenticated session, dark/light theme variables, and
+responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the same authenticated header also shows a
-yellow version badge on desktop and phone layouts, such as `v1.2.0 DEV`.
+yellow version badge on desktop and phone layouts, such as `v1.2.1 DEV`.
 
 ## Provider Modes
 
@@ -885,6 +900,11 @@ submission. Other dates show only the selected date. Active cards also use disti
 shading so two active jobs are easier to distinguish. Work in Progress and
 Review start/end time fields open a 15-minute time dropdown centered on the
 currently selected time while still allowing the `-15` and `+15` step buttons.
+Full-browser Work in Progress and Review detail cards group **Entry type** with
+**Work type**, **Ticket status** with **Job date**, and **Start time** with
+**End time**, with duration centered beneath the time row. Work in Progress
+also keeps **Client name** and **Ticket number** together on one row once a
+ticket is selected.
 The full-browser
 active-card finish/delete row sits directly below the **Record** and
 **AI Cleanup** row with recording and cleanup status text below all action
@@ -903,9 +923,8 @@ button. Mobile submit actions show a loading overlay once the
 tap is accepted so slow redirects or Autotask lookups do not look like ignored
 buttons; rounded start/stop `-15` and `+15` adjustments skip the full-page
 overlay so those small time changes feel immediate.
-Work in Progress shows the rounded duration centered under **End time**, and
-Review detail shows it centered under the start/end time controls. The value
-updates as those times change.
+Work in Progress and Review detail show the rounded duration centered under the
+start/end time controls. The value updates as those times change.
 Each Work in Progress card can switch between **Time entry** and **Ticket note**
 before Autotask submission. Ticket note mode changes **Job date** to **Note
 Date**, hides the start/end time controls while remembering their values, hides
@@ -934,9 +953,11 @@ updates the existing `TicketNotes` row with note title, note description,
 append-to-resolution, and ticket status. **Submit changes** also patches
 `Tickets.status` to match the selected Job Logger status, including temporarily
 moving a previously `Complete` ticket to `In progress` before the external
-record patch when Autotask requires that sequence. The selected detail keeps
-the external Autotask record ID hidden because it is only needed internally for
-updates and deletion.
+record patch when Autotask requires that sequence. Phone-sized workflow cards
+use the same scan order on Review and Work in Progress: Entry type, Work type,
+Ticket status, Job date, Start time, End time, then duration. The selected
+detail keeps the external Autotask record ID hidden because it is only needed
+internally for updates and deletion.
 The same submitted detail also has **Delete From Autotask**, which deletes the
 existing Autotask record and returns the local job to review without
 removing the local job record. If Autotask refuses the delete, the job remains
@@ -1009,30 +1030,27 @@ Successful unrelated Autotask requests do not clear another active failure.
 
 The same `/debug` page also shows compact, paginated successful-login,
 failed-login, Cloudflare blocked-IP, and Autotask submission-attempt windows,
-with 10 rows per page. Failed local app login attempts are appended as JSON
-Lines to `/data/logs/job-logger-login-failures.log`, and successful attempts
-are appended to `/data/logs/job-logger-login-successes.log` inside the app
-container. Docker Compose bind-mounts that directory from
-`${HOST_LOG_DIR:-/var/log/job-logger}`, so the default host-readable files are
-under `/var/log/job-logger/`. The logs and debug page include timestamp, client
-IP, proxy header details, username, user agent, request path, host/proxy
-metadata, account kind, authentication method, failure reason, and
-password-present/length metadata for failures. Nginx replaces incoming
-forwarded client headers with one sanitized client IP before proxying to the
-app. Diagnostics show that client IP plus the supporting proxy metadata, while
-local lockout and Cloudflare blocking use the trusted enforcement IP instead of
-display-only request headers.
+with 10 rows per page. Successful and failed local app login attempts are
+stored as sanitized `login_attempts` database rows. The Diagnostics tables and
+downloads include timestamp, client IP, proxy header details, username, user
+agent, request path, host/proxy metadata, account kind, authentication method,
+failure reason, and password-present/length metadata for failures. Nginx
+replaces incoming forwarded client headers with one sanitized client IP before
+proxying to the app. Diagnostics show that client IP plus the supporting proxy
+metadata, while local lockout and Cloudflare blocking use the trusted
+enforcement IP instead of display-only request headers.
 On phone layouts, wide Diagnostics tables scroll horizontally so row details and
 actions remain reachable without squeezing every column into the viewport.
 Successful-login rows use a yellow account chip for the config super admin, a
 green chip for managed web users, and colored `Password` or `Passkey` method
 pills.
-The raw submitted password is never stored or displayed. The `/debug/logs/login-failures` and
-`/debug/logs/login-successes` endpoints download the raw JSONL files for
-authenticated diagnostics.
+The raw submitted password is never stored or displayed. The
+`/debug/logs/login-failures` and `/debug/logs/login-successes` endpoints
+generate sanitized JSONL downloads from the database for authenticated
+diagnostics.
 
-Failed-login rows can be hidden from the `/debug` table without changing the
-raw JSONL download. When `CLOUDFLARE_IP_BLOCKING_ENABLED=true` and
+Failed-login rows can be hidden from the `/debug` table by setting a hidden
+timestamp on the database row. When `CLOUDFLARE_IP_BLOCKING_ENABLED=true` and
 `CLOUDFLARE_API_TOKEN` plus `CLOUDFLARE_ZONE_ID` are configured, `/debug` can
 create and remove app-managed Cloudflare zone IP Access Rules for failed-login
 client IPs. Diagnostics can also add a manual Cloudflare IP block with a
@@ -1049,36 +1067,39 @@ zero first.
 commas or whitespace so home/admin addresses are never app-blocked.
 
 The `/debug` page also includes a **Disk space** card for the app-visible root
-filesystem, `LOG_DIR`, and `AUTOMATIC_BACKUP_DIR`. Paths with exactly matching
-used and total space are combined into one row because they are reporting the
-same underlying storage. The card warns at 85% used or under 5 GB free, and
-becomes critical at 95% used or under 1 GB free. In Docker this reflects
-storage visible from the app container, including the mounted log and backup
-paths; monitor the PostgreSQL volume separately unless that volume is also
-exposed to the app container.
+filesystem and `AUTOMATIC_BACKUP_DIR`. Paths with exactly matching used and
+total space are combined into one row because they are reporting the same
+underlying storage. The card warns at 85% used or under 5 GB free, and becomes
+critical at 95% used or under 1 GB free. In Docker this reflects storage visible
+from the app container; monitor PostgreSQL storage separately unless that
+storage is also exposed to the app container.
 
-Near the bottom of `/debug`, the **Application Log** card shows the newest 10
-lines first from `${LOG_DIR}/app.log`, normally
-`/var/log/job-logger/app.log` on the Docker host. Use the host log files for
-longer history. `LOG_LEVEL` controls this file's verbosity and must be one of
-`DEBUG`, `INFO`, `WARNING`, or `ERROR`.
+Diagnostics includes a **Database** card with safe connectivity status, query
+latency, backend/driver, migration revision, and connection-pool counters. It
+intentionally hides connection strings, hosts, usernames, passwords, and raw
+database errors.
+
+Application logs go to stdout/stderr for Compose and Swarm compatibility. Use
+`docker compose logs app`, `docker service logs job_logger_app`, or the
+configured container log driver for operational log history. `LOG_LEVEL`
+controls verbosity and must be one of `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
 
 The app also creates automatic full-database backups at startup and then every
 hour when `AUTOMATIC_BACKUPS_ENABLED=true`, which is the default. Docker Compose
-stores them in `${AUTOMATIC_BACKUP_DIR:-/data/logs/backups}`, backed by the same
-host-mounted `${HOST_LOG_DIR:-/var/log/job-logger}` runtime directory. Retention
-keeps the newest 6 hourly backups plus one daily backup for today and one for
-each of the prior 2 days; expired automatic backups are purged after each
-successful automatic backup. Diagnostics labels retained automatic backups as
-`Startup` or `Hourly` when that creation metadata is available; older retained
-files may show no source label.
+stores them in `${AUTOMATIC_BACKUP_DIR:-/data/backups}`, backed by the
+`automatic_backups` Docker volume. Retention keeps the newest 6 hourly backups
+plus one daily backup for today and one for each of the prior 2 days; expired
+automatic backups are purged after each successful automatic backup.
+Diagnostics labels retained automatic backups as `Startup` or `Hourly` when
+that creation metadata is available; older retained files may show no source
+label.
 
 The `/debug` page also includes **Download Full Backup** and **Restore Full
-Backup** controls, with **Automatic database backups** shown below the
-Application Log. Each retained automatic backup also has a per-file
+Backup** controls. Each retained automatic backup also has a per-file
 **Download** button. Backups are sensitive `.json.gz` files containing all Job
 Logger database tables, including managed web-user password hashes and email
-metadata, jobs, submission attempts, and audit events. Store backup files
+metadata, jobs, sanitized login attempts, submission attempts, and audit events.
+Store backup files
 somewhere private because they contain account, customer, ticket, and
 work-summary history.
 

@@ -2,7 +2,13 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## [1.2.0] - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish
+## 1.2.1 - 07.02.2026 - Work in Progress and Review field layout polish
+
+- Full-browser Review now pairs Entry type with Work type, pairs Ticket status with Job date, and keeps start and end times together.
+- Full-browser Work in Progress now pairs Entry type with Work type, pairs Ticket status with Job date, centers duration under the time row, and keeps Client name beside Ticket number.
+- Mobile Work in Progress and Review now show Entry type, Work type, Ticket status, Job date, Start time, End time, and duration in the same order.
+
+## 1.2.0 - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish
 
 - Date choosers now use Today, Cancel, and Set controls inside the app.
 - Start and end time fields now open a 15-minute time dropdown.
@@ -15,7 +21,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - The login page no longer shows a top app mark above the sign-in form.
 - The full-browser header now uses the same installed-app icon asset.
 - If storage is temporarily unavailable, the browser now shows a Job Logger-styled Service Temporarily Unavailable page that retries sign-in automatically.
-- The changelog now shows bracketed version numbers with release dates for each version.
+- The changelog now shows version numbers without brackets and release dates for each version.
 - The work-entry navigation button now says Work, uses a work-entry icon, and the mobile top-bar buttons use the same blue style as the full web nav.
 - Work in Progress and Review detail now show the ticket title with the state pill beside it, center key field labels, and use matching action button sizes.
 - Work in Progress active cards show the Work in Progress label again, and full-browser summary notes line up with the job date cards.
@@ -36,9 +42,8 @@ Short release notes shown on the authenticated `/changelog` page.
 - Full-browser navigation now uses raised blue icon buttons with visible labels.
 - Buttons now have clear hover and pressed states, including red destructive actions staying red on hover.
 - Work in Progress and Review now have clean time controls, larger Remote/On-Site pills, and rounded total time shown.
-- Full-browser Review now keeps Entry type beside Job date so start and end times share a row.
 
-## [1.1.6] - 06.29.2026 - Review, Home, and header polish
+## 1.1.6 - 06.29.2026 - Review, Home, and header polish
 
 - Review summaries now start with Remote. or On-Site. before the work notes.
 - The Home start button now says Start Work.
@@ -48,7 +53,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Review is now titled Work Review and no longer shows the Autotask time-entry ID.
 - Review detail spacing and the mobile DEV version badge now fit better.
 
-## [1.1.5] - 06.26.2026 - AI cleanup, speech-to-text, and sign-in updates
+## 1.1.5 - 06.26.2026 - AI cleanup, speech-to-text, and sign-in updates
 
 - AI Cleanup can now switch to Revert cleanup and restore the pre-cleanup notes after reloads.
 - Revert cleanup drafts now expire automatically instead of being kept forever.
@@ -56,7 +61,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Speech-to-text can now use a trusted remote faster-whisper server.
 - Sign-in now temporarily blocks repeated failed attempts before checking another password.
 
-## [1.1.4] - 06.24.2026 - Login protection, Work in Progress controls, and deployment safety
+## 1.1.4 - 06.24.2026 - Login protection, Work in Progress controls, and deployment safety
 
 - Sign-in protection now handles repeated failed login attempts more defensively.
 - The login page now keeps password sign-in first and puts Device sign-in under it.
@@ -65,7 +70,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Tickets with no description now show a clear left-aligned message.
 - Cloudflare Tunnel deployments can now choose the local web listener port.
 
-## [1.1.3] - 06.23.2026 - Review visibility and Work in Progress refinements
+## 1.1.3 - 06.23.2026 - Review visibility and Work in Progress refinements
 
 - Review rows now show whether each job is Remote or On-Site.
 - Review detail can now switch Remote or On-Site and updates the Summary notes prefix.
@@ -83,14 +88,14 @@ Short release notes shown on the authenticated `/changelog` page.
 - Submitted Review entries now use a clearer Submit changes button.
 - User management rows now fit better on full browser screens.
 
-## [1.1.2] - 06.22.2026 - User management, ticket status, and Device sign-in updates
+## 1.1.2 - 06.22.2026 - User management, ticket status, and Device sign-in updates
 
 - User management rows are more compact and easier to scan.
 - Passkey setup and login buttons now use the clearer Device sign-in name.
 - Submitted time entries now keep the Autotask ticket status matched to the selected Job Logger status on submit and Edit Entry.
 - If Delete From Autotask fails, Review can now offer a local-only purge option for the Job Logger entry.
 
-## [1.1.1] - 06.21.2026 - Review action cleanup and Autotask role fixes
+## 1.1.1 - 06.21.2026 - Review action cleanup and Autotask role fixes
 
 - Review detail now uses compact action rows like Work in Progress.
 - Record and AI Cleanup now share a row on review detail with shorter labels and icons.
@@ -101,7 +106,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Autotask submission can now use a configured default service-desk role for a user when a ticket does not provide usable role data.
 
 
-## [1.1.0] - 06.21.2026 - Direct submission and passkeys
+## 1.1.0 - 06.21.2026 - Direct submission and passkeys
 
 - Added a Config option to submit time entries directly from Work in Progress.
 - Review is still available afterward for submitted-entry edits and Autotask deletion.
@@ -118,7 +123,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Rounded start and stop `-15` and `+15` buttons no longer show the full-page status overlay.
 - Mobile Summary notes boxes now start taller while still allowing manual resize.
 
-## [1.0.2] - 06.20.2026 - Autotask workflow and desktop layout updates
+## 1.0.2 - 06.20.2026 - Autotask workflow and desktop layout updates
 
 - The work-entry page now uses `/home`; old `/mobile` links still redirect.
 - Edit Entry can update submitted time entries that were already marked Complete.
@@ -128,13 +133,13 @@ Short release notes shown on the authenticated `/changelog` page.
 - The Config password card now shows password requirements without a separate current-settings card.
 - The full browser Home and Work in Progress layouts are wider and easier to scan.
 
-## [1.0.1] - 06.20.2026 - Mobile shell navigation and close behavior
+## 1.0.1 - 06.20.2026 - Mobile shell navigation and close behavior
 
 - Mobile users now have version, Home, Review, Config, and close icons in the top bar.
 - The mobile close button exits the app screen without logging out.
 - The changelog page now shows short release notes for each version.
 - The mobile home page now starts directly with the work-entry card.
 
-## [1.0.0] - 06.16.2026 - Initial release
+## 1.0.0 - 06.16.2026 - Initial release
 
 - Initial release.

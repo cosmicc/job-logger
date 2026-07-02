@@ -7,7 +7,7 @@
     <div class="review-header">
       <div>
         <h1>Diagnostics</h1>
-        <p class="muted-text">Monitor storage, login activity, Cloudflare blocks, Autotask connectivity, submission history, logs, and backups.</p>
+        <p class="muted-text">Monitor storage, database connectivity, login activity, Cloudflare blocks, Autotask connectivity, submission history, and backups.</p>
       </div>
     </div>
 
@@ -82,6 +82,71 @@
       </div>
     </section>
 
+    <section id="database-health" class="table-panel database-health-card database-health-{{ database_diagnostics.severity }}" aria-label="Database connectivity">
+      <div class="debug-panel-body">
+        <div class="review-header">
+          <div>
+            <h2>Database</h2>
+            <p class="muted-text">
+              Safe connectivity, migration, and pool details. Connection strings, hosts, usernames, and passwords are hidden.
+            </p>
+          </div>
+          <span class="status-chip database-health-status database-health-status-{{ database_diagnostics.severity }}">{{ database_diagnostics.status_label }}</span>
+        </div>
+
+        <dl class="database-health-grid">
+          <div class="database-health-item database-health-primary">
+            <dt>Query latency</dt>
+            <dd>{{ database_diagnostics.latency_display }}</dd>
+          </div>
+          <div class="database-health-item">
+            <dt>Backend</dt>
+            <dd>{{ database_diagnostics.backend_display }}</dd>
+          </div>
+          <div class="database-health-item">
+            <dt>Driver</dt>
+            <dd>{{ database_diagnostics.driver_display }}</dd>
+          </div>
+          <div class="database-health-item database-health-wide">
+            <dt>Migration revision</dt>
+            <dd>{{ database_diagnostics.migration_revision }}</dd>
+          </div>
+          <div class="database-health-item">
+            <dt>Pool class</dt>
+            <dd>{{ database_diagnostics.pool.class_name }}</dd>
+          </div>
+          <div class="database-health-item">
+            <dt>Configured limit</dt>
+            <dd>{{ database_diagnostics.pool.configured_limit_display }}</dd>
+          </div>
+          <div class="database-health-item">
+            <dt>Pool size</dt>
+            <dd>{{ database_diagnostics.pool.size_display }}</dd>
+          </div>
+          <div class="database-health-item">
+            <dt>Checked in</dt>
+            <dd>{{ database_diagnostics.pool.checked_in_display }}</dd>
+          </div>
+          <div class="database-health-item">
+            <dt>Checked out</dt>
+            <dd>{{ database_diagnostics.pool.checked_out_display }}</dd>
+          </div>
+          <div class="database-health-item">
+            <dt>Overflow</dt>
+            <dd>{{ database_diagnostics.pool.overflow_display }}</dd>
+          </div>
+          <div class="database-health-item">
+            <dt>Pool timeout</dt>
+            <dd>{{ database_diagnostics.pool.timeout_display }}</dd>
+          </div>
+          <div class="database-health-item">
+            <dt>Pool recycle</dt>
+            <dd>{{ database_diagnostics.pool.recycle_display }}</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
     <section id="session-controls" class="table-panel" aria-label="Session controls">
       <div class="debug-panel-body">
         <div class="review-header">
@@ -105,10 +170,9 @@
         <div class="review-header">
           <h2>Successful logins</h2>
           <p class="muted-text">
-            Newest records first, {{ login_successes.total_records }} retained, {{ login_attempt_page_size }} per page.
-            Source: {{ login_success_log_path }}
+            Newest database records first, {{ login_successes.total_records }} retained, {{ login_attempt_page_size }} per page.
           </p>
-          <a class="secondary-link-button" href="/debug/logs/login-successes">Download log</a>
+          <a class="secondary-link-button" href="/debug/logs/login-successes">Download JSONL</a>
         </div>
 
         {% if login_successes.records %}
@@ -240,10 +304,9 @@
         <div class="review-header">
           <h2>Login failures</h2>
           <p class="muted-text">
-            Newest records first, {{ login_failures.total_records }} retained, {{ login_attempt_page_size }} per page.
-            Source: {{ login_failure_log_path }}
+            Newest database records first, {{ login_failures.total_records }} retained, {{ login_attempt_page_size }} per page.
           </p>
-          <a class="secondary-link-button" href="/debug/logs/login-failures">Download log</a>
+          <a class="secondary-link-button" href="/debug/logs/login-failures">Download JSONL</a>
         </div>
 
         {% if login_failures.records %}
@@ -781,25 +844,6 @@
             <dd>Validated restores replace all Job Logger database tables with the backup contents.</dd>
           </div>
         </dl>
-      </div>
-    </section>
-
-    <section id="app-log-tail" class="table-panel" aria-label="Application Log">
-      <div class="debug-panel-body">
-        <div class="review-header">
-          <h2>Application Log</h2>
-          <p class="muted-text">
-            Newest lines first, last {{ app_log_tail_lines }} lines.
-            Source: {{ app_log_path }}
-          </p>
-        </div>
-
-        {% if app_log_lines %}
-          <pre class="debug-code app-log-tail">{% for log_line in app_log_lines %}{{ log_line }}
-{% endfor %}</pre>
-        {% else %}
-          <p class="muted-text">No app log lines are available yet.</p>
-        {% endif %}
       </div>
     </section>
 
