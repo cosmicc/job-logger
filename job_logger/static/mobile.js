@@ -1980,8 +1980,12 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   const ticketDescriptionCard = activeJobCard.querySelector("[data-active-ticket-description-card]");
   const ticketDescriptionDisplay = activeJobCard.querySelector("[data-active-ticket-description-display]");
   const ticketStatusInput = activeJobCard.querySelector("[data-active-ticket-status-input]");
-  const ticketNotesButton = activeJobCard.querySelector("[data-ticket-notes-button]");
-  const ticketTimeEntriesButton = activeJobCard.querySelector("[data-ticket-time-entries-button]");
+  const ticketNotesButtons = activeJobCard.querySelectorAll
+    ? Array.from(activeJobCard.querySelectorAll("[data-ticket-notes-button]"))
+    : [];
+  const ticketTimeEntriesButtons = activeJobCard.querySelectorAll
+    ? Array.from(activeJobCard.querySelectorAll("[data-ticket-time-entries-button]"))
+    : [];
 
   if (ticketNumberCard && ticketNumber) {
     ticketNumberCard.classList.remove("is-hidden");
@@ -2009,13 +2013,13 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   if (ticketStatusInput && selectedTicket.ticket_status) {
     ticketStatusInput.value = selectedTicket.ticket_status;
   }
-  if (ticketNotesButton) {
+  for (const ticketNotesButton of ticketNotesButtons) {
     ticketNotesButton.dataset.ticketNotesTicketNumber = ticketNumber;
     if (window.JobLoggerTicketNotes) {
       window.JobLoggerTicketNotes.refreshButton(ticketNotesButton);
     }
   }
-  if (ticketTimeEntriesButton) {
+  for (const ticketTimeEntriesButton of ticketTimeEntriesButtons) {
     ticketTimeEntriesButton.dataset.ticketTimeEntriesTicketNumber = ticketNumber;
     if (window.JobLoggerTicketNotes) {
       window.JobLoggerTicketNotes.refreshTimeEntriesButton(ticketTimeEntriesButton);

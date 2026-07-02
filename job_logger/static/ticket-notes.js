@@ -1,5 +1,7 @@
 const ticketNoteButtonCache = new WeakMap();
 const ticketTimeEntryButtonCache = new WeakMap();
+const ticketNoteRequestCache = new Map();
+const ticketTimeEntryRequestCache = new Map();
 
 function ticketNotesSafeString(value) {
   return String(value || "");
@@ -61,6 +63,10 @@ function ticketNotesButtonHasTicket(button) {
 
 function ticketTimeEntriesButtonHasTicket(button) {
   return Boolean(ticketNotesSafeString(button.dataset.ticketTimeEntriesTicketNumber).trim());
+}
+
+function ticketContextRequestCacheKey(url, ticketNumber) {
+  return `${ticketNotesSafeString(url).trim()}\n${ticketNotesSafeString(ticketNumber).trim()}`;
 }
 
 function ticketContextDefaultLabel(button, fallbackLabel) {
@@ -140,17 +146,32 @@ async function fetchTicketNotesForButton(button) {
     return {ticket_number: "", ticket_title: "", notes: []};
   }
 
-  const response = await fetch(notesUrl, {headers: {Accept: "application/json"}});
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.detail || "Ticket notes could not be loaded.");
+  const ticketNumber = ticketNotesSafeString(button.dataset.ticketNotesTicketNumber).trim();
+  const cacheKey = ticketContextRequestCacheKey(notesUrl, ticketNumber);
+  const cachedRequest = ticketNoteRequestCache.get(cacheKey);
+  if (cachedRequest) {
+    return cachedRequest;
   }
 
-  return {
-    ticket_number: ticketNotesSafeString(payload.ticket_number).trim(),
-    ticket_title: ticketNotesSafeString(payload.ticket_title).trim(),
-    notes: Array.isArray(payload.notes) ? payload.notes : [],
-  };
+  const request = (async () => {
+    try {
+      const response = await fetch(notesUrl, {headers: {Accept: "application/json"}});
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.detail || "Ticket notes could not be loaded.");
+      }
+
+      return {
+        ticket_number: ticketNotesSafeString(payload.ticket_number).trim(),
+        ticket_title: ticketNotesSafeString(payload.ticket_title).trim(),
+        notes: Array.isArray(payload.notes) ? payload.notes : [],
+      };
+    } finally {
+      ticketNoteRequestCache.delete(cacheKey);
+    }
+  })();
+  ticketNoteRequestCache.set(cacheKey, request);
+  return request;
 }
 
 async function fetchTicketTimeEntriesForButton(button) {
@@ -159,17 +180,32 @@ async function fetchTicketTimeEntriesForButton(button) {
     return {ticket_number: "", ticket_title: "", time_entries: []};
   }
 
-  const response = await fetch(timeEntriesUrl, {headers: {Accept: "application/json"}});
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.detail || "Ticket time entries could not be loaded.");
+  const ticketNumber = ticketNotesSafeString(button.dataset.ticketTimeEntriesTicketNumber).trim();
+  const cacheKey = ticketContextRequestCacheKey(timeEntriesUrl, ticketNumber);
+  const cachedRequest = ticketTimeEntryRequestCache.get(cacheKey);
+  if (cachedRequest) {
+    return cachedRequest;
   }
 
-  return {
-    ticket_number: ticketNotesSafeString(payload.ticket_number).trim(),
-    ticket_title: ticketNotesSafeString(payload.ticket_title).trim(),
-    time_entries: Array.isArray(payload.time_entries) ? payload.time_entries : [],
-  };
+  const request = (async () => {
+    try {
+      const response = await fetch(timeEntriesUrl, {headers: {Accept: "application/json"}});
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.detail || "Ticket time entries could not be loaded.");
+      }
+
+      return {
+        ticket_number: ticketNotesSafeString(payload.ticket_number).trim(),
+        ticket_title: ticketNotesSafeString(payload.ticket_title).trim(),
+        time_entries: Array.isArray(payload.time_entries) ? payload.time_entries : [],
+      };
+    } finally {
+      ticketTimeEntryRequestCache.delete(cacheKey);
+    }
+  })();
+  ticketTimeEntryRequestCache.set(cacheKey, request);
+  return request;
 }
 
 async function refreshTicketNotesButton(button) {

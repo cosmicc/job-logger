@@ -440,6 +440,12 @@ def test_mobile_ticket_selection_locks_client_input(tmp_path: Path) -> None:
         const ticketDescriptionCard = createFakeElement("div");
         const ticketDescriptionDisplay = createFakeElement("dd");
         const ticketStatusInput = createFakeElement("select");
+        const mobileTicketNotesButton = createFakeElement("button");
+        const desktopTicketNotesButton = createFakeElement("button");
+        const mobileTimeEntriesButton = createFakeElement("button");
+        const desktopTimeEntriesButton = createFakeElement("button");
+        const refreshedNotesButtons = [];
+        const refreshedTimeEntriesButtons = [];
         const activeClientInput = createFakeElement("input");
         activeClientInput.type = "text";
         activeClientInput.value = "North Bay";
@@ -467,6 +473,24 @@ def test_mobile_ticket_selection_locks_client_input(tmp_path: Path) -> None:
           };
           return elementsBySelector[selector] || null;
         };
+        activeJobCard.querySelectorAll = (selector) => {
+          if (selector === "[data-ticket-notes-button]") {
+            return [mobileTicketNotesButton, desktopTicketNotesButton];
+          }
+          if (selector === "[data-ticket-time-entries-button]") {
+            return [mobileTimeEntriesButton, desktopTimeEntriesButton];
+          }
+          return [];
+        };
+
+        browserContext.window.JobLoggerTicketNotes = {
+          refreshButton(button) {
+            refreshedNotesButtons.push(button);
+          },
+          refreshTimeEntriesButton(button) {
+            refreshedTimeEntriesButtons.push(button);
+          },
+        };
 
         fakeDocument.querySelector = (selector) => {
           if (selector === '[data-active-job-card="job-2"]') {
@@ -492,6 +516,12 @@ def test_mobile_ticket_selection_locks_client_input(tmp_path: Path) -> None:
         assert.strictEqual(ticketTitleDisplay.textContent, "VPN access cleanup");
         assert.strictEqual(ticketDescriptionDisplay.textContent, "Remote access ticket details.");
         assert.strictEqual(ticketStatusInput.value, "in_progress");
+        assert.strictEqual(mobileTicketNotesButton.dataset.ticketNotesTicketNumber, "T20260616.0001");
+        assert.strictEqual(desktopTicketNotesButton.dataset.ticketNotesTicketNumber, "T20260616.0001");
+        assert.strictEqual(mobileTimeEntriesButton.dataset.ticketTimeEntriesTicketNumber, "T20260616.0001");
+        assert.strictEqual(desktopTimeEntriesButton.dataset.ticketTimeEntriesTicketNumber, "T20260616.0001");
+        assert.deepStrictEqual(refreshedNotesButtons, [mobileTicketNotesButton, desktopTicketNotesButton]);
+        assert.deepStrictEqual(refreshedTimeEntriesButtons, [mobileTimeEntriesButton, desktopTimeEntriesButton]);
         assert.strictEqual(activeClientInput.readOnly, true);
         assert.strictEqual(activeClientInput.getAttribute("aria-readonly"), "true");
         assert.strictEqual(activeClientInput.classList.contains("is-locked-client-input"), true);

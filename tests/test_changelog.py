@@ -124,6 +124,10 @@ def test_changelog_parser_reads_current_release() -> None:
                 "Mobile Work in Progress and Review now show Entry type, Work type, Ticket status, "
                 "Job date, Start time, End time, and duration in the same order."
             ),
+            (
+                "On phones, Ticket notes and Past time entries now sit under Ticket name "
+                "on Work in Progress and under Ticket number on Review."
+            ),
         ),
     )
 
@@ -244,6 +248,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert (
         "Mobile Work in Progress and Review now show Entry type, Work type, Ticket status, "
         "Job date, Start time, End time, and duration in the same order."
+    ) in response.text
+    assert (
+        "On phones, Ticket notes and Past time entries now sit under Ticket name "
+        "on Work in Progress and under Ticket number on Review."
     ) in response.text
     assert "Review, Home, and header polish" in response.text
     assert "Review summaries now start with Remote. or On-Site. before the work notes." in response.text

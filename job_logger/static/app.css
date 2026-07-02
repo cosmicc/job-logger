@@ -1880,6 +1880,10 @@ a:focus-visible {
   gap: 8px;
 }
 
+.ticket-context-actions-mobile {
+  display: none;
+}
+
 .ticket-notes-button {
   min-height: 34px;
   padding: 6px 10px;

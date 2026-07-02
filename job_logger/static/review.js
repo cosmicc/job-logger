@@ -1545,8 +1545,8 @@ function bindTicketLookup() {
   const ticketDescriptionInput = document.querySelector("[data-review-ticket-description-input]");
   const ticketDescriptionCard = document.querySelector("[data-review-ticket-description-card]");
   const ticketDescriptionDisplay = document.querySelector("[data-review-ticket-description-display]");
-  const ticketNotesButton = document.querySelector("[data-ticket-notes-button]");
-  const ticketTimeEntriesButton = document.querySelector("[data-ticket-time-entries-button]");
+  const ticketNotesButtons = Array.from(document.querySelectorAll("[data-ticket-notes-button]"));
+  const ticketTimeEntriesButtons = Array.from(document.querySelectorAll("[data-ticket-time-entries-button]"));
   const ticketHeading = document.querySelector("[data-selected-ticket-heading]");
   const selectedRowTicketDisplay = document.querySelector("[data-review-selected-row-ticket]");
   if (!lookupUrl || !ticketSelectUrl || !statusElement || !resultsElement || !ticketNumberInput) {
@@ -1636,13 +1636,13 @@ function bindTicketLookup() {
     if (selectedRowTicketDisplay) {
       selectedRowTicketDisplay.textContent = selectedTicketNumber || "No ticket";
     }
-    if (ticketNotesButton) {
+    for (const ticketNotesButton of ticketNotesButtons) {
       ticketNotesButton.dataset.ticketNotesTicketNumber = selectedTicketNumber;
       if (window.JobLoggerTicketNotes) {
         window.JobLoggerTicketNotes.refreshButton(ticketNotesButton);
       }
     }
-    if (ticketTimeEntriesButton) {
+    for (const ticketTimeEntriesButton of ticketTimeEntriesButtons) {
       ticketTimeEntriesButton.dataset.ticketTimeEntriesTicketNumber = selectedTicketNumber;
       if (window.JobLoggerTicketNotes) {
         window.JobLoggerTicketNotes.refreshTimeEntriesButton(ticketTimeEntriesButton);

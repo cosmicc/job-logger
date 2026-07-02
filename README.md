@@ -844,7 +844,8 @@ available. Service Desk Notification ticket notes and notes with titles that
 start with Workflow Rule are treated as system noise and filtered out. Notes
 are shown newest first with two-line title cards. Past time entries list the
 resource, local start/stop time, and hours, and selecting one shows its summary
-of work.
+of work. On phones, these buttons sit under the selected Ticket name on Work in
+Progress and under Ticket number on Review.
 Long ticket descriptions stay inside a scrollable read-only box instead of
 expanding the mobile page indefinitely; phone-sized layouts cap that visible
 box at about 12 lines, and wider layouts cap it at about 25 lines. On the

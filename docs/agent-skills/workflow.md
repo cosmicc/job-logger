@@ -203,9 +203,11 @@ metadata only; do not trust it to override the active job's stored work-location
 or ticket-status values.
 When a selected ticket has Autotask notes or time entries, Work in Progress may
 show compact **Ticket notes** and **Past time entries** buttons beside the
-ticket context. Keep each button hidden until its authenticated server lookup
-confirms at least one row, and render results inside the shared closeable
-overlay. The notes list is newest-first by note creation time, and each note
+ticket context. On phone-sized layouts, those buttons belong under the Work in
+Progress **Ticket name** card and the Review **Ticket number** card. Keep each
+button hidden until its authenticated server lookup confirms at least one row,
+and render results inside the shared closeable overlay. The notes list is
+newest-first by note creation time, and each note
 selection card shows only the note title. The note selection card title area
 should fit two lines and truncate longer titles inside the card. Author,
 created, updated, type, and note body content belong in the selected note
