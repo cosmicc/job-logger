@@ -287,7 +287,12 @@
                   </label>
                 </div>
               </div>
-              <div class="readonly-field-card review-work-location-card{% if is_ticket_note %} is-hidden{% endif %}" aria-label="Work type" data-review-work-location-card>
+              <div
+                class="readonly-field-card review-work-location-card{% if is_ticket_note %} work-location-card-disabled{% endif %}"
+                aria-label="Work type"
+                data-review-work-location-card
+                aria-disabled="{% if is_ticket_note %}true{% else %}false{% endif %}"
+              >
                 <span class="metric-label readonly-field-title">Work type</span>
                 {% set selected_work_location = selected_job.work_location.value if selected_job.work_location else "remote" %}
                 <div class="work-location-switch" data-review-work-location-toggle role="radiogroup" aria-label="Work type">
@@ -297,6 +302,7 @@
                       name="work_location"
                       value="remote"
                       {% if selected_work_location == "remote" %}checked{% endif %}
+                      {% if is_ticket_note %}disabled{% endif %}
                     >
                     <span>Remote</span>
                   </label>
@@ -306,6 +312,7 @@
                       name="work_location"
                       value="on_site"
                       {% if selected_work_location == "on_site" %}checked{% endif %}
+                      {% if is_ticket_note %}disabled{% endif %}
                     >
                     <span>On-Site</span>
                   </label>

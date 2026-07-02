@@ -512,12 +512,13 @@ summary that will be sent, including the leading `Remote. ` or `On-Site. `
 prefix. Saving review edits parses that prefix back into the stored
 `work_location` field, and the review-detail work-location control must update
 that visible prefix, so the final payload can be corrected without exposing
-ticket or client identity to edits. Ticket-note mode hides Remote/On-Site,
-changes the date label from **Job date** to **Note Date**, hides start/end time
-controls while preserving their values for switching back to Time entry, shows
-a required centered note-title field above the note description, and keeps the
-description unprefixed. Shared switch pills should show Time entry and Remote
-selected states in green and Ticket note and On-Site selected states in orange.
+ticket or client identity to edits. Ticket-note mode keeps the Work type
+Remote/On-Site card visible but disabled and greyed out, changes the date label
+from **Job date** to **Note Date**, hides start/end time controls while
+preserving their values for switching back to Time entry, shows a required
+centered note-title field above the note description, and keeps the description
+unprefixed. Shared switch pills should show Time entry and Remote selected
+states in green and Ticket note and On-Site selected states in orange.
 On phone-sized Work in Progress and Review detail layouts, the editable
 workflow cards should appear in this order: **Entry type**, **Work type**,
 **Ticket status**, **Job date** or **Note Date**, **Start time**, **End time**,

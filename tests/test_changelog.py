@@ -142,6 +142,9 @@ def test_changelog_parser_reads_current_release() -> None:
                 "Work in Progress now lets you change the selected client before choosing a ticket "
                 "and loads the new client's tickets."
             ),
+            (
+                "Ticket note mode now keeps Work type visible but greyed out instead of removing it."
+            ),
         ),
     )
 
@@ -281,6 +284,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "Work in Progress now lets you change the selected client before choosing a ticket "
         "and loads the new client&#39;s tickets."
     ) in response.text
+    assert "Ticket note mode now keeps Work type visible but greyed out instead of removing it." in response.text
     assert "Review, Home, and header polish" in response.text
     assert "Review summaries now start with Remote. or On-Site. before the work notes." in response.text
     assert "The Home start button now says Start Work." in response.text

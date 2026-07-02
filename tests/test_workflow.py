@@ -375,7 +375,17 @@ def test_ticket_note_can_be_submitted_from_review_without_time_fields(authentica
     assert "time-entry-time-card active-start-time-card is-hidden" in active_html
     assert "time-entry-time-card active-end-time-card is-hidden" in active_html
     assert 'data-work-location-card' in active_html
-    assert 'work-location-card is-hidden' in active_html
+    assert "work-location-card-disabled" in active_html
+    assert re.search(r'data-work-location-card\s+aria-disabled="true"', active_html)
+    assert "work-location-card is-hidden" not in active_html
+    assert re.search(
+        r'<input(?=[^>]*data-work-location-input)(?=[^>]*value="remote")(?=[^>]*disabled)',
+        active_html,
+    )
+    assert re.search(
+        r'<input(?=[^>]*data-work-location-input)(?=[^>]*value="on_site")(?=[^>]*disabled)',
+        active_html,
+    )
     assert 'data-duration-row' in active_html
 
     end_response = authenticated_client.post(
@@ -404,7 +414,17 @@ def test_ticket_note_can_be_submitted_from_review_without_time_fields(authentica
     assert "Delete note" in review_html
     assert "review-start-time-field is-hidden" in review_html
     assert "review-end-time-field is-hidden" in review_html
-    assert 'review-work-location-card is-hidden' in review_html
+    assert "review-work-location-card is-hidden" not in review_html
+    assert "review-work-location-card work-location-card-disabled" in review_html
+    assert re.search(r'data-review-work-location-card\s+aria-disabled="true"', review_html)
+    assert re.search(
+        r'<input(?=[^>]*name="work_location")(?=[^>]*value="remote")(?=[^>]*disabled)',
+        review_html,
+    )
+    assert re.search(
+        r'<input(?=[^>]*name="work_location")(?=[^>]*value="on_site")(?=[^>]*disabled)',
+        review_html,
+    )
 
     accept_response = authenticated_client.post(
         f"/review/{active_job_id}/accept",
@@ -1662,6 +1682,9 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert '.work-location-switch input[type="radio"][value="ticket_note"]:checked + span' in stylesheet
     assert '.work-location-switch input[type="radio"][value="on_site"]:checked + span' in stylesheet
     assert "color: var(--on-warning);" in stylesheet
+    assert ".work-location-card-disabled {" in stylesheet
+    assert ".work-location-card-disabled .work-location-switch" in stylesheet
+    assert '.work-location-card-disabled .work-location-switch input[type="radio"]:checked + span' in stylesheet
     assert ".review-detail-heading-row {\n  gap: 6px;" in phone_stylesheet
     assert ".review-action-stack" in stylesheet
     assert ".review-status-stack" in stylesheet
@@ -1712,6 +1735,10 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".work-panel[data-active-job-card] > .description-box > .note-title-field.is-hidden + label" not in phone_stylesheet
     mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
     review_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+    assert 'work-location-card{% if is_ticket_note %} is-hidden' not in mobile_template
+    assert 'review-work-location-card{% if is_ticket_note %} is-hidden' not in review_template
+    assert "work-location-card-disabled" in mobile_template
+    assert "work-location-card-disabled" in review_template
     active_work_label_index = mobile_template.index(">Work in Progress</p>")
     active_detail_heading_index = mobile_template.index('class="detail-heading-row active-detail-heading-row"')
     active_metric_grid_index = mobile_template.index('<dl class="metric-grid">')

@@ -712,7 +712,8 @@ function syncReviewEntryMode({syncSummaryPrefix = false} = {}) {
 
   const workLocationCard = document.querySelector("[data-review-work-location-card]");
   if (workLocationCard) {
-    workLocationCard.classList.toggle("is-hidden", isTicketNote);
+    workLocationCard.classList.toggle("work-location-card-disabled", isTicketNote);
+    workLocationCard.setAttribute("aria-disabled", isTicketNote ? "true" : "false");
     workLocationCard.querySelectorAll('input[name="work_location"]').forEach((inputElement) => {
       inputElement.disabled = isTicketNote;
     });

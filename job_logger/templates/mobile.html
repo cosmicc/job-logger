@@ -296,7 +296,12 @@
                   </div>
                 </dd>
               </div>
-              <div class="metric-card work-location-card{% if is_ticket_note %} is-hidden{% endif %}" aria-label="Work type" data-work-location-card>
+              <div
+                class="metric-card work-location-card{% if is_ticket_note %} work-location-card-disabled{% endif %}"
+                aria-label="Work type"
+                data-work-location-card
+                aria-disabled="{% if is_ticket_note %}true{% else %}false{% endif %}"
+              >
                 <dd>
                   {% set selected_work_location = active_job.work_location.value if active_job.work_location else "remote" %}
                   <div class="work-location-switch" data-work-location-toggle role="radiogroup" aria-label="Work type">
@@ -308,6 +313,7 @@
                         form="active-ticket-form-{{ active_job.id }}"
                         data-work-location-input
                         {% if selected_work_location == "remote" %}checked{% endif %}
+                        {% if is_ticket_note %}disabled{% endif %}
                       >
                       <span>Remote</span>
                     </label>
@@ -319,6 +325,7 @@
                         form="active-ticket-form-{{ active_job.id }}"
                         data-work-location-input
                         {% if selected_work_location == "on_site" %}checked{% endif %}
+                        {% if is_ticket_note %}disabled{% endif %}
                       >
                       <span>On-Site</span>
                     </label>

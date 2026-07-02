@@ -12,6 +12,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Mobile Work in Progress and Review now show Entry type, Work type, Ticket status, Job date, Start time, End time, and duration in the same order.
 - On phones, Ticket notes and Past time entries sit under Ticket name on Work in Progress, while Review moves Ticket number below duration.
 - Work in Progress now lets you change the selected client before choosing a ticket and loads the new client's tickets.
+- Ticket note mode now keeps Work type visible but greyed out instead of removing it.
 
 ## 1.2.0 - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish
 

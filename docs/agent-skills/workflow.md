@@ -165,13 +165,14 @@ Active jobs support these updates before completion:
 When Ticket note is selected, the Work in Progress UI must change **Job date**
 to **Note Date**, hide the rounded start and rounded stop control rows while
 preserving their current values for a switch back to Time entry, hide the
-duration label, hide Remote/On-Site, show the note-title field above the
-note-description textarea, center the note-title label and text field, and
-change the finish/delete labels to **End Note** and **Delete Note**. Shared
-switch pills use green for Time entry or Remote selected states and orange for
-Ticket note or On-Site selected states. If the user's **Submit from Work in
-Progress** preference is enabled, the finish label should be a submit-note
-label while still posting through the normal end-work route.
+duration label, keep the Work type Remote/On-Site card visible but disabled
+and greyed out, show the note-title field above the note-description textarea,
+center the note-title label and text field, and change the finish/delete labels
+to **End Note** and **Delete Note**. Shared switch pills use green for Time
+entry or Remote selected states and orange for Ticket note or On-Site selected
+states. If the user's **Submit from Work in Progress** preference is enabled,
+the finish label should be a submit-note label while still posting through the
+normal end-work route.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job client and summary edits, not ticket
@@ -523,11 +524,12 @@ parse that prefix back into the stored work-location mode and keep the
 persisted note body clean. Ticket note mode must show the required **Note
 title** field, then an unprefixed **Note description** textarea, then
 **Append to resolution** directly above the action buttons. It must hide
-Remote/On-Site, change **Job date** to **Note Date**, hide the start and end
-time controls while preserving their current values for a switch back to Time
-entry, and hide the duration label. The review list must show each row's Remote
-or On-Site mode for time entries and Ticket note for notes, and the review
-detail work-location control
+the active Remote/On-Site choice by keeping the Work type card visible but
+disabled and greyed out, change **Job date** to **Note Date**, hide the start
+and end time controls while preserving their current values for a switch back
+to Time entry, and hide the duration label. The review list must show each
+row's Remote or On-Site mode for time entries and Ticket note for notes, and
+the review detail work-location control
 must rewrite the visible summary prefix when it changes on time entries. This
 allows the operator to correct the final Autotask notes without making
 ticket/client identity editable.
