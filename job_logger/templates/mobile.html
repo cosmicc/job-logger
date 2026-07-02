@@ -120,7 +120,7 @@
             <div class="detail-heading-row active-detail-heading-row">
               <h2>
                 <span class="active-heading-mobile-title" data-active-ticket-heading>{{ active_job.ticket_title or active_job.ticket_number or "Unassigned Ticket" }}</span>
-                <span class="active-heading-desktop-label">Job {{ job_label }}</span>
+                <span class="active-heading-desktop-label" data-active-ticket-heading>{{ active_job.ticket_title or active_job.ticket_number or "Unassigned Ticket" }}</span>
               </h2>
               <span class="status-chip status-{{ active_job.status.value }}">{{ active_job.status.value.replace("_", " ") }}</span>
             </div>
@@ -268,7 +268,7 @@
                 </dd>
               </div>
               <div class="duration-inline duration-centered active-duration-row{% if is_ticket_note %} is-hidden{% endif %}" data-duration-row>
-                Duration:
+                Work Duration:
                 <strong data-duration-display>{{ active_job.rounded_start_utc|duration_label(rounded_stop_utc) }}</strong>
               </div>
               <div class="metric-card entry-type-card" aria-label="Entry type">

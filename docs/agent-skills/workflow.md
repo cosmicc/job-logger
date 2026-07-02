@@ -143,26 +143,30 @@ Active jobs support these updates before completion:
   server-validated `-15` and `+15` minute buttons on either side of the field.
   These controls must not use the full-page status overlay because the
   adjustment should feel immediate.
-- A centered rounded duration label on its own row under the Work in Progress
-  start/end time controls, such as `15 Minutes`, `1 Hour`, or `1.25 Hours`.
-  The server returns the canonical label after active time saves, and browser
-  JavaScript should update the visible label immediately when the visible start
-  or stop time changes.
+- A centered **Work Duration** label on its own row under the Work in Progress
+  start/end time controls, such as `Work Duration: 15 Minutes`,
+  `Work Duration: 1 Hour`, or `Work Duration: 1.25 Hours`. The server returns
+  the canonical value after active time saves, and browser JavaScript should
+  update the visible value immediately when the visible start or stop time
+  changes.
 - Full-browser Work in Progress cards should order editable workflow cards as
   **Entry type** with **Work type**, **Job date** with **Ticket status**,
-  **Start time** with **End time**, then duration centered under the time row.
+  **Start time** with **End time**, then **Work Duration** centered under the
+  time row.
 - Full-browser Work in Progress cards should place **Client name** and
   **Ticket number** together on the next row when a ticket number is shown.
 - Full-browser Work in Progress left-side context cards should use equal
   half-width card slots, except **Ticket name** and **Ticket description**,
   which stay full width. The desktop **Ticket notes** and **Past time entries**
   buttons belong under the full-width **Ticket name**.
-- A visible **Work in Progress** label above the selected ticket heading on
-  phone layouts. Full-browser active cards may use that heading row for the job
-  slot while the centered **Ticket name** card carries the selected ticket name.
-  The full-browser grid expects that label row so the Summary notes panel
-  starts flush with the **Job date** card instead of dropping below the
-  left-side cards. Keep that label prominent enough to scan quickly.
+- Phone-sized Work in Progress should center the display-only **Client name**
+  and **Ticket name** card titles and values after a ticket has been selected.
+- A visible **Work in Progress** label above the selected ticket heading.
+  Full-browser active cards should use that heading row for the selected ticket
+  name even though the centered **Ticket name** card repeats the same value. The
+  full-browser grid expects that label row so the Summary notes panel starts
+  flush with the **Job date** card instead of dropping below the left-side
+  cards. Keep that label prominent enough to scan quickly.
 
 When Ticket note is selected, the Work in Progress UI must change **Job date**
 to **Note Date**, hide the rounded start and rounded stop control rows while
@@ -484,18 +488,18 @@ Review supports:
   submission. Submitted entries must reject entry-type conversion.
 - Full-browser Review detail should order editable workflow cards as
   equal-width paired rows: **Entry type** with **Work type**, **Job date**
-  with **Ticket status**, **Start time** with **End time**, then duration centered
-  under the time row. Full-width rows that do not share a row with another card
-  should stay full width.
+  with **Ticket status**, **Start time** with **End time**, then **Work
+  Duration** centered under the time row. Full-width rows that do not share a
+  row with another card should stay full width.
 - Full-browser Review detail should show **Client name** and **Ticket number**
-  together as the paired row directly above **Ticket description**, and the
-  **Ticket notes** and **Past time entries** buttons should flank the **Ticket
-  description** title near the top of that card.
-- Showing the rounded duration on a centered row under the selected detail
-  start/end time controls and updating it from the server-normalized autosave
-  response or the browser's current visible time values. Do not nest the
-  duration inside the end-time label on full-browser layout because that makes
-  the start and end time controls misalign.
+  together as the paired row above a full-width centered **Ticket name** card.
+  The **Ticket notes** and **Past time entries** buttons should sit at the
+  bottom of that **Ticket name** card, directly above **Ticket description**.
+- Showing the rounded duration on a centered **Work Duration** row under the
+  selected detail start/end time controls and updating the value from the
+  server-normalized autosave response or the browser's current visible time
+  values. Do not nest the duration inside the end-time label on full-browser
+  layout because that makes the start and end time controls misalign.
 - Recording additional audio notes on review detail before successful Autotask
   submission.
 - Automatically saving edits without a ticket number.
@@ -540,11 +544,11 @@ allows the operator to correct the final Autotask notes without making
 ticket/client identity editable.
 Phone-sized Work in Progress and Review detail layouts should order the editable
 workflow cards as **Entry type**, **Work type**, **Ticket status**, **Job date**
-or **Note Date**, **Start time**, **End time**, then duration, while leaving
-unmentioned fields in their existing relative positions, except Review places
-**Client name** directly above the centered **Ticket number** card and puts the
-ticket-history buttons inside a phone-only **Ticket name** card above the ticket
-description.
+or **Note Date**, **Start time**, **End time**, then **Work Duration**, while
+leaving unmentioned fields in their existing relative positions, except Review
+places **Client name** directly above the centered **Ticket number** card and
+puts the ticket-history buttons inside the **Ticket name** card above the
+ticket description.
 
 The review detail form does not expose a manual Save button. Editable review
 fields are saved through debounced background posts to `POST /review/{job_id}/save`.

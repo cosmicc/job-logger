@@ -41,6 +41,12 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert "data-direct-submit-option" in config_response.text
     assert "data-direct-submit-state" in config_response.text
     assert "Off" in config_response.text
+    assert (
+        config_response.text.index('id="appearance-heading"')
+        < config_response.text.index('id="password-heading"')
+        < config_response.text.index('id="passkeys-heading"')
+        < config_response.text.index('id="workflow-heading"')
+    )
     assert 'data-config-form' in config_response.text
     assert "Save config" not in config_response.text
     assert "Current settings" not in config_response.text

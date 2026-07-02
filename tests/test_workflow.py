@@ -1678,7 +1678,10 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".ticket-context-actions-desktop {\n  display: none;\n}" in phone_stylesheet
     assert ".ticket-context-actions-mobile {\n  display: flex;" in phone_stylesheet
     assert "  flex-wrap: nowrap;" in phone_stylesheet
-    assert ".readonly-field-card.review-ticket-title-card {\n  display: none;\n}" in stylesheet
+    assert ".readonly-field-card.review-ticket-title-card {\n  justify-items: center;\n  text-align: center;\n}" in stylesheet
+    assert ".client-name-card[data-locked-client-field],\n.ticket-title-card" in stylesheet
+    assert ".client-name-card[data-locked-client-field] dt,\n.client-name-card[data-locked-client-field] dd" in stylesheet
+    assert ".ticket-title-card dt,\n.ticket-title-card dd" in stylesheet
     assert ".ticket-number-card,\n.review-ticket-number-card {\n  justify-items: center;\n  text-align: center;\n}" in stylesheet
     assert ".active-ticket-label-desktop" in stylesheet
     assert ".active-ticket-value-desktop" in desktop_stylesheet
@@ -1731,6 +1734,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "grid-template-columns: minmax(0, 1fr) minmax(360px, 0.78fr);" in desktop_stylesheet
     assert ".work-panel[data-active-job-card] .job-date-card .date-input-shell" in desktop_stylesheet
     assert "width: min(100%, 270px);" in desktop_stylesheet
+    assert ".review-job-date-field .date-input-shell" in desktop_stylesheet
+    assert ".review-ticket-title-card .ticket-context-actions-desktop" in desktop_stylesheet
     assert ".work-panel[data-active-job-card] > .description-box > .note-title-field:not(.is-hidden)" in desktop_stylesheet
     assert ".work-panel[data-active-job-card] > .description-box > .note-title-field.is-hidden + label" in desktop_stylesheet
     assert "bottom: calc(100% + 6px);" in desktop_stylesheet
@@ -2076,7 +2081,7 @@ def test_mobile_active_job_page_keeps_client_editable_until_ticket(authenticated
     assert 'data-active-time-delta="15"' in page_html
     assert 'value="-15"' in page_html
     assert 'value="15"' in page_html
-    assert "Duration:" in page_html
+    assert "Work Duration:" in page_html
     assert "data-duration-display" in page_html
     assert 'class="work-location-switch"' in page_html
     assert 'data-work-location-toggle' in page_html
@@ -2300,7 +2305,7 @@ def test_review_detail_shows_active_rounded_stop_without_ending_job(authenticate
 
     assert review_page_response.status_code == 200
     assert re.search(r'<input(?=[^>]*name="end_time")(?=[^>]*value="8:30 am")', review_html)
-    assert "Duration:" in review_html
+    assert "Work Duration:" in review_html
     assert "30 Minutes" in review_html
     assert "data-duration-display" in review_html
     assert 'class="duration-inline duration-centered review-duration-row"' in review_html
@@ -2751,14 +2756,16 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
         'class="ticket-context-actions ticket-context-actions-mobile"',
         review_ticket_title_card_index,
     )
-    review_ticket_status_index = updated_review_html.index('class="review-ticket-status-field"')
-    review_description_context_actions_index = updated_review_html.index(
+    review_desktop_context_actions_index = updated_review_html.index(
         'class="ticket-context-actions ticket-context-actions-desktop"',
-        updated_review_html.index("data-review-ticket-description-card"),
+        review_ticket_title_card_index,
     )
+    review_ticket_status_index = updated_review_html.index('class="review-ticket-status-field"')
+    review_description_card_index = updated_review_html.index("data-review-ticket-description-card")
     assert review_ticket_number_card_index < review_client_name_card_index < review_ticket_title_card_index
     assert review_ticket_title_card_index < review_mobile_context_actions_index < review_ticket_status_index
-    assert review_mobile_context_actions_index < review_description_context_actions_index
+    assert review_mobile_context_actions_index < review_desktop_context_actions_index < review_ticket_status_index
+    assert review_desktop_context_actions_index < review_description_card_index
     assert re.search(r'<input(?=[^>]*name="ticket_number")(?=[^>]*type="hidden")', updated_review_html)
     assert re.search(r'<input(?=[^>]*name="client_name")(?=[^>]*type="hidden")', updated_review_html)
     assert not re.search(r'<input(?=[^>]*name="ticket_number")(?!(?=[^>]*type="hidden"))', updated_review_html)

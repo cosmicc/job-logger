@@ -101,6 +101,8 @@ password entries and an explicit **Change password** submit button, and the
 password card must show the managed-user password requirements. The config
 super admin does not have user settings, does not see the Config menu item,
 cannot access `/config`, and always renders in dark mode.
+The `/config` cards should render in this order: **Appearance**, **Password**,
+**Device sign-in**, then **Workflow**.
 
 Never rely on the mobile UI, browser state, or hidden form fields for security
 decisions. The server must validate authentication, authorization, CSRF tokens,
@@ -258,10 +260,11 @@ Job start times must round to the closest 15-minute interval.
 
 Job end times and job duration must also round to 15-minute intervals.
 Work in Progress and Review detail must show the rounded start-to-stop duration
-using labels such as `15 Minutes`, `1 Hour`, or `1.25 Hours`, and must update
-that label as the visible rounded times change. Work in Progress and Review
-detail show the centered duration on its own row under the start/end time
-controls so full-browser start and end fields stay aligned.
+using labels such as `Work Duration: 15 Minutes`, `Work Duration: 1 Hour`, or
+`Work Duration: 1.25 Hours`, and must update the value as the visible rounded
+times change. Work in Progress and Review detail show the centered **Work
+Duration** row under the start/end time controls so full-browser start and end
+fields stay aligned.
 Ticket-note mode hides this duration because start and stop times are not used
 for Autotask ticket notes.
 
@@ -439,26 +442,32 @@ editable time-field treatment as Review detail start/end times, keep the `-15`
 and `+15` controls, open a 15-minute dropdown centered on the current field
 value when selected, and save only through server-validated active-job routes.
 Work in Progress and Review detail should center the rounded-duration label in
-the existing time area without reworking the mobile or full-browser layout.
+the existing time area without reworking the mobile or full-browser layout, and
+the visible label should read **Work Duration**.
 On full-browser Work in Progress and Review detail cards, the editable workflow
 cards should appear as equal-width paired rows: **Entry type** with **Work
 type**, **Job date** with **Ticket status**, **Start time** with **End time**,
-then the centered duration under the time row. Full-width Review detail rows
+then the centered **Work Duration** row under the time row. Full-width Review detail rows
 that do not share a row with another card should stay full width. Full-browser
 Review detail should keep **Client name** and **Ticket number** together as the
-row directly above **Ticket description**. Full-browser Work in Progress cards
-should place **Client name** and **Ticket number** together on the next row when
-a ticket number is shown, then place **Ticket name** full width below that row
-with the desktop **Ticket notes** and **Past time entries** buttons under the
-ticket name. Full-browser Work in Progress left-side context cards should use
-equal half-width card slots, except **Ticket name** and **Ticket description**,
-which remain full width.
+paired row above a full-width centered **Ticket name** card, then show
+**Ticket description** below the ticket-name card. The Review **Ticket notes**
+and **Past time entries** buttons belong at the bottom of the **Ticket name**
+card. Full-browser Work in Progress cards should place **Client name** and
+**Ticket number** together on the next row when a ticket number is shown, then
+place **Ticket name** full width below that row with the desktop **Ticket
+notes** and **Past time entries** buttons under the ticket name. Full-browser
+Work in Progress left-side context cards should use equal half-width card
+slots, except **Ticket name** and **Ticket description**, which remain full
+width. Phone-sized Work in Progress should center the display-only **Client
+name** and **Ticket name** card titles and values when a ticket has been
+selected.
 Active Work in Progress cards should keep a visible **Work in Progress** label
 above the selected ticket heading on phone layouts. Full-browser active cards
-may use that heading row for the job slot while the centered **Ticket name**
-card carries the selected ticket name. The full-browser layout depends on that
-label row so the Summary notes panel starts flush with the top of the **Job
-date** card; keep that label prominent enough to read quickly.
+should also use that heading row for the selected ticket name even though the
+centered **Ticket name** card repeats the same value. The full-browser layout
+depends on that label row so the Summary notes panel starts flush with the top
+of the **Job date** card; keep that label prominent enough to read quickly.
 
 Managed web-user pages must respect the current user's saved theme preference.
 The default is the dark theme. Light theme support must cover mobile, review,
@@ -525,7 +534,7 @@ states in green and Ticket note and On-Site selected states in orange.
 On phone-sized Work in Progress and Review detail layouts, the editable
 workflow cards should appear in this order: **Entry type**, **Work type**,
 **Ticket status**, **Job date** or **Note Date**, **Start time**, **End time**,
-then duration.
+then **Work Duration**.
 **Append to resolution** should sit under the note description and above the
 action buttons. The
 selected Autotask
@@ -549,13 +558,13 @@ rows exist; when no displayable notes or no past time entries exist, show
 same-place disabled **No Notes** and **No past entries** buttons. On
 phone-sized layouts, Work in Progress places those buttons under the **Ticket
 name** card, and Review places **Client name** directly above the centered
-**Ticket number** card, then a phone-only **Ticket name** card with the
+**Ticket number** card, then a **Ticket name** card with the
 **Ticket notes** and **Past time entries** buttons split across one row above
 **Ticket description**. On full-browser Review, the
-**Client name** and **Ticket number** cards sit together directly above
-**Ticket description**, and the
-**Ticket notes** and **Past time entries** buttons flank the **Ticket
-description** title inside the ticket description card. Ticket-note
+**Client name** and **Ticket number** cards sit together above a centered
+**Ticket name** card, and the **Ticket notes** and **Past time entries**
+buttons sit at the bottom of that ticket-name card directly above **Ticket
+description**. Ticket-note
 lookups must filter out Service Desk Notification notes and any note whose
 title starts with Workflow Rule
 before deciding whether any notes exist. The shared overlay must keep an X
@@ -1087,8 +1096,10 @@ In production:
   total bytes match exactly. The `/debug` database card may show safe
   connectivity, latency,
   backend/driver, migration revision, and pool counters, but must not show
-  connection strings, hosts, database names, usernames, or passwords. Wide
-  Diagnostics tables, including Autotask submission attempts and retained
+  connection strings, hosts, database names, usernames, or passwords. On
+  full-browser Diagnostics, the disk-space and session-control cards should
+  share one row above the database card while phone layouts keep stacked cards.
+  Wide Diagnostics tables, including Autotask submission attempts and retained
   automatic backups, should remain horizontally scrollable on phone layouts so
   row actions stay reachable.
 - Mock Autotask mode is only for tests and isolated development.

@@ -1296,6 +1296,9 @@ def test_debug_login_pagination(super_admin_client: TestClient) -> None:
     phone_stylesheet = (
         Path(__file__).resolve().parents[1] / "job_logger" / "static" / "phone.css"
     ).read_text(encoding="utf-8")
+    desktop_stylesheet = (
+        Path(__file__).resolve().parents[1] / "job_logger" / "static" / "desktop.css"
+    ).read_text(encoding="utf-8")
     assert ".login-attempt-window" in stylesheet
     assert "max-height: 430px;" in stylesheet
     assert ".debug-scroll-table-wrap" in stylesheet
@@ -1319,6 +1322,10 @@ def test_debug_login_pagination(super_admin_client: TestClient) -> None:
     assert ".database-health-card.database-health-critical" in stylesheet
     assert ".debug-shell {\n  display: grid;\n  gap: 12px;" in stylesheet
     assert ".debug-shell > .review-header {\n  margin-bottom: 0;" in stylesheet
+    assert ".debug-shell {\n    grid-template-columns: repeat(2, minmax(0, 1fr));" in desktop_stylesheet
+    assert ".debug-shell > #disk-space {\n    grid-column: 1;\n    grid-row: 2;\n  }" in desktop_stylesheet
+    assert ".debug-shell > #session-controls {\n    grid-column: 2;\n    grid-row: 2;\n  }" in desktop_stylesheet
+    assert ".debug-shell > #database-health {\n    grid-row: 3;\n  }" in desktop_stylesheet
 
 
 def test_debug_paginates_cloudflare_blocked_ips(super_admin_client: TestClient) -> None:

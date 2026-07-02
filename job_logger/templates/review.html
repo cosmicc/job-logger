@@ -256,6 +256,42 @@
                     <span data-ticket-context-label>Past time entries</span>
                   </button>
                 </div>
+                <div class="ticket-context-actions ticket-context-actions-desktop">
+                  <button
+                    class="secondary-button ticket-notes-button is-hidden"
+                    type="button"
+                    data-ticket-notes-button
+                    data-ticket-notes-url="/review/{{ selected_job.id }}/ticket-notes"
+                    data-ticket-notes-ticket-number="{{ selected_job.ticket_number or '' }}"
+                    aria-label="View ticket notes"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 3h9l3 3v15H6z"></path>
+                      <path d="M15 3v4h4"></path>
+                      <path d="M9 11h6"></path>
+                      <path d="M9 15h6"></path>
+                    </svg>
+                    <span data-ticket-context-label>Ticket notes</span>
+                  </button>
+                  <button
+                    class="secondary-button ticket-notes-button is-hidden"
+                    type="button"
+                    data-ticket-time-entries-button
+                    data-ticket-time-entries-url="/review/{{ selected_job.id }}/ticket-time-entries"
+                    data-ticket-time-entries-ticket-number="{{ selected_job.ticket_number or '' }}"
+                    aria-label="View past time entries"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 5h16"></path>
+                      <path d="M4 12h16"></path>
+                      <path d="M4 19h16"></path>
+                      <path d="M8 3v4"></path>
+                      <path d="M8 10v4"></path>
+                      <path d="M8 17v4"></path>
+                    </svg>
+                    <span data-ticket-context-label>Past time entries</span>
+                  </button>
+                </div>
               </div>
               <input
                 type="hidden"
@@ -415,7 +451,7 @@
                 </div>
               </label>
               <div class="duration-inline duration-centered review-duration-row{% if is_ticket_note %} is-hidden{% endif %}" data-review-duration-row>
-                Duration:
+                Work Duration:
                 <strong data-duration-display>{{ selected_job.rounded_start_utc|duration_label(selected_job_review_end_utc) }}</strong>
               </div>
               <label class="review-ticket-status-field">
@@ -459,42 +495,6 @@
             >
               <div class="ticket-context-header">
                 <span class="metric-label readonly-field-title centered-field-label">Ticket description</span>
-                <div class="ticket-context-actions ticket-context-actions-desktop">
-                  <button
-                    class="secondary-button ticket-notes-button is-hidden"
-                    type="button"
-                    data-ticket-notes-button
-                    data-ticket-notes-url="/review/{{ selected_job.id }}/ticket-notes"
-                    data-ticket-notes-ticket-number="{{ selected_job.ticket_number or '' }}"
-                    aria-label="View ticket notes"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M6 3h9l3 3v15H6z"></path>
-                      <path d="M15 3v4h4"></path>
-                      <path d="M9 11h6"></path>
-                      <path d="M9 15h6"></path>
-                    </svg>
-                    <span data-ticket-context-label>Ticket notes</span>
-                  </button>
-                  <button
-                    class="secondary-button ticket-notes-button is-hidden"
-                    type="button"
-                    data-ticket-time-entries-button
-                    data-ticket-time-entries-url="/review/{{ selected_job.id }}/ticket-time-entries"
-                    data-ticket-time-entries-ticket-number="{{ selected_job.ticket_number or '' }}"
-                    aria-label="View past time entries"
-                  >
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M4 5h16"></path>
-                      <path d="M4 12h16"></path>
-                      <path d="M4 19h16"></path>
-                      <path d="M8 3v4"></path>
-                      <path d="M8 10v4"></path>
-                      <path d="M8 17v4"></path>
-                    </svg>
-                    <span data-ticket-context-label>Past time entries</span>
-                  </button>
-                </div>
               </div>
               <p data-review-ticket-description-display>{{ selected_job.ticket_description or "No description exists for this ticket." }}</p>
             </section>
