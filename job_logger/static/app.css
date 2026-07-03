@@ -3675,6 +3675,36 @@ td a {
   padding: 18px;
 }
 
+.session-controls-card .debug-panel-body {
+  height: 100%;
+}
+
+.session-controls-layout {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.session-controls-copy h2 {
+  margin-top: 0;
+}
+
+.session-controls-form {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  margin-top: auto;
+}
+
+.session-controls-form .danger-button {
+  width: min(100%, 260px);
+  min-height: 44px;
+  justify-content: center;
+  padding: 9px 18px;
+  line-height: 1.2;
+}
+
 .disk-space-card.disk-space-warning {
   border-color: var(--warning);
   background: linear-gradient(135deg, var(--warning-soft), var(--surface) 58%);

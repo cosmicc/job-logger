@@ -69,6 +69,30 @@ function ticketContextRequestCacheKey(url, ticketNumber) {
   return `${ticketNotesSafeString(url).trim()}\n${ticketNotesSafeString(ticketNumber).trim()}`;
 }
 
+function ticketContextRetryDelay(milliseconds) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
+}
+
+async function fetchTicketContextJson(url, fallbackErrorMessage) {
+  let lastErrorMessage = fallbackErrorMessage;
+  for (let attemptIndex = 0; attemptIndex < 2; attemptIndex += 1) {
+    const response = await fetch(url, {headers: {Accept: "application/json"}});
+    const payload = await response.json();
+    if (response.ok) {
+      return payload;
+    }
+
+    lastErrorMessage = payload.detail || fallbackErrorMessage;
+    if (attemptIndex === 0) {
+      await ticketContextRetryDelay(200);
+    }
+  }
+
+  throw new Error(lastErrorMessage);
+}
+
 function ticketContextDefaultLabel(button, fallbackLabel) {
   const labelElement = button.querySelector("[data-ticket-context-label]");
   if (!button.dataset.ticketContextDefaultLabel) {
@@ -93,6 +117,52 @@ function setTicketContextButtonLabel(button, labelText, fallbackLabel) {
 
 function ticketContextButtonIsUnavailable(button) {
   return !button || button.disabled || button.classList.contains("is-empty-context");
+}
+
+function ticketContextPeerButtons(button, selector, urlDatasetName, ticketDatasetName) {
+  if (!button) {
+    return [];
+  }
+
+  const urlValue = ticketNotesSafeString(button.dataset[urlDatasetName]).trim();
+  const ticketValue = ticketNotesSafeString(button.dataset[ticketDatasetName]).trim();
+  const root = button.closest("[data-active-job-card], [data-review-ticket-title-card], .review-ticket-title-card")
+    || button.parentElement
+    || document;
+  const peers = Array.from(root.querySelectorAll(selector)).filter((peerButton) => (
+    ticketNotesSafeString(peerButton.dataset[urlDatasetName]).trim() === urlValue
+    && ticketNotesSafeString(peerButton.dataset[ticketDatasetName]).trim() === ticketValue
+  ));
+  return peers.length ? peers : [button];
+}
+
+function ticketNotesPeerButtons(button) {
+  return ticketContextPeerButtons(button, "[data-ticket-notes-button]", "ticketNotesUrl", "ticketNotesTicketNumber");
+}
+
+function ticketTimeEntriesPeerButtons(button) {
+  return ticketContextPeerButtons(
+    button,
+    "[data-ticket-time-entries-button]",
+    "ticketTimeEntriesUrl",
+    "ticketTimeEntriesTicketNumber",
+  );
+}
+
+function uniqueTicketContextButtons(buttons, urlDatasetName, ticketDatasetName) {
+  const uniqueButtons = [];
+  const seenKeys = new Set();
+  for (const button of buttons) {
+    const urlValue = ticketNotesSafeString(button.dataset[urlDatasetName]).trim();
+    const ticketValue = ticketNotesSafeString(button.dataset[ticketDatasetName]).trim();
+    const cacheKey = ticketContextRequestCacheKey(urlValue, ticketValue);
+    if (seenKeys.has(cacheKey)) {
+      continue;
+    }
+    seenKeys.add(cacheKey);
+    uniqueButtons.push(button);
+  }
+  return uniqueButtons;
 }
 
 function resetTicketContextButton(button, fallbackLabel, countDatasetName, ariaLabel) {
@@ -155,11 +225,7 @@ async function fetchTicketNotesForButton(button) {
 
   const request = (async () => {
     try {
-      const response = await fetch(notesUrl, {headers: {Accept: "application/json"}});
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.detail || "Ticket notes could not be loaded.");
-      }
+      const payload = await fetchTicketContextJson(notesUrl, "Ticket notes could not be loaded.");
 
       return {
         ticket_number: ticketNotesSafeString(payload.ticket_number).trim(),
@@ -189,11 +255,7 @@ async function fetchTicketTimeEntriesForButton(button) {
 
   const request = (async () => {
     try {
-      const response = await fetch(timeEntriesUrl, {headers: {Accept: "application/json"}});
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.detail || "Ticket time entries could not be loaded.");
-      }
+      const payload = await fetchTicketContextJson(timeEntriesUrl, "Ticket time entries could not be loaded.");
 
       return {
         ticket_number: ticketNotesSafeString(payload.ticket_number).trim(),
@@ -213,19 +275,28 @@ async function refreshTicketNotesButton(button) {
     return;
   }
 
-  resetTicketContextButton(button, "Ticket notes", "ticketNotesCount", "View ticket notes");
+  const peerButtons = ticketNotesPeerButtons(button);
+  for (const peerButton of peerButtons) {
+    resetTicketContextButton(peerButton, "Ticket notes", "ticketNotesCount", "View ticket notes");
+  }
   if (!ticketNotesButtonHasTicket(button)) {
-    ticketNoteButtonCache.delete(button);
+    for (const peerButton of peerButtons) {
+      ticketNoteButtonCache.delete(peerButton);
+    }
     return;
   }
 
   try {
     const payload = await fetchTicketNotesForButton(button);
-    ticketNoteButtonCache.set(button, payload);
-    setTicketNotesButtonReady(button, payload.notes);
+    for (const peerButton of peerButtons) {
+      ticketNoteButtonCache.set(peerButton, payload);
+      setTicketNotesButtonReady(peerButton, payload.notes);
+    }
   } catch (error) {
-    ticketNoteButtonCache.delete(button);
-    resetTicketContextButton(button, "Ticket notes", "ticketNotesCount", "View ticket notes");
+    for (const peerButton of peerButtons) {
+      ticketNoteButtonCache.delete(peerButton);
+      resetTicketContextButton(peerButton, "Ticket notes", "ticketNotesCount", "View ticket notes");
+    }
   }
 }
 
@@ -234,30 +305,45 @@ async function refreshTicketTimeEntriesButton(button) {
     return;
   }
 
-  resetTicketContextButton(button, "Past time entries", "ticketTimeEntriesCount", "View past time entries");
+  const peerButtons = ticketTimeEntriesPeerButtons(button);
+  for (const peerButton of peerButtons) {
+    resetTicketContextButton(peerButton, "Past time entries", "ticketTimeEntriesCount", "View past time entries");
+  }
   if (!ticketTimeEntriesButtonHasTicket(button)) {
-    ticketTimeEntryButtonCache.delete(button);
+    for (const peerButton of peerButtons) {
+      ticketTimeEntryButtonCache.delete(peerButton);
+    }
     return;
   }
 
   try {
     const payload = await fetchTicketTimeEntriesForButton(button);
-    ticketTimeEntryButtonCache.set(button, payload);
-    setTicketTimeEntriesButtonReady(button, payload.time_entries);
+    for (const peerButton of peerButtons) {
+      ticketTimeEntryButtonCache.set(peerButton, payload);
+      setTicketTimeEntriesButtonReady(peerButton, payload.time_entries);
+    }
   } catch (error) {
-    ticketTimeEntryButtonCache.delete(button);
-    resetTicketContextButton(button, "Past time entries", "ticketTimeEntriesCount", "View past time entries");
+    for (const peerButton of peerButtons) {
+      ticketTimeEntryButtonCache.delete(peerButton);
+      resetTicketContextButton(peerButton, "Past time entries", "ticketTimeEntriesCount", "View past time entries");
+    }
   }
 }
 
 function refreshTicketNotesWithin(rootElement) {
   const root = rootElement || document;
   const ticketNoteButtons = root.querySelectorAll("[data-ticket-notes-button]");
-  for (const button of ticketNoteButtons) {
+  for (const button of uniqueTicketContextButtons(ticketNoteButtons, "ticketNotesUrl", "ticketNotesTicketNumber")) {
     refreshTicketNotesButton(button);
   }
   const ticketTimeEntryButtons = root.querySelectorAll("[data-ticket-time-entries-button]");
-  for (const button of ticketTimeEntryButtons) {
+  for (
+    const button of uniqueTicketContextButtons(
+      ticketTimeEntryButtons,
+      "ticketTimeEntriesUrl",
+      "ticketTimeEntriesTicketNumber",
+    )
+  ) {
     refreshTicketTimeEntriesButton(button);
   }
 }

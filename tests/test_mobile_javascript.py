@@ -520,8 +520,8 @@ def test_mobile_ticket_selection_locks_client_input(tmp_path: Path) -> None:
         assert.strictEqual(desktopTicketNotesButton.dataset.ticketNotesTicketNumber, "T20260616.0001");
         assert.strictEqual(mobileTimeEntriesButton.dataset.ticketTimeEntriesTicketNumber, "T20260616.0001");
         assert.strictEqual(desktopTimeEntriesButton.dataset.ticketTimeEntriesTicketNumber, "T20260616.0001");
-        assert.deepStrictEqual(refreshedNotesButtons, [mobileTicketNotesButton, desktopTicketNotesButton]);
-        assert.deepStrictEqual(refreshedTimeEntriesButtons, [mobileTimeEntriesButton, desktopTimeEntriesButton]);
+        assert.deepStrictEqual(refreshedNotesButtons, [mobileTicketNotesButton]);
+        assert.deepStrictEqual(refreshedTimeEntriesButtons, [mobileTimeEntriesButton]);
         assert.strictEqual(activeClientInput.readOnly, true);
         assert.strictEqual(activeClientInput.getAttribute("aria-readonly"), "true");
         assert.strictEqual(activeClientInput.classList.contains("is-locked-client-input"), true);

@@ -229,6 +229,8 @@ def test_debug_can_force_managed_web_users_to_sign_in_again(client: TestClient) 
         debug_response = admin_client.get("/debug")
         assert debug_response.status_code == 200
         assert "Session controls" in debug_response.text
+        assert 'id="session-controls" class="table-panel session-controls-card"' in debug_response.text
+        assert 'class="debug-test-form session-controls-form"' in debug_response.text
         assert "Log out web users" in debug_response.text
         csrf_token = extract_csrf_token(debug_response.text)
         logout_response = admin_client.post(
@@ -1320,6 +1322,10 @@ def test_debug_login_pagination(super_admin_client: TestClient) -> None:
     assert ".disk-meter-critical" in stylesheet
     assert ".database-health-grid" in stylesheet
     assert ".database-health-card.database-health-critical" in stylesheet
+    assert ".session-controls-card .debug-panel-body {\n  height: 100%;\n}" in stylesheet
+    assert ".session-controls-layout {\n  display: flex;\n  min-height: 100%;" in stylesheet
+    assert ".session-controls-form {\n  display: flex;\n  width: 100%;" in stylesheet
+    assert ".session-controls-form .danger-button {\n  width: min(100%, 260px);\n  min-height: 44px;" in stylesheet
     assert ".debug-shell {\n  display: grid;\n  gap: 12px;" in stylesheet
     assert ".debug-shell > .review-header {\n  margin-bottom: 0;" in stylesheet
     assert (

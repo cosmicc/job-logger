@@ -223,7 +223,11 @@ buttons belongs above **Ticket description**. Review's read-only **Client
 name** card should center its title and value on phone-sized layouts. Keep
 each button hidden until its authenticated server lookup confirms at least one
 row, and render results inside the shared closeable overlay, which should fill
-the phone viewport for both ticket notes and past time entries. The notes list is
+the phone viewport for both ticket notes and past time entries. When Work in
+Progress renders two active jobs, each job's visible **Ticket notes** and
+**Past time entries** buttons should refresh as a matched mobile/desktop pair
+for that job so the first active-job card cannot lose the past-time-entry
+button while a hidden duplicate has the successful lookup state. The notes list is
 newest-first by note creation time, and each note
 selection card shows only the note title. The note selection card title area
 should fit two lines and truncate longer titles inside the card. Author,
