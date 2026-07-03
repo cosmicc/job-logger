@@ -17,12 +17,13 @@ from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
 CURRENT_DETAILED_HEADING = (
-    "## 1.2.1 - 07.02.2026 - Work in Progress, Review, and outage-page polish"
+    "## 1.2.1 - 07.03.2026 - Work in Progress, Review, and outage-page polish"
 )
-CURRENT_RELEASE_DATE = "07.02.2026"
+CURRENT_RELEASE_DATE = "07.03.2026"
 CURRENT_WEB_TITLE = "Work in Progress, Review, and outage-page polish"
 CURRENT_WEB_HEADING = f"## 1.2.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
 PREVIOUS_WEB_TITLE = "Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish"
+PREVIOUS_RELEASE_DATE = "07.02.2026"
 RELEASE_HEADING_PATTERN = re.compile(r"^## \d+\.\d+\.\d+ - \d{2}\.\d{2}\.\d{4} - .+")
 DETAILED_RELEASE_HEADINGS = (
     CURRENT_DETAILED_HEADING,
@@ -40,7 +41,7 @@ DETAILED_RELEASE_HEADINGS = (
 )
 WEB_RELEASE_HEADINGS = (
     CURRENT_WEB_HEADING,
-    f"## 1.2.0 - {CURRENT_RELEASE_DATE} - {PREVIOUS_WEB_TITLE}",
+    f"## 1.2.0 - {PREVIOUS_RELEASE_DATE} - {PREVIOUS_WEB_TITLE}",
     "## 1.1.6 - 06.29.2026 - Review, Home, and header polish",
     "## 1.1.5 - 06.26.2026 - AI cleanup, speech-to-text, and sign-in updates",
     "## 1.1.4 - 06.24.2026 - Login protection, Work in Progress controls, and deployment safety",

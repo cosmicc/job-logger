@@ -2,7 +2,7 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## 1.2.1 - 07.02.2026 - Work in Progress, Review, and outage-page polish
+## 1.2.1 - 07.03.2026 - Work in Progress, Review, and outage-page polish
 
 - Full-browser Review now pairs Entry type with Work type, puts Job date before Ticket status, and keeps two-card rows evenly split.
 - Full-browser Review now keeps Client name and Ticket number together above Ticket description, then shows Ticket name in its own centered card with ticket-history buttons at the bottom.

@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## 1.2.1 - 07.02.2026 - Work in Progress, Review, and outage-page polish
+## 1.2.1 - 07.03.2026 - Work in Progress, Review, and outage-page polish
 
 - Advanced the source-controlled dev runtime version to `v1.2.1`, including
   the Python package metadata and PWA service worker cache version.
