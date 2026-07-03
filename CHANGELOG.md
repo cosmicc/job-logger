@@ -51,11 +51,17 @@ All notable changes to Job Logger are documented in this file.
   the surrounding ticket identity cards.
 - Changed the phone-sized **Past time entries** overlay on Work in Progress and
   Review so it fills the screen like the **Ticket notes** overlay.
+- Fixed Work in Progress ticket-history refreshes so the first active job keeps
+  **Past time entries** visible to the right of **Ticket notes** when the
+  authenticated lookup returns rows.
 - Moved selected ticket-history controls into the ticket identity cards: Work
   in Progress now shows **Ticket notes** and **Past time entries** under
   **Ticket name**, while Review keeps **Client name** and **Ticket number**
   together above **Ticket description** and places those buttons in a centered
   **Ticket name** card.
+- Moved the `/debug` **Log out web users** button below the session-control
+  explanatory text and centered it as a wider destructive action while keeping
+  the existing managed-web-user-only invalidation behavior.
 - Kept the Work in Progress client search editable after a client is selected
   but before a ticket is chosen, allowing users to switch to another verified
   client and load that client's open tickets.

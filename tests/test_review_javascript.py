@@ -120,6 +120,26 @@ def test_ticket_context_buttons_show_disabled_empty_states() -> None:
     assert 'querySelectorAll("[data-ticket-time-entries-button]")' in review_script
 
 
+def test_ticket_context_refreshes_matching_peer_buttons() -> None:
+    """Duplicate mobile/desktop ticket-history buttons should share refresh results."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    ticket_notes_script = (repository_root / "job_logger" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
+
+    assert "function ticketContextPeerButtons(button, selector, urlDatasetName, ticketDatasetName)" in ticket_notes_script
+    assert "function fetchTicketContextJson(url, fallbackErrorMessage)" in ticket_notes_script
+    assert "await ticketContextRetryDelay(200);" in ticket_notes_script
+    assert 'button.closest("[data-active-job-card], [data-review-ticket-title-card], .review-ticket-title-card")' in ticket_notes_script
+    assert 'function ticketNotesPeerButtons(button)' in ticket_notes_script
+    assert 'function ticketTimeEntriesPeerButtons(button)' in ticket_notes_script
+    assert "function uniqueTicketContextButtons(buttons, urlDatasetName, ticketDatasetName)" in ticket_notes_script
+    assert "const peerButtons = ticketNotesPeerButtons(button);" in ticket_notes_script
+    assert "const peerButtons = ticketTimeEntriesPeerButtons(button);" in ticket_notes_script
+    assert 'uniqueTicketContextButtons(ticketNoteButtons, "ticketNotesUrl", "ticketNotesTicketNumber")' in ticket_notes_script
+    assert "for (const peerButton of peerButtons) {\n      ticketTimeEntryButtonCache.set(peerButton, payload);" in ticket_notes_script
+    assert "setTicketTimeEntriesButtonReady(peerButton, payload.time_entries);" in ticket_notes_script
+
+
 def test_shared_date_time_controls_replace_native_picker_and_add_time_dropdown() -> None:
     """Date choosers should use app controls, and time fields should offer 15-minute options."""
 

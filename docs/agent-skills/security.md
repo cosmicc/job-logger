@@ -93,7 +93,10 @@ belongs on Diagnostics.
 The Diagnostics **Log out web users** action is CSRF-protected, audited, and
 must invalidate only managed web-user sessions. It must not clear the current
 config super-admin session. If a managed Admin user triggers it, that user is
-included in the invalidation because the account is a managed web user.
+included in the invalidation because the account is a managed web user. Keep
+the destructive action button centered under the explanatory text inside the
+session-controls card so the action is visually separated from the copy while
+remaining easy to find.
 
 The `/users/autotask-resources` lookup endpoint is super-admin-only and must
 return only safe Autotask Resource metadata. Browser code can use it from
@@ -191,7 +194,7 @@ disk usage for app-visible storage paths such as `/` and
 `${AUTOMATIC_BACKUP_DIR}`. Combine monitored paths when used bytes and total
 bytes match exactly, and keep disk diagnostics read-only and limited to path,
 usage, and warning/critical metadata. On full-browser Diagnostics, keep the
-disk-space card and managed-web-user session-controls card together on the same
+disk-space card and managed-web-user session-controls card together on a
 same-height row above the database card; phone layouts should continue stacking
 those cards.
 The `/debug` database card may run a cheap `SELECT 1` probe and show safe

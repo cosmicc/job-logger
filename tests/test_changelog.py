@@ -148,6 +148,10 @@ def test_changelog_parser_reads_current_release() -> None:
             ),
             "On phones, Past time entries now open in the same full-screen overlay as Ticket notes.",
             (
+                "Work in Progress now keeps Past time entries visible beside Ticket notes on every active job "
+                "when past entries are available."
+            ),
+            (
                 "Work in Progress now lets you change the selected client before choosing a ticket "
                 "and loads the new client's tickets."
             ),
@@ -299,6 +303,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "above Ticket description."
     ) in response.text
     assert "On phones, Past time entries now open in the same full-screen overlay as Ticket notes." in response.text
+    assert (
+        "Work in Progress now keeps Past time entries visible beside Ticket notes on every active job "
+        "when past entries are available."
+    ) in response.text
     assert (
         "Work in Progress now lets you change the selected client before choosing a ticket "
         "and loads the new client&#39;s tickets."

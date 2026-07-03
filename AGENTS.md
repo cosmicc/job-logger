@@ -561,7 +561,10 @@ phone-sized layouts, Work in Progress places those buttons under the centered
 directly above the centered **Ticket number** card, then a centered **Ticket
 name** card with the **Ticket notes** and **Past time entries** buttons split
 across one row above **Ticket description**. On phone-sized layouts, both
-ticket-history buttons must open the same full-screen overlay. On full-browser
+ticket-history buttons must open the same full-screen overlay. Work in
+Progress must keep the **Past time entries** button visible beside **Ticket
+notes** for every active job whose authenticated lookup returns rows,
+including the first active-job card when two jobs are open. On full-browser
 Review, the
 **Client name** and **Ticket number** cards sit together above a centered
 **Ticket name** card, and the **Ticket notes** and **Past time entries**
@@ -1084,7 +1087,9 @@ In production:
 - The `/debug` page provides a Diagnostics-admin **Log out web users** action
   that invalidates all managed web-user sessions without ending the config
   super-admin session. Managed Admin users are included in that invalidation
-  because they are managed web users.
+  because they are managed web users. The button should sit centered below the
+  explanatory text, using a wider-than-tall destructive button shape inside the
+  session-controls card.
 - The `/debug` page provides per-row failed-login hide controls, per-row
   Cloudflare block/unblock controls, and an app-managed Cloudflare blocked IP
   card. Automatic Cloudflare blocking happens after

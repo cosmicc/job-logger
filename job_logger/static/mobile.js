@@ -2071,15 +2071,15 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   }
   for (const ticketNotesButton of ticketNotesButtons) {
     ticketNotesButton.dataset.ticketNotesTicketNumber = ticketNumber;
-    if (window.JobLoggerTicketNotes) {
-      window.JobLoggerTicketNotes.refreshButton(ticketNotesButton);
-    }
+  }
+  if (ticketNotesButtons.length && window.JobLoggerTicketNotes) {
+    window.JobLoggerTicketNotes.refreshButton(ticketNotesButtons[0]);
   }
   for (const ticketTimeEntriesButton of ticketTimeEntriesButtons) {
     ticketTimeEntriesButton.dataset.ticketTimeEntriesTicketNumber = ticketNumber;
-    if (window.JobLoggerTicketNotes) {
-      window.JobLoggerTicketNotes.refreshTimeEntriesButton(ticketTimeEntriesButton);
-    }
+  }
+  if (ticketTimeEntriesButtons.length && window.JobLoggerTicketNotes) {
+    window.JobLoggerTicketNotes.refreshTimeEntriesButton(ticketTimeEntriesButtons[0]);
   }
   if (ticketNumber) {
     lockActiveClientInputForSelectedTicket(jobId);
