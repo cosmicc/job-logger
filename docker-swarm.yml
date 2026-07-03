@@ -16,6 +16,7 @@ services:
       APP_USERNAME: ${APP_USERNAME:-admin}
       APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_DIR: ${LOG_DIR:-/data/logs}
       APP_SESSION_COOKIE_SECURE: ${APP_SESSION_COOKIE_SECURE:-true}
       APP_SESSION_TIMEOUT_HOURS: ${APP_SESSION_TIMEOUT_HOURS:-12}
       CLOUDFLARE_ACCESS_REQUIRED: ${CLOUDFLARE_ACCESS_REQUIRED:-true}
@@ -77,8 +78,15 @@ services:
       AUTOTASK_STATUS_FOLLOW_UP_ID: ${AUTOTASK_STATUS_FOLLOW_UP_ID:-}
       AUTOTASK_STATUS_COMPLETE_ID: ${AUTOTASK_STATUS_COMPLETE_ID:-}
     volumes:
-      - faster_whisper_models:/models/faster-whisper
-      - automatic_backups:/data/backups
+      - type: bind
+        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/logs/app
+        target: /data/logs
+      - type: bind
+        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/backups
+        target: /data/backups
+      - type: bind
+        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/models/faster-whisper
+        target: /models/faster-whisper
     networks:
       - job_logger
     healthcheck:
@@ -96,11 +104,17 @@ services:
         failure_action: rollback
 
   nginx:
-    image: ${JOB_LOGGER_NGINX_IMAGE:-replace-with-registry/job-logger-nginx:1.2.1}
+    image: ${JOB_LOGGER_NGINX_IMAGE:-replace-with-registry/job-logger-nginx:1.2.2}
     environment:
       APP_UPSTREAM_HOST: app
+      NGINX_ACCESS_LOG: ${NGINX_ACCESS_LOG:-/var/log/nginx/access.log}
+      NGINX_ERROR_LOG: ${NGINX_ERROR_LOG:-/var/log/nginx/error.log warn}
       NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-12m}
       NGINX_RESTORE_MAX_BODY_SIZE: ${NGINX_RESTORE_MAX_BODY_SIZE:-250m}
+    volumes:
+      - type: bind
+        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/logs/nginx
+        target: /var/log/nginx
     networks:
       - job_logger
     healthcheck:
@@ -119,9 +133,17 @@ services:
     command:
       - tunnel
       - --no-autoupdate
+      - --loglevel
+      - ${CLOUDFLARED_LOG_LEVEL:-info}
+      - --logfile
+      - ${CLOUDFLARED_LOG_FILE:-/var/log/cloudflared/cloudflared.log}
       - run
       - --token
       - ${CLOUDFLARE_TUNNEL_TOKEN:-not-set}
+    volumes:
+      - type: bind
+        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/logs/cloudflared
+        target: /var/log/cloudflared
     networks:
       - job_logger
     deploy:
@@ -132,7 +154,3 @@ services:
 networks:
   job_logger:
     driver: overlay
-
-volumes:
-  faster_whisper_models:
-  automatic_backups:

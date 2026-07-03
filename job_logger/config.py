@@ -146,8 +146,11 @@ class Settings:
     # DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS throttles limp-mode DB probes.
     database_unavailable_check_interval_seconds: int
 
-    # LOG_LEVEL controls how verbose stdout/stderr application logs should be.
+    # LOG_LEVEL controls how verbose stdout/stderr and optional file logs should be.
     log_level: str
+
+    # LOG_DIR optionally enables a redacted app log file under the configured directory.
+    log_dir: str | None
 
     # APP_USERNAME is the single local app account name.
     app_username: str
@@ -372,6 +375,7 @@ def load_settings() -> Settings:
             5,
         ),
         log_level=_get_log_level(),
+        log_dir=(os.getenv("LOG_DIR") or "").strip() or None,
         app_username=os.getenv("APP_USERNAME", "admin"),
         app_password=os.getenv("APP_PASSWORD") or None,
         session_cookie_secure=_get_boolean("APP_SESSION_COOKIE_SECURE", False),

@@ -95,6 +95,8 @@ def test_compose_bundled_edge_services_use_shared_profile() -> None:
     assert "profiles:\n      - bundled-edge" in nginx_block
     assert "profiles:\n      - bundled-edge" in cloudflared_block
     assert "depends_on:\n      - nginx" in cloudflared_block
+    assert "NGINX_ACCESS_LOG: ${NGINX_ACCESS_LOG:-/dev/stdout}" in nginx_block
+    assert "NGINX_ERROR_LOG: ${NGINX_ERROR_LOG:-/dev/stderr warn}" in nginx_block
 
 
 def test_compose_exposes_database_pool_settings() -> None:
@@ -120,9 +122,11 @@ def test_env_example_defaults_to_bundled_profiles_and_documents_switching() -> N
     assert "For an external nginx and" in env_example_text
     assert "remove `bundled-edge`" in env_example_text
     assert "JOB_LOGGER_BUNDLED_EDGE_REPLICAS=1" in env_example_text
+    assert "JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger" in env_example_text
     assert "DATABASE_URL=" in env_example_text
     assert "DATABASE_POOL_RECYCLE_SECONDS=1800" in env_example_text
-    assert "LOG_DIR=" not in env_example_text
+    assert "LOG_DIR=/data/logs" in env_example_text
+    assert "CLOUDFLARED_LOG_FILE=/var/log/cloudflared/cloudflared.log" in env_example_text
     assert "HOST_LOG_DIR=" not in env_example_text
     assert "LOGIN_FAILURE_LOG_PATH=" not in env_example_text
     assert "LOGIN_SUCCESS_LOG_PATH=" not in env_example_text
@@ -137,8 +141,8 @@ def test_nginx_host_port_uses_localhost_and_http_port() -> None:
     assert "network_mode: \"host\"" in compose_text
 
 
-def test_swarm_compose_uses_images_remote_database_optional_edge_and_stdout_logs() -> None:
-    """Docker Swarm should use images, remote DB, optional edge, and runtime logs."""
+def test_swarm_compose_uses_images_remote_database_optional_edge_and_shared_storage() -> None:
+    """Docker Swarm should use images, remote DB, optional edge, and shared storage."""
 
     swarm_text = SWARM_FILE.read_text(encoding="utf-8")
     app_index = swarm_text.index("  app:")
@@ -159,9 +163,21 @@ def test_swarm_compose_uses_images_remote_database_optional_edge_and_stdout_logs
     assert "${CLOUDFLARE_TUNNEL_TOKEN:-not-set}" in cloudflared_block
     assert "DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the remote PostgreSQL URL}" in swarm_text
     assert "LOG_LEVEL: ${LOG_LEVEL:-INFO}" in swarm_text
-    assert "LOG_DIR" not in swarm_text
+    assert "LOG_DIR: ${LOG_DIR:-/data/logs}" in app_block
     assert "LOGIN_FAILURE_LOG_PATH" not in swarm_text
     assert "LOGIN_SUCCESS_LOG_PATH" not in swarm_text
+    assert "JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger" in swarm_text
+    assert "target: /data/logs" in app_block
+    assert "target: /data/backups" in app_block
+    assert "target: /models/faster-whisper" in app_block
+    assert "target: /var/log/nginx" in nginx_block
+    assert "target: /var/log/cloudflared" in cloudflared_block
+    assert "NGINX_ACCESS_LOG: ${NGINX_ACCESS_LOG:-/var/log/nginx/access.log}" in nginx_block
+    assert "NGINX_ERROR_LOG: ${NGINX_ERROR_LOG:-/var/log/nginx/error.log warn}" in nginx_block
+    assert "--logfile" in cloudflared_block
+    assert "${CLOUDFLARED_LOG_FILE:-/var/log/cloudflared/cloudflared.log}" in cloudflared_block
+    assert "faster_whisper_models:" not in swarm_text
+    assert "automatic_backups:" not in swarm_text
     assert "driver: overlay" in swarm_text
     assert "deploy:" in swarm_text
     assert "network_mode" not in swarm_text
@@ -177,6 +193,9 @@ def test_readme_documents_external_edge_profile_and_swarm_nginx_sample() -> None
     assert "COMPOSE_PROFILES=local-db,bundled-edge" in readme_text
     assert "COMPOSE_PROFILES=local-db" in readme_text
     assert "JOB_LOGGER_BUNDLED_EDGE_REPLICAS=0" in readme_text
+    assert "JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger" in readme_text
+    assert "logs/cloudflared/" in readme_text
+    assert "models/faster-whisper/" in readme_text
     assert "docs/external-nginx-job-logger.conf" in readme_text
     assert "proxy to `http://job_logger_app:8000`" in readme_text
     assert "proxy_pass http://job_logger_app:8000" in external_nginx_text

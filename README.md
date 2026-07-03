@@ -279,9 +279,10 @@ Use `docker-swarm.yml` for Swarm. It is image-based, does not build locally,
 and expects PostgreSQL to run outside the stack:
 
 ```bash
-export JOB_LOGGER_APP_IMAGE=registry.example.com/job-logger-app:1.2.1
-export JOB_LOGGER_NGINX_IMAGE=registry.example.com/job-logger-nginx:1.2.1
+export JOB_LOGGER_APP_IMAGE=registry.example.com/job-logger-app:1.2.2
+export JOB_LOGGER_NGINX_IMAGE=registry.example.com/job-logger-nginx:1.2.2
 export JOB_LOGGER_BUNDLED_EDGE_REPLICAS=1
+export JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger
 export DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
 export CLOUDFLARE_TUNNEL_TOKEN=<token>
 docker stack deploy -c docker-swarm.yml job_logger
@@ -289,9 +290,29 @@ docker stack deploy -c docker-swarm.yml job_logger
 
 Build and push the app image from the root `Dockerfile` and the Nginx image
 from `docker/nginx/Dockerfile` before deploying. Configure the Cloudflare Tunnel
-public hostname to use the Swarm service origin `http://nginx:80`. Application
-logs go to stdout/stderr, so use `docker service logs job_logger_app` or the
-Swarm log driver configured for the cluster.
+public hostname to use the Swarm service origin `http://nginx:80`.
+
+Before deploying the stack, mount the shared NFS storage on every Swarm node at
+`${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}` and create
+these subdirectories:
+
+```text
+backups/
+logs/app/
+logs/nginx/
+logs/cloudflared/
+models/faster-whisper/
+```
+
+The app container runs as UID/GID `1000`, so `backups/`, `logs/app/`, and
+`models/faster-whisper/` must be writable by that ID. The bundled nginx and
+cloudflared log directories must be writable by those container runtimes.
+
+Swarm binds that shared path into the stack so app logs, nginx logs,
+cloudflared logs, automatic backups, and local faster-whisper model files
+survive task rescheduling across nodes. Application data remains in the remote
+PostgreSQL database selected by `DATABASE_URL`; do not add database files to
+the NFS share for this stack.
 
 For an external nginx/cloudflared Swarm edge, set
 `JOB_LOGGER_BUNDLED_EDGE_REPLICAS=0` before `docker stack deploy`. This keeps
@@ -302,7 +323,9 @@ when the stack name is `job_logger`, and proxy to `http://job_logger_app:8000`.
 Use `docs/external-nginx-job-logger.conf` as the starting nginx config and copy
 `docker/nginx/errors/` into that nginx image if you want matching app-styled
 proxy error pages. Point external `cloudflared` to the external nginx service,
-not directly to the app container.
+not directly to the app container. External nginx and cloudflared stacks should
+use the same shared storage strategy for their own logs because
+`docker-swarm.yml` only mounts log storage for the bundled edge services.
 
 The standalone `docker-compose.yml` remains the path for single-host installs.
 
@@ -509,7 +532,7 @@ Set these passkey variables for production when needed:
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.2.1`. Version history starts at `v1.0.0`.
+currently `v1.2.2`. Version history starts at `v1.0.0`.
 
 Authenticated pages show the current version discreetly in the shared header.
 Clicking that version opens `/changelog`, which displays the current version
@@ -522,7 +545,7 @@ operator-only, and agent-facing notes in `CHANGELOG.md` only. The changelog
 page uses the same authenticated session, dark/light theme variables, and
 responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the same authenticated header also shows a
-yellow version badge on desktop and phone layouts, such as `v1.2.1 DEV`.
+yellow version badge on desktop and phone layouts, such as `v1.2.2 DEV`.
 
 ## Provider Modes
 
@@ -550,6 +573,10 @@ Set these variables for local transcription:
 The Docker Compose stack stores faster-whisper model files in the
 `faster_whisper_models` volume mounted at `/models/faster-whisper`. This keeps
 the model local and avoids redownloading it on every container restart.
+Docker Swarm stores the same path under the shared
+`${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/models/faster-whisper`
+directory so rescheduled app tasks can reuse the existing model cache on any
+node.
 Set `FASTER_WHISPER_LOCAL_FILES_ONLY=true` after the model exists locally if the
 container should not attempt any model download.
 `FASTER_WHISPER_CPU_THREADS` defaults to `8` and is passed directly to
@@ -1109,17 +1136,22 @@ latency, backend/driver, migration revision, and connection-pool counters. It
 intentionally hides connection strings, hosts, usernames, passwords, and raw
 database errors.
 
-Application logs go to stdout/stderr for Compose and Swarm compatibility. Use
-`docker compose logs app`, `docker service logs job_logger_app`, or the
-configured container log driver for operational log history. `LOG_LEVEL`
-controls verbosity and must be one of `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
+Application logs go to stdout/stderr for standalone Compose compatibility. Use
+`docker compose logs app` or the configured container log driver for
+operational log history. In Swarm, `docker-swarm.yml` also sets `LOG_DIR` to
+`/data/logs`, backed by the shared storage path's `logs/app/` directory, so the
+redacted app log is also written to `job-logger-app.log`. `LOG_LEVEL` controls
+both stdout/stderr and file-log verbosity and must be one of `DEBUG`, `INFO`,
+`WARNING`, or `ERROR`.
 
 The app also creates automatic full-database backups at startup and then every
 hour when `AUTOMATIC_BACKUPS_ENABLED=true`, which is the default. Docker Compose
 stores them in `${AUTOMATIC_BACKUP_DIR:-/data/backups}`, backed by the
-`automatic_backups` Docker volume. Retention keeps the newest 6 hourly backups
-plus one daily backup for today and one for each of the prior 2 days; expired
-automatic backups are purged after each successful automatic backup.
+`automatic_backups` Docker volume. Docker Swarm stores them in the shared
+`${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/backups`
+directory. Retention keeps the newest 6 hourly backups plus one daily backup
+for today and one for each of the prior 2 days; expired automatic backups are
+purged after each successful automatic backup.
 Diagnostics labels retained automatic backups as `Startup` or `Hourly` when
 that creation metadata is available; older retained files may show no source
 label.

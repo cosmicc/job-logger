@@ -17,16 +17,18 @@ from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
 CURRENT_DETAILED_HEADING = (
-    "## 1.2.1 - 07.03.2026 - Work in Progress, Review, and outage-page polish"
+    "## 1.2.2 - 07.03.2026 - Swarm shared storage and log persistence"
 )
 CURRENT_RELEASE_DATE = "07.03.2026"
-CURRENT_WEB_TITLE = "Work in Progress, Review, and outage-page polish"
-CURRENT_WEB_HEADING = f"## 1.2.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
-PREVIOUS_WEB_TITLE = "Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish"
-PREVIOUS_RELEASE_DATE = "07.02.2026"
+CURRENT_WEB_TITLE = "Swarm shared storage"
+CURRENT_WEB_HEADING = f"## 1.2.2 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+PREVIOUS_WEB_TITLE = "Work in Progress, Review, and outage-page polish"
+V120_WEB_TITLE = "Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish"
+V120_RELEASE_DATE = "07.02.2026"
 RELEASE_HEADING_PATTERN = re.compile(r"^## \d+\.\d+\.\d+ - \d{2}\.\d{2}\.\d{4} - .+")
 DETAILED_RELEASE_HEADINGS = (
     CURRENT_DETAILED_HEADING,
+    "## 1.2.1 - 07.03.2026 - Work in Progress, Review, and outage-page polish",
     "## 1.2.0 - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge errors",
     "## 1.1.6 - 06.29.2026 - Cloudflare block controls, Review, Home, and header polish",
     "## 1.1.5 - 06.26.2026 - AI cleanup revert, remote transcription, and login diagnostics",
@@ -41,7 +43,8 @@ DETAILED_RELEASE_HEADINGS = (
 )
 WEB_RELEASE_HEADINGS = (
     CURRENT_WEB_HEADING,
-    f"## 1.2.0 - {PREVIOUS_RELEASE_DATE} - {PREVIOUS_WEB_TITLE}",
+    f"## 1.2.1 - {CURRENT_RELEASE_DATE} - {PREVIOUS_WEB_TITLE}",
+    f"## 1.2.0 - {V120_RELEASE_DATE} - {V120_WEB_TITLE}",
     "## 1.1.6 - 06.29.2026 - Review, Home, and header polish",
     "## 1.1.5 - 06.26.2026 - AI cleanup, speech-to-text, and sign-in updates",
     "## 1.1.4 - 06.24.2026 - Login protection, Work in Progress controls, and deployment safety",
@@ -58,7 +61,7 @@ WEB_RELEASE_HEADINGS = (
 def test_app_version_matches_current_release() -> None:
     """The source-controlled version should match the current release."""
 
-    assert APP_VERSION == "1.2.1"
+    assert APP_VERSION == "1.2.2"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -108,58 +111,18 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="1.2.1",
+        version="1.2.2",
         release_date=CURRENT_RELEASE_DATE,
         title=CURRENT_WEB_TITLE,
         changes=(
             (
-                "Full-browser Review now pairs Entry type with Work type, puts Job date before Ticket status, "
-                "and keeps two-card rows evenly split."
+                "Docker Swarm deployments now keep logs, automatic backups, and local model files "
+                "under the shared storage path used by all Swarm nodes."
             ),
             (
-                "Full-browser Review now keeps Client name and Ticket number together above Ticket description, "
-                "then shows Ticket name in its own centered card with ticket-history buttons at the bottom."
+                "The Swarm stack keeps application data in the remote PostgreSQL database and stores "
+                "file-based runtime data under `/mnt/swarm-storage/job-logger` by default."
             ),
-            (
-                "Full-browser Work in Progress now pairs Entry type with Work type, "
-                "puts Job date before Ticket status, and centers duration under the time row."
-            ),
-            (
-                "Full-browser Work in Progress now puts Ticket number beside Client name, centers "
-                "Ticket name in the full-width ticket-history card, and uses the ticket name as the active job heading."
-            ),
-            (
-                "Work in Progress and Review now center ticket status dropdown text, center job dates "
-                "in their date boxes, and label the rounded total as Work Duration."
-            ),
-            "The Config page now shows Appearance, Password, Device sign-in, then Workflow.",
-            (
-                "Ticket description stays full width on Work in Progress so longer ticket details stay readable."
-            ),
-            (
-                "Mobile Work in Progress and Review now show Entry type, Work type, Ticket status, "
-                "Job date, Start time, End time, and duration in the same order."
-            ),
-            "On phones, Work in Progress now centers the selected Client name and Ticket name cards.",
-            "On phones, Review now centers the selected Client name card.",
-            (
-                "On phones, Ticket notes and Past time entries sit under Ticket name on Work in Progress, "
-                "while Review puts Client name above Ticket number and moves those buttons into Ticket name "
-                "above Ticket description."
-            ),
-            "On phones, Past time entries now open in the same full-screen overlay as Ticket notes.",
-            (
-                "Work in Progress now keeps Past time entries visible beside Ticket notes on every active job "
-                "when past entries are available."
-            ),
-            (
-                "Work in Progress now lets you change the selected client before choosing a ticket "
-                "and loads the new client's tickets."
-            ),
-            (
-                "Ticket note mode now keeps Work type visible but greyed out instead of removing it."
-            ),
-            "The temporary outage page now uses a tighter card without the extra app header.",
         ),
     )
 
@@ -181,6 +144,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
+    assert ">1.2.2<" in response.text
     assert ">1.2.1<" in response.text
     assert ">1.2.0<" in response.text
     assert ">1.1.6<" in response.text
@@ -193,11 +157,21 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert ">1.0.2<" in response.text
     assert ">1.0.1<" in response.text
     assert ">1.0.0<" in response.text
+    assert "[1.2.2]" not in response.text
     assert "[1.2.1]" not in response.text
     assert "[1.2.0]" not in response.text
     assert CURRENT_RELEASE_DATE in response.text
     assert CURRENT_WEB_TITLE in response.text
     assert PREVIOUS_WEB_TITLE in response.text
+    assert V120_WEB_TITLE in response.text
+    assert (
+        "Docker Swarm deployments now keep logs, automatic backups, and local model files "
+        "under the shared storage path used by all Swarm nodes."
+    ) in response.text
+    assert (
+        "The Swarm stack keeps application data in the remote PostgreSQL database and stores "
+        "file-based runtime data under `/mnt/swarm-storage/job-logger` by default."
+    ) in response.text
     assert "Date choosers now use Today, Cancel, and Set controls inside the app." in response.text
     assert "Start and end time fields now open a 15-minute time dropdown." in response.text
     assert "Switching a Time entry to a Ticket note now removes the Remote. or On-Site. prefix from the note description." in response.text
@@ -394,8 +368,9 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
-    v121_index = response.text.index(CURRENT_WEB_TITLE)
-    v120_index = response.text.index(PREVIOUS_WEB_TITLE)
+    v122_index = response.text.index(CURRENT_WEB_TITLE)
+    v121_index = response.text.index(PREVIOUS_WEB_TITLE)
+    v120_index = response.text.index(V120_WEB_TITLE)
     v116_index = response.text.index("Review, Home, and header polish")
     v115_index = response.text.index("AI cleanup, speech-to-text, and sign-in updates")
     v114_index = response.text.index("Login protection, Work in Progress controls, and deployment safety")
@@ -406,6 +381,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     v102_index = response.text.index("Autotask workflow and desktop layout updates")
     v101_index = response.text.index("Mobile shell navigation and close behavior")
     v100_index = response.text.index("Initial release")
+    assert v122_index < v121_index
     assert v121_index < v120_index
     assert v120_index < v116_index
     assert v116_index < v115_index
@@ -418,6 +394,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert v102_index < v101_index
     assert v101_index < v100_index
     assert f'<h2 id="current-version-heading">{CURRENT_WEB_TITLE}</h2>' in response.text
+    assert '<span class="release-version">1.2.2</span>' in response.text
     assert '<span class="release-version">1.2.1</span>' in response.text
     assert '<span class="release-version">1.2.0</span>' in response.text
     assert '<span class="release-date">07.02.2026</span>' in response.text

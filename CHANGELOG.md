@@ -2,6 +2,20 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## 1.2.2 - 07.03.2026 - Swarm shared storage and log persistence
+
+- Advanced the source-controlled dev runtime version to `v1.2.2`, including
+  the Python package metadata and PWA service worker cache version.
+- Changed Docker Swarm deployment so app logs, nginx logs, cloudflared logs,
+  automatic backups, and the local faster-whisper model cache bind to the
+  shared Swarm storage path, defaulting to
+  `/mnt/swarm-storage/job-logger`.
+- Added optional `LOG_DIR` file logging for the app while keeping redacted
+  stdout/stderr logs available for container log collectors.
+- Documented the NFS-backed Swarm storage layout and kept Swarm database state
+  on the required remote PostgreSQL server instead of adding file-backed
+  database storage to the stack.
+
 ## 1.2.1 - 07.03.2026 - Work in Progress, Review, and outage-page polish
 
 - Advanced the source-controlled dev runtime version to `v1.2.1`, including

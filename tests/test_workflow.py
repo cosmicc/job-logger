@@ -1441,8 +1441,8 @@ def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_
     assert response.status_code == 200
     assert response.text.count("app-version-link app-version-link-dev") == 2
     assert "dev-build-pill" not in response.text
-    assert ">v1.2.1 DEV<" in response.text
-    assert 'aria-label="View changelog for version 1.2.1 development build"' in response.text
+    assert ">v1.2.2 DEV<" in response.text
+    assert 'aria-label="View changelog for version 1.2.2 development build"' in response.text
     assert response.text.index('class="header-status-group desktop-status-group"') < response.text.index('class="top-nav"')
     assert response.text.index('class="header-status-group mobile-version-group"') < response.text.index('class="mobile-nav-actions mobile-nav-right"')
 

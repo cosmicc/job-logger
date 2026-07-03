@@ -2,6 +2,11 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## 1.2.2 - 07.03.2026 - Swarm shared storage
+
+- Docker Swarm deployments now keep logs, automatic backups, and local model files under the shared storage path used by all Swarm nodes.
+- The Swarm stack keeps application data in the remote PostgreSQL database and stores file-based runtime data under `/mnt/swarm-storage/job-logger` by default.
+
 ## 1.2.1 - 07.03.2026 - Work in Progress, Review, and outage-page polish
 
 - Full-browser Review now pairs Entry type with Work type, puts Job date before Ticket status, and keeps two-card rows evenly split.

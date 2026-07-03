@@ -27,10 +27,10 @@ server {
     error_page 503 /errors/503.html;
     error_page 504 /errors/504.html;
 
-    # Send access and error logs to Docker so tunnel/origin troubleshooting does
-    # not require shell access inside the container.
-    access_log /dev/stdout;
-    error_log /dev/stderr warn;
+    # Compose keeps logs on stdout/stderr by default; Swarm can point these at
+    # shared NFS-backed files through NGINX_ACCESS_LOG and NGINX_ERROR_LOG.
+    access_log ${NGINX_ACCESS_LOG};
+    error_log ${NGINX_ERROR_LOG};
 
     # Mobile audio uploads need a bounded request size that matches the app's
     # security posture instead of Nginx's smaller default body limit.

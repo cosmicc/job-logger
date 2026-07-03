@@ -58,6 +58,15 @@ def test_nginx_uses_app_styled_error_pages() -> None:
         assert "<p>" in error_html
 
 
+def test_nginx_log_paths_are_environment_configurable() -> None:
+    """Swarm should be able to send bundled nginx logs to shared storage."""
+
+    template_text = NGINX_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "access_log ${NGINX_ACCESS_LOG};" in template_text
+    assert "error_log ${NGINX_ERROR_LOG};" in template_text
+
+
 def test_nginx_restore_upload_limit_is_scoped_to_restore_endpoint() -> None:
     """Full restore can use a larger body limit without widening every route."""
 

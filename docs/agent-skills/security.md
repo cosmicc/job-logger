@@ -188,8 +188,9 @@ authentication method. Login failure, Cloudflare blocked-IP, and Autotask
 submission-attempt diagnostics must stay paginated at 10 rows per page. Wide
 Diagnostics tables should stay horizontally scrollable on phone layouts instead
 of compressing columns, especially when they include per-row backup or
-Cloudflare actions. `LOG_LEVEL` controls stdout/stderr log verbosity and must
-be limited to `DEBUG`, `INFO`, `WARNING`, or `ERROR`. `/debug` may also show
+Cloudflare actions. `LOG_LEVEL` controls stdout/stderr and optional `LOG_DIR`
+file-log verbosity and must be limited to `DEBUG`, `INFO`, `WARNING`, or
+`ERROR`. `/debug` may also show
 disk usage for app-visible storage paths such as `/` and
 `${AUTOMATIC_BACKUP_DIR}`. Combine monitored paths when used bytes and total
 bytes match exactly, and keep disk diagnostics read-only and limited to path,
@@ -468,7 +469,9 @@ Automatic backups use the same full-backup content format and restore path.
 The scheduler writes one startup file and then hourly files under
 `AUTOMATIC_BACKUP_DIR`, defaulting to `/data/backups` in Docker. Keep the
 backup directory private: files must be written through owner-only temporary
-files when possible,
+files when possible. Swarm binds `/data/backups` to the shared
+`JOB_LOGGER_SWARM_STORAGE_PATH` backup directory so retained backups are
+available after task rescheduling,
 directory listings and downloads must be Diagnostics-authorized only, selected
 download or restore filenames must be strictly validated instead of trusting
 form paths, and retention must purge expired automatic backups after successful
@@ -480,8 +483,10 @@ sensitive runtime state for older files that lack that metadata.
 ## Docker And Runtime Safety
 
 The application container runs as the fixed unprivileged `appuser` account.
-Application logs must go to stdout/stderr so standalone Compose and Docker
-Swarm deployments can collect them through the container runtime.
+Application logs must go to stdout/stderr so standalone Compose deployments can
+collect them through the container runtime. Swarm deployments also set `LOG_DIR`
+to a shared NFS-backed app-log directory so a redacted file log survives task
+rescheduling.
 
 PostgreSQL data must live in a persistent volume or documented persistent
 storage.
@@ -499,10 +504,13 @@ Normalize plain `postgresql://` and `postgres://` URLs to the installed psycopg
 3 driver before creating app or Alembic engines. Keep remote database
 connections bounded with the documented pool and timeout settings.
 Swarm deployment must use `docker-swarm.yml`, prebuilt pushed images, a remote
-PostgreSQL `DATABASE_URL`, overlay networking, and stdout/stderr logging. Do not
-add a PostgreSQL service to the Swarm file unless the operator explicitly asks
-for a separate persistent Swarm database design. Swarm uses
-`JOB_LOGGER_BUNDLED_EDGE_REPLICAS` instead of Compose profiles; keep the
+PostgreSQL `DATABASE_URL`, overlay networking, and shared NFS-backed file
+storage under `JOB_LOGGER_SWARM_STORAGE_PATH`, defaulting to
+`/mnt/swarm-storage/job-logger`. Bind app logs, bundled nginx logs, bundled
+cloudflared logs, automatic backups, and the faster-whisper model cache under
+that path. Do not add a PostgreSQL service to the Swarm file unless the
+operator explicitly asks for a separate persistent Swarm database design. Swarm
+uses `JOB_LOGGER_BUNDLED_EDGE_REPLICAS` instead of Compose profiles; keep the
 default at `1`, and use `0` only when an external nginx and `cloudflared` stack
 in the same Swarm handles the public edge.
 

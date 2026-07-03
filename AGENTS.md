@@ -476,7 +476,7 @@ instead of a separate unaudited template branch. Super-admin pages always use
 dark mode.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
 must show the version link as one yellow badge that includes `DEV`, such as
-`v1.2.1 DEV`, so dev instances are visually distinct from production without
+`v1.2.2 DEV`, so dev instances are visually distinct from production without
 adding a separate pill.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
@@ -665,6 +665,15 @@ not support Compose profiles. The default value is `1`, which runs bundled
 nginx and `cloudflared`. Set it to `0` only when an external nginx and
 `cloudflared` stack in the same Swarm handles the public edge and proxies to
 the Job Logger app service on the shared overlay network.
+Swarm deployment must also bind all file-backed runtime state to the shared
+NFS-backed storage path configured by `JOB_LOGGER_SWARM_STORAGE_PATH`,
+defaulting to `/mnt/swarm-storage/job-logger`. Keep app logs, bundled nginx
+logs, bundled cloudflared logs, automatic backups, and the faster-whisper model
+cache under that shared path so tasks can move between Swarm nodes without
+losing files. The Swarm database state remains on the remote PostgreSQL server
+referenced by `DATABASE_URL`; do not add a file-backed database service to
+`docker-swarm.yml` unless the operator explicitly asks for that separate
+persistent database design.
 
 Health checks should be added for services where practical.
 PostgreSQL health checks must allow enough startup grace for first-time volume
@@ -887,8 +896,9 @@ The application is a FastAPI project under `job_logger/`.
   backups as startup or hourly when creation audit metadata is available.
 - `job_logger/services/login_failures.py` writes and reads sanitized
   successful/failed login attempts from the database and generates sanitized
-  JSONL downloads for Diagnostics. `LOG_LEVEL` controls stdout/stderr log
-  verbosity and must be one of `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
+  JSONL downloads for Diagnostics. `LOG_LEVEL` controls stdout/stderr and
+  optional `LOG_DIR` file-log verbosity and must be one of `DEBUG`, `INFO`,
+  `WARNING`, or `ERROR`.
 - `job_logger/services/login_protection.py` enforces local pre-authentication
   lockout, increments persistent consecutive failed-login counters by trusted
   enforcement IP and username, stores sanitized failed-login database records,

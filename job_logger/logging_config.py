@@ -1,4 +1,4 @@
-"""Runtime stdout logging configuration for Job Logger."""
+"""Runtime stdout and optional file logging configuration for Job Logger."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import logging
 import re
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
 from job_logger.config import Settings
 from job_logger.time_utils import to_local
@@ -45,7 +46,7 @@ class LocalTimezoneFormatter(logging.Formatter):
 
 
 def configure_logging(application_settings: Settings) -> None:
-    """Configure application logging for Docker/Swarm stdout collection."""
+    """Configure redacted application logging for Docker and Swarm deployments."""
 
     configured_log_level = logging.getLevelName(application_settings.log_level)
     formatter = LocalTimezoneFormatter(
@@ -73,11 +74,20 @@ def configure_logging(application_settings: Settings) -> None:
         stdout_handler.setFormatter(formatter)
         if isinstance(stdout_handler, logging.StreamHandler):
             stdout_handler.setStream(sys.stdout)
-        return None
+    else:
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setLevel(configured_log_level)
+        stream_handler.setFormatter(formatter)
+        stream_handler._job_logger_marker = "job_logger_stdout"  # type: ignore[attr-defined]
+        root_logger.addHandler(stream_handler)
 
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setLevel(configured_log_level)
-    stream_handler.setFormatter(formatter)
-    stream_handler._job_logger_marker = "job_logger_stdout"  # type: ignore[attr-defined]
-    root_logger.addHandler(stream_handler)
+    if application_settings.log_dir:
+        log_directory = Path(application_settings.log_dir)
+        log_directory.mkdir(parents=True, exist_ok=True)
+        app_file_handler = logging.FileHandler(log_directory / "job-logger-app.log", encoding="utf-8")
+        app_file_handler.setLevel(configured_log_level)
+        app_file_handler.setFormatter(formatter)
+        app_file_handler._job_logger_marker = "job_logger_app_file"  # type: ignore[attr-defined]
+        root_logger.addHandler(app_file_handler)
+
     return None
