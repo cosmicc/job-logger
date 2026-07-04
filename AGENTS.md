@@ -179,6 +179,17 @@ finalized in Autotask. Stale cleanup undo text must also be cleared after
 `AI_CLEANUP_REVERT_RETENTION_HOURS`, defaulting to 24 hours, so the app does
 not retain extra customer/work text indefinitely.
 
+The Help assistant sends authenticated end-user support questions and bounded
+local documentation/source context to OpenAI only when
+`HELP_ASSISTANT_ENABLED=true` and `OPENAI_API_KEY` plus
+`HELP_ASSISTANT_INSTRUCTIONS` are configured server-side. Treat help questions,
+custom GPT instructions, and source context as sensitive. The server must
+validate authentication and CSRF, bound question and context size, keep the API
+key and custom instructions out of source control, set `store=false` on OpenAI
+Responses API requests, avoid local database storage of prompts and answers,
+and refuse source-code, deployment, secret, credential, or internal
+configuration questions. The assistant is for end-user Job Logger support only.
+
 ## Core Workflow
 
 The mobile web page must provide a quick active-job workflow with these actions:
@@ -475,14 +486,14 @@ user management, config, debug, and login surfaces through shared CSS variables
 instead of a separate unaudited template branch. Super-admin pages always use
 dark mode.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
-must show the version link as one yellow badge that includes `DEV`, such as
-`v1.2.2 DEV`, so dev instances are visually distinct from production without
-adding a separate pill.
+must mark the Help navigation button in yellow so dev instances are visually
+distinct from production without adding a separate pill. The Help page itself
+must show the current version with `DEV`, such as `v1.2.2 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
-desktop logout control. It shows only the discreet version link, compact
-navigation icons, and a mobile logout icon button on the right. The version
-link is centered between the left navigation group and the right action group.
+desktop logout control. It shows only the Help icon button, compact navigation
+icons, and a mobile logout icon button on the right. The Help icon is centered
+between the left navigation group and the right action group.
 Managed web users see Work and Review on the left, with Config and logout on
 the right. The Work button links to `/home` and uses the same work-entry icon
 on phone and full-browser navigation. The config super admin sees Users,
@@ -818,17 +829,18 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/main.py` creates the FastAPI app, registers routers, applies
   session, Cloudflare Access, CSP, and security-header middleware.
 - `job_logger/version.py` owns the source-controlled application version shown
-  in authenticated headers, `/changelog`, and diagnostics. Advance it only
-  when requested and keep it aligned with `pyproject.toml`.
+  on `/help`, `/changelog`, and diagnostics. Advance it only when requested and
+  keep it aligned with `pyproject.toml`.
 - `job_logger/session_timeout.py` clears expired local authenticated sessions
   according to the configured `APP_SESSION_TIMEOUT_HOURS` value and rejects
   managed web-user sessions that were disabled or administratively invalidated.
 - `job_logger/config.py` loads every runtime setting from environment variables.
   Production must use `AUTOTASK_PROVIDER=autotask`; Autotask resource IDs are
-  stored on managed web users, not in config. Remote faster-whisper settings
-  live here as environment-backed values. `DEV_BUILD=true` marks a dev runtime
-  by folding `DEV` into the authenticated header version badge and suppressing
-  Pushover health notifications.
+  stored on managed web users, not in config. Remote faster-whisper, AI
+  cleanup, and help assistant settings live here as environment-backed values.
+  `DEV_BUILD=true` marks a dev runtime by turning the authenticated Help
+  button yellow, showing `DEV` on `/help`, and suppressing Pushover health
+  notifications.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.
 - `job_logger/models.py` defines persistent tables for managed web users,
   managed-user session invalidation cutoffs, per-user preferences, jobs, audit
@@ -843,6 +855,10 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/changelog.py` parses the source-controlled
   `WEB_CHANGELOG.md` into concise plain-text release entries for authenticated
   display.
+- `job_logger/services/help_assistant.py` builds bounded end-user help context
+  from `USER_MANUAL.md`, `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files,
+  and selected app source, then calls OpenAI's Responses API only when the
+  server-side help assistant is configured.
 - `USER_MANUAL.md` is the full end-user manual. It must describe only surfaces
   normal managed web users can access and must not document Diagnostics or
   other admin-only pages.
@@ -872,7 +888,9 @@ The application is a FastAPI project under `job_logger/`.
   configuration such as immediate light/dark theme selection and explicit
   managed-user password changes.
 - `job_logger/routes/changelog.py` handles authenticated `/changelog` release
-  history for the discreet version link shown in the shared app header.
+  history linked from the Help page's **version changelog** button.
+- `job_logger/routes/help.py` handles authenticated `/help` and `/help/ask`
+  for the Help page and stateless, single-question help assistant answers.
 - `job_logger/routes/debug.py` handles the super-admin diagnostic page, the
   sanitized successful/failed login windows, disk-space monitor, database
   diagnostics, full backup/restore actions, managed web-user session
@@ -1082,10 +1100,13 @@ The normal workflow is:
     the password sign-in button. Later device sign-in uses
     `/login/passkey/options` and `/login/passkey/verify`; failed or canceled
     passkey login must leave the normal password form available.
-19. Authenticated users may open `/changelog` from the discreet header version
-    link to view the current source-controlled version and prior concise release
-    notes parsed from `WEB_CHANGELOG.md`. The current-version panel must show
-    that version's simple change list, not only the release title.
+19. Authenticated users may open `/help` from the shared header Help button.
+    `/help` shows the current source-controlled version, `DEV` when
+    `DEV_BUILD=true`, a **version changelog** button linking to `/changelog`,
+    and the optional stateless help assistant. `/changelog` remains
+    authenticated and shows prior concise release notes parsed from
+    `WEB_CHANGELOG.md`. The current-version panel must show that version's
+    simple change list, not only the release title.
 
 ## Current Autotask Dependency
 

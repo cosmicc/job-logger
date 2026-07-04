@@ -33,25 +33,15 @@
 }
 
 .top-nav,
-.desktop-status-group,
 .desktop-health-alert-group {
   display: none;
 }
 
-.mobile-version-group {
+.mobile-help-group {
   display: inline-flex;
   grid-column: 2;
   justify-self: center;
   margin-left: 0;
-}
-
-.app-version-link {
-  min-height: 36px;
-  padding: 4px 9px;
-}
-
-.mobile-version-group .app-version-link-dev {
-  transform: translateX(-8px);
 }
 
 .mobile-nav-actions {
@@ -86,12 +76,6 @@
   height: 34px;
 }
 
-.has-health-alert .app-version-link {
-  min-height: 34px;
-  padding: 4px 7px;
-  font-size: 11px;
-}
-
 .mobile-logout-form {
   display: inline-grid;
 }
@@ -110,6 +94,7 @@
 .users-shell,
 .config-shell,
 .changelog-shell,
+.help-shell,
 .login-shell {
   width: min(100% - 20px, 560px);
   margin: 18px auto;
@@ -227,24 +212,29 @@
 .users-page-header,
 .config-page-header,
 .changelog-page-header,
+.help-page-header,
 .resource-picker-header,
 .form-header-row,
 .panel-title-row,
 .user-edit-footer,
-.changelog-current-panel {
+.changelog-current-panel,
+.help-version-panel {
   align-items: flex-start;
   flex-direction: column;
 }
 
 .users-page-actions,
-.user-edit-actions {
+.user-edit-actions,
+.help-action-row {
   width: 100%;
 }
 
 .users-page-actions .secondary-link-button,
 .user-edit-actions button,
 .config-save-button,
-.config-password-button {
+.config-password-button,
+.help-submit-button,
+.help-changelog-button {
   width: 100%;
 }
 

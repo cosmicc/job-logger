@@ -64,7 +64,7 @@ The signed-in header includes these main areas:
 - **Work** opens the active Work in Progress page.
 - **Review** opens completed or submitted work records.
 - **Config** opens your personal settings.
-- The version number opens the app changelog.
+- **Help** opens support help and version information.
 - **Log out** ends your signed-in session.
 
 On a phone, these controls appear as compact icons. On a full browser, they use
@@ -308,13 +308,19 @@ Use the default off setting when you want to review and edit every completed
 record before Autotask submission. Turn it on when you trust the Work in
 Progress fields and want fewer steps.
 
-## Changelog
+## Help And Changelog
 
-Select the version number in the header to open the changelog. The changelog
-shows short release notes for the app version you are using and prior versions.
+Select **Help** in the header to open the Help page. On a phone, Help appears
+as a question-mark icon. The Help page shows the current app version and a
+**version changelog** button. The changelog shows short release notes for the
+app version you are using and prior versions.
 
-If the version badge includes **DEV**, you are using a development or testing
-instance rather than the production instance.
+If the Help page shows **DEV** beside the version, or the Help button is
+yellow, you are using a development or testing instance rather than the
+production instance.
+
+If the Help assistant is enabled, you can ask one Job Logger support question
+at a time and read the answer on the Help page.
 
 ## Common Messages And What To Do
 

@@ -17,10 +17,10 @@ from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
 CURRENT_DETAILED_HEADING = (
-    "## 1.2.2 - 07.03.2026 - Health alerts, app icon, user manual, and Swarm storage"
+    "## 1.2.2 - 07.03.2026 - Help assistant, health alerts, app icon, and Swarm storage"
 )
 CURRENT_RELEASE_DATE = "07.03.2026"
-CURRENT_WEB_TITLE = "User manual, app icon, and Config workflow"
+CURRENT_WEB_TITLE = "Help page, user manual, app icon, and Config workflow"
 CURRENT_WEB_HEADING = f"## 1.2.2 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
 PREVIOUS_WEB_TITLE = "Work in Progress, Review, and outage-page polish"
 V120_WEB_TITLE = "Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish"
@@ -138,6 +138,10 @@ def test_changelog_parser_reads_current_release() -> None:
         release_date=CURRENT_RELEASE_DATE,
         title=CURRENT_WEB_TITLE,
         changes=(
+            "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.",
+            "Dev builds now mark the Help button yellow and show DEV beside the current version on the Help page.",
+            "The Help page now shows the current version followed by a version changelog button.",
+            "The Help page can answer one Job Logger support question at a time when the app administrator configures the assistant.",
             (
                 "Updated the app icon, browser favicon, and desktop header logo "
                 "to the new Job Logger artwork."
@@ -196,6 +200,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert CURRENT_WEB_TITLE in response.text
     assert PREVIOUS_WEB_TITLE in response.text
     assert V120_WEB_TITLE in response.text
+    assert "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help." in response.text
+    assert "Dev builds now mark the Help button yellow and show DEV beside the current version on the Help page." in response.text
+    assert "The Help page now shows the current version followed by a version changelog button." in response.text
+    assert "The Help page can answer one Job Logger support question at a time when the app administrator configures the assistant." in response.text
     assert (
         "Updated the app icon, browser favicon, and desktop header logo "
         "to the new Job Logger artwork."
@@ -467,7 +475,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         assert entry.release_date in response.text
         for change in entry.changes:
             assert change.replace("'", "&#39;") in response.text
-    assert 'href="/changelog"' in authenticated_client.get("/home").text
+    home_response_text = authenticated_client.get("/home").text
+    assert 'href="/help"' in home_response_text
+    assert 'href="/changelog"' not in home_response_text
+    assert 'href="/changelog"' in authenticated_client.get("/help").text
 
 
 def test_changelog_title_uses_bold_page_heading_style() -> None:

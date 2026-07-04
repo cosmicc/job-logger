@@ -2,10 +2,31 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## 1.2.2 - 07.03.2026 - Health alerts, app icon, user manual, and Swarm storage
+## 1.2.2 - 07.03.2026 - Help assistant, health alerts, app icon, and Swarm storage
 
 - Advanced the source-controlled dev runtime version to `v1.2.2`, including
   the Python package metadata and PWA service worker cache version.
+- Replaced the authenticated header version/changelog badge with a Help
+  button. Full-browser navigation now shows the help icon and **Help** label,
+  phone-sized navigation shows the help icon, and dev builds mark the Help
+  control in yellow while showing `DEV` on the Help page.
+- Added authenticated `/help` and `/help/ask` routes for a stateless
+  OpenAI-backed end-user help assistant. The assistant is available to every
+  authenticated account only when configured through environment variables.
+- Added `HELP_ASSISTANT_ENABLED`, `OPENAI_API_KEY`, `HELP_ASSISTANT_MODEL`,
+  `HELP_ASSISTANT_API_BASE_URL`, `HELP_ASSISTANT_TIMEOUT_SECONDS`,
+  `HELP_ASSISTANT_MAX_QUESTION_CHARS`,
+  `HELP_ASSISTANT_MAX_CONTEXT_CHARS`, and
+  `HELP_ASSISTANT_INSTRUCTIONS` runtime settings to Compose, Swarm, and
+  `.env.example`.
+- Added bounded local help context from `USER_MANUAL.md`,
+  `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files, and selected app source
+  files so the server can answer user-support questions without committing the
+  private custom GPT instructions.
+- Added help-assistant guardrails that reject likely source-code,
+  deployment, secret, or internal configuration questions, require CSRF on
+  help questions, avoid local database storage of prompts and answers, and set
+  `store=false` on OpenAI Responses API requests.
 - Replaced the app favicon, installed-app icon images, authenticated desktop
   header brand mark, and source-controlled PWA icon assets with the new Job
   Logger logo.

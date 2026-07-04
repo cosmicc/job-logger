@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Help - Job Logger{% endblock %}
+
+{% block content %}
+  <section class="help-shell">
+    <div class="review-header help-page-header">
+      <div>
+        <p class="eyebrow-text">Support</p>
+        <h1>Help</h1>
+        <p class="muted-text">Ask a Job Logger question or view the version changelog.</p>
+      </div>
+    </div>
+
+    <section class="help-version-panel" aria-labelledby="help-version-heading">
+      <div>
+        <p class="eyebrow-text">Current version</p>
+        <h2 id="help-version-heading">v{{ app_version }}{% if dev_build %} DEV{% endif %}</h2>
+      </div>
+      <a class="secondary-link-button help-changelog-button" href="/changelog">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 3v18h18"></path>
+          <path d="M7 14l3-3 3 2 4-6"></path>
+        </svg>
+        <span>version changelog</span>
+      </a>
+    </section>
+
+    <section class="edit-panel help-assistant-panel" aria-labelledby="help-assistant-heading">
+      <div class="panel-title-row">
+        <div>
+          <h2 id="help-assistant-heading">Ask Help</h2>
+          <p class="muted-text">Single question, single answer.</p>
+        </div>
+      </div>
+
+      <form class="stack-form help-question-form" data-help-question-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>
+          <span>Question</span>
+          <textarea
+            name="question"
+            rows="4"
+            maxlength="{{ help_assistant_max_question_chars }}"
+            data-help-question-input
+            {% if not help_assistant_configured %}disabled{% endif %}
+          ></textarea>
+        </label>
+        <div class="help-action-row">
+          <button
+            class="primary-button help-submit-button"
+            type="submit"
+            data-help-submit-button
+            {% if not help_assistant_configured %}disabled{% endif %}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.1 9a3 3 0 1 1 5.8 1c-.6 1-1.7 1.4-2.3 2.2-.4.5-.6.9-.6 1.8"></path>
+              <path d="M12 17h.01"></path>
+            </svg>
+            Ask
+          </button>
+        </div>
+        <p class="workflow-status-line help-status-line" data-help-status aria-live="polite">
+          {% if not help_assistant_configured %}Help assistant is not configured. Contact your app administrator.{% endif %}
+        </p>
+      </form>
+
+      <section class="help-answer-panel is-hidden" aria-live="polite" data-help-answer-panel>
+        <h3>Answer</h3>
+        <div class="help-answer-text" data-help-answer-text></div>
+      </section>
+    </section>
+  </section>
+
+  <script src="/static/help.js?v={{ static_asset_version }}" defer></script>
+{% endblock %}

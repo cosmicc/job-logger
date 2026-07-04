@@ -40,7 +40,7 @@ targets the phone or installed mobile app.
 
 Phone-sized authenticated layouts hide the brand mark and desktop logout form.
 The visible top bar should place the left navigation icons on the left, the
-version link centered in the middle, and right-side action icons on the right.
+Help icon centered in the middle, and right-side action icons on the right.
 Managed web users see Work and Review on the left, with Config and logout on
 the right. The Work button links to `/home` and uses the same work-entry icon
 on phone and full-browser navigation. Managed users marked as Admin also see
@@ -60,16 +60,19 @@ artwork so installed home-screen icons fill the icon frame with the dark
 app-icon background. Use the `job-logger-install-icon-*` files and do not
 advertise maskable install icons unless a future design includes a tested
 full-bleed mask-safe background.
-Phone-sized navigation remains compact blue icon buttons.
+Phone-sized navigation remains compact blue icon buttons. Full-browser
+navigation includes a Help button with the same help icon and visible
+**Help** label. The Help page, not the shared header, shows the current version
+and links to `/changelog` with a **version changelog** button.
 Enabled buttons and button-like navigation controls should visibly brighten on
 hover. Workflow actions such as **Record**, **AI Cleanup**, finish, delete, and
 review submit controls should look raised at rest and pressed in while active.
 Destructive red controls must stay red on hover, using a brighter red instead
 of falling back to a neutral dark hover.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
-one yellow version badge with `DEV` folded into the version text, such as
-`v1.2.2 DEV`. Keep the badge compact so it does not crowd the mobile
-navigation icons.
+the Help button in yellow, while `/help` shows the current version with `DEV`,
+such as `v1.2.2 DEV`. Keep the Help icon compact so it does not crowd the
+mobile navigation icons.
 When cached app health is degraded, every authenticated user sees a red
 exclamation status icon in the top bar. The icon is non-clickable and must not
 open Diagnostics. On phone layouts, keep the indicator in the right-side action

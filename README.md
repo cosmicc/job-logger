@@ -61,8 +61,8 @@ Autotask REST API references used by this app:
    and stderr log verbosity. Docker defaults to `INFO`; use `docker compose
    logs app` or the runtime log collector for history.
    Set `DEV_BUILD=true` only for dev deployments that should show the
-   authenticated desktop and mobile version badge in yellow with `DEV` folded
-   into the version text and should suppress Pushover health notifications.
+   authenticated Help button in yellow, show `DEV` on the Help page, and
+   suppress Pushover health notifications.
 
 5. Start the stack:
 
@@ -547,18 +547,20 @@ Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
 currently `v1.2.2`. Version history starts at `v1.0.0`.
 
-Authenticated pages show the current version discreetly in the shared header.
-Clicking that version opens `/changelog`, which displays the current version
-and concise release notes parsed from `WEB_CHANGELOG.md`. The changelog page
-shows version numbers without brackets, release dates in `MM.DD.YYYY` format,
-and short user-facing changes for each version. `CHANGELOG.md` remains the
-detailed source changelog for operators and agents. `WEB_CHANGELOG.md` is only
-for user-facing changes; keep diagnostics, debug-page, super-admin-only,
-operator-only, and agent-facing notes in `CHANGELOG.md` only. The changelog
-page uses the same authenticated session, dark/light theme variables, and
-responsive layout system as the rest of the app.
-When Docker/runtime `DEV_BUILD=true`, the same authenticated header also shows a
-yellow version badge on desktop and phone layouts, such as `v1.2.2 DEV`.
+Authenticated pages show a Help button in the shared header. `/help` displays
+the current version and a **version changelog** button that opens
+`/changelog`, which displays concise release notes parsed from
+`WEB_CHANGELOG.md`. The changelog page shows version numbers without brackets,
+release dates in `MM.DD.YYYY` format, and short user-facing changes for each
+version. `CHANGELOG.md` remains the detailed source changelog for operators and
+agents. `WEB_CHANGELOG.md` is only for user-facing changes; keep diagnostics,
+debug-page, super-admin-only, operator-only, and agent-facing notes in
+`CHANGELOG.md` only. The Help and changelog pages use the same authenticated
+session, dark/light theme variables, and responsive layout system as the rest
+of the app.
+When Docker/runtime `DEV_BUILD=true`, the authenticated Help button is yellow
+on desktop and phone layouts, and `/help` shows the current version with `DEV`,
+such as `v1.2.2 DEV`.
 
 ## Provider Modes
 
@@ -756,6 +758,31 @@ Provider setup and data-handling docs:
 - LM Studio local server and OpenAI-compatible endpoints:
   https://lmstudio.ai/docs/developer/core/server and
   https://lmstudio.ai/docs/developer/openai-compat
+
+### Help Assistant
+
+The Help page is available to every signed-in user. It always shows the current
+version and the **version changelog** button. The question-answer assistant is
+disabled until configured.
+
+Set these variables to enable one-question help answers:
+
+- `HELP_ASSISTANT_ENABLED=true`
+- `OPENAI_API_KEY`
+- `HELP_ASSISTANT_INSTRUCTIONS`, the custom GPT instruction text to apply
+- `HELP_ASSISTANT_MODEL`, default `gpt-5.4-mini`
+- `HELP_ASSISTANT_API_BASE_URL`, default `https://api.openai.com/v1`
+- `HELP_ASSISTANT_TIMEOUT_SECONDS`, default `20`
+- `HELP_ASSISTANT_MAX_QUESTION_CHARS`, default `1200`
+- `HELP_ASSISTANT_MAX_CONTEXT_CHARS`, default `60000`
+
+Job Logger calls OpenAI's Responses API from the server. The browser never sees
+the API key or the custom instructions. Each answer is stateless: the app does
+not store help questions or answers in the database, and it sends `store=false`
+with the provider request. The assistant uses bounded context from
+`USER_MANUAL.md`, `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files, and
+selected app source to answer end-user support questions. It refuses source
+code, deployment, secret, credential, and internal configuration questions.
 
 ### Autotask
 
@@ -982,7 +1009,7 @@ active-card finish/delete row sits directly below the **Record** and
 buttons. On phone-sized Review detail, Record and AI Cleanup status text also
 stays below the Review action buttons. Phone-sized authenticated layouts
 hide the brand mark and desktop logout button, place left navigation
-icons on the left, center the version link, and put right-side actions on the
+icons on the left, center the Help icon, and put right-side actions on the
 right. Managed web users see Work and Review on the left, with Config and a
 logout icon on the right. The Work icon links to `/home` and uses the same
 work-entry symbol as the full-browser Work nav button. The config super admin
@@ -1089,7 +1116,8 @@ users to sign in again while leaving the config super admin signed in; a
 managed admin who clicks it is included because that account is a managed web
 user. The authenticated desktop navigation labels this route as **Diag**, while
 the page title remains **Diagnostics**. All authenticated pages also include a
-discreet version link to `/changelog`. The Diagnostics Autotask check verifies
+Help button that opens `/help`; the Help page links to `/changelog` with
+**version changelog**. The Diagnostics Autotask check verifies
 required workflow configuration and the live Companies/Tickets API calls used
 by the app. The **Test Autotask API** button is manual and always runs a fresh
 live check. It is not used by the

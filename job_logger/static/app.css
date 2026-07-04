@@ -171,7 +171,7 @@ button:not(:disabled):active {
 
 button:not(:disabled):hover,
 .top-nav a:hover,
-.app-version-link:hover,
+.header-help-link:hover,
 .text-link:hover,
 .secondary-link-button:hover {
   filter: brightness(1.04);
@@ -277,42 +277,6 @@ svg {
   justify-self: start;
 }
 
-.app-version-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 850;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.app-version-link:hover {
-  border-color: rgba(45, 212, 191, 0.42);
-  background: var(--surface-muted);
-  box-shadow: var(--button-hover-shadow);
-  color: var(--accent-strong);
-}
-
-.app-version-link-dev {
-  border: 1px solid rgba(245, 158, 11, 0.58);
-  background: var(--warning-soft);
-  color: var(--warning);
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.app-version-link-dev:hover {
-  border-color: rgba(245, 158, 11, 0.76);
-  background: rgba(245, 158, 11, 0.2);
-  color: var(--warning);
-}
-
 .top-nav a {
   display: inline-flex;
   align-items: center;
@@ -348,9 +312,27 @@ svg {
   color: var(--nav-action-hover);
 }
 
+.header-help-link-dev,
+.top-nav a.header-help-link-dev,
+.mobile-nav-action.header-help-link-dev {
+  border: 1px solid rgba(245, 158, 11, 0.58);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-weight: 900;
+}
+
+.header-help-link-dev:hover,
+.top-nav a.header-help-link-dev:hover,
+.mobile-nav-action.header-help-link-dev:hover {
+  border-color: rgba(245, 158, 11, 0.76);
+  background: rgba(245, 158, 11, 0.2);
+  box-shadow: var(--button-hover-shadow);
+  color: var(--warning);
+}
+
 .top-nav a:active,
 .mobile-nav-action:active,
-.app-version-link:active {
+.header-help-link:active {
   transform: translateY(1px) scale(0.985);
   box-shadow: var(--pressed-shadow);
 }
@@ -444,7 +426,7 @@ svg {
 }
 
 .mobile-nav-actions,
-.mobile-version-group,
+.mobile-help-group,
 .mobile-logout-form {
   display: none;
 }
@@ -465,6 +447,19 @@ svg {
   background: rgba(59, 130, 246, 0.24);
   box-shadow: var(--button-hover-shadow);
   color: var(--nav-action-hover);
+}
+
+.mobile-nav-action.header-help-link-dev:not(.health-alert-button) {
+  border-color: rgba(245, 158, 11, 0.58);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.mobile-nav-action.header-help-link-dev:not(.health-alert-button):hover {
+  border-color: rgba(245, 158, 11, 0.76);
+  background: rgba(245, 158, 11, 0.2);
+  box-shadow: var(--button-hover-shadow);
+  color: var(--warning);
 }
 
 .mobile-nav-action.health-alert-button:hover {
@@ -513,6 +508,7 @@ svg {
 .users-shell,
 .config-shell,
 .changelog-shell,
+.help-shell,
 .error-shell {
   width: min(1120px, calc(100% - 32px));
   margin: 32px auto;
@@ -4564,19 +4560,23 @@ td a {
   margin-left: 8px;
 }
 
-.changelog-shell {
+.changelog-shell,
+.help-shell {
   width: min(980px, calc(100% - 32px));
 }
 
-.changelog-page-header {
+.changelog-page-header,
+.help-page-header {
   align-items: flex-end;
 }
 
-.changelog-page-header h1 {
+.changelog-page-header h1,
+.help-page-header h1 {
   font-weight: 950;
 }
 
-.changelog-current-panel {
+.changelog-current-panel,
+.help-version-panel {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4589,8 +4589,55 @@ td a {
   box-shadow: var(--shadow);
 }
 
-.changelog-current-panel p {
+.changelog-current-panel p,
+.help-version-panel p {
   margin-bottom: 0;
+}
+
+.help-version-panel h2 {
+  margin: 8px 0 0;
+  font-size: 28px;
+  font-weight: 950;
+}
+
+.help-changelog-button {
+  min-width: 190px;
+  justify-content: center;
+}
+
+.help-assistant-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.help-question-form textarea {
+  min-height: 150px;
+  resize: vertical;
+}
+
+.help-action-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.help-submit-button {
+  min-width: 120px;
+}
+
+.help-answer-panel {
+  display: grid;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.help-answer-panel h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.help-answer-text {
+  white-space: pre-wrap;
 }
 
 .changelog-current-copy {

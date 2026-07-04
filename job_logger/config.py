@@ -27,6 +27,9 @@ DEFAULT_AI_CLEANUP_INSTRUCTIONS = (
     "summary text with no markdown, title, explanation, or surrounding quotes."
 )
 
+DEFAULT_HELP_ASSISTANT_MODEL = "gpt-5.4-mini"
+DEFAULT_HELP_ASSISTANT_API_BASE_URL = "https://api.openai.com/v1"
+
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR"}
 
 
@@ -316,6 +319,30 @@ class Settings:
     # AI_CLEANUP_REVERT_RETENTION_HOURS limits how long pre-cleanup text is retained for undo.
     ai_cleanup_revert_retention_hours: float
 
+    # HELP_ASSISTANT_ENABLED gates OpenAI-backed end-user help answers.
+    help_assistant_enabled: bool
+
+    # OPENAI_API_KEY authorizes help assistant Responses API requests.
+    openai_api_key: str | None
+
+    # HELP_ASSISTANT_MODEL selects the OpenAI model used for help answers.
+    help_assistant_model: str
+
+    # HELP_ASSISTANT_API_BASE_URL supports OpenAI-compatible endpoint overrides.
+    help_assistant_api_base_url: str
+
+    # HELP_ASSISTANT_INSTRUCTIONS stores the private custom GPT instruction set.
+    help_assistant_instructions: str
+
+    # HELP_ASSISTANT_TIMEOUT_SECONDS bounds help-answer latency from the UI.
+    help_assistant_timeout_seconds: float
+
+    # HELP_ASSISTANT_MAX_QUESTION_CHARS limits user text sent to OpenAI.
+    help_assistant_max_question_chars: int
+
+    # HELP_ASSISTANT_MAX_CONTEXT_CHARS limits local documentation/code context.
+    help_assistant_max_context_chars: int
+
     # AUTOTASK_PROVIDER selects the live Autotask REST client; mock is for tests/development only.
     autotask_provider: str
 
@@ -390,6 +417,16 @@ class Settings:
         """Return whether this runtime may send Pushover notifications."""
 
         return self.pushover_enabled and not self.dev_build
+
+    @property
+    def help_assistant_configured(self) -> bool:
+        """Return whether the help assistant has the secret settings it needs."""
+
+        return bool(
+            self.help_assistant_enabled
+            and self.openai_api_key
+            and self.help_assistant_instructions.strip()
+        )
 
 
 def load_settings() -> Settings:
@@ -501,6 +538,20 @@ def load_settings() -> Settings:
         ai_cleanup_timeout_seconds=_get_float("AI_CLEANUP_TIMEOUT_SECONDS", 20.0),
         ai_cleanup_max_input_chars=_get_integer("AI_CLEANUP_MAX_INPUT_CHARS", 12000),
         ai_cleanup_revert_retention_hours=_get_positive_float("AI_CLEANUP_REVERT_RETENTION_HOURS", 24.0),
+        help_assistant_enabled=_get_boolean("HELP_ASSISTANT_ENABLED", False),
+        openai_api_key=os.getenv("OPENAI_API_KEY") or None,
+        help_assistant_model=(
+            os.getenv("HELP_ASSISTANT_MODEL", DEFAULT_HELP_ASSISTANT_MODEL).strip()
+            or DEFAULT_HELP_ASSISTANT_MODEL
+        ),
+        help_assistant_api_base_url=(
+            os.getenv("HELP_ASSISTANT_API_BASE_URL", DEFAULT_HELP_ASSISTANT_API_BASE_URL).strip().rstrip("/")
+            or DEFAULT_HELP_ASSISTANT_API_BASE_URL
+        ),
+        help_assistant_instructions=os.getenv("HELP_ASSISTANT_INSTRUCTIONS", "").strip(),
+        help_assistant_timeout_seconds=_get_positive_float("HELP_ASSISTANT_TIMEOUT_SECONDS", 20.0),
+        help_assistant_max_question_chars=_get_positive_integer("HELP_ASSISTANT_MAX_QUESTION_CHARS", 1200),
+        help_assistant_max_context_chars=_get_positive_integer("HELP_ASSISTANT_MAX_CONTEXT_CHARS", 60000),
         autotask_provider=os.getenv("AUTOTASK_PROVIDER", "autotask").strip().lower(),
         autotask_base_url=os.getenv("AUTOTASK_BASE_URL") or None,
         autotask_username=os.getenv("AUTOTASK_USERNAME") or None,

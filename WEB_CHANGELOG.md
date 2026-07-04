@@ -2,8 +2,12 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## 1.2.2 - 07.03.2026 - User manual, app icon, and Config workflow
+## 1.2.2 - 07.03.2026 - Help page, user manual, app icon, and Config workflow
 
+- The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.
+- Dev builds now mark the Help button yellow and show DEV beside the current version on the Help page.
+- The Help page now shows the current version followed by a version changelog button.
+- The Help page can answer one Job Logger support question at a time when the app administrator configures the assistant.
 - Updated the app icon, browser favicon, and desktop header logo to the new Job Logger artwork.
 - The installed app icon now uses the original dark-background icon artwork, fills the icon frame, and avoids the over-zoomed maskable icon crop.
 - Ticket history now hides Autotask notes titled Some actions did not occur.

@@ -180,6 +180,31 @@ def test_app_health_and_pushover_settings_load_from_environment(monkeypatch) -> 
     assert dev_settings.pushover_notifications_enabled is False
 
 
+def test_help_assistant_settings_load_from_environment(monkeypatch) -> None:
+    """Help assistant settings should stay environment-backed and secret-safe."""
+
+    monkeypatch.setenv("HELP_ASSISTANT_ENABLED", "true")
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key-value")
+    monkeypatch.setenv("HELP_ASSISTANT_MODEL", "gpt-5.4-mini")
+    monkeypatch.setenv("HELP_ASSISTANT_API_BASE_URL", "https://api.openai.com/v1/")
+    monkeypatch.setenv("HELP_ASSISTANT_INSTRUCTIONS", "Answer only Job Logger support questions.")
+    monkeypatch.setenv("HELP_ASSISTANT_TIMEOUT_SECONDS", "8.5")
+    monkeypatch.setenv("HELP_ASSISTANT_MAX_QUESTION_CHARS", "900")
+    monkeypatch.setenv("HELP_ASSISTANT_MAX_CONTEXT_CHARS", "30000")
+
+    loaded_settings = load_settings()
+
+    assert loaded_settings.help_assistant_enabled is True
+    assert loaded_settings.openai_api_key == "openai-key-value"
+    assert loaded_settings.help_assistant_model == "gpt-5.4-mini"
+    assert loaded_settings.help_assistant_api_base_url == "https://api.openai.com/v1"
+    assert loaded_settings.help_assistant_instructions == "Answer only Job Logger support questions."
+    assert loaded_settings.help_assistant_timeout_seconds == 8.5
+    assert loaded_settings.help_assistant_max_question_chars == 900
+    assert loaded_settings.help_assistant_max_context_chars == 30000
+    assert loaded_settings.help_assistant_configured is True
+
+
 def test_plain_postgresql_urls_use_installed_psycopg_driver() -> None:
     """Provider-style PostgreSQL URLs should not require the psycopg2 package."""
 

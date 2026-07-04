@@ -27,9 +27,6 @@
             <img class="brand-icon" src="/static/icons/job-logger-logo-transparent.png?v={{ static_asset_version }}" alt="" width="34" height="34" aria-hidden="true">
             <span>Job Logger</span>
           </a>
-          <div class="header-status-group desktop-status-group" aria-label="Application version">
-            <a class="app-version-link{% if dev_build %} app-version-link-dev{% endif %}" href="/changelog" aria-label="View changelog for version {{ app_version }}{% if dev_build %} development build{% endif %}">v{{ app_version }}{% if dev_build %} DEV{% endif %}</a>
-          </div>
         </div>
         {% if app_health_degraded %}
           <div class="header-status-group desktop-health-alert-group" aria-label="Application health status">
@@ -91,6 +88,14 @@
               <span>Diag</span>
             </a>
           {% endif %}
+          <a class="header-help-link{% if dev_build %} header-help-link-dev{% endif %}" href="/help" aria-label="Help{% if dev_build %} development build{% endif %}" data-desktop-help-link>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.1 9a3 3 0 1 1 5.8 1c-.6 1-1.7 1.4-2.3 2.2-.4.5-.6.9-.6 1.8"></path>
+              <path d="M12 17h.01"></path>
+            </svg>
+            <span>Help</span>
+          </a>
         </nav>
         <nav class="mobile-nav-actions mobile-nav-left" aria-label="Mobile navigation">
           {% if not current_is_super_admin %}
@@ -121,8 +126,14 @@
             </svg>
           </a>
         </nav>
-        <div class="header-status-group mobile-version-group" aria-label="Application version">
-          <a class="app-version-link{% if dev_build %} app-version-link-dev{% endif %}" href="/changelog" aria-label="View changelog for version {{ app_version }}{% if dev_build %} development build{% endif %}">v{{ app_version }}{% if dev_build %} DEV{% endif %}</a>
+        <div class="header-status-group mobile-help-group" aria-label="Help">
+          <a class="icon-button mobile-nav-action mobile-help-action header-help-link{% if dev_build %} header-help-link-dev{% endif %}" href="/help" title="Help" aria-label="Help{% if dev_build %} development build{% endif %}" data-mobile-help-link>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.1 9a3 3 0 1 1 5.8 1c-.6 1-1.7 1.4-2.3 2.2-.4.5-.6.9-.6 1.8"></path>
+              <path d="M12 17h.01"></path>
+            </svg>
+          </a>
         </div>
         <nav class="mobile-nav-actions mobile-nav-right" aria-label="Mobile quick actions">
           {% if app_health_degraded %}

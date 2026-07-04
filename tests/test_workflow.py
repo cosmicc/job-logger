@@ -1323,7 +1323,7 @@ def test_legacy_mobile_routes_redirect_to_home(authenticated_client: TestClient)
 
 
 def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated_client: TestClient, monkeypatch) -> None:
-    """Phone-sized headers should show version, icon navigation, and logout."""
+    """Phone-sized headers should show Help, icon navigation, and logout."""
 
     healthy_disk_snapshot = system_health.DebugDiskUsageSnapshot(
         severity="ok",
@@ -1335,9 +1335,8 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     response = authenticated_client.get("/home")
 
     assert response.status_code == 200
-    assert 'class="header-status-group desktop-status-group"' in response.text
-    assert 'class="header-status-group mobile-version-group"' in response.text
-    assert "app-version-link-dev" not in response.text
+    assert 'class="header-status-group mobile-help-group"' in response.text
+    assert "header-help-link-dev" not in response.text
     assert "dev-build-pill" not in response.text
     assert "autotask-api-indicator" not in response.text
     assert "data-health-alert-button" not in response.text
@@ -1346,6 +1345,11 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert "Secure session" not in response.text
     assert 'class="desktop-header-left"' in response.text
     assert 'class="brand-icon" src="/static/icons/job-logger-logo-transparent.png?v=' in response.text
+    assert 'href="/help"' in response.text
+    assert 'data-desktop-help-link' in response.text
+    assert 'data-mobile-help-link' in response.text
+    assert 'aria-label="Help"' in response.text
+    assert "<span>Help</span>" in response.text
     assert '<a href="/home">' in response.text
     assert "<span>Work</span>" in response.text
     assert '<path d="M12 11v6"></path>' in response.text
@@ -1381,8 +1385,9 @@ def test_super_admin_mobile_header_renders_users_review_debug_and_logout(super_a
     response = super_admin_client.get("/users")
 
     assert response.status_code == 200
-    assert 'class="header-status-group desktop-status-group"' in response.text
-    assert 'class="header-status-group mobile-version-group"' in response.text
+    assert 'class="header-status-group mobile-help-group"' in response.text
+    assert 'data-desktop-help-link' in response.text
+    assert 'data-mobile-help-link' in response.text
     assert 'class="mobile-nav-actions mobile-nav-left"' in response.text
     assert 'class="mobile-nav-actions mobile-nav-right"' in response.text
     assert 'data-mobile-users-link' in response.text
@@ -1399,7 +1404,7 @@ def test_super_admin_mobile_header_renders_users_review_debug_and_logout(super_a
     assert 'class="icon-button mobile-nav-action mobile-logout-action"' in response.text
     assert 'aria-label="Log out"' in response.text
     assert response.text.index("data-mobile-users-link") < response.text.index("data-mobile-review-link")
-    assert response.text.index("data-mobile-review-link") < response.text.index('class="header-status-group mobile-version-group"')
+    assert response.text.index("data-mobile-review-link") < response.text.index('class="header-status-group mobile-help-group"')
     assert response.text.index('class="mobile-nav-actions mobile-nav-right"') < response.text.index("data-mobile-debug-link")
     assert response.text.index("data-mobile-debug-link") < response.text.index("mobile-logout-action")
 
@@ -1429,22 +1434,27 @@ def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(aut
     assert 'data-mobile-home-link' in response.text
     assert 'data-mobile-review-link' in response.text
     assert 'data-mobile-config-link' in response.text
+    assert 'data-desktop-help-link' in response.text
+    assert 'data-mobile-help-link' in response.text
 
 
-def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """DEV_BUILD should mark both responsive header variants without changing auth behavior."""
+def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_client: TestClient) -> None:
+    """DEV_BUILD should mark both responsive Help controls without changing auth behavior."""
 
-    monkeypatch.setattr(ui, "settings", replace(ui.settings, dev_build=True))
+    authenticated_client.app.state.application_settings = replace(
+        authenticated_client.app.state.application_settings,
+        dev_build=True,
+    )
 
     response = authenticated_client.get("/home")
 
     assert response.status_code == 200
-    assert response.text.count("app-version-link app-version-link-dev") == 2
+    assert response.text.count("header-help-link-dev") == 2
     assert "dev-build-pill" not in response.text
-    assert ">v1.2.2 DEV<" in response.text
-    assert 'aria-label="View changelog for version 1.2.2 development build"' in response.text
-    assert response.text.index('class="header-status-group desktop-status-group"') < response.text.index('class="top-nav"')
-    assert response.text.index('class="header-status-group mobile-version-group"') < response.text.index('class="mobile-nav-actions mobile-nav-right"')
+    assert ">v1.2.2 DEV<" not in response.text
+    assert 'aria-label="Help development build"' in response.text
+    assert response.text.index('data-desktop-help-link') < response.text.index('class="mobile-nav-actions mobile-nav-left"')
+    assert response.text.index('class="header-status-group mobile-help-group"') < response.text.index('class="mobile-nav-actions mobile-nav-right"')
 
 
 def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrollable() -> None:
@@ -1470,7 +1480,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "-webkit-line-clamp: 2;" in stylesheet
     assert "max-height: calc(1.32em * 2);" in stylesheet
     assert ".review-ticket-status-field" in stylesheet
-    assert ".app-version-link-dev" in stylesheet
+    assert ".header-help-link-dev" in stylesheet
     assert "--nav-action:" in stylesheet
     assert "--button-shadow:" in stylesheet
     assert "--button-hover-shadow:" in stylesheet
@@ -1724,12 +1734,11 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);" in phone_stylesheet
     assert ".app-header.has-health-alert" in phone_stylesheet
     assert "grid-template-columns: auto minmax(0, 1fr) auto;" in phone_stylesheet
-    assert ".mobile-version-group .app-version-link-dev" in phone_stylesheet
-    assert "transform: translateX(-8px);" in phone_stylesheet
+    assert ".mobile-help-group" in phone_stylesheet
     assert ".brand {\n  display: none;" in phone_stylesheet
     assert ".desktop-header-left {\n  display: none;" in phone_stylesheet
     assert ".login-header .login-brand" not in phone_stylesheet
-    assert ".mobile-version-group {\n  display: inline-flex;" in phone_stylesheet
+    assert ".mobile-help-group {\n  display: inline-flex;" in phone_stylesheet
     assert ".dev-build-pill" not in phone_stylesheet
     assert ".mobile-nav-actions {\n  display: flex;" in phone_stylesheet
     assert ".mobile-nav-left {\n  grid-column: 1;" in phone_stylesheet

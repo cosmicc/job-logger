@@ -136,6 +136,28 @@ def test_compose_and_swarm_expose_pushover_health_settings() -> None:
     assert "external monitor" in env_example_text
 
 
+def test_compose_and_swarm_expose_help_assistant_settings() -> None:
+    """OpenAI help assistant settings should pass through container configs."""
+
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+    swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+
+    for deployment_text in (compose_text, swarm_text):
+        assert "HELP_ASSISTANT_ENABLED: ${HELP_ASSISTANT_ENABLED:-false}" in deployment_text
+        assert "OPENAI_API_KEY: ${OPENAI_API_KEY:-}" in deployment_text
+        assert "HELP_ASSISTANT_MODEL: ${HELP_ASSISTANT_MODEL:-gpt-5.4-mini}" in deployment_text
+        assert "HELP_ASSISTANT_API_BASE_URL: ${HELP_ASSISTANT_API_BASE_URL:-https://api.openai.com/v1}" in deployment_text
+        assert "HELP_ASSISTANT_TIMEOUT_SECONDS: ${HELP_ASSISTANT_TIMEOUT_SECONDS:-20}" in deployment_text
+        assert "HELP_ASSISTANT_MAX_QUESTION_CHARS: ${HELP_ASSISTANT_MAX_QUESTION_CHARS:-1200}" in deployment_text
+        assert "HELP_ASSISTANT_MAX_CONTEXT_CHARS: ${HELP_ASSISTANT_MAX_CONTEXT_CHARS:-60000}" in deployment_text
+        assert "HELP_ASSISTANT_INSTRUCTIONS: ${HELP_ASSISTANT_INSTRUCTIONS:-}" in deployment_text
+
+    assert "HELP_ASSISTANT_ENABLED=false" in env_example_text
+    assert "OPENAI_API_KEY=" in env_example_text
+    assert "HELP_ASSISTANT_INSTRUCTIONS=" in env_example_text
+
+
 def test_env_example_defaults_to_bundled_profiles_and_documents_switching() -> None:
     """The sample env should preserve bundled defaults and document deployment switching."""
 

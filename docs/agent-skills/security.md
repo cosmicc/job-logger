@@ -253,11 +253,22 @@ Never commit or print:
 Diagnostic pages and audit details must use safe summaries only.
 Authenticated pages may show the source-controlled application version because
 it is non-secret build metadata; do not source that value from environment
-variables that could drift between containers. Keep `/changelog` authenticated
-so release history stays inside the app shell even though it contains only
-source-controlled release notes. The web changelog must come from concise
-`WEB_CHANGELOG.md` entries, while `CHANGELOG.md` remains the detailed
-operator/agent release record.
+variables that could drift between containers. The shared header links to
+`/help`, where authenticated users can see the current version and open the
+authenticated `/changelog` page. Keep both pages inside the app shell even
+though the version and release notes are source-controlled metadata. The web
+changelog must come from concise `WEB_CHANGELOG.md` entries, while
+`CHANGELOG.md` remains the detailed operator/agent release record.
+
+The Help assistant is an external AI integration for authenticated end-user
+support. Keep `OPENAI_API_KEY` and `HELP_ASSISTANT_INSTRUCTIONS` in runtime
+environment or secrets, never in source control. The `/help/ask` route must
+require local authentication and a CSRF header, cap submitted question length,
+send only bounded local documentation/source context, set `store=false` on
+OpenAI Responses API requests, and avoid any local database storage of prompts
+or answers. The assistant may use source code as reference for user-facing app
+behavior, but it must refuse source-code, deployment, secret, credential, or
+internal configuration questions.
 
 ## Audit Requirements
 
@@ -579,5 +590,6 @@ Security-sensitive changes usually need tests in:
 - `tests/test_workflow.py`.
 - `tests/test_debug.py`.
 - `tests/test_changelog.py` when version or release-history display changes.
+- `tests/test_help.py` when Help navigation or help assistant behavior changes.
 
 When in doubt, add a regression test for the security boundary being changed.
