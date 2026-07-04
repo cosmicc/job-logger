@@ -12,6 +12,10 @@ All notable changes to Job Logger are documented in this file.
 - Changed the installed-app icon assets to use the padded semi-transparent Job
   Logger logo so mobile home-screen masks do not crop the clipboard and clock
   artwork.
+- Changed the PWA manifest and Apple touch icon references to dedicated
+  `job-logger-install-icon-*` filenames and removed maskable manifest icon
+  advertisements so mobile launchers do not reuse or over-crop older icon
+  assets.
 - Added the supplied logo PNGs, SVG wrapper versions, and color palette
   reference under `docs/design/`.
 - Filtered Autotask ticket notes whose titles start with `Some actions did not

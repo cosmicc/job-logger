@@ -496,8 +496,10 @@ browser and installed-app shells fetch changed assets after deploy without
 requiring an application version bump.
 Favicon and Apple touch icon links use the same content-derived version value.
 The installed-app icon comes from the web manifest and uses the padded
-semi-transparent Job Logger logo so the full artwork stays inside mobile
-home-screen icon masks. Mobile operating systems may update that icon after
+semi-transparent Job Logger logo through dedicated install-icon filenames so
+the full artwork stays inside mobile home-screen icon crops. The manifest
+intentionally advertises non-maskable icons because launcher maskable cropping
+can over-zoom this artwork. Mobile operating systems may update that icon after
 the manifest and icon URL/content change, but some installed PWA shells keep
 the original home-screen icon until the app is removed and installed again.
 

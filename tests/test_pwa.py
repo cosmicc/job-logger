@@ -20,8 +20,11 @@ def test_manifest_exposes_standalone_mobile_app_metadata(client: TestClient) -> 
     assert manifest["scope"] == "/"
     assert manifest["display"] == "standalone"
     assert manifest["theme_color"] == "#0b1220"
-    assert any(icon["src"].endswith("job-logger-icon-192.png") for icon in manifest["icons"])
-    assert any(icon["purpose"] == "maskable" for icon in manifest["icons"])
+    icon_sources = {icon["src"] for icon in manifest["icons"]}
+    assert "/static/icons/job-logger-install-icon.svg" in icon_sources
+    assert "/static/icons/job-logger-install-icon-192.png" in icon_sources
+    assert "/static/icons/job-logger-install-icon-512.png" in icon_sources
+    assert all(icon["purpose"] == "any" for icon in manifest["icons"])
 
 
 def test_service_worker_is_root_scoped_and_does_not_cache_workflow_data(client: TestClient) -> None:
@@ -37,18 +40,27 @@ def test_service_worker_is_root_scoped_and_does_not_cache_workflow_data(client: 
     assert "fetch(event.request)" in response.text
 
 
+def test_manifest_revalidates_during_icon_testing(client: TestClient) -> None:
+    """The manifest should not hold stale mobile install icon paths."""
+
+    response = client.get("/manifest.webmanifest")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-cache, max-age=0"
+
+
 def test_base_template_registers_pwa_assets(client: TestClient) -> None:
     """Rendered pages should advertise install metadata and register the worker."""
 
     response = client.get("/login")
 
     assert response.status_code == 200
-    assert '<link rel="manifest" href="/manifest.webmanifest">' in response.text
+    assert '<link rel="manifest" href="/manifest.webmanifest?v=' in response.text
     assert 'name="mobile-web-app-capable" content="yes"' in response.text
     assert 'name="apple-mobile-web-app-capable" content="yes"' in response.text
     assert 'name="apple-mobile-web-app-status-bar-style" content="black-translucent"' in response.text
-    assert 'static/icons/job-logger-icon.svg?v=' in response.text
-    assert 'static/icons/job-logger-icon-192.png?v=' in response.text
+    assert 'static/icons/job-logger-install-icon.svg?v=' in response.text
+    assert 'static/icons/job-logger-install-icon-192.png?v=' in response.text
     assert 'static/pwa.js' in response.text
 
 
@@ -81,9 +93,9 @@ def test_pwa_install_icons_use_padded_transparent_logo_asset() -> None:
     repository_root = Path(__file__).resolve().parents[1]
     static_icon_dir = repository_root / "job_logger" / "static" / "icons"
 
-    icon_svg = (static_icon_dir / "job-logger-icon.svg").read_text(encoding="utf-8")
-    maskable_svg = (static_icon_dir / "job-logger-icon-maskable.svg").read_text(encoding="utf-8")
+    icon_svg = (static_icon_dir / "job-logger-install-icon.svg").read_text(encoding="utf-8")
 
-    assert "Job Logger semi-transparent install icon" in icon_svg
-    assert "Padded any-purpose PWA icon generated from the semi-transparent Job Logger logo." in icon_svg
-    assert "Padded maskable PWA icon generated from the semi-transparent Job Logger logo." in maskable_svg
+    assert (static_icon_dir / "job-logger-install-icon-192.png").is_file()
+    assert (static_icon_dir / "job-logger-install-icon-512.png").is_file()
+    assert "Job Logger transparent install icon" in icon_svg
+    assert "Padded non-maskable PWA icon generated from the semi-transparent Job Logger logo." in icon_svg

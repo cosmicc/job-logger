@@ -6,6 +6,7 @@ Short release notes shown on the authenticated `/changelog` page.
 
 - Updated the app icon, browser favicon, and desktop header logo to the new Job Logger artwork.
 - The installed app icon now uses the padded transparent logo so the full artwork is not cropped on a phone home screen.
+- The installed app icon now uses fresh install-icon files and avoids the over-zoomed maskable icon crop.
 - Ticket history now hides Autotask notes titled Some actions did not occur.
 - Added a full user manual covering sign-in, Work in Progress, Review, Config, Device sign-in, the changelog, and common messages.
 - The Config page documentation now explains that Submit from Work in Progress submits finished entries directly to Autotask instead of stopping in Review first.

@@ -146,6 +146,10 @@ def test_changelog_parser_reads_current_release() -> None:
                 "The installed app icon now uses the padded transparent logo so the full artwork "
                 "is not cropped on a phone home screen."
             ),
+            (
+                "The installed app icon now uses fresh install-icon files and avoids the "
+                "over-zoomed maskable icon crop."
+            ),
             "Ticket history now hides Autotask notes titled Some actions did not occur.",
             (
                 "Added a full user manual covering sign-in, Work in Progress, Review, Config, "
@@ -203,6 +207,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert (
         "The installed app icon now uses the padded transparent logo so the full artwork "
         "is not cropped on a phone home screen."
+    ) in response.text
+    assert (
+        "The installed app icon now uses fresh install-icon files and avoids the "
+        "over-zoomed maskable icon crop."
     ) in response.text
     assert "Ticket history now hides Autotask notes titled Some actions did not occur." in response.text
     assert (

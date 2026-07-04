@@ -26,7 +26,7 @@ def web_app_manifest() -> FileResponse:
     return FileResponse(
         STATIC_DIRECTORY / "manifest.webmanifest",
         media_type="application/manifest+json",
-        headers={"Cache-Control": "public, max-age=3600"},
+        headers={"Cache-Control": "no-cache, max-age=0"},
     )
 
 

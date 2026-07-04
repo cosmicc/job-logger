@@ -92,7 +92,7 @@ def test_public_app_shell_metadata_contains_no_private_workflow_data(client: Tes
 
     manifest_response = client.get("/manifest.webmanifest")
     service_worker_response = client.get("/service-worker.js")
-    icon_response = client.get("/static/icons/job-logger-icon-192.png")
+    icon_response = client.get("/static/icons/job-logger-install-icon-192.png")
 
     assert manifest_response.status_code == 200
     assert service_worker_response.status_code == 200
