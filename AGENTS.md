@@ -494,11 +494,12 @@ must not use `window.close()` or a browser-only app close fallback. Full-width
 the explicit desktop logout control. Full-browser top navigation should be
 centered, use raised blue icon-and-text buttons, and show the source-controlled
 transparent Job Logger logo asset as the authenticated desktop brand mark. The
-PWA manifest and favicon should use the source-controlled padded
-semi-transparent Job Logger logo asset through the `job-logger-install-icon-*`
-files so installed home-screen icons keep the full artwork inside mobile crop
-areas. Do not advertise maskable install icons unless a future design includes
-a tested full-bleed mask-safe background. It should include a **Log out**
+PWA manifest and favicon should use the source-controlled dark-background,
+padded Job Logger logo asset through the `job-logger-install-icon-*` files so
+installed home-screen icons keep the full artwork inside mobile crop areas
+without showing a white launcher background. Do not advertise maskable install
+icons unless a future design includes a tested full-bleed mask-safe background.
+It should include a **Log out**
 button with the logout icon and visible text while preserving the phone-sized
 icon navigation. Phone top-bar
 navigation buttons should use the same blue visual treatment as the

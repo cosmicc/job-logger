@@ -2,9 +2,61 @@
 
 from __future__ import annotations
 
+import struct
+import zlib
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+APP_DARK_ICON_BACKGROUND = (11, 18, 32, 255)
+
+
+def _first_png_pixel_rgba(image_path: Path) -> tuple[int, int, int, int]:
+    """Return the first RGBA pixel from a non-interlaced 8-bit PNG asset."""
+
+    png_bytes = image_path.read_bytes()
+    assert png_bytes.startswith(PNG_SIGNATURE)
+    offset = len(PNG_SIGNATURE)
+    width = 0
+    color_type = 0
+    idat_chunks: list[bytes] = []
+    while offset < len(png_bytes):
+        chunk_length = struct.unpack(">I", png_bytes[offset : offset + 4])[0]
+        chunk_type = png_bytes[offset + 4 : offset + 8]
+        chunk_data = png_bytes[offset + 8 : offset + 8 + chunk_length]
+        offset += 12 + chunk_length
+        if chunk_type == b"IHDR":
+            width, _height, bit_depth, color_type, _compression, _filter, interlace = struct.unpack(">IIBBBBB", chunk_data)
+            assert bit_depth == 8
+            assert color_type == 6
+            assert interlace == 0
+        elif chunk_type == b"IDAT":
+            idat_chunks.append(chunk_data)
+        elif chunk_type == b"IEND":
+            break
+
+    raw_pixels = zlib.decompress(b"".join(idat_chunks))
+    bytes_per_pixel = 4
+    row_length = width * bytes_per_pixel
+    filter_type = raw_pixels[0]
+    scanline = bytearray(raw_pixels[1 : 1 + row_length])
+    if filter_type == 1:
+        for index in range(bytes_per_pixel, row_length):
+            scanline[index] = (scanline[index] + scanline[index - bytes_per_pixel]) & 0xFF
+    elif filter_type == 2:
+        pass
+    elif filter_type == 3:
+        for index in range(bytes_per_pixel, row_length):
+            scanline[index] = (scanline[index] + (scanline[index - bytes_per_pixel] // 2)) & 0xFF
+    elif filter_type == 4:
+        for index in range(bytes_per_pixel, row_length):
+            left = scanline[index - bytes_per_pixel]
+            scanline[index] = (scanline[index] + left) & 0xFF
+    else:
+        assert filter_type == 0
+
+    return tuple(scanline[:4])
 
 
 def test_manifest_exposes_standalone_mobile_app_metadata(client: TestClient) -> None:
@@ -87,8 +139,8 @@ def test_logo_design_assets_are_source_controlled() -> None:
     assert (static_icon_dir / "job-logger-logo-fully-transparent.png").is_file()
 
 
-def test_pwa_install_icons_use_padded_transparent_logo_asset() -> None:
-    """Home-screen install icons should use the padded semi-transparent logo."""
+def test_pwa_install_icons_use_padded_dark_background_logo_asset() -> None:
+    """Home-screen install icons should use the padded dark-background logo."""
 
     repository_root = Path(__file__).resolve().parents[1]
     static_icon_dir = repository_root / "job_logger" / "static" / "icons"
@@ -97,5 +149,10 @@ def test_pwa_install_icons_use_padded_transparent_logo_asset() -> None:
 
     assert (static_icon_dir / "job-logger-install-icon-192.png").is_file()
     assert (static_icon_dir / "job-logger-install-icon-512.png").is_file()
-    assert "Job Logger transparent install icon" in icon_svg
-    assert "Padded non-maskable PWA icon generated from the semi-transparent Job Logger logo." in icon_svg
+    assert _first_png_pixel_rgba(static_icon_dir / "job-logger-install-icon-192.png") == APP_DARK_ICON_BACKGROUND
+    assert _first_png_pixel_rgba(static_icon_dir / "job-logger-install-icon-512.png") == APP_DARK_ICON_BACKGROUND
+    assert "Job Logger dark-background install icon" in icon_svg
+    assert (
+        "Padded non-maskable PWA icon generated from the semi-transparent "
+        "Job Logger logo on the dark app background."
+    ) in icon_svg
