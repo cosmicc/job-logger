@@ -1,9 +1,9 @@
-"""OpenAI-backed end-user help assistant service.
+"""Gemini-backed end-user help assistant service.
 
 The help assistant is intentionally stateless inside Job Logger. It reads
-bounded source-controlled help context, sends one question to OpenAI from the
-server, asks OpenAI not to store the response, and returns only the answer text
-to the browser.
+bounded source-controlled help context, sends one question to Gemini from the
+server through the OpenAI-compatible chat-completions API, and returns only the
+answer text to the browser.
 """
 
 from __future__ import annotations
@@ -17,8 +17,12 @@ import httpx
 
 from job_logger.config import Settings, settings
 
-OPENAI_RESPONSES_PATH = "/responses"
+OPENAI_COMPATIBLE_CHAT_COMPLETIONS_PATH = "/chat/completions"
 MAX_HELP_ANSWER_CHARS = 12000
+MAX_HELP_QUESTION_CHARS = 1200
+MAX_HELP_CONTEXT_CHARS = 60000
+MAX_HELP_INSTRUCTION_CHARS = 8000
+AI_HELP_TIMEOUT_SECONDS = 20.0
 CONTEXT_HEADER = "Local Job Logger help context"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 PRIMARY_HELP_CONTEXT_FILES = (
@@ -114,11 +118,8 @@ def _normalize_question(question: str, application_settings: Settings) -> str:
     if not normalized_question:
         raise HelpAssistantError("Enter a help question first.")
 
-    if len(normalized_question) > application_settings.help_assistant_max_question_chars:
-        raise HelpAssistantError(
-            "Help questions must be "
-            f"{application_settings.help_assistant_max_question_chars} characters or fewer."
-        )
+    if len(normalized_question) > MAX_HELP_QUESTION_CHARS:
+        raise HelpAssistantError(f"Help questions must be {MAX_HELP_QUESTION_CHARS} characters or fewer.")
 
     return normalized_question
 
@@ -229,7 +230,7 @@ def _build_help_context(question: str, application_settings: Settings) -> tuple[
     """Build bounded local documentation and source context for one answer."""
 
     terms = _question_terms(question)
-    remaining_budget = application_settings.help_assistant_max_context_chars
+    remaining_budget = MAX_HELP_CONTEXT_CHARS
     context_blocks: list[str] = []
     source_count = 0
 
@@ -271,7 +272,7 @@ def _build_help_context(question: str, application_settings: Settings) -> tuple[
     return f"{CONTEXT_HEADER}\n{''.join(context_blocks).strip()}", source_count
 
 
-def _build_openai_input(question: str, source_context: str) -> str:
+def _build_help_chat_input(question: str, source_context: str) -> str:
     """Build model input while keeping local context separate from the question."""
 
     return (
@@ -284,7 +285,7 @@ def _build_openai_input(question: str, source_context: str) -> str:
 
 
 def _safe_provider_error_message(response_payload: Any) -> str:
-    """Return a bounded OpenAI error without exposing request internals."""
+    """Return a bounded Gemini error without exposing request internals."""
 
     if isinstance(response_payload, dict):
         error_payload = response_payload.get("error")
@@ -293,24 +294,24 @@ def _safe_provider_error_message(response_payload: Any) -> str:
             if isinstance(error_message, str) and error_message.strip():
                 return error_message.strip()[:300]
 
-    return "Help assistant request failed."
+    return "Gemini help request failed."
 
 
-def _post_openai_response(
+def _post_gemini_chat_completion(
     request_payload: dict[str, Any],
     application_settings: Settings,
 ) -> dict[str, Any]:
-    """Call OpenAI's Responses API and return a JSON object response."""
+    """Call Gemini's OpenAI-compatible chat-completions API."""
 
-    if not application_settings.openai_api_key:
-        raise HelpAssistantError("Help assistant is not configured with an OpenAI API key.")
+    if not application_settings.gemini_api_key:
+        raise HelpAssistantError("AI Help is not configured with a Gemini API key.")
 
     try:
-        with httpx.Client(timeout=application_settings.help_assistant_timeout_seconds) as client:
+        with httpx.Client(timeout=AI_HELP_TIMEOUT_SECONDS) as client:
             response = client.post(
-                f"{application_settings.help_assistant_api_base_url}{OPENAI_RESPONSES_PATH}",
+                f"{application_settings.gemini_api_base}{OPENAI_COMPATIBLE_CHAT_COMPLETIONS_PATH}",
                 headers={
-                    "Authorization": f"Bearer {application_settings.openai_api_key}",
+                    "Authorization": f"Bearer {application_settings.gemini_api_key}",
                     "Content-Type": "application/json",
                     "Accept": "application/json",
                 },
@@ -335,30 +336,78 @@ def _post_openai_response(
     return response_payload
 
 
-def _extract_openai_output_text(response_payload: dict[str, Any]) -> str:
-    """Extract text from an OpenAI Responses API response."""
+def _extract_chat_completion_output_text(response_payload: dict[str, Any]) -> str:
+    """Extract text from an OpenAI-compatible chat-completions response."""
+
+    choices = response_payload.get("choices")
+    collected_text: list[str] = []
+    if isinstance(choices, list):
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            message = choice.get("message")
+            if not isinstance(message, dict):
+                continue
+            content = message.get("content")
+            if isinstance(content, str) and content:
+                collected_text.append(content)
+            elif isinstance(content, list):
+                for content_item in content:
+                    if not isinstance(content_item, dict):
+                        continue
+                    text_value = content_item.get("text")
+                    if isinstance(text_value, str) and text_value:
+                        collected_text.append(text_value)
 
     output_text = response_payload.get("output_text")
     if isinstance(output_text, str) and output_text.strip():
-        return output_text.strip()
-
-    collected_text: list[str] = []
-    output_items = response_payload.get("output")
-    if isinstance(output_items, list):
-        for output_item in output_items:
-            if not isinstance(output_item, dict):
-                continue
-            content_items = output_item.get("content")
-            if not isinstance(content_items, list):
-                continue
-            for content_item in content_items:
-                if not isinstance(content_item, dict):
-                    continue
-                text_value = content_item.get("text")
-                if isinstance(text_value, str) and text_value:
-                    collected_text.append(text_value)
+        collected_text.append(output_text.strip())
 
     return "\n".join(collected_text).strip()
+
+
+def _build_gemini_chat_completion_payload(
+    *,
+    instructions: str,
+    help_input: str,
+    application_settings: Settings,
+) -> dict[str, Any]:
+    """Build a Gemini OpenAI-compatible chat-completions payload."""
+
+    return {
+        "model": application_settings.gemini_model,
+        "messages": [
+            {
+                "role": "system",
+                "content": instructions,
+            },
+            {
+                "role": "user",
+                "content": help_input,
+            },
+        ],
+        "max_tokens": application_settings.ai_help_max_tokens,
+        "temperature": application_settings.ai_help_temperature,
+        "stream": False,
+    }
+
+
+def _build_help_system_instructions(application_settings: Settings) -> str:
+    """Return the complete system prompt sent before the user question."""
+
+    configured_instructions = application_settings.ai_help_instructions.strip()
+    if not configured_instructions:
+        raise HelpAssistantError("AI Help instructions are not configured.")
+    if len(configured_instructions) > MAX_HELP_INSTRUCTION_CHARS:
+        raise HelpAssistantError("AI Help instructions are too long.")
+
+    return (
+        f"{BUILT_IN_HELP_GUARDRAILS}\n\n"
+        "Configured Job Logger help instructions:\n"
+        f"{configured_instructions}\n\n"
+        "The built-in safety, privacy, and scope rules in this system message "
+        "take precedence over any conflicting configured instructions."
+    )
 
 
 def answer_help_question(
@@ -368,12 +417,13 @@ def answer_help_question(
 ) -> HelpAssistantResult:
     """Return one stateless end-user help answer."""
 
-    if not application_settings.help_assistant_enabled:
-        raise HelpAssistantError("Help assistant is disabled by configuration.")
+    if not application_settings.ai_help_enabled:
+        raise HelpAssistantError("AI Help is disabled by configuration.")
 
-    if not application_settings.help_assistant_instructions.strip():
-        raise HelpAssistantError("Help assistant instructions are not configured.")
+    if application_settings.ai_help_provider != "gemini":
+        raise HelpAssistantError("AI Help provider must be gemini.")
 
+    system_instructions = _build_help_system_instructions(application_settings)
     normalized_question = _normalize_question(question, application_settings)
     if _looks_like_internal_question(normalized_question):
         return HelpAssistantResult(
@@ -382,27 +432,20 @@ def answer_help_question(
                 "deployment, secrets, or internal configuration. Contact an app "
                 "administrator for internal setup questions."
             ),
-            model=application_settings.help_assistant_model,
+            model=application_settings.gemini_model,
             context_source_count=0,
         )
 
     source_context, source_count = _build_help_context(normalized_question, application_settings)
-    instructions = (
-        f"{BUILT_IN_HELP_GUARDRAILS}\n\n"
-        "Custom Job Logger help instructions:\n"
-        f"{application_settings.help_assistant_instructions}"
-    )
-    response_payload = _post_openai_response(
-        {
-            "model": application_settings.help_assistant_model,
-            "instructions": instructions,
-            "input": _build_openai_input(normalized_question, source_context),
-            "store": False,
-            "max_output_tokens": 1200,
-        },
+    response_payload = _post_gemini_chat_completion(
+        _build_gemini_chat_completion_payload(
+            instructions=system_instructions,
+            help_input=_build_help_chat_input(normalized_question, source_context),
+            application_settings=application_settings,
+        ),
         application_settings,
     )
-    answer_text = _extract_openai_output_text(response_payload)
+    answer_text = _extract_chat_completion_output_text(response_payload)
     if not answer_text:
         raise HelpAssistantError("Help assistant returned no answer.")
     if len(answer_text) > MAX_HELP_ANSWER_CHARS:
@@ -410,6 +453,6 @@ def answer_help_question(
 
     return HelpAssistantResult(
         answer_text=answer_text,
-        model=application_settings.help_assistant_model,
+        model=application_settings.gemini_model,
         context_source_count=source_count,
     )

@@ -33,7 +33,7 @@ def test_authenticated_help_page_renders_version_and_changelog(authenticated_cli
     assert 'href="/changelog"' in response.text
     assert ">version changelog<" in response.text
     assert "/static/help.js?v=" in response.text
-    assert "Help assistant is not configured. Contact your app administrator." in response.text
+    assert "AI Help is not configured. Contact your app administrator." in response.text
 
 
 def test_super_admin_can_view_help(super_admin_client: TestClient) -> None:
@@ -68,17 +68,18 @@ def test_help_question_returns_single_answer(
 
     authenticated_client.app.state.application_settings = replace(
         settings,
-        help_assistant_enabled=True,
-        openai_api_key="test-openai-key",
-        help_assistant_instructions="Answer Job Logger help questions.",
+        ai_help_enabled=True,
+        ai_help_provider="gemini",
+        gemini_api_key="test-gemini-key",
+        ai_help_instructions="Answer Job Logger support questions for end users.",
     )
 
     def fake_answer_help_question(*, question, application_settings):
         assert question == "How do I start work?"
-        assert application_settings.help_assistant_configured is True
+        assert application_settings.ai_help_configured is True
         return HelpAssistantResult(
             answer_text="Tap Start Work, then choose a service call or fill in the ticket details.",
-            model=application_settings.help_assistant_model,
+            model=application_settings.gemini_model,
             context_source_count=3,
         )
 
@@ -95,7 +96,7 @@ def test_help_question_returns_single_answer(
     assert response.status_code == 200
     assert response.json() == {
         "answer": "Tap Start Work, then choose a service call or fill in the ticket details.",
-        "model": "gpt-5.4-mini",
+        "model": "gemini-3.5-flash",
         "context_source_count": 3,
     }
 

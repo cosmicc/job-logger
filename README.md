@@ -759,7 +759,7 @@ Provider setup and data-handling docs:
   https://lmstudio.ai/docs/developer/core/server and
   https://lmstudio.ai/docs/developer/openai-compat
 
-### Help Assistant
+### AI Help
 
 The Help page is available to every signed-in user. It always shows the current
 version and the **version changelog** button. The question-answer assistant is
@@ -767,22 +767,24 @@ disabled until configured.
 
 Set these variables to enable one-question help answers:
 
-- `HELP_ASSISTANT_ENABLED=true`
-- `OPENAI_API_KEY`
-- `HELP_ASSISTANT_INSTRUCTIONS`, the custom GPT instruction text to apply
-- `HELP_ASSISTANT_MODEL`, default `gpt-5.4-mini`
-- `HELP_ASSISTANT_API_BASE_URL`, default `https://api.openai.com/v1`
-- `HELP_ASSISTANT_TIMEOUT_SECONDS`, default `20`
-- `HELP_ASSISTANT_MAX_QUESTION_CHARS`, default `1200`
-- `HELP_ASSISTANT_MAX_CONTEXT_CHARS`, default `60000`
+- `AI_HELP_ENABLED=true`
+- `AI_HELP_PROVIDER=gemini`
+- `GEMINI_API_KEY`, the Google AI Studio API key
+- `GEMINI_MODEL`, default `gemini-3.5-flash`
+- `GEMINI_API_BASE`, default `https://generativelanguage.googleapis.com/v1beta/openai/`
+- `AI_HELP_MAX_TOKENS`, default `800`
+- `AI_HELP_TEMPERATURE`, default `0.2`
+- `AI_HELP_INSTRUCTIONS`, the server-side support prompt sent before the user's question
 
-Job Logger calls OpenAI's Responses API from the server. The browser never sees
-the API key or the custom instructions. Each answer is stateless: the app does
-not store help questions or answers in the database, and it sends `store=false`
-with the provider request. The assistant uses bounded context from
-`USER_MANUAL.md`, `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files, and
-selected app source to answer end-user support questions. It refuses source
-code, deployment, secret, credential, and internal configuration questions.
+Job Logger calls Gemini's OpenAI-compatible chat-completions API from the
+server. The browser never sees the API key. Each answer is stateless: the app
+does not store help questions or answers in the database. The assistant uses
+bounded context from `USER_MANUAL.md`, `WEB_CHANGELOG.md`, `AGENTS.md`, agent
+skill files, and selected app source to answer end-user support questions. It
+refuses source code, deployment, secret, credential, and internal configuration
+questions. Keep `AI_HELP_INSTRUCTIONS` focused on how the assistant should
+answer end-user Job Logger support questions, and do not put secrets or private
+deployment values in it.
 
 ### Autotask
 

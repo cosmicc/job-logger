@@ -11,7 +11,11 @@ from sqlalchemy.orm import Session
 from job_logger.config import settings
 from job_logger.database import get_database_session
 from job_logger.security import require_authenticated_username, validate_csrf_header
-from job_logger.services.help_assistant import HelpAssistantError, answer_help_question
+from job_logger.services.help_assistant import (
+    MAX_HELP_QUESTION_CHARS,
+    HelpAssistantError,
+    answer_help_question,
+)
 from job_logger.ui import template_context, templates
 from job_logger.version import APP_VERSION
 
@@ -38,8 +42,8 @@ def help_page(
             request,
             database_session=database_session,
             app_version=APP_VERSION,
-            help_assistant_configured=application_settings.help_assistant_configured,
-            help_assistant_max_question_chars=application_settings.help_assistant_max_question_chars,
+            ai_help_configured=application_settings.ai_help_configured,
+            ai_help_max_question_chars=MAX_HELP_QUESTION_CHARS,
         ),
     )
 

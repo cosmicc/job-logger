@@ -27,8 +27,9 @@ DEFAULT_AI_CLEANUP_INSTRUCTIONS = (
     "summary text with no markdown, title, explanation, or surrounding quotes."
 )
 
-DEFAULT_HELP_ASSISTANT_MODEL = "gpt-5.4-mini"
-DEFAULT_HELP_ASSISTANT_API_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_AI_HELP_PROVIDER = "gemini"
+DEFAULT_GEMINI_HELP_MODEL = "gemini-3.5-flash"
+DEFAULT_GEMINI_HELP_API_BASE = "https://generativelanguage.googleapis.com/v1beta/openai"
 
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR"}
 
@@ -83,6 +84,15 @@ def _get_positive_float(environment_variable_name: str, default_value: float) ->
     value = _get_float(environment_variable_name, default_value)
     if value <= 0:
         raise ValueError(f"{environment_variable_name} must be greater than zero.")
+    return value
+
+
+def _get_nonnegative_float(environment_variable_name: str, default_value: float) -> float:
+    """Return a non-negative float setting, failing fast for unsafe values."""
+
+    value = _get_float(environment_variable_name, default_value)
+    if value < 0:
+        raise ValueError(f"{environment_variable_name} must be greater than or equal to zero.")
     return value
 
 
@@ -319,29 +329,26 @@ class Settings:
     # AI_CLEANUP_REVERT_RETENTION_HOURS limits how long pre-cleanup text is retained for undo.
     ai_cleanup_revert_retention_hours: float
 
-    # HELP_ASSISTANT_ENABLED gates OpenAI-backed end-user help answers.
-    help_assistant_enabled: bool
+    # AI_HELP_ENABLED gates provider-backed end-user help answers.
+    ai_help_enabled: bool
 
-    # OPENAI_API_KEY authorizes help assistant Responses API requests.
-    openai_api_key: str | None
+    # AI_HELP_PROVIDER selects the help backend. Gemini is currently supported.
+    ai_help_provider: str
 
-    # HELP_ASSISTANT_MODEL selects the OpenAI model used for help answers.
-    help_assistant_model: str
+    # GEMINI_MODEL selects the Gemini model used for help answers.
+    gemini_model: str
 
-    # HELP_ASSISTANT_API_BASE_URL supports OpenAI-compatible endpoint overrides.
-    help_assistant_api_base_url: str
+    # GEMINI_API_BASE is the Gemini OpenAI-compatible API base URL.
+    gemini_api_base: str
 
-    # HELP_ASSISTANT_INSTRUCTIONS stores the private custom GPT instruction set.
-    help_assistant_instructions: str
+    # AI_HELP_MAX_TOKENS limits generated help-answer length.
+    ai_help_max_tokens: int
 
-    # HELP_ASSISTANT_TIMEOUT_SECONDS bounds help-answer latency from the UI.
-    help_assistant_timeout_seconds: float
+    # AI_HELP_TEMPERATURE controls help-answer determinism.
+    ai_help_temperature: float
 
-    # HELP_ASSISTANT_MAX_QUESTION_CHARS limits user text sent to OpenAI.
-    help_assistant_max_question_chars: int
-
-    # HELP_ASSISTANT_MAX_CONTEXT_CHARS limits local documentation/code context.
-    help_assistant_max_context_chars: int
+    # AI_HELP_INSTRUCTIONS stores the server-side support prompt for help answers.
+    ai_help_instructions: str
 
     # AUTOTASK_PROVIDER selects the live Autotask REST client; mock is for tests/development only.
     autotask_provider: str
@@ -419,13 +426,14 @@ class Settings:
         return self.pushover_enabled and not self.dev_build
 
     @property
-    def help_assistant_configured(self) -> bool:
+    def ai_help_configured(self) -> bool:
         """Return whether the help assistant has the secret settings it needs."""
 
         return bool(
-            self.help_assistant_enabled
-            and self.openai_api_key
-            and self.help_assistant_instructions.strip()
+            self.ai_help_enabled
+            and self.ai_help_provider == "gemini"
+            and self.gemini_api_key
+            and self.ai_help_instructions.strip()
         )
 
 
@@ -538,20 +546,19 @@ def load_settings() -> Settings:
         ai_cleanup_timeout_seconds=_get_float("AI_CLEANUP_TIMEOUT_SECONDS", 20.0),
         ai_cleanup_max_input_chars=_get_integer("AI_CLEANUP_MAX_INPUT_CHARS", 12000),
         ai_cleanup_revert_retention_hours=_get_positive_float("AI_CLEANUP_REVERT_RETENTION_HOURS", 24.0),
-        help_assistant_enabled=_get_boolean("HELP_ASSISTANT_ENABLED", False),
-        openai_api_key=os.getenv("OPENAI_API_KEY") or None,
-        help_assistant_model=(
-            os.getenv("HELP_ASSISTANT_MODEL", DEFAULT_HELP_ASSISTANT_MODEL).strip()
-            or DEFAULT_HELP_ASSISTANT_MODEL
+        ai_help_enabled=_get_boolean("AI_HELP_ENABLED", False),
+        ai_help_provider=(
+            os.getenv("AI_HELP_PROVIDER", DEFAULT_AI_HELP_PROVIDER).strip().lower().replace("-", "_")
+            or DEFAULT_AI_HELP_PROVIDER
         ),
-        help_assistant_api_base_url=(
-            os.getenv("HELP_ASSISTANT_API_BASE_URL", DEFAULT_HELP_ASSISTANT_API_BASE_URL).strip().rstrip("/")
-            or DEFAULT_HELP_ASSISTANT_API_BASE_URL
+        gemini_model=os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_HELP_MODEL).strip() or DEFAULT_GEMINI_HELP_MODEL,
+        gemini_api_base=(
+            os.getenv("GEMINI_API_BASE", DEFAULT_GEMINI_HELP_API_BASE).strip().rstrip("/")
+            or DEFAULT_GEMINI_HELP_API_BASE
         ),
-        help_assistant_instructions=os.getenv("HELP_ASSISTANT_INSTRUCTIONS", "").strip(),
-        help_assistant_timeout_seconds=_get_positive_float("HELP_ASSISTANT_TIMEOUT_SECONDS", 20.0),
-        help_assistant_max_question_chars=_get_positive_integer("HELP_ASSISTANT_MAX_QUESTION_CHARS", 1200),
-        help_assistant_max_context_chars=_get_positive_integer("HELP_ASSISTANT_MAX_CONTEXT_CHARS", 60000),
+        ai_help_max_tokens=_get_positive_integer("AI_HELP_MAX_TOKENS", 800),
+        ai_help_temperature=_get_nonnegative_float("AI_HELP_TEMPERATURE", 0.2),
+        ai_help_instructions=os.getenv("AI_HELP_INSTRUCTIONS", "").strip(),
         autotask_provider=os.getenv("AUTOTASK_PROVIDER", "autotask").strip().lower(),
         autotask_base_url=os.getenv("AUTOTASK_BASE_URL") or None,
         autotask_username=os.getenv("AUTOTASK_USERNAME") or None,

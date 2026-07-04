@@ -180,29 +180,29 @@ def test_app_health_and_pushover_settings_load_from_environment(monkeypatch) -> 
     assert dev_settings.pushover_notifications_enabled is False
 
 
-def test_help_assistant_settings_load_from_environment(monkeypatch) -> None:
-    """Help assistant settings should stay environment-backed and secret-safe."""
+def test_ai_help_settings_load_from_environment(monkeypatch) -> None:
+    """AI Help settings should stay environment-backed and secret-safe."""
 
-    monkeypatch.setenv("HELP_ASSISTANT_ENABLED", "true")
-    monkeypatch.setenv("OPENAI_API_KEY", "openai-key-value")
-    monkeypatch.setenv("HELP_ASSISTANT_MODEL", "gpt-5.4-mini")
-    monkeypatch.setenv("HELP_ASSISTANT_API_BASE_URL", "https://api.openai.com/v1/")
-    monkeypatch.setenv("HELP_ASSISTANT_INSTRUCTIONS", "Answer only Job Logger support questions.")
-    monkeypatch.setenv("HELP_ASSISTANT_TIMEOUT_SECONDS", "8.5")
-    monkeypatch.setenv("HELP_ASSISTANT_MAX_QUESTION_CHARS", "900")
-    monkeypatch.setenv("HELP_ASSISTANT_MAX_CONTEXT_CHARS", "30000")
+    monkeypatch.setenv("AI_HELP_ENABLED", "true")
+    monkeypatch.setenv("AI_HELP_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "gemini-key-value")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-3.5-flash")
+    monkeypatch.setenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta/openai/")
+    monkeypatch.setenv("AI_HELP_MAX_TOKENS", "800")
+    monkeypatch.setenv("AI_HELP_TEMPERATURE", "0.2")
+    monkeypatch.setenv("AI_HELP_INSTRUCTIONS", "Answer Job Logger support questions for end users.")
 
     loaded_settings = load_settings()
 
-    assert loaded_settings.help_assistant_enabled is True
-    assert loaded_settings.openai_api_key == "openai-key-value"
-    assert loaded_settings.help_assistant_model == "gpt-5.4-mini"
-    assert loaded_settings.help_assistant_api_base_url == "https://api.openai.com/v1"
-    assert loaded_settings.help_assistant_instructions == "Answer only Job Logger support questions."
-    assert loaded_settings.help_assistant_timeout_seconds == 8.5
-    assert loaded_settings.help_assistant_max_question_chars == 900
-    assert loaded_settings.help_assistant_max_context_chars == 30000
-    assert loaded_settings.help_assistant_configured is True
+    assert loaded_settings.ai_help_enabled is True
+    assert loaded_settings.ai_help_provider == "gemini"
+    assert loaded_settings.gemini_api_key == "gemini-key-value"
+    assert loaded_settings.gemini_model == "gemini-3.5-flash"
+    assert loaded_settings.gemini_api_base == "https://generativelanguage.googleapis.com/v1beta/openai"
+    assert loaded_settings.ai_help_max_tokens == 800
+    assert loaded_settings.ai_help_temperature == 0.2
+    assert loaded_settings.ai_help_instructions == "Answer Job Logger support questions for end users."
+    assert loaded_settings.ai_help_configured is True
 
 
 def test_plain_postgresql_urls_use_installed_psycopg_driver() -> None:

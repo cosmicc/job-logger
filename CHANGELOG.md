@@ -11,22 +11,21 @@ All notable changes to Job Logger are documented in this file.
   phone-sized navigation shows the help icon, and dev builds mark the Help
   control in yellow while showing `DEV` on the Help page.
 - Added authenticated `/help` and `/help/ask` routes for a stateless
-  OpenAI-backed end-user help assistant. The assistant is available to every
-  authenticated account only when configured through environment variables.
-- Added `HELP_ASSISTANT_ENABLED`, `OPENAI_API_KEY`, `HELP_ASSISTANT_MODEL`,
-  `HELP_ASSISTANT_API_BASE_URL`, `HELP_ASSISTANT_TIMEOUT_SECONDS`,
-  `HELP_ASSISTANT_MAX_QUESTION_CHARS`,
-  `HELP_ASSISTANT_MAX_CONTEXT_CHARS`, and
-  `HELP_ASSISTANT_INSTRUCTIONS` runtime settings to Compose, Swarm, and
-  `.env.example`.
+  Gemini-backed end-user help assistant using Gemini's OpenAI-compatible
+  chat-completions API. The assistant is available to every authenticated
+  account only when configured through environment variables.
+- Added `AI_HELP_ENABLED`, `AI_HELP_PROVIDER`, `GEMINI_MODEL`,
+  `GEMINI_API_BASE`, `AI_HELP_MAX_TOKENS`, `AI_HELP_TEMPERATURE`, and
+  `AI_HELP_INSTRUCTIONS` runtime settings to Compose, Swarm, and
+  `.env.example`. `GEMINI_API_KEY` is reused for both Gemini cleanup and AI
+  Help.
 - Added bounded local help context from `USER_MANUAL.md`,
   `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files, and selected app source
-  files so the server can answer user-support questions without committing the
-  private custom GPT instructions.
+  files so the server can answer user-support questions without committing
+  provider credentials.
 - Added help-assistant guardrails that reject likely source-code,
   deployment, secret, or internal configuration questions, require CSRF on
-  help questions, avoid local database storage of prompts and answers, and set
-  `store=false` on OpenAI Responses API requests.
+  help questions, and avoid local database storage of prompts and answers.
 - Replaced the app favicon, installed-app icon images, authenticated desktop
   header brand mark, and source-controlled PWA icon assets with the new Job
   Logger logo.

@@ -260,13 +260,16 @@ though the version and release notes are source-controlled metadata. The web
 changelog must come from concise `WEB_CHANGELOG.md` entries, while
 `CHANGELOG.md` remains the detailed operator/agent release record.
 
-The Help assistant is an external AI integration for authenticated end-user
-support. Keep `OPENAI_API_KEY` and `HELP_ASSISTANT_INSTRUCTIONS` in runtime
-environment or secrets, never in source control. The `/help/ask` route must
-require local authentication and a CSRF header, cap submitted question length,
-send only bounded local documentation/source context, set `store=false` on
-OpenAI Responses API requests, and avoid any local database storage of prompts
-or answers. The assistant may use source code as reference for user-facing app
+AI Help is an external AI integration for authenticated end-user support. Keep
+`GEMINI_API_KEY` in runtime environment or secrets, never in source control.
+Use `AI_HELP_INSTRUCTIONS` for the server-side setup prompt that tells Gemini
+how to answer Job Logger support questions before the user's question is sent.
+Do not put secrets, private URLs, or environment-specific credentials in that
+prompt. The `/help/ask` route must require local authentication and a CSRF
+header, cap submitted question and instruction length, send only bounded local
+documentation/source context, call Gemini through its OpenAI-compatible
+chat-completions API, and avoid any local database storage of prompts or
+answers. The assistant may use source code as reference for user-facing app
 behavior, but it must refuse source-code, deployment, secret, credential, or
 internal configuration questions.
 

@@ -180,15 +180,15 @@ finalized in Autotask. Stale cleanup undo text must also be cleared after
 not retain extra customer/work text indefinitely.
 
 The Help assistant sends authenticated end-user support questions and bounded
-local documentation/source context to OpenAI only when
-`HELP_ASSISTANT_ENABLED=true` and `OPENAI_API_KEY` plus
-`HELP_ASSISTANT_INSTRUCTIONS` are configured server-side. Treat help questions,
-custom GPT instructions, and source context as sensitive. The server must
-validate authentication and CSRF, bound question and context size, keep the API
-key and custom instructions out of source control, set `store=false` on OpenAI
-Responses API requests, avoid local database storage of prompts and answers,
-and refuse source-code, deployment, secret, credential, or internal
-configuration questions. The assistant is for end-user Job Logger support only.
+local documentation/source context to Gemini only when
+`AI_HELP_ENABLED=true`, `AI_HELP_PROVIDER=gemini`, `GEMINI_API_KEY`, and
+`AI_HELP_INSTRUCTIONS` are configured server-side. Treat help questions, help
+instructions, and source context as sensitive. The server must validate
+authentication and CSRF, bound question, instruction, and context size, keep API
+keys and private deployment details out of source control, avoid local database
+storage of prompts and answers, and refuse source-code, deployment, secret,
+credential, or internal configuration questions. The assistant is for end-user
+Job Logger support only.
 
 ## Core Workflow
 
@@ -857,8 +857,8 @@ The application is a FastAPI project under `job_logger/`.
   display.
 - `job_logger/services/help_assistant.py` builds bounded end-user help context
   from `USER_MANUAL.md`, `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files,
-  and selected app source, then calls OpenAI's Responses API only when the
-  server-side help assistant is configured.
+  and selected app source, then calls Gemini's OpenAI-compatible
+  chat-completions API only when server-side AI Help is configured.
 - `USER_MANUAL.md` is the full end-user manual. It must describe only surfaces
   normal managed web users can access and must not document Diagnostics or
   other admin-only pages.

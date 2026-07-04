@@ -319,8 +319,8 @@ If the Help page shows **DEV** beside the version, or the Help button is
 yellow, you are using a development or testing instance rather than the
 production instance.
 
-If the Help assistant is enabled, you can ask one Job Logger support question
-at a time and read the answer on the Help page.
+If AI Help is enabled, you can ask one Job Logger support question at a time
+and read the answer on the Help page.
 
 ## Common Messages And What To Do
 

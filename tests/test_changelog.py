@@ -141,7 +141,7 @@ def test_changelog_parser_reads_current_release() -> None:
             "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.",
             "Dev builds now mark the Help button yellow and show DEV beside the current version on the Help page.",
             "The Help page now shows the current version followed by a version changelog button.",
-            "The Help page can answer one Job Logger support question at a time when the app administrator configures the assistant.",
+            "The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions.",
             (
                 "Updated the app icon, browser favicon, and desktop header logo "
                 "to the new Job Logger artwork."
@@ -203,7 +203,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help." in response.text
     assert "Dev builds now mark the Help button yellow and show DEV beside the current version on the Help page." in response.text
     assert "The Help page now shows the current version followed by a version changelog button." in response.text
-    assert "The Help page can answer one Job Logger support question at a time when the app administrator configures the assistant." in response.text
+    assert "The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions." in response.text
     assert (
         "Updated the app icon, browser favicon, and desktop header logo "
         "to the new Job Logger artwork."

@@ -41,9 +41,9 @@
           <textarea
             name="question"
             rows="4"
-            maxlength="{{ help_assistant_max_question_chars }}"
+            maxlength="{{ ai_help_max_question_chars }}"
             data-help-question-input
-            {% if not help_assistant_configured %}disabled{% endif %}
+            {% if not ai_help_configured %}disabled{% endif %}
           ></textarea>
         </label>
         <div class="help-action-row">
@@ -51,7 +51,7 @@
             class="primary-button help-submit-button"
             type="submit"
             data-help-submit-button
-            {% if not help_assistant_configured %}disabled{% endif %}
+            {% if not ai_help_configured %}disabled{% endif %}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="12" cy="12" r="10"></circle>
@@ -62,7 +62,7 @@
           </button>
         </div>
         <p class="workflow-status-line help-status-line" data-help-status aria-live="polite">
-          {% if not help_assistant_configured %}Help assistant is not configured. Contact your app administrator.{% endif %}
+          {% if not ai_help_configured %}AI Help is not configured. Contact your app administrator.{% endif %}
         </p>
       </form>
 
