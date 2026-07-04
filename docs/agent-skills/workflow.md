@@ -55,11 +55,11 @@ non-mobile authenticated pages. Full-browser top navigation should stay
 centered and use raised blue icon-and-text buttons, including visible
 **Log out** text after the logout icon. The authenticated desktop brand mark
 should use the source-controlled transparent Job Logger logo asset, while the
-PWA manifest and favicon use the source-controlled dark-background, padded Job
-Logger logo asset so installed home-screen icons keep the full artwork inside
-mobile crop areas without showing a white launcher background. Use the
-`job-logger-install-icon-*` files and do not advertise maskable install icons
-unless a future design includes a tested full-bleed mask-safe background.
+PWA manifest and favicon use the source-controlled icon-format Job Logger
+artwork so installed home-screen icons fill the icon frame with the dark
+app-icon background. Use the `job-logger-install-icon-*` files and do not
+advertise maskable install icons unless a future design includes a tested
+full-bleed mask-safe background.
 Phone-sized navigation remains compact blue icon buttons.
 Enabled buttons and button-like navigation controls should visibly brighten on
 hover. Workflow actions such as **Record**, **AI Cleanup**, finish, delete, and

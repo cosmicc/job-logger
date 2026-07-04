@@ -495,14 +495,13 @@ Static CSS and JavaScript links include a content-derived version value so
 browser and installed-app shells fetch changed assets after deploy without
 requiring an application version bump.
 Favicon and Apple touch icon links use the same content-derived version value.
-The installed-app icon comes from the web manifest and uses the padded Job
-Logger logo on the app's dark background through dedicated install-icon
-filenames so the full artwork stays inside mobile home-screen icon crops. The
-manifest intentionally advertises non-maskable icons because launcher maskable
-cropping can over-zoom this artwork. Mobile operating systems may update that
-icon after the manifest and icon URL/content change, but some installed PWA
-shells keep the original home-screen icon until the app is removed and
-installed again.
+The installed-app icon comes from the web manifest and uses the icon-format Job
+Logger artwork through dedicated install-icon filenames so the dark app-icon
+background fills the mobile home-screen icon frame. The manifest intentionally
+advertises non-maskable icons because launcher maskable cropping can over-zoom
+this artwork. Mobile operating systems may update that icon after the manifest
+and icon URL/content change, but some installed PWA shells keep the original
+home-screen icon until the app is removed and installed again.
 
 ## Authentication And Device Sign-In
 

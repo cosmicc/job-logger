@@ -5,9 +5,7 @@ Short release notes shown on the authenticated `/changelog` page.
 ## 1.2.2 - 07.03.2026 - User manual, app icon, and Config workflow
 
 - Updated the app icon, browser favicon, and desktop header logo to the new Job Logger artwork.
-- The installed app icon now uses a padded logo so the full artwork is not cropped on a phone home screen.
-- The installed app icon now uses fresh install-icon files and avoids the over-zoomed maskable icon crop.
-- The installed app icon is now slightly larger and uses a dark background instead of showing white around the artwork.
+- The installed app icon now uses the original dark-background icon artwork, fills the icon frame, and avoids the over-zoomed maskable icon crop.
 - Ticket history now hides Autotask notes titled Some actions did not occur.
 - Added a full user manual covering sign-in, Work in Progress, Review, Config, Device sign-in, the changelog, and common messages.
 - The Config page documentation now explains that Submit from Work in Progress submits finished entries directly to Autotask instead of stopping in Review first.

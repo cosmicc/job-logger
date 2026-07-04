@@ -139,8 +139,8 @@ def test_logo_design_assets_are_source_controlled() -> None:
     assert (static_icon_dir / "job-logger-logo-fully-transparent.png").is_file()
 
 
-def test_pwa_install_icons_use_padded_dark_background_logo_asset() -> None:
-    """Home-screen install icons should use the padded dark-background logo."""
+def test_pwa_install_icons_use_full_frame_icon_format_artwork() -> None:
+    """Home-screen install icons should use the full-frame icon-format artwork."""
 
     repository_root = Path(__file__).resolve().parents[1]
     static_icon_dir = repository_root / "job_logger" / "static" / "icons"
@@ -151,8 +151,8 @@ def test_pwa_install_icons_use_padded_dark_background_logo_asset() -> None:
     assert (static_icon_dir / "job-logger-install-icon-512.png").is_file()
     assert _first_png_pixel_rgba(static_icon_dir / "job-logger-install-icon-192.png") == APP_DARK_ICON_BACKGROUND
     assert _first_png_pixel_rgba(static_icon_dir / "job-logger-install-icon-512.png") == APP_DARK_ICON_BACKGROUND
-    assert "Job Logger dark-background install icon" in icon_svg
+    assert "Job Logger icon-format install icon" in icon_svg
     assert (
-        "Padded non-maskable PWA icon generated from the semi-transparent "
-        "Job Logger logo on the dark app background."
+        "Full-size PWA install icon generated from the original dark-background "
+        "Job Logger icon artwork."
     ) in icon_svg
