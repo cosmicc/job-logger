@@ -258,6 +258,17 @@ Use these profile combinations for standalone Compose:
   nginx/cloudflared.
 - `COMPOSE_PROFILES=`: remote PostgreSQL with external nginx/cloudflared.
 
+When deploying from Portainer, keep the stack environment field or uploaded
+environment file to plain `KEY=value` lines only. Do not paste markdown
+headings, bullet text, or explanatory comments into Portainer's environment
+editor, and do not upload `.env.example` directly without stripping comment
+lines first. If redeploy fails before pulling images with an error like
+`failed to read /data/compose/1/stack.env: line 1: key cannot contain a space`,
+line 1 of the generated Portainer `stack.env` contains text that is not a valid
+environment variable name. Remove that prose or convert it to a valid key such
+as `AI_HELP_INSTRUCTIONS=Answer Job Logger support questions for end users.`
+on one line.
+
 For a remote PostgreSQL server, provide:
 
 ```env
@@ -284,8 +295,8 @@ Use `docker-swarm.yml` for Swarm. It is image-based, does not build locally,
 and expects PostgreSQL to run outside the stack:
 
 ```bash
-export JOB_LOGGER_APP_IMAGE=registry.example.com/job-logger-app:1.2.2
-export JOB_LOGGER_NGINX_IMAGE=registry.example.com/job-logger-nginx:1.2.2
+export JOB_LOGGER_APP_IMAGE=registry.example.com/job-logger-app:1.2.3
+export JOB_LOGGER_NGINX_IMAGE=registry.example.com/job-logger-nginx:1.2.3
 export JOB_LOGGER_BUNDLED_EDGE_REPLICAS=1
 export JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger
 export DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
@@ -545,22 +556,23 @@ Set these passkey variables for production when needed:
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.2.2`. Version history starts at `v1.0.0`.
+currently `v1.2.3`. Version history starts at `v1.0.0`.
 
 Authenticated pages show a Help button in the shared header. `/help` displays
 the current version and a **version changelog** button that opens the concise
 release notes in an overlay. `/changelog` remains available as an authenticated
 fallback page and uses `WEB_CHANGELOG.md` as its source. The changelog shows
-version numbers without brackets, release dates in `MM.DD.YYYY` format, and
-short user-facing changes for each version. `CHANGELOG.md` remains the detailed
-source changelog for operators and agents. `WEB_CHANGELOG.md` is only for
-user-facing changes; keep diagnostics, debug-page, super-admin-only,
-operator-only, and agent-facing notes in `CHANGELOG.md` only. The Help and
+version numbers without brackets, uses `MM.DD.YYYY` dates for released
+versions, and lists short user-facing changes for each version. `CHANGELOG.md`
+remains the detailed source changelog for operators and agents.
+`WEB_CHANGELOG.md` is only for user-facing changes; keep diagnostics,
+debug-page, super-admin-only, operator-only, and agent-facing notes in
+`CHANGELOG.md` only. The Help and
 changelog views use the same authenticated session, dark/light theme variables,
 and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the authenticated Help button is yellow
 on desktop and phone layouts, and `/help` shows the current version with `DEV`,
-such as `v1.2.2 DEV`.
+such as `v1.2.3 DEV`.
 
 ## Provider Modes
 

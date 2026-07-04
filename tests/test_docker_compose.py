@@ -164,6 +164,7 @@ def test_env_example_defaults_to_bundled_profiles_and_documents_switching() -> N
     """The sample env should preserve bundled defaults and document deployment switching."""
 
     env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+    readme_text = README_FILE.read_text(encoding="utf-8")
 
     assert "COMPOSE_PROFILES=local-db,bundled-edge" in env_example_text
     assert "For a remote PostgreSQL server, remove `local-db`" in env_example_text
@@ -171,6 +172,8 @@ def test_env_example_defaults_to_bundled_profiles_and_documents_switching() -> N
     assert "remove `bundled-edge`" in env_example_text
     assert "JOB_LOGGER_BUNDLED_EDGE_REPLICAS=1" in env_example_text
     assert "JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger" in env_example_text
+    assert "failed to read /data/compose/1/stack.env: line 1: key cannot contain a space" in readme_text
+    assert "plain `KEY=value` lines only" in readme_text
     assert "DATABASE_URL=" in env_example_text
     assert "DATABASE_POOL_RECYCLE_SECONDS=1800" in env_example_text
     assert "LOG_DIR=/data/logs" in env_example_text

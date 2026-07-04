@@ -488,7 +488,7 @@ dark mode.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
 must mark the Help navigation button in yellow so dev instances are visually
 distinct from production without adding a separate pill. The Help page itself
-must show the current version with `DEV`, such as `v1.2.2 DEV`.
+must show the current version with `DEV`, such as `v1.2.3 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows compact route and status icons on the left,

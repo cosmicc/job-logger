@@ -16,18 +16,19 @@ from job_logger.services.changelog import (
 from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
-CURRENT_DETAILED_HEADING = (
-    "## 1.2.2 - 07.03.2026 - Help assistant, health alerts, app icon, and Swarm storage"
-)
-CURRENT_RELEASE_DATE = "07.03.2026"
-CURRENT_WEB_TITLE = "Help page, user manual, app icon, and Config workflow"
-CURRENT_WEB_HEADING = f"## 1.2.2 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+CURRENT_DETAILED_HEADING = "## 1.2.3 - Help navigation, AI Help polish, and Portainer env guidance"
+CURRENT_RELEASE_DATE = ""
+CURRENT_WEB_TITLE = "Help navigation and AI Help"
+CURRENT_WEB_HEADING = f"## 1.2.3 - {CURRENT_WEB_TITLE}"
+V122_WEB_TITLE = "App icon, user manual, ticket history, and Config workflow"
+V122_RELEASE_DATE = "07.03.2026"
 PREVIOUS_WEB_TITLE = "Work in Progress, Review, and outage-page polish"
 V120_WEB_TITLE = "Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish"
 V120_RELEASE_DATE = "07.02.2026"
-RELEASE_HEADING_PATTERN = re.compile(r"^## \d+\.\d+\.\d+ - \d{2}\.\d{2}\.\d{4} - .+")
+RELEASE_HEADING_PATTERN = re.compile(r"^## \d+\.\d+\.\d+ - (?:\d{2}\.\d{2}\.\d{4} - .+|.+)")
 DETAILED_RELEASE_HEADINGS = (
     CURRENT_DETAILED_HEADING,
+    "## 1.2.2 - 07.03.2026 - Health alerts, app icon, user manual, and Swarm storage",
     "## 1.2.1 - 07.03.2026 - Work in Progress, Review, and outage-page polish",
     "## 1.2.0 - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge errors",
     "## 1.1.6 - 06.29.2026 - Cloudflare block controls, Review, Home, and header polish",
@@ -43,7 +44,8 @@ DETAILED_RELEASE_HEADINGS = (
 )
 WEB_RELEASE_HEADINGS = (
     CURRENT_WEB_HEADING,
-    f"## 1.2.1 - {CURRENT_RELEASE_DATE} - {PREVIOUS_WEB_TITLE}",
+    f"## 1.2.2 - {V122_RELEASE_DATE} - {V122_WEB_TITLE}",
+    f"## 1.2.1 - {V122_RELEASE_DATE} - {PREVIOUS_WEB_TITLE}",
     f"## 1.2.0 - {V120_RELEASE_DATE} - {V120_WEB_TITLE}",
     "## 1.1.6 - 06.29.2026 - Review, Home, and header polish",
     "## 1.1.5 - 06.26.2026 - AI cleanup, speech-to-text, and sign-in updates",
@@ -58,10 +60,10 @@ WEB_RELEASE_HEADINGS = (
 )
 
 
-def test_app_version_matches_current_release() -> None:
-    """The source-controlled version should match the current release."""
+def test_app_version_matches_current_changelog_version() -> None:
+    """The source-controlled version should match the current changelog entry."""
 
-    assert APP_VERSION == "1.2.2"
+    assert APP_VERSION == "1.2.3"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -134,7 +136,7 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="1.2.2",
+        version="1.2.3",
         release_date=CURRENT_RELEASE_DATE,
         title=CURRENT_WEB_TITLE,
         changes=(
@@ -144,23 +146,6 @@ def test_changelog_parser_reads_current_release() -> None:
             "The Help page now opens the version changelog in an overlay with an X close button.",
             "On phones, the current version and version changelog button now share one row, and the AI Help question box is taller.",
             "The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions.",
-            (
-                "Updated the app icon, browser favicon, and desktop header logo "
-                "to the new Job Logger artwork."
-            ),
-            (
-                "The installed app icon now uses the original dark-background icon artwork, "
-                "fills the icon frame, and avoids the over-zoomed maskable icon crop."
-            ),
-            "Ticket history now hides Autotask notes titled Some actions did not occur.",
-            (
-                "Added a full user manual covering sign-in, Work in Progress, Review, Config, "
-                "Device sign-in, the changelog, and common messages."
-            ),
-            (
-                "The Config page documentation now explains that Submit from Work in Progress "
-                "submits finished entries directly to Autotask instead of stopping in Review first."
-            ),
         ),
     )
 
@@ -182,6 +167,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
+    assert ">1.2.3<" in response.text
     assert ">1.2.2<" in response.text
     assert ">1.2.1<" in response.text
     assert ">1.2.0<" in response.text
@@ -195,11 +181,12 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert ">1.0.2<" in response.text
     assert ">1.0.1<" in response.text
     assert ">1.0.0<" in response.text
+    assert "[1.2.3]" not in response.text
     assert "[1.2.2]" not in response.text
     assert "[1.2.1]" not in response.text
     assert "[1.2.0]" not in response.text
-    assert CURRENT_RELEASE_DATE in response.text
     assert CURRENT_WEB_TITLE in response.text
+    assert V122_WEB_TITLE in response.text
     assert PREVIOUS_WEB_TITLE in response.text
     assert V120_WEB_TITLE in response.text
     assert "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help." in response.text
@@ -243,7 +230,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "If storage is temporarily unavailable, the browser now shows a Job Logger-styled "
         "Service Temporarily Unavailable page that retries sign-in automatically."
     ) in response.text
-    assert "The changelog now shows version numbers without brackets and release dates for each version." in response.text
+    assert "The changelog now shows version numbers without brackets and release dates for released versions." in response.text
     assert (
         "The work-entry navigation button now says Work, uses a work-entry icon, "
         "and the mobile top-bar buttons use the same blue style as the full web nav."
@@ -421,7 +408,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
-    v122_index = response.text.index(CURRENT_WEB_TITLE)
+    v123_index = response.text.index(CURRENT_WEB_TITLE)
+    v122_index = response.text.index(V122_WEB_TITLE)
     v121_index = response.text.index(PREVIOUS_WEB_TITLE)
     v120_index = response.text.index(V120_WEB_TITLE)
     v116_index = response.text.index("Review, Home, and header polish")
@@ -434,6 +422,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     v102_index = response.text.index("Autotask workflow and desktop layout updates")
     v101_index = response.text.index("Mobile shell navigation and close behavior")
     v100_index = response.text.index("Initial release")
+    assert v123_index < v122_index
     assert v122_index < v121_index
     assert v121_index < v120_index
     assert v120_index < v116_index
@@ -447,8 +436,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert v102_index < v101_index
     assert v101_index < v100_index
     assert f'<h2 id="current-version-heading">{CURRENT_WEB_TITLE}</h2>' in response.text
+    assert '<span class="release-version">1.2.3</span>' in response.text
     assert '<span class="release-version">1.2.2</span>' in response.text
     assert '<span class="release-version">1.2.1</span>' in response.text
+    assert '<span class="release-date">07.03.2026</span>' in response.text
     assert '<span class="release-version">1.2.0</span>' in response.text
     assert '<span class="release-date">07.02.2026</span>' in response.text
     assert '<span class="release-version">1.1.6</span>' in response.text
@@ -476,7 +467,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     for entry in load_changelog_entries():
         assert f'<span class="release-version">{entry.version}</span>' in response.text
         assert f"[{entry.version}]" not in response.text
-        assert entry.release_date in response.text
+        if entry.release_date:
+            assert entry.release_date in response.text
         for change in entry.changes:
             assert change.replace("'", "&#39;") in response.text
     home_response_text = authenticated_client.get("/home").text

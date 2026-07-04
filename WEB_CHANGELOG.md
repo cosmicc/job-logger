@@ -2,14 +2,16 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## 1.2.2 - 07.03.2026 - Help page, user manual, app icon, and Config workflow
+## 1.2.3 - Help navigation and AI Help
 
 - The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.
 - Help now sits beside Log out in the header, while the main route buttons stay grouped together.
-- Dev builds now mark the Help button yellow and show DEV beside the current version on the Help page.
 - The Help page now opens the version changelog in an overlay with an X close button.
 - On phones, the current version and version changelog button now share one row, and the AI Help question box is taller.
 - The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions.
+
+## 1.2.2 - 07.03.2026 - App icon, user manual, ticket history, and Config workflow
+
 - Updated the app icon, browser favicon, and desktop header logo to the new Job Logger artwork.
 - The installed app icon now uses the original dark-background icon artwork, fills the icon frame, and avoids the over-zoomed maskable icon crop.
 - Ticket history now hides Autotask notes titled Some actions did not occur.
@@ -48,7 +50,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - The login page no longer shows a top app mark above the sign-in form.
 - The full-browser header now uses the same installed-app icon asset.
 - If storage is temporarily unavailable, the browser now shows a Job Logger-styled Service Temporarily Unavailable page that retries sign-in automatically.
-- The changelog now shows version numbers without brackets and release dates for each version.
+- The changelog now shows version numbers without brackets and release dates for released versions.
 - The work-entry navigation button now says Work, uses a work-entry icon, and the mobile top-bar buttons use the same blue style as the full web nav.
 - Work in Progress and Review detail now show the ticket title with the state pill beside it, center key field labels, and use matching action button sizes.
 - Work in Progress active cards show the Work in Progress label again, and full-browser summary notes line up with the job date cards.

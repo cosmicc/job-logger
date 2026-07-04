@@ -121,7 +121,7 @@ services:
         failure_action: rollback
 
   nginx:
-    image: ${JOB_LOGGER_NGINX_IMAGE:-replace-with-registry/job-logger-nginx:1.2.2}
+    image: ${JOB_LOGGER_NGINX_IMAGE:-replace-with-registry/job-logger-nginx:1.2.3}
     environment:
       APP_UPSTREAM_HOST: app
       NGINX_ACCESS_LOG: ${NGINX_ACCESS_LOG:-/var/log/nginx/access.log}

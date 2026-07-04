@@ -32,7 +32,7 @@ def test_authenticated_help_page_renders_version_and_changelog(authenticated_cli
     assert '<h2 id="help-assistant-heading">Ask AI Help</h2>' in response.text
     assert "Single question, single answer." not in response.text
     assert 'rows="2"' in response.text
-    assert ">v1.2.2<" in response.text
+    assert ">v1.2.3<" in response.text
     assert 'href="/changelog"' in response.text
     assert "data-help-changelog-open" in response.text
     assert "data-help-changelog-overlay" in response.text
@@ -115,4 +115,4 @@ def test_help_page_marks_dev_build(authenticated_client: TestClient) -> None:
     response = authenticated_client.get("/help")
 
     assert response.status_code == 200
-    assert ">v1.2.2 DEV<" in response.text
+    assert ">v1.2.3 DEV<" in response.text

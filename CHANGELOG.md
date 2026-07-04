@@ -2,9 +2,9 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## 1.2.2 - 07.03.2026 - Help assistant, health alerts, app icon, and Swarm storage
+## 1.2.3 - Help navigation, AI Help polish, and Portainer env guidance
 
-- Advanced the source-controlled dev runtime version to `v1.2.2`, including
+- Advanced the source-controlled dev runtime version to `v1.2.3`, including
   the Python package metadata and PWA service worker cache version.
 - Replaced the authenticated header version/changelog badge with a Help
   button. Full-browser navigation now shows the help icon and **Help** label,
@@ -43,6 +43,14 @@ All notable changes to Job Logger are documented in this file.
 - Added help-assistant guardrails that reject likely source-code,
   deployment, secret, or internal configuration questions, require CSRF on
   help questions, and avoid local database storage of prompts and answers.
+- Documented Portainer stack environment troubleshooting for redeploy errors
+  where `/data/compose/.../stack.env` contains copied comments, headings, or
+  prose instead of only `KEY=value` environment lines.
+
+## 1.2.2 - 07.03.2026 - Health alerts, app icon, user manual, and Swarm storage
+
+- Advanced the source-controlled dev runtime version to `v1.2.2`, including
+  the Python package metadata and PWA service worker cache version.
 - Replaced the app favicon, installed-app icon images, authenticated desktop
   header brand mark, and source-controlled PWA icon assets with the new Job
   Logger logo.

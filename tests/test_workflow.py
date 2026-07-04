@@ -1457,7 +1457,7 @@ def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_
     assert response.status_code == 200
     assert response.text.count("header-help-link-dev") == 2
     assert "dev-build-pill" not in response.text
-    assert ">v1.2.2 DEV<" not in response.text
+    assert ">v1.2.3 DEV<" not in response.text
     assert 'aria-label="Help development build"' in response.text
     assert response.text.index('class="mobile-nav-actions mobile-nav-right"') < response.text.index('data-mobile-help-link')
     assert response.text.index('data-mobile-help-link') < response.text.index('mobile-logout-action')
