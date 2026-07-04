@@ -122,6 +122,12 @@ def test_ticket_note_context_filter_removes_system_generated_notes() -> None:
             description="Human-written customer context.",
             note_type="Task Update",
         ),
+        AutotaskTicketNote(
+            note_id=91004,
+            title="Some actions did not occur...",
+            description="Generated Autotask action-status noise.",
+            note_type="Task Update",
+        ),
     ]
 
     assert [note.note_id for note in filter_displayable_ticket_notes(notes)] == [91003]

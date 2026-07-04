@@ -204,8 +204,9 @@ contain only bounded safe fields needed by the overlay, such as note ID, title,
 description, safe author display text, created/updated display times, type, and
 publish metadata. Filter out Autotask system notes whose note type is
 `Workflow Rule` or `Service Desk Notification`, whose title is
-`Service Desk Notification`, or whose title starts with `Workflow Rule` before
-sorting or deciding whether the ticket has notes. Return the remaining notes
+`Service Desk Notification`, whose title starts with `Workflow Rule`, or whose
+title starts with `Some actions did not occur` before sorting or deciding
+whether the ticket has notes. Return the remaining notes
 ordered by created date/time with newest first. Keep the Work in Progress and
 Review **Ticket notes** button hidden until a ticket exists and the
 authenticated lookup has completed. If the lookup returns zero displayable

@@ -9,8 +9,13 @@ All notable changes to Job Logger are documented in this file.
 - Replaced the app favicon, installed-app icon images, authenticated desktop
   header brand mark, and source-controlled PWA icon assets with the new Job
   Logger logo.
+- Changed the installed-app icon assets to use the padded semi-transparent Job
+  Logger logo so mobile home-screen masks do not crop the clipboard and clock
+  artwork.
 - Added the supplied logo PNGs, SVG wrapper versions, and color palette
   reference under `docs/design/`.
+- Filtered Autotask ticket notes whose titles start with `Some actions did not
+  occur` out of selected-ticket history overlays.
 - Added optional best-effort Pushover app-health notifications with
   `PUSHOVER_ENABLED`, `PUSHOVER_USER_KEY`, `PUSHOVER_APP_KEY`,
   `PUSHOVER_API_URL`, and `PUSHOVER_TIMEOUT_SECONDS` Docker/runtime settings.

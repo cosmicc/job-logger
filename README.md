@@ -495,10 +495,11 @@ Static CSS and JavaScript links include a content-derived version value so
 browser and installed-app shells fetch changed assets after deploy without
 requiring an application version bump.
 Favicon and Apple touch icon links use the same content-derived version value.
-The installed-app icon comes from the web manifest. Mobile operating systems
-may update that icon after the manifest and icon URL/content change, but some
-installed PWA shells keep the original home-screen icon until the app is
-removed and installed again.
+The installed-app icon comes from the web manifest and uses the padded
+semi-transparent Job Logger logo so the full artwork stays inside mobile
+home-screen icon masks. Mobile operating systems may update that icon after
+the manifest and icon URL/content change, but some installed PWA shells keep
+the original home-screen icon until the app is removed and installed again.
 
 ## Authentication And Device Sign-In
 
@@ -903,9 +904,10 @@ that job everywhere, including Work in Progress and Review.
 After an authenticated lookup, Work in Progress and Review show **Ticket
 notes** and **Past time entries** buttons when the selected ticket has usable
 history, or disabled **No Notes** and **No past entries** buttons when none is
-available. Service Desk Notification ticket notes and notes with titles that
-start with Workflow Rule are treated as system noise and filtered out. Notes
-are shown newest first with two-line title cards. Past time entries list the
+available. Service Desk Notification ticket notes, notes with titles that
+start with Workflow Rule, and notes with titles that start with Some actions
+did not occur are treated as system noise and filtered out. Notes are shown
+newest first with two-line title cards. Past time entries list the
 resource, local start/stop time, and hours, and selecting one shows its summary
 of work. On phones, these buttons sit under the selected Ticket name on Work in
 Progress and under Ticket number on Review.

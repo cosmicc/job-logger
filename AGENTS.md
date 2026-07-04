@@ -494,9 +494,11 @@ must not use `window.close()` or a browser-only app close fallback. Full-width
 the explicit desktop logout control. Full-browser top navigation should be
 centered, use raised blue icon-and-text buttons, and show the source-controlled
 transparent Job Logger logo asset as the authenticated desktop brand mark. The
-PWA manifest and favicon should use the source-controlled icon-format logo
-asset. It should include a **Log out** button with the logout icon and visible
-text while preserving the phone-sized icon navigation. Phone top-bar
+PWA manifest and favicon should use the source-controlled padded
+semi-transparent Job Logger logo asset so installed home-screen icons keep the
+full artwork inside mobile mask/crop safe areas. It should include a **Log
+out** button with the logout icon and visible text while preserving the
+phone-sized icon navigation. Phone top-bar
 navigation buttons should use the same blue visual treatment as the
 full-browser navigation buttons.
 Enabled buttons and button-like navigation controls should show a slight
@@ -571,9 +573,10 @@ Review, the
 **Ticket name** card, and the **Ticket notes** and **Past time entries**
 buttons sit at the bottom of that ticket-name card directly above **Ticket
 description**. Ticket-note
-lookups must filter out Service Desk Notification notes and any note whose
-title starts with Workflow Rule
-before deciding whether any notes exist. The shared overlay must keep an X
+lookups must filter out Service Desk Notification notes, notes whose title
+starts with Workflow Rule, and Autotask action-status notes whose title starts
+with Some actions did not occur before deciding whether any notes exist. The
+shared overlay must keep an X
 close button visible while the user reviews the list and detail panes. The note
 list should be ordered by created date/time with the newest note first, and
 selection cards should show only the note title so note body text cannot

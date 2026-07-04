@@ -137,7 +137,8 @@ description. The ticket identity becomes read-only after selection.
 
 When available, these buttons open read-only Autotask context for the selected
 ticket. **Ticket notes** shows ticket-note history. **Past time entries** shows
-prior time entries for the ticket.
+prior time entries for the ticket. Some Autotask-generated system notes are
+filtered out so this list focuses on useful ticket history.
 
 **Summary notes**
 

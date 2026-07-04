@@ -73,3 +73,17 @@ def test_logo_design_assets_are_source_controlled() -> None:
     static_icon_dir = repository_root / "job_logger" / "static" / "icons"
     assert (static_icon_dir / "job-logger-logo-transparent.png").is_file()
     assert (static_icon_dir / "job-logger-logo-fully-transparent.png").is_file()
+
+
+def test_pwa_install_icons_use_padded_transparent_logo_asset() -> None:
+    """Home-screen install icons should use the padded semi-transparent logo."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    static_icon_dir = repository_root / "job_logger" / "static" / "icons"
+
+    icon_svg = (static_icon_dir / "job-logger-icon.svg").read_text(encoding="utf-8")
+    maskable_svg = (static_icon_dir / "job-logger-icon-maskable.svg").read_text(encoding="utf-8")
+
+    assert "Job Logger semi-transparent install icon" in icon_svg
+    assert "Padded any-purpose PWA icon generated from the semi-transparent Job Logger logo." in icon_svg
+    assert "Padded maskable PWA icon generated from the semi-transparent Job Logger logo." in maskable_svg

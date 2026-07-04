@@ -315,7 +315,10 @@ class AutotaskTicketNote:
 
 
 SYSTEM_TICKET_NOTE_CONTEXT_TYPES = frozenset({"workflow rule", "service desk notification"})
-SYSTEM_TICKET_NOTE_CONTEXT_TITLE_PREFIXES = ("workflow rule",)
+SYSTEM_TICKET_NOTE_CONTEXT_TITLE_PREFIXES = (
+    "workflow rule",
+    "some actions did not occur",
+)
 
 
 def _normalized_ticket_note_context_type(value: str | None) -> str:

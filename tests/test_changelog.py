@@ -143,6 +143,11 @@ def test_changelog_parser_reads_current_release() -> None:
                 "to the new Job Logger artwork."
             ),
             (
+                "The installed app icon now uses the padded transparent logo so the full artwork "
+                "is not cropped on a phone home screen."
+            ),
+            "Ticket history now hides Autotask notes titled Some actions did not occur.",
+            (
                 "Added a full user manual covering sign-in, Work in Progress, Review, Config, "
                 "Device sign-in, the changelog, and common messages."
             ),
@@ -195,6 +200,11 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "Updated the app icon, browser favicon, and desktop header logo "
         "to the new Job Logger artwork."
     ) in response.text
+    assert (
+        "The installed app icon now uses the padded transparent logo so the full artwork "
+        "is not cropped on a phone home screen."
+    ) in response.text
+    assert "Ticket history now hides Autotask notes titled Some actions did not occur." in response.text
     assert (
         "Added a full user manual covering sign-in, Work in Progress, Review, Config, "
         "Device sign-in, the changelog, and common messages."
