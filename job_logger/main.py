@@ -19,6 +19,7 @@ from job_logger.config import Settings, settings
 from job_logger.logging_config import configure_logging
 from job_logger.routes import auth, changelog, configuration, debug, health, mobile, passkeys, pwa, review, users
 from job_logger.security import current_username
+from job_logger.services.app_health_monitor import app_health_notification_scheduler
 from job_logger.services.backups import automatic_backup_scheduler
 from job_logger.services.database_availability import (
     DatabaseAvailabilityMonitor,
@@ -270,6 +271,28 @@ def create_app(
             backup_task.cancel()
             with suppress(asyncio.CancelledError):
                 await backup_task
+
+    if application_settings.pushover_notifications_enabled:
+
+        @fastapi_app.on_event("startup")
+        async def start_app_health_notifications() -> None:
+            """Start best-effort Pushover health notifications for this app process."""
+
+            fastapi_app.state.app_health_notification_task = asyncio.create_task(
+                app_health_notification_scheduler(application_settings)
+            )
+
+        @fastapi_app.on_event("shutdown")
+        async def stop_app_health_notifications() -> None:
+            """Stop the health notification task cleanly during application shutdown."""
+
+            notification_task = getattr(fastapi_app.state, "app_health_notification_task", None)
+            if notification_task is None:
+                return
+
+            notification_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await notification_task
 
     @fastapi_app.middleware("http")
     async def security_headers(

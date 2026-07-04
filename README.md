@@ -5,6 +5,9 @@ recording Autotask time entries or customer-visible ticket notes from a phone
 or web browser, reviewing or directly submitting recorded jobs, and sending
 accepted records to Autotask.
 
+End users can use [USER_MANUAL.md](USER_MANUAL.md) for a full walkthrough of
+sign-in, Work in Progress, Review, Config, and common app messages.
+
 ## Architecture
 
 - FastAPI serves the application.
@@ -59,7 +62,7 @@ Autotask REST API references used by this app:
    logs app` or the runtime log collector for history.
    Set `DEV_BUILD=true` only for dev deployments that should show the
    authenticated desktop and mobile version badge in yellow with `DEV` folded
-   into the version text.
+   into the version text and should suppress Pushover health notifications.
 
 5. Start the stack:
 
@@ -107,11 +110,12 @@ Autotask REST API references used by this app:
    The first web user you create takes ownership of any existing unowned jobs
    from earlier single-user installs.
 
-8. Managed web users can open `/config` to choose their visual theme and work
-   completion behavior. Dark is the default, and changes save and apply
+8. Managed web users can open `/config` to choose their visual theme and how
+   finished Work in Progress entries are submitted. Dark is the default, and changes save and apply
    immediately without a Save button. Light and dark themes apply to mobile and
    web pages for that login only. The **Submit from Work in Progress** workflow
-   option is off by default; when enabled, ending work submits the time entry to
+   option is not a workflow availability toggle. It is off by default; when
+   enabled, ending work submits the completed time entry or ticket note to
    Autotask immediately instead of requiring Review first. The same page
    includes an explicit **Change password** action with two matching password
    fields and the password requirements shown in the password card; password
@@ -144,7 +148,8 @@ Keep the dev instance isolated from production:
 - Use a different `HTTP_PORT`, such as `11031`, if production and dev
   run on the same Docker host.
 - Set `DEV_BUILD=true` in the dev `.env` so the authenticated header clearly
-  marks the instance as dev.
+  marks the instance as dev and Pushover health notifications stay disabled
+  even if `PUSHOVER_ENABLED=true` is present in the shared environment.
 - Set `APP_ENV=development` only for an isolated dev instance. Production keeps
   `APP_ENV=production`. Keep `CLOUDFLARE_ACCESS_REQUIRED=true` for
   internet-facing deployments once the matching Cloudflare Access application
@@ -489,6 +494,11 @@ responses, transcription data, raw audio, or diagnostics.
 Static CSS and JavaScript links include a content-derived version value so
 browser and installed-app shells fetch changed assets after deploy without
 requiring an application version bump.
+Favicon and Apple touch icon links use the same content-derived version value.
+The installed-app icon comes from the web manifest. Mobile operating systems
+may update that icon after the manifest and icon URL/content change, but some
+installed PWA shells keep the original home-screen icon until the app is
+removed and installed again.
 
 ## Authentication And Device Sign-In
 
@@ -815,10 +825,13 @@ entry or ticket note is submitted, or until an already submitted record is
 explicitly edited.
 
 Managed web users can enable **Submit from Work in Progress** on `/config`.
-This option is off by default so existing accounts keep the review-first
-workflow. When enabled, the active Work in Progress finish button changes to
-**Submit to Autotask** for time entries or a submit-note label for ticket notes
-and uses the same idempotent Autotask submission service as Review acceptance.
+This option is not a general workflow enable/disable setting. It only controls
+whether ending a completed Work in Progress entry sends it directly to
+Autotask or sends it to Review first. The option is off by default so existing
+accounts keep the review-first workflow. When enabled, the active Work in
+Progress finish button changes to **Submit to Autotask** for time entries or
+**Submit note** for ticket notes and uses the same idempotent Autotask
+submission service as Review acceptance.
 Direct time-entry submission still requires the selected ticket number, ticket
 status, rounded end time, verified Autotask client, and summary notes. Direct
 ticket-note submission requires the selected ticket, ticket status, note title,
@@ -1079,11 +1092,15 @@ live check. It is not used by the
 initial mobile page or blank Start Work route.
 When cached app health is degraded, every signed-in user sees a red exclamation
 status icon in the top bar. The icon is only an indicator and does not open
-Diagnostics. It appears for conditions such as low disk space or a cached
-Autotask API failure. Autotask failures from any managed user, managed Admin
-user, or config super admin keep the indicator visible until the same type of
-Autotask operation succeeds again.
-Successful unrelated Autotask requests do not clear another active failure.
+Diagnostics. It appears for conditions such as low disk space, unavailable
+database connectivity, high database query latency, high database connection
+pool pressure, active local login protection or app-managed Cloudflare IP
+blocks, or a cached Autotask API failure. Autotask failures from any managed
+user, managed Admin user, or config super admin keep the indicator visible
+until the same type of Autotask operation succeeds again. Successful unrelated
+Autotask requests do not clear another active failure. The top of Diagnostics
+also shows a yellow warning banner or red critical banner while any monitored
+app-health issue is active.
 
 The same `/debug` page also shows compact, paginated successful-login,
 failed-login, Cloudflare blocked-IP, and Autotask submission-attempt windows,
@@ -1135,6 +1152,20 @@ Diagnostics includes a **Database** card with safe connectivity status, query
 latency, backend/driver, migration revision, and connection-pool counters. It
 intentionally hides connection strings, hosts, usernames, passwords, and raw
 database errors.
+
+Job Logger can send best-effort Pushover notifications to an administrator
+when monitored app health first degrades, when the active degraded issue set
+changes, and when all monitored checks are restored. Enable this with
+`PUSHOVER_ENABLED=true`, `PUSHOVER_USER_KEY`, and `PUSHOVER_APP_KEY`.
+When `DEV_BUILD=true`, Job Logger suppresses Pushover notifications regardless
+of `PUSHOVER_ENABLED` so dev/test deployments do not alert as production.
+The monitor runs inside the app process at
+`APP_HEALTH_MONITOR_INTERVAL_SECONDS` and uses the same disk, cached Autotask,
+database status, database latency, database connection-pool pressure, and login
+protection signals shown by Diagnostics. It does not replace an external
+uptime monitor: if the host, container, network path, or app process is fully
+down, the app cannot send its own Pushover message. Use an external monitor
+against `/health/live` for full unavailability alerts.
 
 Application logs go to stdout/stderr for standalone Compose compatibility. Use
 `docker compose logs app` or the configured container log driver for

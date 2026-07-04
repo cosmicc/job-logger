@@ -3705,6 +3705,71 @@ td a {
   line-height: 1.2;
 }
 
+.diagnostics-health-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 16px;
+  align-items: start;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.diagnostics-health-banner h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+
+.diagnostics-health-banner .muted-text {
+  margin: 0;
+}
+
+.diagnostics-health-banner-warning {
+  border-color: var(--warning);
+  background: linear-gradient(135deg, var(--warning-soft), var(--surface) 62%);
+  box-shadow: 0 0 0 1px var(--warning-soft), var(--shadow);
+}
+
+.diagnostics-health-banner-critical {
+  border-color: var(--danger);
+  background: linear-gradient(135deg, var(--danger-soft), var(--surface) 62%);
+  box-shadow: 0 0 0 1px var(--danger-soft), var(--shadow);
+}
+
+.diagnostics-health-issue-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.diagnostics-health-issue-list li {
+  display: grid;
+  grid-template-columns: minmax(160px, auto) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.diagnostics-health-issue {
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.diagnostics-health-issue-warning {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.diagnostics-health-issue-critical {
+  border-color: rgba(248, 113, 113, 0.5);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 .disk-space-card.disk-space-warning {
   border-color: var(--warning);
   background: linear-gradient(135deg, var(--warning-soft), var(--surface) 58%);
@@ -4812,6 +4877,15 @@ td a {
 
   .database-health-wide {
     grid-column: auto;
+  }
+
+  .diagnostics-health-banner,
+  .diagnostics-health-issue-list li {
+    grid-template-columns: 1fr;
+  }
+
+  .diagnostics-health-issue {
+    justify-self: start;
   }
 
   .ticket-notes-overlay {

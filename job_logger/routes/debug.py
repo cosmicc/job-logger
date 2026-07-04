@@ -44,12 +44,8 @@ from job_logger.services.cloudflare_blocks import (
 from job_logger.services.database_diagnostics import collect_database_diagnostics_snapshot
 from job_logger.services.login_failures import login_attempts_jsonl, read_login_failures_page, read_login_successes_page
 from job_logger.services.session_control import invalidate_all_web_user_sessions
-from job_logger.services.system_health import (
-    _format_file_size,
-)
-from job_logger.services.system_health import (
-    collect_disk_usage_snapshot as _collect_disk_usage_snapshot,
-)
+from job_logger.services.system_health import _format_file_size, collect_app_health_snapshot
+from job_logger.services.system_health import collect_disk_usage_snapshot as _collect_disk_usage_snapshot
 from job_logger.time_utils import format_local_display
 from job_logger.ui import template_context, templates
 from job_logger.version import APP_VERSION
@@ -417,6 +413,13 @@ def debug_page(
 
     automatic_backup_files = list_automatic_backup_files(settings.automatic_backup_dir)
     automatic_backup_trigger_labels = _automatic_backup_trigger_labels(database_session, automatic_backup_files)
+    disk_usage = _collect_disk_usage_snapshot()
+    database_diagnostics = collect_database_diagnostics_snapshot()
+    app_health_snapshot = collect_app_health_snapshot(
+        database_session=database_session,
+        disk_usage=disk_usage,
+        database_snapshot=database_diagnostics,
+    )
 
     return templates.TemplateResponse(
         request,
@@ -434,8 +437,11 @@ def debug_page(
             cloudflare_ip_blocks=cloudflare_ip_blocks_page.records,
             cloudflare_ip_blocks_page=cloudflare_ip_blocks_page,
             cloudflare_ip_blocking_configured=cloudflare_ip_blocking_configured(),
-            disk_usage=_collect_disk_usage_snapshot(),
-            database_diagnostics=collect_database_diagnostics_snapshot(),
+            app_health_snapshot=app_health_snapshot,
+            app_health_degraded=app_health_snapshot.degraded,
+            app_health_alert_label=app_health_snapshot.alert_label,
+            disk_usage=disk_usage,
+            database_diagnostics=database_diagnostics,
             submission_attempts=submission_attempts_page.records,
             submission_attempts_page=submission_attempts_page,
             submission_attempt_page_size=SUBMISSION_ATTEMPT_PAGE_SIZE,

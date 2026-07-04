@@ -17,10 +17,10 @@ from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
 CURRENT_DETAILED_HEADING = (
-    "## 1.2.2 - 07.03.2026 - Swarm shared storage and log persistence"
+    "## 1.2.2 - 07.03.2026 - Health alerts, app icon, user manual, and Swarm storage"
 )
 CURRENT_RELEASE_DATE = "07.03.2026"
-CURRENT_WEB_TITLE = "Swarm shared storage"
+CURRENT_WEB_TITLE = "User manual, app icon, and Config workflow"
 CURRENT_WEB_HEADING = f"## 1.2.2 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
 PREVIOUS_WEB_TITLE = "Work in Progress, Review, and outage-page polish"
 V120_WEB_TITLE = "Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge polish"
@@ -104,6 +104,29 @@ def test_web_changelog_is_available_to_runtime_artifacts() -> None:
     assert wheel_force_include["WEB_CHANGELOG.md"] == "job_logger/WEB_CHANGELOG.md"
 
 
+def test_user_manual_stays_end_user_focused() -> None:
+    """The user manual should cover managed-user surfaces without admin-only pages."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    manual_text = (repository_root / "USER_MANUAL.md").read_text(encoding="utf-8")
+
+    for expected_section in (
+        "## Signing In",
+        "## Device Sign-In",
+        "## Work Page",
+        "## Review Page",
+        "## Config Page",
+        "## Common Messages And What To Do",
+    ):
+        assert expected_section in manual_text
+
+    assert "Submit from Work in Progress" in manual_text
+    assert "Diagnostics" not in manual_text
+    assert "/debug" not in manual_text
+    assert "debug page" not in manual_text.lower()
+    assert "super admin" not in manual_text.lower()
+
+
 def test_changelog_parser_reads_current_release() -> None:
     """The web page parser should expose the current version entry."""
 
@@ -116,12 +139,16 @@ def test_changelog_parser_reads_current_release() -> None:
         title=CURRENT_WEB_TITLE,
         changes=(
             (
-                "Docker Swarm deployments now keep logs, automatic backups, and local model files "
-                "under the shared storage path used by all Swarm nodes."
+                "Updated the app icon, browser favicon, and desktop header logo "
+                "to the new Job Logger artwork."
             ),
             (
-                "The Swarm stack keeps application data in the remote PostgreSQL database and stores "
-                "file-based runtime data under `/mnt/swarm-storage/job-logger` by default."
+                "Added a full user manual covering sign-in, Work in Progress, Review, Config, "
+                "Device sign-in, the changelog, and common messages."
+            ),
+            (
+                "The Config page documentation now explains that Submit from Work in Progress "
+                "submits finished entries directly to Autotask instead of stopping in Review first."
             ),
         ),
     )
@@ -165,12 +192,16 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert PREVIOUS_WEB_TITLE in response.text
     assert V120_WEB_TITLE in response.text
     assert (
-        "Docker Swarm deployments now keep logs, automatic backups, and local model files "
-        "under the shared storage path used by all Swarm nodes."
+        "Updated the app icon, browser favicon, and desktop header logo "
+        "to the new Job Logger artwork."
     ) in response.text
     assert (
-        "The Swarm stack keeps application data in the remote PostgreSQL database and stores "
-        "file-based runtime data under `/mnt/swarm-storage/job-logger` by default."
+        "Added a full user manual covering sign-in, Work in Progress, Review, Config, "
+        "Device sign-in, the changelog, and common messages."
+    ) in response.text
+    assert (
+        "The Config page documentation now explains that Submit from Work in Progress "
+        "submits finished entries directly to Autotask instead of stopping in Review first."
     ) in response.text
     assert "Date choosers now use Today, Cancel, and Set controls inside the app." in response.text
     assert "Start and end time fields now open a 15-minute time dropdown." in response.text

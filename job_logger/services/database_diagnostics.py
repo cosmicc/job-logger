@@ -24,6 +24,19 @@ class DebugDatabasePoolSnapshot:
     configured_limit_display: str
     timeout_display: str
     recycle_display: str
+    size: int | None = None
+    checked_in: int | None = None
+    checked_out: int | None = None
+    overflow: int | None = None
+    configured_limit: int | None = None
+
+    @property
+    def pressure_percent(self) -> float | None:
+        """Return active connection usage as a percentage of configured capacity."""
+
+        if self.checked_out is None or self.configured_limit in (None, 0):
+            return None
+        return max((self.checked_out / self.configured_limit) * 100, 0.0)
 
 
 @dataclass(frozen=True)
@@ -37,6 +50,7 @@ class DebugDatabaseSnapshot:
     driver_display: str
     migration_revision: str
     pool: DebugDatabasePoolSnapshot
+    latency_ms: float | None = None
 
     @property
     def severity(self) -> str:
@@ -48,28 +62,56 @@ class DebugDatabaseSnapshot:
 def _pool_metric_display(pool: object, method_name: str) -> str:
     """Return one SQLAlchemy pool metric when the pool implementation has it."""
 
+    metric_value = _pool_metric_value(pool, method_name)
+    if metric_value is None:
+        return "n/a"
+    return str(metric_value)
+
+
+def _pool_metric_value(pool: object, method_name: str) -> int | None:
+    """Return one numeric SQLAlchemy pool metric when the pool exposes it."""
+
     metric_method = getattr(pool, method_name, None)
     if not callable(metric_method):
-        return "n/a"
+        return None
 
     try:
-        return str(metric_method())
+        metric_value = metric_method()
     except Exception:
-        return "n/a"
+        return None
+
+    try:
+        return int(metric_value)
+    except (TypeError, ValueError):
+        return None
 
 
-def _configured_limit_display() -> str:
+def _configured_limit() -> int | None:
     """Return configured non-SQLite pool capacity without exposing endpoint data."""
 
     if database.engine.dialect.name == "sqlite":
+        return None
+    return settings.database_pool_size + max(settings.database_max_overflow, 0)
+
+
+def _configured_limit_display() -> str:
+    """Return configured non-SQLite pool capacity as safe display text."""
+
+    configured_limit = _configured_limit()
+    if configured_limit is None:
         return "n/a"
-    return str(settings.database_pool_size + settings.database_max_overflow)
+    return str(configured_limit)
 
 
 def _pool_snapshot() -> DebugDatabasePoolSnapshot:
     """Return display-safe SQLAlchemy pool data."""
 
     pool = database.engine.pool
+    size = _pool_metric_value(pool, "size")
+    checked_in = _pool_metric_value(pool, "checkedin")
+    checked_out = _pool_metric_value(pool, "checkedout")
+    overflow = _pool_metric_value(pool, "overflow")
+    configured_limit = _configured_limit()
     timeout_display = "n/a"
     recycle_display = "n/a"
     if database.engine.dialect.name != "sqlite":
@@ -78,13 +120,18 @@ def _pool_snapshot() -> DebugDatabasePoolSnapshot:
 
     return DebugDatabasePoolSnapshot(
         class_name=pool.__class__.__name__,
-        size_display=_pool_metric_display(pool, "size"),
-        checked_in_display=_pool_metric_display(pool, "checkedin"),
-        checked_out_display=_pool_metric_display(pool, "checkedout"),
-        overflow_display=_pool_metric_display(pool, "overflow"),
+        size_display=str(size) if size is not None else "n/a",
+        checked_in_display=str(checked_in) if checked_in is not None else "n/a",
+        checked_out_display=str(checked_out) if checked_out is not None else "n/a",
+        overflow_display=str(overflow) if overflow is not None else "n/a",
         configured_limit_display=_configured_limit_display(),
         timeout_display=timeout_display,
         recycle_display=recycle_display,
+        size=size,
+        checked_in=checked_in,
+        checked_out=checked_out,
+        overflow=overflow,
+        configured_limit=configured_limit,
     )
 
 
@@ -120,6 +167,7 @@ def collect_database_diagnostics_snapshot() -> DebugDatabaseSnapshot:
             driver_display=driver_display,
             migration_revision="Unavailable",
             pool=pool_snapshot,
+            latency_ms=None,
         )
 
     latency_ms = (perf_counter() - start_time) * 1000
@@ -131,4 +179,5 @@ def collect_database_diagnostics_snapshot() -> DebugDatabaseSnapshot:
         driver_display=driver_display,
         migration_revision=_migration_revision(),
         pool=pool_snapshot,
+        latency_ms=latency_ms,
     )

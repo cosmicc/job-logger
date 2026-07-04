@@ -493,11 +493,12 @@ must not use `window.close()` or a browser-only app close fallback. Full-width
 `/home`, review, debug, and other non-mobile authenticated views still expose
 the explicit desktop logout control. Full-browser top navigation should be
 centered, use raised blue icon-and-text buttons, and show the source-controlled
-PWA installed-app icon asset as the authenticated desktop brand mark. It should
-include a **Log out** button with the logout icon and visible text while
-preserving the phone-sized icon navigation. Phone top-bar navigation buttons
-should use the same blue visual treatment as the full-browser navigation
-buttons.
+transparent Job Logger logo asset as the authenticated desktop brand mark. The
+PWA manifest and favicon should use the source-controlled icon-format logo
+asset. It should include a **Log out** button with the logout icon and visible
+text while preserving the phone-sized icon navigation. Phone top-bar
+navigation buttons should use the same blue visual treatment as the
+full-browser navigation buttons.
 Enabled buttons and button-like navigation controls should show a slight
 brighter hover state, and workflow action buttons should have a raised idle
 state plus a pressed-in active state. Destructive red controls should stay red
@@ -659,6 +660,15 @@ Provider-style `postgresql://` and `postgres://` URLs must be normalized to the
 installed psycopg 3 driver before app startup or Alembic migrations create a
 database engine. Keep app-side database connections bounded with the documented
 pool and timeout settings.
+Pushover health notifications are optional and best-effort. Compose, Swarm,
+`.env.example`, and README docs must stay aligned when adding or changing
+`PUSHOVER_*` or `APP_HEALTH_*` variables. Pushover user and app keys are
+secrets and must stay in environment variables, Docker secrets, or another
+approved secret store. The in-app monitor can report degraded, changed, and
+restored app health only while the app process is running; full
+host/container/process-down alerts require an external monitor against
+`/health/live`. `DEV_BUILD=true` must suppress Pushover health notifications
+regardless of `PUSHOVER_ENABLED`.
 
 Swarm deployment uses `JOB_LOGGER_BUNDLED_EDGE_REPLICAS` because Swarm does
 not support Compose profiles. The default value is `1`, which runs bundled
@@ -812,7 +822,8 @@ The application is a FastAPI project under `job_logger/`.
   Production must use `AUTOTASK_PROVIDER=autotask`; Autotask resource IDs are
   stored on managed web users, not in config. Remote faster-whisper settings
   live here as environment-backed values. `DEV_BUILD=true` marks a dev runtime
-  by folding `DEV` into the authenticated header version badge.
+  by folding `DEV` into the authenticated header version badge and suppressing
+  Pushover health notifications.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.
 - `job_logger/models.py` defines persistent tables for managed web users,
   managed-user session invalidation cutoffs, per-user preferences, jobs, audit
@@ -827,6 +838,9 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/changelog.py` parses the source-controlled
   `WEB_CHANGELOG.md` into concise plain-text release entries for authenticated
   display.
+- `USER_MANUAL.md` is the full end-user manual. It must describe only surfaces
+  normal managed web users can access and must not document Diagnostics or
+  other admin-only pages.
 - `job_logger/services/transcription.py` owns local and remote speech-to-text
   providers, including remote faster-whisper URL safety checks and bearer-token
   handling.
@@ -862,9 +876,16 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/routes/pwa.py` serves the web app manifest and root-scoped
   service worker for installed mobile app behavior. The service worker must not
   cache authenticated job, session, Autotask, or transcription data.
-- `job_logger/services/system_health.py` owns shared disk-usage severity
-  snapshots and cached Autotask API health state used by Diagnostics and the
-  authenticated top-bar degraded-health icon.
+- `job_logger/services/system_health.py` owns shared app-health snapshots,
+  including disk usage, cached Autotask API health, database status, database
+  latency, database connection-pool pressure, and active login-protection
+  state used by Diagnostics, the authenticated top-bar degraded-health icon,
+  and best-effort admin notifications.
+- `job_logger/services/app_health_monitor.py` runs the optional in-process
+  app-health notification loop and suppresses repeated Pushover alerts until
+  the active degraded issue set changes or restores.
+- `job_logger/services/pushover.py` owns best-effort Pushover message delivery
+  and must never log configured user or app keys.
 - `job_logger/services/database_diagnostics.py` collects display-safe database
   connectivity, latency, migration, and connection-pool stats for Diagnostics.
 - `job_logger/services/jobs.py` owns core job state transitions and must remain
@@ -911,6 +932,9 @@ The application is a FastAPI project under `job_logger/`.
   config, changelog, debug, and authentication views.
 - `job_logger/static/` contains browser-side JavaScript, CSS, PWA metadata, and
   source-controlled app icons.
+- `docs/design/` contains source logo assets, SVG wrapper versions, and the
+  reference color palette. `docs/design/color_palette.png` is the current
+  palette reference when visual work needs the app palette.
 - `migrations/versions/` contains Alembic schema migrations.
 - `scripts/` contains operational helper scripts, including Autotask ID
   discovery.
@@ -1003,14 +1027,16 @@ The normal workflow is:
    shows the spinner during cleanup. The returned text replaces the summary
    textarea and remains subject to normal save/review behavior.
 12. User can save active job edits before ending work.
-13. User ends work with a mandatory verified Autotask client. With the default workflow, the
-    active-card **End Work** action shares a row with the destructive **Delete**
-    action, and the job moves to review. If **Submit from Work in Progress** is
-    enabled, the end-work action submits to Autotask immediately after
-    validating ticket number, ticket status, rounded end time, verified client, and
-    summary notes. Missing local submission fields leave the job active so the
-    user can fix them; Autotask provider failures move the job to the
-    failed-submission review state with the safe error message.
+13. User ends work with a mandatory verified Autotask client. With the default
+    workflow, the active-card **End Work** action shares a row with the
+    destructive **Delete** action, and the job moves to review. If **Submit from
+    Work in Progress** is enabled, the end-work action submits to Autotask
+    immediately after validating ticket number, ticket status, rounded end
+    time, verified client, and summary notes. Missing local submission fields
+    leave the job active so the user can fix them; Autotask provider failures
+    move the job to the failed-submission review state with the safe error
+    message. The option is not a workflow availability toggle; it only selects
+    direct Autotask submission versus review-first submission.
 14. User reviews the job from `/review`, edits time/status/notes if needed,
     optionally records more audio notes before Autotask submission, and keeps
     the selected client/ticket identity read-only once selected. If the job is
@@ -1092,8 +1118,9 @@ In production:
   results, and failed Diagnostics connectivity tests must mark the cached
   Autotask health state as degraded until a later Autotask API request or
   connectivity test succeeds. This cached state powers the authenticated
-  top-bar degraded-health icon; page rendering must not run a fresh Autotask
-  contactability probe.
+  top-bar degraded-health icon, Diagnostics health banner, and optional
+  best-effort Pushover notification loop; page rendering must not run a fresh
+  Autotask contactability probe.
 - The `/debug` page provides a Diagnostics-admin **Log out web users** action
   that invalidates all managed web-user sessions without ending the config
   super-admin session. Managed Admin users are included in that invalidation
@@ -1109,14 +1136,25 @@ In production:
   sign-in login resets that enforcement IP and username failure counter to
   zero. The same threshold also starts the local
   `LOGIN_LOCAL_LOCKOUT_MINUTES` pre-authentication lockout.
+- The shared app-health snapshot must monitor disk space, cached Autotask
+  operation failures, database availability, database query latency, database
+  connection-pool pressure, active local login lockouts, and app-managed
+  Cloudflare IP blocks. The `/debug` page should show a yellow or red
+  app-health banner at the top when any monitored issue is active.
+- The optional Pushover health monitor is best-effort and in-process. It can
+  notify on degraded, changed, and restored monitored health only while the app
+  process is running. Keep `PUSHOVER_USER_KEY` and `PUSHOVER_APP_KEY` in
+  environment or Docker secrets, never source control or logs. Full
+  host/container/process-down detection still requires an external monitor
+  against `/health/live`. `DEV_BUILD=true` must disable Pushover notifications
+  even when `PUSHOVER_ENABLED=true`.
 - The `/debug` disk-space card combines monitored paths when used bytes and
   total bytes match exactly. The `/debug` database card may show safe
-  connectivity, latency,
-  backend/driver, migration revision, and pool counters, but must not show
-  connection strings, hosts, database names, usernames, or passwords. On
-  full-browser Diagnostics, the disk-space and session-control cards should
-  share one same-height row above the database card while phone layouts keep
-  stacked cards.
+  connectivity, latency, backend/driver, migration revision, and pool counters,
+  but must not show connection strings, hosts, database names, usernames, or
+  passwords. On full-browser Diagnostics, the disk-space and session-control
+  cards should share one same-height row above the database card while phone
+  layouts keep stacked cards.
   Wide Diagnostics tables, including Autotask submission attempts and retained
   automatic backups, should remain horizontally scrollable on phone layouts so
   row actions stay reachable.
@@ -1131,6 +1169,8 @@ configuration, database schema, or diagnostics:
 - Update the relevant file in `docs/agent-skills/`.
 - Update `README.md` when operators need to know about behavior or deployment
   changes.
+- Update `USER_MANUAL.md` when managed-user visible behavior, labels,
+  workflows, settings, or troubleshooting messages change.
 - Update `CHANGELOG.md` for every user-visible, security, workflow, database,
   Docker, Autotask, transcription, or diagnostic change.
 - Update `WEB_CHANGELOG.md` for every released version with short web-facing

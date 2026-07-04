@@ -1345,7 +1345,7 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert "Autotask API:" not in response.text
     assert "Secure session" not in response.text
     assert 'class="desktop-header-left"' in response.text
-    assert 'class="brand-icon" src="/static/icons/job-logger-icon-maskable-512.png"' in response.text
+    assert 'class="brand-icon" src="/static/icons/job-logger-logo-transparent.png?v=' in response.text
     assert '<a href="/home">' in response.text
     assert "<span>Work</span>" in response.text
     assert '<path d="M12 11v6"></path>' in response.text

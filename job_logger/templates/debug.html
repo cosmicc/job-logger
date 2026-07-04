@@ -11,6 +11,23 @@
       </div>
     </div>
 
+    {% if app_health_snapshot.degraded %}
+      <section class="diagnostics-health-banner diagnostics-health-banner-{{ app_health_snapshot.severity }}" aria-label="Application health alert">
+        <div>
+          <h2>{{ app_health_snapshot.status_label }}</h2>
+          <p class="muted-text">The checks below are reporting conditions that may need administrator attention.</p>
+        </div>
+        <ul class="diagnostics-health-issue-list">
+          {% for issue in app_health_snapshot.issues %}
+            <li>
+              <span class="status-chip diagnostics-health-issue diagnostics-health-issue-{{ issue.severity }}">{{ issue.label }}</span>
+              <span>{{ issue.summary }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+
     <section id="disk-space" class="table-panel disk-space-card disk-space-{{ disk_usage.severity }}" aria-label="Disk space monitor">
       <div class="debug-panel-body">
         <div class="review-header">

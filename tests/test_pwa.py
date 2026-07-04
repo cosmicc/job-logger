@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 
@@ -45,6 +47,29 @@ def test_base_template_registers_pwa_assets(client: TestClient) -> None:
     assert 'name="mobile-web-app-capable" content="yes"' in response.text
     assert 'name="apple-mobile-web-app-capable" content="yes"' in response.text
     assert 'name="apple-mobile-web-app-status-bar-style" content="black-translucent"' in response.text
-    assert 'static/icons/job-logger-icon.svg' in response.text
-    assert 'static/icons/job-logger-icon-192.png' in response.text
+    assert 'static/icons/job-logger-icon.svg?v=' in response.text
+    assert 'static/icons/job-logger-icon-192.png?v=' in response.text
     assert 'static/pwa.js' in response.text
+
+
+def test_logo_design_assets_are_source_controlled() -> None:
+    """Logo source files and SVG wrappers should stay available for design reference."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    design_dir = repository_root / "docs" / "design"
+    expected_assets = (
+        "job_logger_icon.png",
+        "job_logger_icon.svg",
+        "job_logger_transparent.png",
+        "job_logger_transparent.svg",
+        "job_logger_fully_transparent.png",
+        "job_logger_fully_transparent.svg",
+        "color_palette.png",
+    )
+
+    for asset_name in expected_assets:
+        assert (design_dir / asset_name).is_file()
+
+    static_icon_dir = repository_root / "job_logger" / "static" / "icons"
+    assert (static_icon_dir / "job-logger-logo-transparent.png").is_file()
+    assert (static_icon_dir / "job-logger-logo-fully-transparent.png").is_file()

@@ -146,6 +146,17 @@ class Settings:
     # DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS throttles limp-mode DB probes.
     database_unavailable_check_interval_seconds: int
 
+    # APP_HEALTH_MONITOR_INTERVAL_SECONDS controls the background Pushover check cadence.
+    app_health_monitor_interval_seconds: int
+
+    # APP_HEALTH_DB_LATENCY_*_MS classify slow database probes for monitoring.
+    app_health_db_latency_warning_ms: float
+    app_health_db_latency_critical_ms: float
+
+    # APP_HEALTH_DB_POOL_*_PERCENT classify high SQLAlchemy pool usage.
+    app_health_db_pool_warning_percent: float
+    app_health_db_pool_critical_percent: float
+
     # LOG_LEVEL controls how verbose stdout/stderr and optional file logs should be.
     log_level: str
 
@@ -185,6 +196,21 @@ class Settings:
 
     # LOGIN_LOCAL_LOCKOUT_MINUTES is the app-enforced lockout after the threshold.
     login_local_lockout_minutes: int
+
+    # PUSHOVER_ENABLED gates best-effort admin health notifications.
+    pushover_enabled: bool
+
+    # PUSHOVER_USER_KEY is the administrator or group key that receives alerts.
+    pushover_user_key: str | None
+
+    # PUSHOVER_APP_KEY is the Pushover application API token.
+    pushover_app_key: str | None
+
+    # PUSHOVER_API_URL is the message endpoint, overrideable for tests/proxies.
+    pushover_api_url: str
+
+    # PUSHOVER_TIMEOUT_SECONDS bounds notification delivery attempts.
+    pushover_timeout_seconds: float
 
     # TRANSCRIPTION_PROVIDER selects the audio transcription backend.
     transcription_provider: str
@@ -353,6 +379,18 @@ class Settings:
 
         return max(int(self.session_timeout_hours * 60 * 60), 1)
 
+    @property
+    def pushover_configured(self) -> bool:
+        """Return whether Pushover has the secrets needed to send messages."""
+
+        return bool(self.pushover_user_key and self.pushover_app_key)
+
+    @property
+    def pushover_notifications_enabled(self) -> bool:
+        """Return whether this runtime may send Pushover notifications."""
+
+        return self.pushover_enabled and not self.dev_build
+
 
 def load_settings() -> Settings:
     """Load application settings from the current process environment."""
@@ -374,6 +412,11 @@ def load_settings() -> Settings:
             "DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS",
             5,
         ),
+        app_health_monitor_interval_seconds=_get_positive_integer("APP_HEALTH_MONITOR_INTERVAL_SECONDS", 300),
+        app_health_db_latency_warning_ms=_get_positive_float("APP_HEALTH_DB_LATENCY_WARNING_MS", 250.0),
+        app_health_db_latency_critical_ms=_get_positive_float("APP_HEALTH_DB_LATENCY_CRITICAL_MS", 1000.0),
+        app_health_db_pool_warning_percent=_get_positive_float("APP_HEALTH_DB_POOL_WARNING_PERCENT", 80.0),
+        app_health_db_pool_critical_percent=_get_positive_float("APP_HEALTH_DB_POOL_CRITICAL_PERCENT", 95.0),
         log_level=_get_log_level(),
         log_dir=(os.getenv("LOG_DIR") or "").strip() or None,
         app_username=os.getenv("APP_USERNAME", "admin"),
@@ -390,6 +433,14 @@ def load_settings() -> Settings:
             5,
         ),
         login_local_lockout_minutes=_get_positive_integer("LOGIN_LOCAL_LOCKOUT_MINUTES", 15),
+        pushover_enabled=_get_boolean("PUSHOVER_ENABLED", False),
+        pushover_user_key=(os.getenv("PUSHOVER_USER_KEY") or "").strip() or None,
+        pushover_app_key=(os.getenv("PUSHOVER_APP_KEY") or "").strip() or None,
+        pushover_api_url=(
+            os.getenv("PUSHOVER_API_URL", "https://api.pushover.net/1/messages.json").strip()
+            or "https://api.pushover.net/1/messages.json"
+        ),
+        pushover_timeout_seconds=_get_positive_float("PUSHOVER_TIMEOUT_SECONDS", 10.0),
         transcription_provider=os.getenv("TRANSCRIPTION_PROVIDER", "mock").strip().lower().replace("-", "_"),
         max_audio_upload_bytes=_get_integer("MAX_AUDIO_UPLOAD_BYTES", 10 * 1024 * 1024),
         max_backup_restore_bytes=_get_integer("MAX_BACKUP_RESTORE_BYTES", 250 * 1024 * 1024),

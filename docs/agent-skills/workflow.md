@@ -54,8 +54,9 @@ browser-only action. Keep the explicit desktop logout form available on
 non-mobile authenticated pages. Full-browser top navigation should stay
 centered and use raised blue icon-and-text buttons, including visible
 **Log out** text after the logout icon. The authenticated desktop brand mark
-should use the source-controlled PWA installed-app icon asset while phone-sized
-navigation remains compact blue icon buttons.
+should use the source-controlled transparent Job Logger logo asset, while the
+PWA manifest and favicon use the source-controlled icon-format logo asset.
+Phone-sized navigation remains compact blue icon buttons.
 Enabled buttons and button-like navigation controls should visibly brighten on
 hover. Workflow actions such as **Record**, **AI Cleanup**, finish, delete, and
 review submit controls should look raised at rest and pressed in while active.
@@ -178,7 +179,9 @@ to **End Note** and **Delete Note**. Shared switch pills use green for Time
 entry or Remote selected states and orange for Ticket note or On-Site selected
 states. If the user's **Submit from Work in Progress** preference is enabled,
 the finish label should be a submit-note label while still posting through the
-normal end-work route.
+normal end-work route. This preference is not a workflow availability toggle;
+it only chooses direct Autotask submission from Work in Progress instead of the
+default review-first finish behavior.
 
 The active job save route is `POST /jobs/{job_id}/ticket-number`. The name is
 historical; it now saves active-job client and summary edits, not ticket
@@ -339,6 +342,9 @@ the same end-work route changes the active finish button to **Submit to
 Autotask** for time entries or a submit-note label for notes and submits the
 completed job through `submit_job_to_autotask()`
 after `end_job()` has assigned rounded stop time and local work date.
+The option must never be described as enabling or disabling workflow
+availability; it bypasses the review stop only after the same submission
+requirements pass.
 
 Direct Work in Progress submission rules:
 

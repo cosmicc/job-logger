@@ -2,10 +2,38 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## 1.2.2 - 07.03.2026 - Swarm shared storage and log persistence
+## 1.2.2 - 07.03.2026 - Health alerts, app icon, user manual, and Swarm storage
 
 - Advanced the source-controlled dev runtime version to `v1.2.2`, including
   the Python package metadata and PWA service worker cache version.
+- Replaced the app favicon, installed-app icon images, authenticated desktop
+  header brand mark, and source-controlled PWA icon assets with the new Job
+  Logger logo.
+- Added the supplied logo PNGs, SVG wrapper versions, and color palette
+  reference under `docs/design/`.
+- Added optional best-effort Pushover app-health notifications with
+  `PUSHOVER_ENABLED`, `PUSHOVER_USER_KEY`, `PUSHOVER_APP_KEY`,
+  `PUSHOVER_API_URL`, and `PUSHOVER_TIMEOUT_SECONDS` Docker/runtime settings.
+  Notifications are sent when monitored health first degrades, when the active
+  degraded issue set changes, and when all monitored checks are restored.
+- Changed `DEV_BUILD=true` so dev/test deployments suppress Pushover
+  notifications even when `PUSHOVER_ENABLED=true`.
+- Expanded the shared app-health snapshot to track disk space, cached Autotask
+  operation failures, database availability, database query latency, database
+  connection-pool pressure, active local login lockouts, and app-managed
+  Cloudflare IP blocks.
+- Added `APP_HEALTH_MONITOR_INTERVAL_SECONDS`,
+  `APP_HEALTH_DB_LATENCY_WARNING_MS`, `APP_HEALTH_DB_LATENCY_CRITICAL_MS`,
+  `APP_HEALTH_DB_POOL_WARNING_PERCENT`, and
+  `APP_HEALTH_DB_POOL_CRITICAL_PERCENT` runtime settings to Compose, Swarm,
+  and `.env.example`.
+- Added a yellow or red Diagnostics app-health banner that summarizes active
+  degraded-health issues at the top of the page.
+- Added `USER_MANUAL.md` as a full managed-user manual for sign-in, Work in
+  Progress, Review, Config, Device sign-in, changelog, and common messages.
+- Clarified documentation for **Submit from Work in Progress** so it is
+  described as direct Autotask submission from Work in Progress instead of a
+  generic workflow availability toggle.
 - Changed Docker Swarm deployment so app logs, nginx logs, cloudflared logs,
   automatic backups, and the local faster-whisper model cache bind to the
   shared Swarm storage path, defaulting to

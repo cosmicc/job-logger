@@ -37,7 +37,7 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert "Set up device sign-in" in config_response.text
     assert "No device sign-ins have been added" in config_response.text
     assert "Submit from Work in Progress" in config_response.text
-    assert "submits the time entry to Autotask immediately" in config_response.text
+    assert "submits the completed entry to Autotask immediately" in config_response.text
     assert "data-direct-submit-option" in config_response.text
     assert "data-direct-submit-state" in config_response.text
     assert "Off" in config_response.text
@@ -140,6 +140,44 @@ def test_database_pool_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.database_pool_timeout_seconds == 12
     assert loaded_settings.database_pool_recycle_seconds == 900
     assert loaded_settings.database_unavailable_check_interval_seconds == 6
+
+
+def test_app_health_and_pushover_settings_load_from_environment(monkeypatch) -> None:
+    """App-health notification settings should stay environment-backed and secret-safe."""
+
+    monkeypatch.setenv("APP_HEALTH_MONITOR_INTERVAL_SECONDS", "120")
+    monkeypatch.setenv("APP_HEALTH_DB_LATENCY_WARNING_MS", "150")
+    monkeypatch.setenv("APP_HEALTH_DB_LATENCY_CRITICAL_MS", "700")
+    monkeypatch.setenv("APP_HEALTH_DB_POOL_WARNING_PERCENT", "75")
+    monkeypatch.setenv("APP_HEALTH_DB_POOL_CRITICAL_PERCENT", "92")
+    monkeypatch.setenv("PUSHOVER_ENABLED", "true")
+    monkeypatch.setenv("PUSHOVER_USER_KEY", "user-key-value")
+    monkeypatch.setenv("PUSHOVER_APP_KEY", "app-key-value")
+    monkeypatch.setenv("PUSHOVER_API_URL", "https://pushover.example.test/messages.json")
+    monkeypatch.setenv("PUSHOVER_TIMEOUT_SECONDS", "3.5")
+
+    loaded_settings = load_settings()
+
+    assert loaded_settings.app_health_monitor_interval_seconds == 120
+    assert loaded_settings.app_health_db_latency_warning_ms == 150
+    assert loaded_settings.app_health_db_latency_critical_ms == 700
+    assert loaded_settings.app_health_db_pool_warning_percent == 75
+    assert loaded_settings.app_health_db_pool_critical_percent == 92
+    assert loaded_settings.pushover_enabled is True
+    assert loaded_settings.pushover_user_key == "user-key-value"
+    assert loaded_settings.pushover_app_key == "app-key-value"
+    assert loaded_settings.pushover_api_url == "https://pushover.example.test/messages.json"
+    assert loaded_settings.pushover_timeout_seconds == 3.5
+    assert loaded_settings.pushover_configured is True
+    assert loaded_settings.pushover_notifications_enabled is True
+
+    monkeypatch.setenv("DEV_BUILD", "true")
+
+    dev_settings = load_settings()
+
+    assert dev_settings.pushover_enabled is True
+    assert dev_settings.pushover_configured is True
+    assert dev_settings.pushover_notifications_enabled is False
 
 
 def test_plain_postgresql_urls_use_installed_psycopg_driver() -> None:

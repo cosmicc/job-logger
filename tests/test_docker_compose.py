@@ -110,6 +110,30 @@ def test_compose_exposes_database_pool_settings() -> None:
     assert "DATABASE_POOL_TIMEOUT_SECONDS: ${DATABASE_POOL_TIMEOUT_SECONDS:-30}" in compose_text
     assert "DATABASE_POOL_RECYCLE_SECONDS: ${DATABASE_POOL_RECYCLE_SECONDS:-1800}" in compose_text
     assert "DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS: ${DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS:-5}" in compose_text
+    assert "APP_HEALTH_DB_LATENCY_WARNING_MS: ${APP_HEALTH_DB_LATENCY_WARNING_MS:-250}" in compose_text
+    assert "APP_HEALTH_DB_POOL_WARNING_PERCENT: ${APP_HEALTH_DB_POOL_WARNING_PERCENT:-80}" in compose_text
+
+
+def test_compose_and_swarm_expose_pushover_health_settings() -> None:
+    """Pushover health notification settings should pass through container configs."""
+
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+    swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+
+    for deployment_text in (compose_text, swarm_text):
+        assert "APP_HEALTH_MONITOR_INTERVAL_SECONDS: ${APP_HEALTH_MONITOR_INTERVAL_SECONDS:-300}" in deployment_text
+        assert "APP_HEALTH_DB_LATENCY_CRITICAL_MS: ${APP_HEALTH_DB_LATENCY_CRITICAL_MS:-1000}" in deployment_text
+        assert "APP_HEALTH_DB_POOL_CRITICAL_PERCENT: ${APP_HEALTH_DB_POOL_CRITICAL_PERCENT:-95}" in deployment_text
+        assert "PUSHOVER_ENABLED: ${PUSHOVER_ENABLED:-false}" in deployment_text
+        assert "PUSHOVER_USER_KEY: ${PUSHOVER_USER_KEY:-}" in deployment_text
+        assert "PUSHOVER_APP_KEY: ${PUSHOVER_APP_KEY:-}" in deployment_text
+        assert "PUSHOVER_API_URL: ${PUSHOVER_API_URL:-https://api.pushover.net/1/messages.json}" in deployment_text
+        assert "PUSHOVER_TIMEOUT_SECONDS: ${PUSHOVER_TIMEOUT_SECONDS:-10}" in deployment_text
+
+    assert "PUSHOVER_USER_KEY=" in env_example_text
+    assert "PUSHOVER_APP_KEY=" in env_example_text
+    assert "external monitor" in env_example_text
 
 
 def test_env_example_defaults_to_bundled_profiles_and_documents_switching() -> None:

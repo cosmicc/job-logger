@@ -2,10 +2,11 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## 1.2.2 - 07.03.2026 - Swarm shared storage
+## 1.2.2 - 07.03.2026 - User manual, app icon, and Config workflow
 
-- Docker Swarm deployments now keep logs, automatic backups, and local model files under the shared storage path used by all Swarm nodes.
-- The Swarm stack keeps application data in the remote PostgreSQL database and stores file-based runtime data under `/mnt/swarm-storage/job-logger` by default.
+- Updated the app icon, browser favicon, and desktop header logo to the new Job Logger artwork.
+- Added a full user manual covering sign-in, Work in Progress, Review, Config, Device sign-in, the changelog, and common messages.
+- The Config page documentation now explains that Submit from Work in Progress submits finished entries directly to Autotask instead of stopping in Review first.
 
 ## 1.2.1 - 07.03.2026 - Work in Progress, Review, and outage-page polish
 

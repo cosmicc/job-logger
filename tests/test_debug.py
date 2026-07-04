@@ -32,7 +32,7 @@ from job_logger.models import (
     WebUser,
 )
 from job_logger.routes import debug as debug_routes
-from job_logger.services import database_diagnostics, system_health
+from job_logger.services import app_health_monitor, database_diagnostics, pushover, system_health
 from job_logger.services.backups import (
     AUTOMATIC_BACKUP_FILENAME_PREFIX,
     AUTOMATIC_BACKUP_FILENAME_SUFFIX,
@@ -340,6 +340,8 @@ def test_database_diagnostics_snapshot_uses_safe_sqlite_metadata() -> None:
     assert snapshot.migration_revision == "Not recorded"
     assert snapshot.pool.class_name == "StaticPool"
     assert snapshot.pool.configured_limit_display == "n/a"
+    assert snapshot.latency_ms is not None
+    assert snapshot.pool.pressure_percent is None
 
 
 def test_database_diagnostics_snapshot_handles_failed_probe_safely(monkeypatch) -> None:
@@ -400,6 +402,7 @@ def test_database_diagnostics_snapshot_handles_failed_probe_safely(monkeypatch) 
     assert snapshot.severity == "critical"
     assert snapshot.status_label == "Needs attention"
     assert snapshot.latency_display == "Unavailable"
+    assert snapshot.latency_ms is None
     assert snapshot.migration_revision == "Unavailable"
     assert "secret-db.internal" not in " ".join(rendered_values)
 
@@ -521,6 +524,222 @@ def test_app_health_snapshot_includes_degraded_disk_state(monkeypatch) -> None:
     assert len(health_snapshot.issues) == 1
     assert health_snapshot.issues[0].code == "disk-space"
     assert health_snapshot.issues[0].label == "Disk space nearing full"
+
+
+def test_app_health_snapshot_includes_database_latency_pool_and_status(monkeypatch) -> None:
+    """Shared health should classify database status, latency, and pool pressure."""
+
+    healthy_disk_snapshot = system_health.DebugDiskUsageSnapshot(
+        severity="ok",
+        status_label="Disk space OK",
+        volumes=(),
+    )
+    monkeypatch.setattr(system_health, "collect_disk_usage_snapshot", lambda: healthy_disk_snapshot)
+    system_health.reset_cached_autotask_health()
+    high_pressure_pool = database_diagnostics.DebugDatabasePoolSnapshot(
+        class_name="QueuePool",
+        size_display="5",
+        checked_in_display="0",
+        checked_out_display="9",
+        overflow_display="4",
+        configured_limit_display="10",
+        timeout_display="30.0s",
+        recycle_display="1800s",
+        size=5,
+        checked_in=0,
+        checked_out=9,
+        overflow=4,
+        configured_limit=10,
+    )
+    slow_database_snapshot = database_diagnostics.DebugDatabaseSnapshot(
+        available=True,
+        status_label="Connected",
+        latency_display="333.0 ms",
+        backend_display="postgresql",
+        driver_display="psycopg",
+        migration_revision="abc123",
+        pool=high_pressure_pool,
+        latency_ms=333.0,
+    )
+
+    health_snapshot = system_health.collect_app_health_snapshot(database_snapshot=slow_database_snapshot)
+
+    issue_codes = {issue.code: issue for issue in health_snapshot.issues}
+    assert issue_codes["database-latency"].severity == "warning"
+    assert issue_codes["database-pool-pressure"].severity == "warning"
+    assert "333.0 ms" in issue_codes["database-latency"].summary
+    assert "90.0%" in issue_codes["database-pool-pressure"].summary
+
+    unavailable_database_snapshot = database_diagnostics.DebugDatabaseSnapshot(
+        available=False,
+        status_label="Needs attention",
+        latency_display="Unavailable",
+        backend_display="postgresql",
+        driver_display="psycopg",
+        migration_revision="Unavailable",
+        pool=high_pressure_pool,
+        latency_ms=None,
+    )
+
+    unavailable_health = system_health.collect_app_health_snapshot(database_snapshot=unavailable_database_snapshot)
+
+    assert unavailable_health.severity == "critical"
+    assert unavailable_health.issues[0].code == "database-status"
+    assert unavailable_health.issues[0].label == "Database unavailable"
+
+
+def test_app_health_snapshot_includes_active_login_lockout(super_admin_client: TestClient, monkeypatch) -> None:
+    """Login-protection lockouts should appear as warning health issues."""
+
+    healthy_disk_snapshot = system_health.DebugDiskUsageSnapshot(
+        severity="ok",
+        status_label="Disk space OK",
+        volumes=(),
+    )
+    healthy_pool = database_diagnostics.DebugDatabasePoolSnapshot(
+        class_name="StaticPool",
+        size_display="n/a",
+        checked_in_display="n/a",
+        checked_out_display="n/a",
+        overflow_display="n/a",
+        configured_limit_display="n/a",
+        timeout_display="n/a",
+        recycle_display="n/a",
+    )
+    healthy_database_snapshot = database_diagnostics.DebugDatabaseSnapshot(
+        available=True,
+        status_label="Connected",
+        latency_display="1.0 ms",
+        backend_display="sqlite",
+        driver_display="pysqlite",
+        migration_revision="Not recorded",
+        pool=healthy_pool,
+        latency_ms=1.0,
+    )
+    monkeypatch.setattr(debug_routes, "_collect_disk_usage_snapshot", lambda: healthy_disk_snapshot)
+    monkeypatch.setattr(debug_routes, "collect_database_diagnostics_snapshot", lambda: healthy_database_snapshot)
+    monkeypatch.setattr(system_health, "collect_disk_usage_snapshot", lambda: healthy_disk_snapshot)
+    system_health.reset_cached_autotask_health()
+
+    with database.SessionLocal() as database_session:
+        database_session.add(
+            LoginFailureCounter(
+                client_ip="198.51.100.20",
+                username="locked-user",
+                failed_count=settings.cloudflare_auto_block_failed_login_attempts,
+                last_failed_at_utc=datetime.now(UTC),
+            )
+        )
+        database_session.commit()
+
+    response = super_admin_client.get("/debug")
+
+    assert response.status_code == 200
+    assert "diagnostics-health-banner-warning" in response.text
+    assert "Login protection active" in response.text
+    assert "active local login lockout" in response.text
+
+    with database.SessionLocal() as database_session:
+        health_snapshot = system_health.collect_app_health_snapshot(
+            database_session=database_session,
+            database_snapshot=healthy_database_snapshot,
+        )
+
+    issue_codes = {issue.code: issue for issue in health_snapshot.issues}
+    assert issue_codes["login-protection"].severity == "warning"
+
+
+def test_app_health_pushover_notifications_fire_on_degrade_change_and_restore(monkeypatch) -> None:
+    """Pushover notifications should avoid repeats and announce recovery."""
+
+    sent_notifications: list[tuple[str, str, int]] = []
+
+    def fake_send(title: str, message: str, *, priority: int, application_settings) -> bool:
+        sent_notifications.append((title, message, priority))
+        return True
+
+    monkeypatch.setattr(app_health_monitor, "send_pushover_notification", fake_send)
+    notification_state = app_health_monitor.HealthNotificationState()
+    warning_snapshot = system_health.AppHealthSnapshot(
+        issues=(
+            system_health.AppHealthIssue(
+                code="disk-space",
+                label="Disk space nearing full",
+                severity="warning",
+                summary="Disk space nearing full",
+            ),
+        )
+    )
+    critical_snapshot = system_health.AppHealthSnapshot(
+        issues=(
+            system_health.AppHealthIssue(
+                code="database-status",
+                label="Database unavailable",
+                severity="critical",
+                summary="Database connectivity is unavailable.",
+            ),
+        )
+    )
+    healthy_snapshot = system_health.AppHealthSnapshot(issues=())
+    notification_settings = replace(
+        settings,
+        pushover_enabled=True,
+        pushover_user_key="user-key",
+        pushover_app_key="app-key",
+    )
+
+    assert app_health_monitor.notify_if_health_changed(
+        warning_snapshot,
+        notification_state,
+        application_settings=notification_settings,
+    ) == "degraded"
+    assert app_health_monitor.notify_if_health_changed(
+        warning_snapshot,
+        notification_state,
+        application_settings=notification_settings,
+    ) is None
+    assert app_health_monitor.notify_if_health_changed(
+        critical_snapshot,
+        notification_state,
+        application_settings=notification_settings,
+    ) == "changed"
+    assert app_health_monitor.notify_if_health_changed(
+        healthy_snapshot,
+        notification_state,
+        application_settings=notification_settings,
+    ) == "restored"
+
+    assert [title for title, _message, _priority in sent_notifications] == [
+        "Job Logger health degraded",
+        "Job Logger health changed",
+        "Job Logger health restored",
+    ]
+    assert sent_notifications[0][2] == 0
+    assert sent_notifications[1][2] == 1
+    assert "Database unavailable" in sent_notifications[1][1]
+    assert "passing again" in sent_notifications[2][1]
+
+
+def test_pushover_notifications_do_not_send_in_dev_build(monkeypatch) -> None:
+    """DEV_BUILD should suppress Pushover even when credentials are configured."""
+
+    def fail_post(*_args, **_kwargs):
+        raise AssertionError("DEV_BUILD should not send Pushover notifications.")
+
+    monkeypatch.setattr(pushover.httpx, "post", fail_post)
+    notification_settings = replace(
+        settings,
+        dev_build=True,
+        pushover_enabled=True,
+        pushover_user_key="user-key",
+        pushover_app_key="app-key",
+    )
+
+    assert pushover.send_pushover_notification(
+        "Job Logger health degraded",
+        "Database unavailable",
+        application_settings=notification_settings,
+    ) is False
 
 
 def test_cached_health_alert_is_visible_to_all_authenticated_users(client: TestClient, monkeypatch) -> None:

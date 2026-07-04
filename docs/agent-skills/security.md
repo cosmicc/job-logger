@@ -89,7 +89,9 @@ The cached app-health top-bar indicator is visible to every authenticated user
 when app health is degraded. Keep it non-clickable, keep `/debug`
 authorization as the server-side source of truth for Diagnostics, and do not
 expose secrets or raw provider details in the header; detailed troubleshooting
-belongs on Diagnostics.
+belongs on Diagnostics. Diagnostics may show a yellow or red app-health banner
+for admins while ordinary authenticated users see only the compact top-bar
+indicator.
 The Diagnostics **Log out web users** action is CSRF-protected, audited, and
 must invalidate only managed web-user sessions. It must not clear the current
 config super-admin session. If a managed Admin user triggers it, that user is
@@ -203,14 +205,22 @@ connectivity status, latency, backend/driver, migration revision, pool class,
 pool counters, and configured pool limits/timeouts. It must not display the
 database URL, host, database name, username, password, or raw exception details.
 The shared app-health service uses the same disk warning/critical thresholds
-for the authenticated top-bar degraded-health icon. Page rendering may read
-cached health and local disk usage, but it must not run fresh external Autotask
-probes while building ordinary authenticated pages. Cached Autotask health is
-tracked by semantic operation type, so any user's failed Autotask operation
-keeps the indicator active until that same operation type succeeds again.
-Successful unrelated Autotask operations must not clear another active failure.
-`DEV_BUILD=true` is a display-only runtime marker for the authenticated header;
-do not use it as an authorization, environment-isolation, or safety boundary.
+for the authenticated top-bar degraded-health icon and also tracks database
+availability, database query latency, database connection-pool pressure, active
+local login lockouts, app-managed Cloudflare IP blocks, and cached Autotask
+operation failures. Page rendering may read local app-health checks, but it
+must not run fresh external Autotask probes while building ordinary
+authenticated pages. Cached Autotask health is tracked by semantic operation
+type, so any user's failed Autotask operation keeps the indicator active until
+that same operation type succeeds again. Successful unrelated Autotask
+operations must not clear another active failure.
+The optional Pushover health monitor is best-effort and in-process. It may
+send degraded, changed, and restored messages only while the app process is
+running; full host/container/process-down detection still belongs to an
+external monitor against `/health/live`. `DEV_BUILD=true` must suppress
+Pushover notifications even when `PUSHOVER_ENABLED=true`.
+`DEV_BUILD=true` is not an authorization, environment-isolation, or safety
+boundary.
 
 ## CSRF Rules
 
@@ -236,6 +246,7 @@ Never commit or print:
 - Database passwords.
 - Cloudflare tunnel tokens.
 - Cloudflare Access JWTs.
+- Pushover user keys or app tokens.
 - Raw authentication headers.
 - Raw audio.
 
@@ -348,6 +359,9 @@ documented, access-controlled, and auditable.
 
 The web app manifest and icons are public app-shell metadata and must not
 contain tenant, user, Autotask, or credential data.
+Source logo assets and palette references belong in `docs/design/`. The
+palette reference is documentation only; do not expose private deployment data
+through app-shell icon assets.
 
 The root-scoped service worker exists only so mobile devices can launch Job
 Logger in standalone app mode. It must remain network-only and must not cache

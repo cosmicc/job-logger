@@ -4,17 +4,23 @@ from __future__ import annotations
 
 import shutil
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import RLock
 
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
 from job_logger.config import settings
+from job_logger.models import CloudflareIPBlock, LoginFailureCounter
+from job_logger.services.database_diagnostics import DebugDatabaseSnapshot, collect_database_diagnostics_snapshot
 
 DISK_SPACE_WARNING_USED_PERCENT = 85.0
 DISK_SPACE_CRITICAL_USED_PERCENT = 95.0
 DISK_SPACE_WARNING_FREE_BYTES = 5 * 1024 * 1024 * 1024
 DISK_SPACE_CRITICAL_FREE_BYTES = 1 * 1024 * 1024 * 1024
 APP_HEALTH_SUMMARY_LIMIT = 240
+APP_HEALTH_SEVERITY_RANK = {"ok": 0, "warning": 1, "critical": 2}
 
 
 @dataclass(frozen=True)
@@ -71,7 +77,7 @@ class AppHealthIssue:
 
 @dataclass(frozen=True)
 class AppHealthSnapshot:
-    """Current app health summary for admin-only top-bar alerts."""
+    """Current app health summary for shared alerts and Diagnostics."""
 
     issues: tuple[AppHealthIssue, ...]
 
@@ -80,6 +86,24 @@ class AppHealthSnapshot:
         """Return whether any monitored dependency currently needs attention."""
 
         return bool(self.issues)
+
+    @property
+    def severity(self) -> str:
+        """Return the worst severity across active health issues."""
+
+        if not self.issues:
+            return "ok"
+        return max(self.issues, key=lambda issue: APP_HEALTH_SEVERITY_RANK.get(issue.severity, 0)).severity
+
+    @property
+    def status_label(self) -> str:
+        """Return the compact status label for Diagnostics banners."""
+
+        if not self.issues:
+            return "All monitored checks OK"
+        if self.severity == "critical":
+            return "App health critical"
+        return "App health degraded"
 
     @property
     def alert_label(self) -> str:
@@ -301,12 +325,19 @@ def collect_disk_usage_snapshot() -> DebugDiskUsageSnapshot:
     )
 
 
+def _issue_summary(summary: str) -> str:
+    """Return bounded single-line issue text safe for headers and notifications."""
+
+    safe_summary = " ".join(str(summary or "").split())
+    if len(safe_summary) > APP_HEALTH_SUMMARY_LIMIT:
+        safe_summary = f"{safe_summary[: APP_HEALTH_SUMMARY_LIMIT - 1].rstrip()}..."
+    return safe_summary
+
+
 def record_autotask_api_failure(summary: str, *, operation: str | None = None) -> None:
     """Mark one Autotask operation as degraded until that operation succeeds."""
 
-    safe_summary = " ".join(str(summary or "Autotask API access failed.").split())
-    if len(safe_summary) > APP_HEALTH_SUMMARY_LIMIT:
-        safe_summary = f"{safe_summary[: APP_HEALTH_SUMMARY_LIMIT - 1].rstrip()}..."
+    safe_summary = _issue_summary(summary or "Autotask API access failed.")
     safe_operation = _normalize_autotask_operation(operation)
     with _AUTOTASK_HEALTH_LOCK:
         _cached_autotask_failures[_autotask_operation_key(safe_operation)] = CachedAutotaskHealth(
@@ -363,30 +394,162 @@ def reset_cached_autotask_health() -> None:
     record_autotask_api_success(operation=None)
 
 
-def collect_app_health_snapshot() -> AppHealthSnapshot:
-    """Return admin-visible degraded app state without live external probes."""
+def _disk_health_issue(disk_usage: DebugDiskUsageSnapshot) -> AppHealthIssue | None:
+    """Return a disk issue when app-visible storage is low."""
 
-    issues: list[AppHealthIssue] = []
-    disk_usage = collect_disk_usage_snapshot()
     if disk_usage.severity != "ok":
-        issues.append(
-            AppHealthIssue(
-                code="disk-space",
-                label=disk_usage.status_label,
-                severity=disk_usage.severity,
-                summary=disk_usage.status_label,
-            )
+        return AppHealthIssue(
+            code="disk-space",
+            label=disk_usage.status_label,
+            severity=disk_usage.severity,
+            summary=disk_usage.status_label,
         )
+    return None
+
+
+def _autotask_health_issue() -> AppHealthIssue | None:
+    """Return the cached Autotask issue when any semantic operation is failing."""
 
     autotask_health = cached_autotask_health()
     if not autotask_health.available:
-        issues.append(
-            AppHealthIssue(
-                code="autotask-api",
-                label="Autotask API needs attention",
-                severity="critical",
-                summary=autotask_health.summary,
-            )
+        return AppHealthIssue(
+            code="autotask-api",
+            label="Autotask API needs attention",
+            severity="critical",
+            summary=autotask_health.summary,
         )
+    return None
+
+
+def _database_status_issue(database_snapshot: DebugDatabaseSnapshot) -> AppHealthIssue | None:
+    """Return a database availability issue when the probe cannot connect."""
+
+    if database_snapshot.available:
+        return None
+    return AppHealthIssue(
+        code="database-status",
+        label="Database unavailable",
+        severity="critical",
+        summary="Database connectivity is unavailable.",
+    )
+
+
+def _database_latency_issue(database_snapshot: DebugDatabaseSnapshot) -> AppHealthIssue | None:
+    """Return a database latency issue when the safe probe is too slow."""
+
+    if not database_snapshot.available or database_snapshot.latency_ms is None:
+        return None
+
+    latency_ms = database_snapshot.latency_ms
+    if latency_ms >= settings.app_health_db_latency_critical_ms:
+        return AppHealthIssue(
+            code="database-latency",
+            label="Database latency critical",
+            severity="critical",
+            summary=f"Database query latency is {latency_ms:.1f} ms.",
+        )
+    if latency_ms >= settings.app_health_db_latency_warning_ms:
+        return AppHealthIssue(
+            code="database-latency",
+            label="Database latency high",
+            severity="warning",
+            summary=f"Database query latency is {latency_ms:.1f} ms.",
+        )
+    return None
+
+
+def _database_pool_issue(database_snapshot: DebugDatabaseSnapshot) -> AppHealthIssue | None:
+    """Return a database connection-pool pressure issue when usage is high."""
+
+    pool_pressure = database_snapshot.pool.pressure_percent
+    if not database_snapshot.available or pool_pressure is None:
+        return None
+
+    checked_out = database_snapshot.pool.checked_out
+    configured_limit = database_snapshot.pool.configured_limit
+    summary = (
+        f"Database connection-pool pressure is {pool_pressure:.1f}% "
+        f"({checked_out} checked out of {configured_limit})."
+    )
+    if pool_pressure >= settings.app_health_db_pool_critical_percent:
+        return AppHealthIssue(
+            code="database-pool-pressure",
+            label="Database pool pressure critical",
+            severity="critical",
+            summary=summary,
+        )
+    if pool_pressure >= settings.app_health_db_pool_warning_percent:
+        return AppHealthIssue(
+            code="database-pool-pressure",
+            label="Database pool pressure high",
+            severity="warning",
+            summary=summary,
+        )
+    return None
+
+
+def _login_protection_issue(database_session: Session | None, *, now_utc: datetime | None = None) -> AppHealthIssue | None:
+    """Return an issue when login protection has active local lockouts or blocks."""
+
+    if database_session is None:
+        return None
+
+    current_dt = now_utc or datetime.now(UTC)
+    lockout_cutoff = current_dt - timedelta(minutes=settings.login_local_lockout_minutes)
+    active_lockout_count = database_session.scalar(
+        select(func.count(LoginFailureCounter.id)).where(
+            LoginFailureCounter.failed_count >= settings.cloudflare_auto_block_failed_login_attempts,
+            LoginFailureCounter.last_failed_at_utc.is_not(None),
+            LoginFailureCounter.last_failed_at_utc >= lockout_cutoff,
+        )
+    ) or 0
+    app_managed_block_count = database_session.scalar(select(func.count(CloudflareIPBlock.id))) or 0
+
+    if active_lockout_count <= 0 and app_managed_block_count <= 0:
+        return None
+
+    parts: list[str] = []
+    if active_lockout_count:
+        parts.append(f"{active_lockout_count} active local login lockout{'s' if active_lockout_count != 1 else ''}")
+    if app_managed_block_count:
+        parts.append(f"{app_managed_block_count} app-managed Cloudflare IP block{'s' if app_managed_block_count != 1 else ''}")
+
+    return AppHealthIssue(
+        code="login-protection",
+        label="Login protection active",
+        severity="warning",
+        summary=f"Login protection is active: {', '.join(parts)}.",
+    )
+
+
+def collect_app_health_snapshot(
+    *,
+    database_session: Session | None = None,
+    disk_usage: DebugDiskUsageSnapshot | None = None,
+    database_snapshot: DebugDatabaseSnapshot | None = None,
+) -> AppHealthSnapshot:
+    """Return degraded app state without live external provider probes."""
+
+    issues: list[AppHealthIssue] = []
+    disk_issue = _disk_health_issue(disk_usage or collect_disk_usage_snapshot())
+    if disk_issue is not None:
+        issues.append(disk_issue)
+
+    autotask_issue = _autotask_health_issue()
+    if autotask_issue is not None:
+        issues.append(autotask_issue)
+
+    resolved_database_snapshot = database_snapshot or collect_database_diagnostics_snapshot()
+    for issue in (
+        _database_status_issue(resolved_database_snapshot),
+        _database_latency_issue(resolved_database_snapshot),
+        _database_pool_issue(resolved_database_snapshot),
+    ):
+        if issue is not None:
+            issues.append(issue)
+    if resolved_database_snapshot.available:
+        login_issue = _login_protection_issue(database_session)
+        if login_issue is not None:
+            issues.append(login_issue)
 
     return AppHealthSnapshot(issues=tuple(issues))
