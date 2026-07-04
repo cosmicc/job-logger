@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from job_logger.config import settings
 from job_logger.database import get_database_session
 from job_logger.security import require_authenticated_username, validate_csrf_header
+from job_logger.services.changelog import current_changelog_entry, load_changelog_entries
 from job_logger.services.help_assistant import (
     MAX_HELP_QUESTION_CHARS,
     HelpAssistantError,
@@ -35,6 +36,7 @@ def help_page(
         return RedirectResponse(url="/login", status_code=303)
 
     application_settings = getattr(request.app.state, "application_settings", settings)
+    changelog_entries = load_changelog_entries()
     return templates.TemplateResponse(
         request,
         "help.html",
@@ -44,6 +46,8 @@ def help_page(
             app_version=APP_VERSION,
             ai_help_configured=application_settings.ai_help_configured,
             ai_help_max_question_chars=MAX_HELP_QUESTION_CHARS,
+            changelog_entries=changelog_entries,
+            current_changelog_entry=current_changelog_entry(changelog_entries),
         ),
     )
 

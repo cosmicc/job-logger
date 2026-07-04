@@ -111,3 +111,15 @@ def test_help_assistant_requires_instructions_before_provider_call(monkeypatch) 
             question="How do I start work?",
             application_settings=application_settings,
         )
+
+
+def test_help_assistant_sanitizes_gemini_credential_errors() -> None:
+    """Credential failures should not echo raw provider troubleshooting text."""
+
+    message = help_assistant._safe_provider_error_message(
+        {"error": {"message": "API key not valid. Please pass a valid API key."}},
+        403,
+    )
+
+    assert "Gemini rejected the AI Help credentials" in message
+    assert "API key not valid" not in message

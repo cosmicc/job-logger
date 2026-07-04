@@ -491,29 +491,29 @@ distinct from production without adding a separate pill. The Help page itself
 must show the current version with `DEV`, such as `v1.2.2 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
-desktop logout control. It shows only the Help icon button, compact navigation
-icons, and a mobile logout icon button on the right. The Help icon is centered
-between the left navigation group and the right action group.
-Managed web users see Work and Review on the left, with Config and logout on
-the right. The Work button links to `/home` and uses the same work-entry icon
-on phone and full-browser navigation. The config super admin sees Users,
-Review, and Diagnostics on the left, with logout on the right, and must not see
-the Config shortcut. The mobile logout button must post to `/logout` with the
+desktop logout control. It shows compact route and status icons on the left,
+with the Help icon immediately to the left of the mobile logout icon on the
+right.
+Managed web users see Work, Review, and Config on the left. The Work button
+links to `/home` and uses the same work-entry icon on phone and full-browser
+navigation. The config super admin sees Users, Review, and Diagnostics on the
+left, with Help and logout on the right, and must not see the Config shortcut.
+The mobile logout button must post to `/logout` with the
 rendered CSRF token and
 must not use `window.close()` or a browser-only app close fallback. Full-width
 `/home`, review, debug, and other non-mobile authenticated views still expose
-the explicit desktop logout control. Full-browser top navigation should be
-centered, use raised blue icon-and-text buttons, and show the source-controlled
-transparent Job Logger logo asset as the authenticated desktop brand mark. The
+the explicit desktop logout control. Full-browser route navigation should be
+centered, use raised blue icon-and-text buttons, place Help immediately before
+the right-side **Log out** button, and show the source-controlled transparent
+Job Logger logo asset as the authenticated desktop brand mark. The
 PWA manifest and favicon should use the source-controlled icon-format Job
 Logger artwork through the `job-logger-install-icon-*` files so installed
 home-screen icons fill the icon frame with the dark app-icon background. Do not
 advertise maskable install icons unless a future design includes a tested
 full-bleed mask-safe background. It should include a **Log out**
 button with the logout icon and visible text while preserving the phone-sized
-icon navigation. Phone top-bar
-navigation buttons should use the same blue visual treatment as the
-full-browser navigation buttons.
+icon navigation. Phone top-bar navigation buttons should use the same blue
+visual treatment as the full-browser navigation buttons.
 Enabled buttons and button-like navigation controls should show a slight
 brighter hover state, and workflow action buttons should have a raised idle
 state plus a pressed-in active state. Destructive red controls should stay red
@@ -522,9 +522,9 @@ When cached application health is degraded, every authenticated user sees a red
 exclamation status icon in the top bar. The icon is a non-clickable health
 indicator, does not open Diagnostics, and must not expose diagnostic details to
 ordinary managed users. The desktop icon sits in a reserved header status area
-between primary navigation and logout; the phone icon joins the compact
-right-side action group without crowding Config, Diagnostics, or logout
-controls. Do not run live Autotask probes while rendering a page.
+between primary navigation and the right-side Help/logout actions; the phone
+icon joins the compact left-side route group so Help can stay immediately
+beside logout. Do not run live Autotask probes while rendering a page.
 The unauthenticated login page should not show a top app icon or wordmark above
 the sign-in form.
 
@@ -888,7 +888,8 @@ The application is a FastAPI project under `job_logger/`.
   configuration such as immediate light/dark theme selection and explicit
   managed-user password changes.
 - `job_logger/routes/changelog.py` handles authenticated `/changelog` release
-  history linked from the Help page's **version changelog** button.
+  history used by the Help page's **version changelog** overlay and by direct
+  authenticated fallback navigation.
 - `job_logger/routes/help.py` handles authenticated `/help` and `/help/ask`
   for the Help page and stateless, single-question help assistant answers.
 - `job_logger/routes/debug.py` handles the super-admin diagnostic page, the
@@ -1102,9 +1103,10 @@ The normal workflow is:
     passkey login must leave the normal password form available.
 19. Authenticated users may open `/help` from the shared header Help button.
     `/help` shows the current source-controlled version, `DEV` when
-    `DEV_BUILD=true`, a **version changelog** button linking to `/changelog`,
-    and the optional stateless help assistant. `/changelog` remains
-    authenticated and shows prior concise release notes parsed from
+    `DEV_BUILD=true`, a **version changelog** button that opens release notes
+    in an overlay, and the optional stateless help assistant. `/changelog`
+    remains authenticated as a fallback route and shows prior concise release
+    notes parsed from
     `WEB_CHANGELOG.md`. The current-version panel must show that version's
     simple change list, not only the release title.
 

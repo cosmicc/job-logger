@@ -29,8 +29,14 @@ def test_authenticated_help_page_renders_version_and_changelog(authenticated_cli
     assert response.status_code == 200
     assert 'class="help-shell"' in response.text
     assert "<h1>Help</h1>" in response.text
+    assert '<h2 id="help-assistant-heading">Ask AI Help</h2>' in response.text
+    assert "Single question, single answer." not in response.text
+    assert 'rows="2"' in response.text
     assert ">v1.2.2<" in response.text
     assert 'href="/changelog"' in response.text
+    assert "data-help-changelog-open" in response.text
+    assert "data-help-changelog-overlay" in response.text
+    assert "data-help-changelog-close" in response.text
     assert ">version changelog<" in response.text
     assert "/static/help.js?v=" in response.text
     assert "AI Help is not configured. Contact your app administrator." in response.text

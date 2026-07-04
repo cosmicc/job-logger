@@ -88,14 +88,6 @@
               <span>Diag</span>
             </a>
           {% endif %}
-          <a class="header-help-link{% if dev_build %} header-help-link-dev{% endif %}" href="/help" aria-label="Help{% if dev_build %} development build{% endif %}" data-desktop-help-link>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M9.1 9a3 3 0 1 1 5.8 1c-.6 1-1.7 1.4-2.3 2.2-.4.5-.6.9-.6 1.8"></path>
-              <path d="M12 17h.01"></path>
-            </svg>
-            <span>Help</span>
-          </a>
         </nav>
         <nav class="mobile-nav-actions mobile-nav-left" aria-label="Mobile navigation">
           {% if not current_is_super_admin %}
@@ -125,17 +117,6 @@
               <path d="M7 6h10"></path>
             </svg>
           </a>
-        </nav>
-        <div class="header-status-group mobile-help-group" aria-label="Help">
-          <a class="icon-button mobile-nav-action mobile-help-action header-help-link{% if dev_build %} header-help-link-dev{% endif %}" href="/help" title="Help" aria-label="Help{% if dev_build %} development build{% endif %}" data-mobile-help-link>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M9.1 9a3 3 0 1 1 5.8 1c-.6 1-1.7 1.4-2.3 2.2-.4.5-.6.9-.6 1.8"></path>
-              <path d="M12 17h.01"></path>
-            </svg>
-          </a>
-        </div>
-        <nav class="mobile-nav-actions mobile-nav-right" aria-label="Mobile quick actions">
           {% if app_health_degraded %}
             <span class="icon-button mobile-nav-action health-alert-button health-alert-indicator mobile-health-alert-action" title="Application health is degraded" role="img" aria-label="Application health is degraded" data-health-alert-button data-mobile-health-alert-indicator>
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -160,6 +141,15 @@
               </svg>
             </a>
           {% endif %}
+        </nav>
+        <nav class="mobile-nav-actions mobile-nav-right" aria-label="Mobile quick actions">
+          <a class="icon-button mobile-nav-action mobile-help-action header-help-link{% if dev_build %} header-help-link-dev{% endif %}" href="/help" title="Help" aria-label="Help{% if dev_build %} development build{% endif %}" data-mobile-help-link>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.1 9a3 3 0 1 1 5.8 1c-.6 1-1.7 1.4-2.3 2.2-.4.5-.6.9-.6 1.8"></path>
+              <path d="M12 17h.01"></path>
+            </svg>
+          </a>
           <form method="post" action="/logout" class="logout-form mobile-logout-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="icon-button mobile-nav-action mobile-logout-action" type="submit" title="Log out" aria-label="Log out">
@@ -171,17 +161,27 @@
             </button>
           </form>
         </nav>
-        <form method="post" action="/logout" class="logout-form desktop-logout-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-          <button class="icon-button desktop-logout-button" type="submit" title="Log out" aria-label="Log out">
+        <div class="desktop-header-actions">
+          <a class="header-help-link desktop-help-link{% if dev_build %} header-help-link-dev{% endif %}" href="/help" aria-label="Help{% if dev_build %} development build{% endif %}" data-desktop-help-link>
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M10 17l5-5-5-5"></path>
-              <path d="M15 12H3"></path>
-              <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.1 9a3 3 0 1 1 5.8 1c-.6 1-1.7 1.4-2.3 2.2-.4.5-.6.9-.6 1.8"></path>
+              <path d="M12 17h.01"></path>
             </svg>
-            <span>Log out</span>
-          </button>
-        </form>
+            <span>Help</span>
+          </a>
+          <form method="post" action="/logout" class="logout-form desktop-logout-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="icon-button desktop-logout-button" type="submit" title="Log out" aria-label="Log out">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10 17l5-5-5-5"></path>
+                <path d="M15 12H3"></path>
+                <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
+              </svg>
+              <span>Log out</span>
+            </button>
+          </form>
+        </div>
       </header>
     {% endif %}
 

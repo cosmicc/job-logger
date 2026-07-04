@@ -284,8 +284,15 @@ def _build_help_chat_input(question: str, source_context: str) -> str:
     )
 
 
-def _safe_provider_error_message(response_payload: Any) -> str:
+def _safe_provider_error_message(response_payload: Any, status_code: int) -> str:
     """Return a bounded Gemini error without exposing request internals."""
+
+    if status_code in {401, 403}:
+        return (
+            "Gemini rejected the AI Help credentials. Contact your app "
+            "administrator to verify the key is available to the running app "
+            "and has Gemini API access."
+        )
 
     if isinstance(response_payload, dict):
         error_payload = response_payload.get("error")
@@ -328,7 +335,7 @@ def _post_gemini_chat_completion(
         raise HelpAssistantError("Help assistant returned an invalid response.") from exc
 
     if response.status_code >= 400:
-        raise HelpAssistantError(_safe_provider_error_message(response_payload))
+        raise HelpAssistantError(_safe_provider_error_message(response_payload, response.status_code))
 
     if not isinstance(response_payload, dict):
         raise HelpAssistantError("Help assistant returned an invalid response.")

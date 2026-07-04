@@ -548,16 +548,16 @@ defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
 currently `v1.2.2`. Version history starts at `v1.0.0`.
 
 Authenticated pages show a Help button in the shared header. `/help` displays
-the current version and a **version changelog** button that opens
-`/changelog`, which displays concise release notes parsed from
-`WEB_CHANGELOG.md`. The changelog page shows version numbers without brackets,
-release dates in `MM.DD.YYYY` format, and short user-facing changes for each
-version. `CHANGELOG.md` remains the detailed source changelog for operators and
-agents. `WEB_CHANGELOG.md` is only for user-facing changes; keep diagnostics,
-debug-page, super-admin-only, operator-only, and agent-facing notes in
-`CHANGELOG.md` only. The Help and changelog pages use the same authenticated
-session, dark/light theme variables, and responsive layout system as the rest
-of the app.
+the current version and a **version changelog** button that opens the concise
+release notes in an overlay. `/changelog` remains available as an authenticated
+fallback page and uses `WEB_CHANGELOG.md` as its source. The changelog shows
+version numbers without brackets, release dates in `MM.DD.YYYY` format, and
+short user-facing changes for each version. `CHANGELOG.md` remains the detailed
+source changelog for operators and agents. `WEB_CHANGELOG.md` is only for
+user-facing changes; keep diagnostics, debug-page, super-admin-only,
+operator-only, and agent-facing notes in `CHANGELOG.md` only. The Help and
+changelog views use the same authenticated session, dark/light theme variables,
+and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the authenticated Help button is yellow
 on desktop and phone layouts, and `/help` shows the current version with `DEV`,
 such as `v1.2.2 DEV`.
@@ -762,8 +762,8 @@ Provider setup and data-handling docs:
 ### AI Help
 
 The Help page is available to every signed-in user. It always shows the current
-version and the **version changelog** button. The question-answer assistant is
-disabled until configured.
+version and the **version changelog** overlay button. The question-answer
+assistant is disabled until configured.
 
 Set these variables to enable one-question help answers:
 
@@ -785,6 +785,8 @@ refuses source code, deployment, secret, credential, and internal configuration
 questions. Keep `AI_HELP_INSTRUCTIONS` focused on how the assistant should
 answer end-user Job Logger support questions, and do not put secrets or private
 deployment values in it.
+If Gemini rejects the credentials, confirm the running container was recreated
+with the current key and that the Google AI Studio key has Gemini API access.
 
 ### Autotask
 
@@ -1118,7 +1120,7 @@ users to sign in again while leaving the config super admin signed in; a
 managed admin who clicks it is included because that account is a managed web
 user. The authenticated desktop navigation labels this route as **Diag**, while
 the page title remains **Diagnostics**. All authenticated pages also include a
-Help button that opens `/help`; the Help page links to `/changelog` with
+Help button that opens `/help`; the Help page opens release notes with
 **version changelog**. The Diagnostics Autotask check verifies
 required workflow configuration and the live Companies/Tickets API calls used
 by the app. The **Test Autotask API** button is manual and always runs a fresh

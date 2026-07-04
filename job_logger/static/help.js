@@ -30,6 +30,60 @@
     answerPanel.classList.toggle("is-hidden", !answer);
   }
 
+  function initializeChangelogOverlay() {
+    const overlay = document.querySelector("[data-help-changelog-overlay]");
+    const openButtons = document.querySelectorAll("[data-help-changelog-open]");
+    if (!overlay || openButtons.length === 0) {
+      return;
+    }
+
+    const closeButton = overlay.querySelector("[data-help-changelog-close]");
+    let returnFocusElement = null;
+
+    function openOverlay(triggerElement) {
+      returnFocusElement = triggerElement || null;
+      overlay.classList.remove("is-hidden");
+      overlay.setAttribute("aria-hidden", "false");
+      document.body.classList.add("help-changelog-overlay-open");
+      if (closeButton) {
+        closeButton.focus();
+      }
+    }
+
+    function closeOverlay() {
+      overlay.classList.add("is-hidden");
+      overlay.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("help-changelog-overlay-open");
+      if (returnFocusElement && typeof returnFocusElement.focus === "function") {
+        returnFocusElement.focus();
+      }
+      returnFocusElement = null;
+    }
+
+    openButtons.forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        openOverlay(button);
+      });
+    });
+
+    if (closeButton) {
+      closeButton.addEventListener("click", closeOverlay);
+    }
+
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        closeOverlay();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !overlay.classList.contains("is-hidden")) {
+        closeOverlay();
+      }
+    });
+  }
+
   function initializeHelpForm(form) {
     const questionInput = form.querySelector("[data-help-question-input]");
     const submitButton = form.querySelector("[data-help-submit-button]");
@@ -77,5 +131,6 @@
     });
   }
 
+  initializeChangelogOverlay();
   document.querySelectorAll("[data-help-question-form]").forEach(initializeHelpForm);
 }());

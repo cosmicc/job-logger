@@ -312,8 +312,9 @@ Progress fields and want fewer steps.
 
 Select **Help** in the header to open the Help page. On a phone, Help appears
 as a question-mark icon. The Help page shows the current app version and a
-**version changelog** button. The changelog shows short release notes for the
-app version you are using and prior versions.
+**version changelog** button. That button opens an overlay with short release
+notes for the app version you are using and prior versions. Use the X in the
+top right to close it.
 
 If the Help page shows **DEV** beside the version, or the Help button is
 yellow, you are using a development or testing instance rather than the

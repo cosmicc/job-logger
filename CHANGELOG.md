@@ -10,10 +10,27 @@ All notable changes to Job Logger are documented in this file.
   button. Full-browser navigation now shows the help icon and **Help** label,
   phone-sized navigation shows the help icon, and dev builds mark the Help
   control in yellow while showing `DEV` on the Help page.
+- Moved the shared header Help control beside logout on both desktop and phone
+  layouts while keeping the primary route navigation grouped on the left or
+  centered as appropriate for the viewport.
+- Changed the Help page **version changelog** control to open release notes in
+  an authenticated overlay with an X close button while keeping `/changelog`
+  available as the direct authenticated fallback route.
+- Restyled the **version changelog** control as a raised button and tightened
+  the phone-sized current-version card so the version and changelog button sit
+  on one row.
 - Added authenticated `/help` and `/help/ask` routes for a stateless
   Gemini-backed end-user help assistant using Gemini's OpenAI-compatible
   chat-completions API. The assistant is available to every authenticated
   account only when configured through environment variables.
+- Tightened the Help page assistant layout with an **Ask AI Help** heading,
+  a two-line question box, and a status line directly under the question field
+  beside the Ask button.
+- Increased the phone-sized AI Help question box height while leaving the
+  desktop question box compact.
+- Trimmed `GEMINI_API_KEY` when loading runtime settings and changed Gemini
+  401/403 help failures to show bounded credential guidance instead of raw
+  provider troubleshooting text.
 - Added `AI_HELP_ENABLED`, `AI_HELP_PROVIDER`, `GEMINI_MODEL`,
   `GEMINI_API_BASE`, `AI_HELP_MAX_TOKENS`, `AI_HELP_TEMPERATURE`, and
   `AI_HELP_INSTRUCTIONS` runtime settings to Compose, Swarm, and

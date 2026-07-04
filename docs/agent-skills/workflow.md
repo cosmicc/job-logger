@@ -39,21 +39,21 @@ and leave `job_logger/static/phone.css` unchanged unless the request explicitly
 targets the phone or installed mobile app.
 
 Phone-sized authenticated layouts hide the brand mark and desktop logout form.
-The visible top bar should place the left navigation icons on the left, the
-Help icon centered in the middle, and right-side action icons on the right.
-Managed web users see Work and Review on the left, with Config and logout on
-the right. The Work button links to `/home` and uses the same work-entry icon
-on phone and full-browser navigation. Managed users marked as Admin also see
-Diagnostics on the right, but that flag must not remove Config or grant
-super-admin-only Users navigation.
+The visible top bar should place route and status icons on the left, then the
+Help icon immediately to the left of the logout icon on the right. Managed web
+users see Work, Review, and Config on the left. The Work button links to
+`/home` and uses the same work-entry icon on phone and full-browser navigation.
+Managed users marked as Admin also see Diagnostics on the left, but that flag
+must not remove Config or grant super-admin-only Users navigation.
 The config super admin sees Users, Review, and Diagnostics on the left, with
-logout on the right, and must not see Config. The mobile logout button must
+Help and logout on the right, and must not see Config. The mobile logout button must
 submit the normal `/logout` form with the rendered CSRF token. Do not wire
 mobile logout through `window.close()`, `about:blank`, a GET link, or another
 browser-only action. Keep the explicit desktop logout form available on
 non-mobile authenticated pages. Full-browser top navigation should stay
-centered and use raised blue icon-and-text buttons, including visible
-**Log out** text after the logout icon. The authenticated desktop brand mark
+centered for route links and use raised blue icon-and-text buttons. Full-browser
+Help belongs in the right-side action group immediately to the left of the
+visible **Log out** button. The authenticated desktop brand mark
 should use the source-controlled transparent Job Logger logo asset, while the
 PWA manifest and favicon use the source-controlled icon-format Job Logger
 artwork so installed home-screen icons fill the icon frame with the dark
@@ -61,9 +61,10 @@ app-icon background. Use the `job-logger-install-icon-*` files and do not
 advertise maskable install icons unless a future design includes a tested
 full-bleed mask-safe background.
 Phone-sized navigation remains compact blue icon buttons. Full-browser
-navigation includes a Help button with the same help icon and visible
-**Help** label. The Help page, not the shared header, shows the current version
-and links to `/changelog` with a **version changelog** button.
+navigation includes a right-side Help button with the same help icon and
+visible **Help** label. The Help page, not the shared header, shows the current
+version and opens the release notes overlay with a raised **version changelog**
+button.
 Enabled buttons and button-like navigation controls should visibly brighten on
 hover. Workflow actions such as **Record**, **AI Cleanup**, finish, delete, and
 review submit controls should look raised at rest and pressed in while active.
@@ -75,8 +76,8 @@ such as `v1.2.2 DEV`. Keep the Help icon compact so it does not crowd the
 mobile navigation icons.
 When cached app health is degraded, every authenticated user sees a red
 exclamation status icon in the top bar. The icon is non-clickable and must not
-open Diagnostics. On phone layouts, keep the indicator in the right-side action
-group without crowding Config, Diagnostics, or logout controls.
+open Diagnostics. On phone layouts, keep the indicator in the left-side route
+group so Help remains immediately beside logout.
 The unauthenticated login page should render the sign-in form without a top app
 icon or wordmark.
 

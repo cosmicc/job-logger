@@ -255,9 +255,10 @@ Authenticated pages may show the source-controlled application version because
 it is non-secret build metadata; do not source that value from environment
 variables that could drift between containers. The shared header links to
 `/help`, where authenticated users can see the current version and open the
-authenticated `/changelog` page. Keep both pages inside the app shell even
-though the version and release notes are source-controlled metadata. The web
-changelog must come from concise `WEB_CHANGELOG.md` entries, while
+version changelog overlay. Keep both the Help overlay and authenticated
+`/changelog` fallback inside the app shell even though the version and release
+notes are source-controlled metadata. The web changelog must come from concise
+`WEB_CHANGELOG.md` entries, while
 `CHANGELOG.md` remains the detailed operator/agent release record.
 
 AI Help is an external AI integration for authenticated end-user support. Keep

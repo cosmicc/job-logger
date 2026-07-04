@@ -510,7 +510,7 @@ def load_settings() -> Settings:
         faster_whisper_remote_timeout_seconds=_get_positive_float("FASTER_WHISPER_REMOTE_TIMEOUT_SECONDS", 120.0),
         ai_cleanup_enabled=_get_boolean("AI_CLEANUP_ENABLED", False),
         ai_cleanup_provider=_get_ai_cleanup_provider(),
-        gemini_api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or None,
+        gemini_api_key=(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip() or None,
         gemini_cleanup_model=os.getenv("GEMINI_CLEANUP_MODEL", "gemini-3.5-flash").strip() or "gemini-3.5-flash",
         gemini_cleanup_api_base_url=os.getenv(
             "GEMINI_CLEANUP_API_BASE_URL",

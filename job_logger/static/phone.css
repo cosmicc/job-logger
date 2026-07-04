@@ -2,14 +2,14 @@
 
 .app-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   min-height: 58px;
   padding: 0 14px;
 }
 
 .app-header.has-health-alert {
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
   padding-left: 10px;
   padding-right: 10px;
@@ -37,13 +37,6 @@
   display: none;
 }
 
-.mobile-help-group {
-  display: inline-flex;
-  grid-column: 2;
-  justify-self: center;
-  margin-left: 0;
-}
-
 .mobile-nav-actions {
   display: flex;
   gap: 6px;
@@ -60,7 +53,7 @@
 }
 
 .mobile-nav-right {
-  grid-column: 3;
+  grid-column: 2;
   justify-self: end;
 }
 
@@ -80,6 +73,7 @@
   display: inline-grid;
 }
 
+.desktop-header-actions,
 .desktop-logout-form {
   display: none;
 }
@@ -223,9 +217,28 @@
   flex-direction: column;
 }
 
+.help-version-panel {
+  align-items: center;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.help-version-panel h2 {
+  font-size: 24px;
+}
+
+.help-version-panel .eyebrow-text {
+  font-size: 11px;
+}
+
 .users-page-actions,
-.user-edit-actions,
+.user-edit-actions {
+  width: 100%;
+}
+
 .help-action-row {
+  grid-template-columns: 1fr;
   width: 100%;
 }
 
@@ -233,9 +246,25 @@
 .user-edit-actions button,
 .config-save-button,
 .config-password-button,
-.help-submit-button,
-.help-changelog-button {
+.help-submit-button {
   width: 100%;
+}
+
+.help-changelog-button {
+  min-width: 0;
+  width: auto;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+
+.help-changelog-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.help-question-form textarea {
+  height: 116px;
+  min-height: 116px;
 }
 
 .changelog-current-panel,
@@ -254,6 +283,22 @@
 
 .changelog-entry {
   grid-template-columns: 1fr;
+}
+
+.help-changelog-overlay {
+  padding: 0;
+  place-items: stretch;
+}
+
+.help-changelog-dialog {
+  width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 0;
+}
+
+.help-changelog-dialog-body {
+  padding: 12px;
 }
 
 .add-user-panel {

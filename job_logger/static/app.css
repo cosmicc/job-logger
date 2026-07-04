@@ -277,7 +277,8 @@ svg {
   justify-self: start;
 }
 
-.top-nav a {
+.top-nav a,
+.desktop-help-link {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -300,12 +301,14 @@ svg {
     color 0.12s ease;
 }
 
-.top-nav a svg {
+.top-nav a svg,
+.desktop-help-link svg {
   width: 17px;
   height: 17px;
 }
 
-.top-nav a:hover {
+.top-nav a:hover,
+.desktop-help-link:hover {
   border-color: var(--nav-action-hover);
   background: rgba(59, 130, 246, 0.24);
   box-shadow: var(--button-hover-shadow);
@@ -394,9 +397,12 @@ svg {
   line-height: 1;
 }
 
-.desktop-logout-form {
+.desktop-header-actions {
   grid-column: 3;
   grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   justify-self: end;
 }
 
@@ -426,7 +432,6 @@ svg {
 }
 
 .mobile-nav-actions,
-.mobile-help-group,
 .mobile-logout-form {
   display: none;
 }
@@ -4602,26 +4607,64 @@ td a {
 
 .help-changelog-button {
   min-width: 190px;
+  border: 1px solid var(--nav-action-border);
+  background: var(--nav-action-bg);
+  box-shadow: var(--nav-action-shadow);
+  color: var(--nav-action);
   justify-content: center;
+  font-weight: 800;
+  transform-origin: center;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease,
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.help-changelog-button:hover {
+  border-color: var(--nav-action-hover);
+  background: rgba(59, 130, 246, 0.24);
+  box-shadow: var(--button-hover-shadow);
+  color: var(--nav-action-hover);
+}
+
+.help-changelog-button:active {
+  transform: translateY(1px) scale(0.985);
+  box-shadow: var(--pressed-shadow);
 }
 
 .help-assistant-panel {
   display: grid;
-  gap: 18px;
+  gap: 10px;
 }
 
 .help-question-form textarea {
-  min-height: 150px;
+  height: 68px;
+  min-height: 68px;
   resize: vertical;
 }
 
 .help-action-row {
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
 }
 
 .help-submit-button {
   min-width: 120px;
+}
+
+.help-status-line {
+  margin: 0;
+  min-height: 0;
+  padding-top: 0;
+}
+
+.help-status-line:not(:empty) {
+  min-height: 42px;
+  padding-top: 8px;
 }
 
 .help-answer-panel {
@@ -4638,6 +4681,73 @@ td a {
 
 .help-answer-text {
   white-space: pre-wrap;
+}
+
+.help-changelog-overlay-open {
+  overflow: hidden;
+}
+
+.help-changelog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--loading-overlay);
+}
+
+.help-changelog-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(980px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+}
+
+.help-changelog-dialog-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.help-changelog-dialog-header h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 950;
+}
+
+.help-changelog-close-button {
+  flex: 0 0 auto;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  justify-content: center;
+}
+
+.help-changelog-close-button svg {
+  width: 19px;
+  height: 19px;
+}
+
+.help-changelog-dialog-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
 }
 
 .changelog-current-copy {

@@ -185,7 +185,7 @@ def test_ai_help_settings_load_from_environment(monkeypatch) -> None:
 
     monkeypatch.setenv("AI_HELP_ENABLED", "true")
     monkeypatch.setenv("AI_HELP_PROVIDER", "gemini")
-    monkeypatch.setenv("GEMINI_API_KEY", "gemini-key-value")
+    monkeypatch.setenv("GEMINI_API_KEY", " gemini-key-value \n")
     monkeypatch.setenv("GEMINI_MODEL", "gemini-3.5-flash")
     monkeypatch.setenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta/openai/")
     monkeypatch.setenv("AI_HELP_MAX_TOKENS", "800")

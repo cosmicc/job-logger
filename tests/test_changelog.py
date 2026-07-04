@@ -139,8 +139,10 @@ def test_changelog_parser_reads_current_release() -> None:
         title=CURRENT_WEB_TITLE,
         changes=(
             "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.",
+            "Help now sits beside Log out in the header, while the main route buttons stay grouped together.",
             "Dev builds now mark the Help button yellow and show DEV beside the current version on the Help page.",
-            "The Help page now shows the current version followed by a version changelog button.",
+            "The Help page now opens the version changelog in an overlay with an X close button.",
+            "On phones, the current version and version changelog button now share one row, and the AI Help question box is taller.",
             "The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions.",
             (
                 "Updated the app icon, browser favicon, and desktop header logo "
@@ -201,8 +203,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert PREVIOUS_WEB_TITLE in response.text
     assert V120_WEB_TITLE in response.text
     assert "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help." in response.text
+    assert "Help now sits beside Log out in the header, while the main route buttons stay grouped together." in response.text
     assert "Dev builds now mark the Help button yellow and show DEV beside the current version on the Help page." in response.text
-    assert "The Help page now shows the current version followed by a version changelog button." in response.text
+    assert "The Help page now opens the version changelog in an overlay with an X close button." in response.text
+    assert "On phones, the current version and version changelog button now share one row, and the AI Help question box is taller." in response.text
     assert "The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions." in response.text
     assert (
         "Updated the app icon, browser favicon, and desktop header logo "
