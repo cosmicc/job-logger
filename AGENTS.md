@@ -56,7 +56,10 @@ picker should show Autotask `Roles.name` labels when that metadata is readable
 while storing only the selected numeric `roleID` on the managed web-user row.
 Store only salted password verifiers, never raw managed user passwords.
 Managed-user passwords must be at least 8 characters and include lowercase,
-uppercase, number, and symbol characters.
+uppercase, number, and symbol characters. Passwords created or reset by the
+config super admin are temporary: the managed user must change that password on
+the next sign-in before using any page other than `/config/password` or logout.
+Changing the password from `/config` clears the temporary-password requirement.
 Disabled web users must be blocked from new logins and from using old signed
 sessions. Deleting a web user from `/users` disables the account, invalidates
 that user's signed sessions, preserves the row for audit/login-state clarity,
@@ -88,7 +91,8 @@ The login page shows the normal username/password form first and places the
 Device sign-in button under the password sign-in button as the alternate
 managed-user login path.
 `/home` may show a device sign-in setup card only once after each successful
-login, and only while that managed user has no registered passkeys.
+login, only on phone-sized layouts, and only while that managed user has no
+registered passkeys.
 
 Managed web users may change per-login configuration on `/config`. Per-user
 configuration is database-backed, defaults to the dark theme, saves immediately
@@ -193,11 +197,13 @@ OpenAI-compatible Gemini base URL; the app may accept a full
 final endpoint once and never append that path twice. The assistant is for
 end-user Job Logger support only. Built-in Help instructions should favor
 concise complete answers, and server-side answer cleanup may remove short
-dangling trailing fragments after a complete sentence. AI Help troubleshooting
-logs may include sanitized metadata such as trace ID, provider, model, HTTP
-status, error class, input and answer lengths, context source count, and timing,
-but must not log Gemini API keys, full questions, prompts, source context,
-provider request bodies, or answers.
+dangling trailing fragments after a complete sentence. The Help page may show a
+general operational-status card to all authenticated users, but specific health
+issue labels and summaries must be visible only to Diagnostics-authorized
+users. AI Help troubleshooting logs may include sanitized metadata such as trace
+ID, provider, model, HTTP status, error class, input and answer lengths, context
+source count, and timing, but must not log Gemini API keys, full questions,
+prompts, source context, provider request bodies, or answers.
 
 ## Core Workflow
 
@@ -995,10 +1001,13 @@ The normal workflow is:
    earlier single-user installs.
 3. A managed web user may open `/config` to choose dark or light theme for
    their own login, enable the default-off **Submit from Work in Progress**
-   option, change their password, and add or delete passkeys. Config changes
-   save and apply immediately without a visible save action, except password
-   and passkey actions which are explicit. The password card shows password
-   requirements. The config super admin has no `/config` access and stays dark.
+   option, change their password, and add or delete passkeys. If the account is
+   using a temporary super-admin-created or reset password, `/config` shows only
+   the required password-change flow until the user chooses a new password.
+   Config changes save and apply immediately without a visible save action,
+   except password and passkey actions which are explicit. The password card
+   shows password requirements. The config super admin has no `/config` access
+   and stays dark.
 4. A managed web user opens `/home`.
 5. The `/home` page renders from local application state without running an
    Autotask API contactability check. After the page has loaded, browser
@@ -1104,18 +1113,20 @@ The normal workflow is:
     while the job remains submitted.
 17. Submission attempts and important state changes are recorded for audit and
     diagnostics.
-18. Managed users without a passkey see a Home prompt to set up device sign-in
-    once after a successful login. `/config` always shows device sign-in
+18. Managed users without a passkey see a phone-sized Home prompt to set up
+    device sign-in once after a successful login. `/config` always shows device sign-in
     management backed by passkeys. The login page places Device sign-in under
     the password sign-in button. Later device sign-in uses
     `/login/passkey/options` and `/login/passkey/verify`; failed or canceled
     passkey login must leave the normal password form available.
 19. Authenticated users may open `/help` from the shared header Help button.
     `/help` shows the current source-controlled version, `DEV` when
-    `DEV_BUILD=true`, a **version changelog** button that opens release notes
-    in an overlay, and the optional stateless help assistant. `/changelog`
-    remains authenticated as a fallback route and shows prior concise release
-    notes parsed from
+    `DEV_BUILD=true`, `Released: MM.DD.YYYY` when the current changelog entry
+    has a release date, a **version changelog** button that opens release notes
+    in an overlay, and the optional stateless help assistant. The overlay shows
+    previous versions as full-width cards without timeline marker dots and only
+    labels dates for released versions. `/changelog` remains authenticated as a
+    fallback route and shows prior concise release notes parsed from
     `WEB_CHANGELOG.md`. The current-version panel must show that version's
     simple change list, not only the release title.
 

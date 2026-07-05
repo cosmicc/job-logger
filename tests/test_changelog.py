@@ -16,9 +16,9 @@ from job_logger.services.changelog import (
 from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
-CURRENT_DETAILED_HEADING = "## 1.2.3 - Help navigation, AI Help polish, and Portainer env guidance"
+CURRENT_DETAILED_HEADING = "## 1.2.3 - Help navigation, AI Help polish, changelog display, and Portainer env guidance"
 CURRENT_RELEASE_DATE = ""
-CURRENT_WEB_TITLE = "Help navigation and AI Help"
+CURRENT_WEB_TITLE = "Help navigation, AI Help, and changelog display"
 CURRENT_WEB_HEADING = f"## 1.2.3 - {CURRENT_WEB_TITLE}"
 V122_WEB_TITLE = "App icon, user manual, ticket history, and Config workflow"
 V122_RELEASE_DATE = "07.03.2026"
@@ -147,6 +147,16 @@ def test_changelog_parser_reads_current_release() -> None:
             "Ask AI Help now uses a one-line question field that submits when Enter is pressed.",
             "The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions.",
             "Ask AI Help now keeps broad/simple answers concise and avoids showing unfinished trailing fragments.",
+            (
+                "Ask AI Help now explains what users can ask, clears the old question "
+                "when users start another one, and shows a general app operational-status card."
+            ),
+            (
+                "New managed users and users whose password was reset now have to change that "
+                "temporary password before using the app; phones still show the device sign-in "
+                "setup prompt after the password is changed."
+            ),
+            "Help now labels released version dates as Released: MM.DD.YYYY and shows previous changelog entries as full-width cards without timeline dots.",
         ),
     )
 
@@ -202,6 +212,19 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert (
         "Ask AI Help now keeps broad/simple answers concise and avoids showing "
         "unfinished trailing fragments."
+    ) in response.text
+    assert (
+        "Ask AI Help now explains what users can ask, clears the old question "
+        "when users start another one, and shows a general app operational-status card."
+    ) in response.text
+    assert (
+        "New managed users and users whose password was reset now have to change that "
+        "temporary password before using the app; phones still show the device sign-in "
+        "setup prompt after the password is changed."
+    ) in response.text
+    assert (
+        "Help now labels released version dates as Released: MM.DD.YYYY and shows "
+        "previous changelog entries as full-width cards without timeline dots."
     ) in response.text
     assert (
         "Updated the app icon, browser favicon, and desktop header logo "

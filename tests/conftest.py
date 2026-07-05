@@ -92,6 +92,7 @@ def client() -> Generator[TestClient, None, None]:
             username="tech",
             password=TEST_WEB_USER_PASSWORD,
             autotask_resource_id=1,
+            password_must_change=False,
         )
         database_session.commit()
     test_app = create_app()

@@ -3208,6 +3208,10 @@ td a {
   font-weight: 700;
 }
 
+.phone-only-passkey-home-prompt {
+  display: none;
+}
+
 .passkey-home-prompt h2 {
   margin-bottom: 7px;
   font-size: 24px;
@@ -4605,6 +4609,13 @@ td a {
   font-weight: 950;
 }
 
+.help-version-release-date {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .help-changelog-button {
   min-width: 190px;
   border: 1px solid var(--nav-action-border);
@@ -4637,6 +4648,11 @@ td a {
 .help-assistant-panel {
   display: grid;
   gap: 10px;
+}
+
+.help-assistant-description {
+  max-width: 68ch;
+  margin: 6px 0 0;
 }
 
 .help-question-form input[data-help-question-input] {
@@ -4680,6 +4696,49 @@ td a {
 
 .help-answer-text {
   white-space: pre-wrap;
+}
+
+.help-operational-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.help-operational-panel-ok {
+  border-color: rgba(52, 211, 153, 0.42);
+  background: linear-gradient(135deg, var(--success-soft), var(--surface) 64%);
+}
+
+.help-operational-panel-warning {
+  border-color: var(--warning);
+  background: linear-gradient(135deg, var(--warning-soft), var(--surface) 64%);
+}
+
+.help-operational-panel-critical {
+  border-color: var(--danger);
+  background: linear-gradient(135deg, var(--danger-soft), var(--surface) 64%);
+}
+
+.help-operational-panel .panel-title-row {
+  align-items: center;
+}
+
+.help-operational-panel .muted-text {
+  margin: 0;
+}
+
+.help-health-issue-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.help-health-issue-list li {
+  display: grid;
+  grid-template-columns: minmax(160px, auto) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
 }
 
 .help-changelog-overlay-open {
@@ -4753,6 +4812,20 @@ td a {
   display: grid;
   gap: 8px;
   min-width: 0;
+}
+
+.help-changelog-entry-list {
+  display: grid;
+  gap: 14px;
+}
+
+.help-changelog-history-card {
+  align-items: flex-start;
+  margin-bottom: 0;
+}
+
+.help-changelog-history-card .changelog-current-copy {
+  width: 100%;
 }
 
 .changelog-current-panel .changelog-entry-header {

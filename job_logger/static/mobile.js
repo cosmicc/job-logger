@@ -34,6 +34,7 @@ const aiCleanupButtons = document.querySelectorAll("[data-ai-cleanup-button]");
 const roundedStopDisplays = document.querySelectorAll("[data-rounded-stop-display]");
 const mobilePageLoadingOverlay = document.querySelector("[data-mobile-page-loading]");
 const mobilePageLoadingMessage = document.querySelector("[data-mobile-page-loading-message]");
+const mobilePasskeyPrompt = document.querySelector("[data-mobile-passkey-prompt]");
 
 const descriptionSaveTimers = new Map();
 const activeFormSaveTimers = new WeakMap();
@@ -2617,6 +2618,27 @@ function loadServiceCallPanelsAfterPageLoad() {
   }
 }
 
+async function markMobilePasskeyPromptSeen() {
+  if (!mobilePasskeyPrompt) {
+    return;
+  }
+  if (window.matchMedia && !window.matchMedia("(max-width: 700px)").matches) {
+    return;
+  }
+
+  try {
+    await fetch("/config/device-sign-in-prompt/seen", {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "X-CSRF-Token": csrfToken,
+      },
+    });
+  } catch (_error) {
+    // The prompt is only a convenience nudge; failures should not block work.
+  }
+}
+
 for (const serviceCallPanel of serviceCallPanels) {
   initializeServiceCallDateControls(serviceCallPanel);
 }
@@ -2624,6 +2646,7 @@ for (const serviceCallPanel of serviceCallPanels) {
 initializeLiveRoundedStopDisplays();
 initializeActiveDurationDisplays();
 initializeActiveEntryModes();
+markMobilePasskeyPromptSeen();
 
 if (document.readyState === "complete") {
   window.setTimeout(loadServiceCallPanelsAfterPageLoad, 0);

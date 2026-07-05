@@ -106,8 +106,14 @@ async def login(
     web_user = web_user_authentication.user
     if web_user is not None:
         reset_login_failure_counter(database_session, request, submitted_username=web_user.username)
+        password_change_required = bool(web_user.password_must_change)
         mark_web_user_login_succeeded(web_user)
-        login_web_user_session(request, username=web_user.username, web_user_id=web_user.id)
+        login_web_user_session(
+            request,
+            username=web_user.username,
+            web_user_id=web_user.id,
+            password_change_required=password_change_required,
+        )
         log_successful_login_attempt(
             database_session,
             request,
@@ -121,9 +127,17 @@ async def login(
             actor=web_user.username,
             action="auth.login.succeeded",
             request=request,
-            details={"username": web_user.username, "user_kind": "web_user", "web_user_id": web_user.id},
+            details={
+                "username": web_user.username,
+                "user_kind": "web_user",
+                "web_user_id": web_user.id,
+                "temporary_credential_change_required": password_change_required,
+            },
         )
         database_session.commit()
+        if password_change_required:
+            add_flash_message(request, "Change your temporary password before using Job Logger.", "error")
+            return RedirectResponse(url="/config?password_required=1", status_code=303)
         add_flash_message(request, "Signed in.", "success")
         return RedirectResponse(url="/home", status_code=303)
 

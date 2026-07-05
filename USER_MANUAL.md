@@ -23,6 +23,9 @@ pages also work from a full browser.
 Open the Job Logger URL provided by your organization. Sign in with your
 username and password.
 
+If your account is new or your administrator reset your password, Job Logger
+will ask you to choose a new password before you can use the rest of the app.
+
 Your password must have:
 
 - At least 8 characters.
@@ -46,9 +49,13 @@ unlock method.
 To set it up:
 
 1. Sign in with your normal username and password.
-2. Open **Config**.
-3. In **Device sign-in**, select **Set up device sign-in**.
-4. Follow the browser or device prompt.
+2. If Job Logger asks you to change a temporary password, change it first.
+3. Open **Config**.
+4. In **Device sign-in**, select **Set up device sign-in**.
+5. Follow the browser or device prompt.
+
+On phones, Job Logger may also show a one-time Work page prompt to set up
+device sign-in when your account does not have one yet.
 
 After setup, the login page still shows username/password first. Use the
 **Device sign-in** button when you want to sign in with the saved device
@@ -291,6 +298,9 @@ Dark is the default.
 Enter a new password twice and select **Change password**. Password changes do
 not save automatically because they require explicit confirmation.
 
+When Job Logger says you are using a temporary password, Config shows only the
+password-change step until the new password is saved.
+
 ### Device Sign-In
 
 Set up or delete device sign-in credentials for your account.
@@ -312,9 +322,9 @@ Progress fields and want fewer steps.
 
 Select **Help** in the header to open the Help page. On a phone, Help appears
 as a question-mark icon. The Help page shows the current app version and a
-**version changelog** button. That button opens an overlay with short release
-notes for the app version you are using and prior versions. Use the X in the
-top right to close it.
+release date when that version has been released. The **version changelog**
+button opens an overlay with short release notes for the app version you are
+using and prior versions. Use the X in the top right to close it.
 
 If the Help page shows **DEV** beside the version, or the Help button is
 yellow, you are using a development or testing instance rather than the

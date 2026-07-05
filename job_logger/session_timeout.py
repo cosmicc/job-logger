@@ -11,7 +11,10 @@ from starlette.responses import Response
 from job_logger import database
 from job_logger.config import Settings
 from job_logger.security import expire_authenticated_session_if_needed
-from job_logger.services.session_control import expire_invalid_web_user_session_if_needed
+from job_logger.services.session_control import (
+    enforce_required_password_change_if_needed,
+    expire_invalid_web_user_session_if_needed,
+)
 
 DATABASE_INDEPENDENT_PATHS = {
     "/health/live",
@@ -51,5 +54,8 @@ class SessionTimeoutMiddleware(BaseHTTPMiddleware):
             and not expire_authenticated_session_if_needed(request, self._application_settings)
         ):
             with database.SessionLocal() as database_session:
-                expire_invalid_web_user_session_if_needed(request, database_session)
+                if not expire_invalid_web_user_session_if_needed(request, database_session):
+                    password_change_response = enforce_required_password_change_if_needed(request, database_session)
+                    if password_change_response is not None:
+                        return password_change_response
         return await call_next(request)

@@ -440,6 +440,7 @@ def test_web_user_can_change_password_from_config(authenticated_client: TestClie
         user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
         assert user is not None
         assert user.password_hash != password_hash_after_mismatch
+        assert user.password_must_change is False
         audit_event = database_session.scalar(
             select(AuditEvent).where(AuditEvent.action == "user.config.password_changed")
         )

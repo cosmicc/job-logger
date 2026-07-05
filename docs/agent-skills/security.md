@@ -35,7 +35,12 @@ Admin Diagnostics access, and disabled state.
 Disabled web users must be blocked from new logins and from old signed sessions.
 Managed-user passwords must be at least 8 characters and include lowercase,
 uppercase, number, and symbol characters. Enforce that rule server-side before
-hashing; browser validation is only a usability aid.
+hashing; browser validation is only a usability aid. Passwords created or reset
+by the config super admin are temporary. On the next managed-user sign-in,
+`job_logger/session_timeout.py` and
+`job_logger/services/session_control.py` must allow only `GET /config`,
+`POST /config/password`, and logout until `/config/password` successfully
+changes the password and clears `web_users.password_must_change`.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`.
 `job_logger/session_timeout.py` enforces the server-side timestamp check, and
@@ -59,8 +64,9 @@ form. Failed, canceled, or unsupported passkey authentication must leave the
 username/password form usable.
 User-facing controls should call this feature **Device sign-in** even though the
 technical implementation remains WebAuthn/passkeys. The `/home` device sign-in
-setup card is only a one-time post-login prompt for managed users without a
-passkey; `/config` must always keep the device sign-in setup action available.
+setup card is only a one-time phone-sized post-login prompt for managed users
+without a passkey; `/config` must always keep the device sign-in setup action
+available.
 The super-admin `/users` table may show only passkey setup status, such as a
 green/red icon or safe count. It must not expose credential IDs, public keys,
 transports, AAGUIDs, user agents, or other authenticator metadata.
@@ -133,8 +139,9 @@ sessions to change preferences. The `/config/password` route is
 managed-web-user-only, requires CSRF, requires two matching password entries,
 uses the managed-user complexity policy before hashing, and must audit only
 safe metadata such as user ID or username. The password card should show those
-requirements so users can fix validation failures before submitting. Never log,
-audit, or flash the raw submitted password.
+requirements so users can fix validation failures before submitting. It must
+clear the temporary-password flag after a successful change. Never log, audit,
+or flash the raw submitted password.
 The `/config` page should keep its cards ordered as **Appearance**,
 **Password**, **Device sign-in**, then **Workflow** so routine password and
 passkey controls appear before the optional direct-submit workflow preference.
@@ -274,10 +281,12 @@ chat-completions API, build the final Gemini endpoint without duplicating the
 answers. The assistant may use source code as reference for user-facing app
 behavior, but it must refuse source-code, deployment, secret, credential, or
 internal configuration questions. Answer cleanup may trim a short dangling
-fragment after a complete sentence, but it must not log answer text. AI Help
-troubleshooting logs may include metadata such as trace ID, provider, model,
-HTTP status, provider error code, input and answer lengths, context source
-count, and elapsed time, but must not log Gemini API keys, raw questions,
+fragment after a complete sentence, but it must not log answer text. Help page
+operational-status cards must hide specific health issue details from ordinary
+managed users and show those details only to Diagnostics-authorized users. AI
+Help troubleshooting logs may include metadata such as trace ID, provider,
+model, HTTP status, provider error code, input and answer lengths, context
+source count, and elapsed time, but must not log Gemini API keys, raw questions,
 prompts, provider request bodies, local source context, or answers.
 
 ## Audit Requirements

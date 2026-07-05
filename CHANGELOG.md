@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## 1.2.3 - Help navigation, AI Help polish, and Portainer env guidance
+## 1.2.3 - Help navigation, AI Help polish, changelog display, and Portainer env guidance
 
 - Advanced the source-controlled dev runtime version to `v1.2.3`, including
   the Python package metadata and PWA service worker cache version.
@@ -60,6 +60,20 @@ All notable changes to Job Logger are documented in this file.
 - Tightened AI Help answer guidance for broad/simple questions and added
   metadata-only cleanup for short dangling trailing fragments after complete
   sentences.
+- Added Help page guidance text, clear-on-next-question input behavior, and an
+  operational-status card that shows generic degraded status to ordinary users
+  while keeping specific health details limited to Diagnostics-authorized
+  users.
+- Added temporary-password enforcement for newly created or super-admin-reset
+  managed users. Those users are forced through `/config/password` before using
+  other app routes, and successful password changes clear the requirement.
+- Limited the post-login Device sign-in setup prompt to phone-sized Home
+  layouts and changed the prompt dismissal so desktop visits do not consume the
+  mobile-only nudge.
+- Changed the Help page and changelog overlay to label released dates as
+  `Released: MM.DD.YYYY` only when the version has a release date, and changed
+  previous overlay entries from an indented timeline to full-width cards that
+  match the current-version card.
 
 ## 1.2.2 - 07.03.2026 - Health alerts, app icon, user manual, and Swarm storage
 

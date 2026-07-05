@@ -90,6 +90,21 @@
     const statusElement = form.querySelector("[data-help-status]");
     const answerPanel = document.querySelector("[data-help-answer-panel]");
     const answerTextElement = document.querySelector("[data-help-answer-text]");
+    let clearQuestionOnNextEntry = false;
+
+    function clearQuestionIfReady() {
+      if (!clearQuestionOnNextEntry || !questionInput) {
+        return;
+      }
+      questionInput.value = "";
+      clearQuestionOnNextEntry = false;
+    }
+
+    if (questionInput) {
+      questionInput.addEventListener("focus", clearQuestionIfReady);
+      questionInput.addEventListener("pointerdown", clearQuestionIfReady);
+      questionInput.addEventListener("beforeinput", clearQuestionIfReady);
+    }
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -127,6 +142,7 @@
         setStatus(statusElement, error.message || "Help request failed.", true);
       } finally {
         setLoading(submitButton, false);
+        clearQuestionOnNextEntry = true;
       }
     });
   }

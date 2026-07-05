@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import logging
 from dataclasses import replace
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from job_logger import ui as ui_context
 from job_logger.config import settings
 from job_logger.routes import help as help_routes
+from job_logger.services.changelog import ChangelogEntry
 from job_logger.services.help_assistant import HelpAssistantError, HelpAssistantResult
+from job_logger.services.system_health import AppHealthIssue, AppHealthSnapshot
 from tests.conftest import extract_csrf_token
 
 
@@ -22,8 +26,13 @@ def test_help_page_requires_login(client: TestClient) -> None:
     assert response.headers["location"] == "/login"
 
 
-def test_authenticated_help_page_renders_version_and_changelog(authenticated_client: TestClient) -> None:
+def test_authenticated_help_page_renders_version_and_changelog(
+    authenticated_client: TestClient,
+    monkeypatch,
+) -> None:
     """Managed web users should see Help, current version text, and changelog access."""
+
+    monkeypatch.setattr(ui_context, "collect_app_health_snapshot", lambda database_session=None: AppHealthSnapshot(issues=()))
 
     response = authenticated_client.get("/help")
 
@@ -31,18 +40,132 @@ def test_authenticated_help_page_renders_version_and_changelog(authenticated_cli
     assert 'class="help-shell"' in response.text
     assert "<h1>Help</h1>" in response.text
     assert '<h2 id="help-assistant-heading">Ask AI Help</h2>' in response.text
+    assert "Ask AI Help anything about using Job Logger" in response.text
     assert "Single question, single answer." not in response.text
     assert 'type="text"' in response.text
     assert "data-help-question-input" in response.text
     assert "<textarea" not in response.text
+    assert 'data-help-operational-card' in response.text
+    assert ">Operational status<" in response.text
+    assert ">Operational<" in response.text
+    assert "All monitored app checks are fully operational." in response.text
     assert ">v1.2.3<" in response.text
+    assert 'class="help-version-release-date"' not in response.text
     assert 'href="/changelog"' in response.text
     assert "data-help-changelog-open" in response.text
     assert "data-help-changelog-overlay" in response.text
     assert "data-help-changelog-close" in response.text
+    assert "help-changelog-entry-list" in response.text
+    assert "help-changelog-history-card" in response.text
+    assert "changelog-marker" not in response.text
+    assert "Released: 07.03.2026" in response.text
+    assert "Released: 07.02.2026" in response.text
     assert ">version changelog<" in response.text
     assert "/static/help.js?v=" in response.text
     assert "AI Help is not configured. Contact your app administrator." in response.text
+
+
+def test_help_page_shows_released_current_version_date(
+    authenticated_client: TestClient,
+    monkeypatch,
+) -> None:
+    """The Help current-version card should label the release date when one exists."""
+
+    monkeypatch.setattr(ui_context, "collect_app_health_snapshot", lambda database_session=None: AppHealthSnapshot(issues=()))
+    monkeypatch.setattr(
+        help_routes,
+        "load_changelog_entries",
+        lambda: [
+            ChangelogEntry(
+                version="1.2.3",
+                release_date="07.05.2026",
+                title="Released test version",
+                changes=("Released-current test note.",),
+            ),
+            ChangelogEntry(
+                version="1.2.2",
+                release_date="07.03.2026",
+                title="Prior released version",
+                changes=("Prior released note.",),
+            ),
+        ],
+    )
+
+    response = authenticated_client.get("/help")
+
+    assert response.status_code == 200
+    assert '<p class="help-version-release-date">Released: 07.05.2026</p>' in response.text
+    assert '<span class="release-date">Released: 07.05.2026</span>' in response.text
+    assert '<span class="release-date">Released: 07.03.2026</span>' in response.text
+
+
+def test_help_page_hides_health_details_from_non_admin_users(
+    authenticated_client: TestClient,
+    monkeypatch,
+) -> None:
+    """Ordinary managed users should see degraded status without issue details."""
+
+    degraded_snapshot = AppHealthSnapshot(
+        issues=(
+            AppHealthIssue(
+                code="autotask-api",
+                label="Autotask API needs attention",
+                severity="critical",
+                summary="Autotask company lookup could not reach the Autotask API.",
+            ),
+        )
+    )
+    monkeypatch.setattr(ui_context, "collect_app_health_snapshot", lambda database_session=None: degraded_snapshot)
+
+    response = authenticated_client.get("/help")
+
+    assert response.status_code == 200
+    assert 'data-help-operational-card' in response.text
+    assert ">Degraded<" in response.text
+    assert "Job Logger is degraded. An administrator can review Diagnostics for details." in response.text
+    assert "data-help-operational-detail-list" not in response.text
+    assert "Autotask API needs attention" not in response.text
+    assert "Autotask company lookup could not reach the Autotask API." not in response.text
+
+
+def test_help_page_shows_health_details_to_admin_users(
+    super_admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    """Diagnostics-authorized users should see specific health issue details."""
+
+    degraded_snapshot = AppHealthSnapshot(
+        issues=(
+            AppHealthIssue(
+                code="database-status",
+                label="Database unavailable",
+                severity="critical",
+                summary="Database connectivity is unavailable.",
+            ),
+        )
+    )
+    monkeypatch.setattr(ui_context, "collect_app_health_snapshot", lambda database_session=None: degraded_snapshot)
+
+    response = super_admin_client.get("/help")
+
+    assert response.status_code == 200
+    assert 'data-help-operational-card' in response.text
+    assert 'data-help-operational-detail-list' in response.text
+    assert "App health critical. Review Diagnostics for details and recovery actions." in response.text
+    assert "Database unavailable" in response.text
+    assert "Database connectivity is unavailable." in response.text
+
+
+def test_help_javascript_clears_submitted_question_on_next_entry() -> None:
+    """The Help form script should clear submitted text before the next question."""
+
+    script_text = Path("job_logger/static/help.js").read_text(encoding="utf-8")
+
+    assert "clearQuestionOnNextEntry = false" in script_text
+    assert 'questionInput.addEventListener("focus", clearQuestionIfReady);' in script_text
+    assert 'questionInput.addEventListener("pointerdown", clearQuestionIfReady);' in script_text
+    assert 'questionInput.addEventListener("beforeinput", clearQuestionIfReady);' in script_text
+    assert "clearQuestionOnNextEntry = true;" in script_text
 
 
 def test_super_admin_can_view_help(super_admin_client: TestClient) -> None:

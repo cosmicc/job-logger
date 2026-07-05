@@ -107,6 +107,9 @@ Autotask REST API references used by this app:
    When Autotask returns an email for the selected resource, Job Logger saves it
    with that web-user account. Managed-user passwords must be at least 8
    characters and include lowercase, uppercase, number, and symbol characters.
+   Passwords created or reset by the config super admin are temporary; the
+   managed user must choose a new password on the next sign-in before using the
+   rest of the app.
    The first web user you create takes ownership of any existing unowned jobs
    from earlier single-user installs.
 
@@ -119,9 +122,10 @@ Autotask REST API references used by this app:
    Autotask immediately instead of requiring Review first. The same page
    includes an explicit **Change password** action with two matching password
    fields and the password requirements shown in the password card; password
-   changes are not autosaved. Managed users can also add passkeys after signing
-   in normally once. The config super-admin account has no user settings and
-   always uses dark mode.
+   changes are not autosaved. When a temporary password is required, Config
+   shows only the password-change step until the password is changed. Managed
+   users can also add passkeys after signing in normally once. The config
+   super-admin account has no user settings and always uses dark mode.
 
 ## Branch And Deployment Flow
 
@@ -531,9 +535,10 @@ or with registered device sign-in. The app labels this feature **Device
 sign-in** because the underlying passkey can use a phone, browser profile,
 security key, fingerprint, Face ID, PIN, pattern, or another local unlock
 method. Device sign-in can be set up from `/config` after a normal password
-login. The `/home` page prompts managed users without a registered credential
-only once after each successful login, while `/config` always keeps setup
-available. Job Logger stores only the public credential ID, public key,
+login. On phone-sized layouts, the `/home` page prompts managed users without a
+registered credential only once after each successful login, while `/config`
+always keeps setup available. Job Logger stores only the public credential ID,
+public key,
 signature counter, and device metadata. The phone, browser, or passkey provider
 keeps the private key and performs the local unlock prompt.
 
@@ -559,12 +564,12 @@ defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
 currently `v1.2.3`. Version history starts at `v1.0.0`.
 
 Authenticated pages show a Help button in the shared header. `/help` displays
-the current version and a **version changelog** button that opens the concise
-release notes in an overlay. `/changelog` remains available as an authenticated
-fallback page and uses `WEB_CHANGELOG.md` as its source. The changelog shows
-version numbers without brackets, uses `MM.DD.YYYY` dates for released
-versions, and lists short user-facing changes for each version. `CHANGELOG.md`
-remains the detailed source changelog for operators and agents.
+the current version, `Released: MM.DD.YYYY` when that version has a release
+date, and a **version changelog** button that opens the concise release notes in
+an overlay. `/changelog` remains available as an authenticated fallback page
+and uses `WEB_CHANGELOG.md` as its source. The changelog shows version numbers
+without brackets, uses `MM.DD.YYYY` dates for released versions, and lists
+short user-facing changes for each version. `CHANGELOG.md` remains the detailed source changelog for operators and agents.
 `WEB_CHANGELOG.md` is only for user-facing changes; keep diagnostics,
 debug-page, super-admin-only, operator-only, and agent-facing notes in
 `CHANGELOG.md` only. The Help and
@@ -809,6 +814,9 @@ provider error code when available, and timing. `/help/ask` failures that
 return 400 also log a route-level error with the trace id, status code, error
 class, and bounded detail. It does not log Gemini API keys, full questions,
 source context, prompts, or answers.
+The Help page also shows a general operational-status card. Ordinary managed
+users see only whether monitored app health is operational or degraded;
+Diagnostics-authorized users see the specific monitored issue details.
 
 ### Autotask
 

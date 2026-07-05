@@ -74,14 +74,44 @@ def test_super_admin_adds_first_web_user_and_claims_existing_jobs(super_admin_cl
         assert user.autotask_default_service_desk_role_id == 8
         assert user.email == "first.tech@example.test"
         assert user.is_admin is False
+        assert user.password_must_change is True
         job = database_session.get(Job, legacy_job_id)
         assert job is not None
         assert job.web_user_id == user.id
 
     login_as(super_admin_client, username="first-tech", password=first_user_password)
+    forced_config_response = super_admin_client.get("/config")
+    assert forced_config_response.status_code == 200
+    assert "Temporary password" in forced_config_response.text
+    assert "Choose a new login password to continue." in forced_config_response.text
+    assert "Submit from Work in Progress" not in forced_config_response.text
+
+    blocked_home_response = super_admin_client.get("/home", follow_redirects=False)
+    assert blocked_home_response.status_code == 303
+    assert blocked_home_response.headers["location"] == "/config?password_required=1"
+
+    replacement_password = "First-tech-final1!"
+    csrf_token = extract_csrf_token(forced_config_response.text)
+    password_change_response = super_admin_client.post(
+        "/config/password",
+        data={
+            "csrf_token": csrf_token,
+            "new_password": replacement_password,
+            "confirm_password": replacement_password,
+        },
+        follow_redirects=False,
+    )
+    assert password_change_response.status_code == 303
+    assert password_change_response.headers["location"] == "/home"
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "first-tech"))
+        assert user is not None
+        assert user.password_must_change is False
+
     mobile_response = super_admin_client.get("/home")
     assert mobile_response.status_code == 200
     assert "Start a work entry" in mobile_response.text
+    assert "Set up faster sign-in" in mobile_response.text
 
 
 def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient) -> None:
@@ -415,6 +445,50 @@ def test_users_page_persists_debug_admin_flag(super_admin_client: TestClient) ->
         user = database_session.get(WebUser, user_id)
         assert user is not None
         assert user.is_admin is False
+
+
+def test_super_admin_password_reset_requires_managed_user_password_change(super_admin_client: TestClient) -> None:
+    """A super-admin reset password should become temporary and sign out old sessions."""
+
+    reset_password = "Reset-password1!"
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user_id = user.id
+        assert user.password_must_change is False
+
+    users_page = super_admin_client.get("/users")
+    csrf_token = extract_csrf_token(users_page.text)
+    reset_response = super_admin_client.post(
+        f"/users/{user_id}/update",
+        data={
+            "csrf_token": csrf_token,
+            "full_name": "Test Technician",
+            "username": "tech",
+            "password": reset_password,
+            "autotask_resource_id": "1",
+            "autotask_default_service_desk_role_id": "",
+            "autotask_resource_email": "",
+        },
+        follow_redirects=False,
+    )
+
+    assert reset_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        user = database_session.get(WebUser, user_id)
+        assert user is not None
+        assert user.password_must_change is True
+        assert user.sessions_invalidated_at_utc is not None
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "user.web.updated")
+        )
+        assert audit_event is not None
+        assert audit_event.details["password_changed"] == "[redacted]"
+
+    login_as(super_admin_client, username="tech", password=reset_password)
+    config_response = super_admin_client.get("/config")
+    assert "Temporary password" in config_response.text
+    assert "Device sign-in" not in config_response.text
 
 
 def test_username_suggestion_uses_first_initial_and_last_name() -> None:

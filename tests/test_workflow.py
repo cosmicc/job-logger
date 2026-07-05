@@ -1515,6 +1515,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".help-changelog-button:hover" in stylesheet
     assert ".help-changelog-button:active" in stylesheet
     assert ".help-question-form input[data-help-question-input] {\n  height: 44px;" in stylesheet
+    assert ".help-operational-panel" in stylesheet
+    assert ".help-health-issue-list" in stylesheet
     assert ".ticket-time-entry-list-header" in stylesheet
     assert ".ticket-time-entry-list-hours" in stylesheet
     assert ".health-alert-button" in stylesheet
@@ -1761,6 +1763,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".help-changelog-button {\n  min-width: 0;" in phone_stylesheet
     assert "white-space: nowrap;" in phone_stylesheet
     assert ".help-question-form input[data-help-question-input] {\n  height: 48px;" in phone_stylesheet
+    assert ".help-health-issue-list li {\n  grid-template-columns: 1fr;" in phone_stylesheet
     assert ".mobile-shell .description-box .job-description,\n.review-shell textarea[data-review-summary-textarea]" in phone_stylesheet
     assert "min-height: 180px;" in phone_stylesheet
     assert ".active-jobs-stack > .work-panel:not([data-active-job-card])" in desktop_stylesheet
