@@ -262,9 +262,9 @@
   height: 16px;
 }
 
-.help-question-form textarea {
-  height: 116px;
-  min-height: 116px;
+.help-question-form input[data-help-question-input] {
+  height: 48px;
+  min-height: 48px;
 }
 
 .changelog-current-panel,

@@ -4639,10 +4639,9 @@ td a {
   gap: 10px;
 }
 
-.help-question-form textarea {
-  height: 68px;
-  min-height: 68px;
-  resize: vertical;
+.help-question-form input[data-help-question-input] {
+  height: 44px;
+  min-height: 44px;
 }
 
 .help-action-row {

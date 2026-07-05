@@ -799,6 +799,13 @@ answer end-user Job Logger support questions, and do not put secrets or private
 deployment values in it.
 If Gemini rejects the credentials, confirm the running container was recreated
 with the current key and that the Google AI Studio key has Gemini API access.
+Set `LOG_LEVEL=DEBUG` temporarily while troubleshooting AI Help. The app logs
+sanitized AI Help request metadata to the console, including a trace id,
+provider/model, question length, context source count, Gemini HTTP status,
+provider error code when available, and timing. `/help/ask` failures that
+return 400 also log a route-level error with the trace id, status code, error
+class, and bounded detail. It does not log Gemini API keys, full questions,
+source context, prompts, or answers.
 
 ### Autotask
 

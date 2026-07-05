@@ -24,10 +24,8 @@ All notable changes to Job Logger are documented in this file.
   chat-completions API. The assistant is available to every authenticated
   account only when configured through environment variables.
 - Tightened the Help page assistant layout with an **Ask AI Help** heading,
-  a two-line question box, and a status line directly under the question field
-  beside the Ask button.
-- Increased the phone-sized AI Help question box height while leaving the
-  desktop question box compact.
+  a one-line question field that submits on Enter, and a status line directly
+  under the question field beside the Ask button.
 - Trimmed `GEMINI_API_KEY` when loading runtime settings and changed Gemini
   401/403 help failures to show bounded credential guidance instead of raw
   provider troubleshooting text.
@@ -46,6 +44,15 @@ All notable changes to Job Logger are documented in this file.
 - Documented Portainer stack environment troubleshooting for redeploy errors
   where `/data/compose/.../stack.env` contains copied comments, headings, or
   prose instead of only `KEY=value` environment lines.
+- Added sanitized AI Help console logging for request receipt, validation
+  failures, refused internal questions, Gemini request/response metadata,
+  provider errors, timeouts, and successful answers using a per-request trace
+  ID without logging API keys, prompts, full questions, source context, or
+  answers.
+- Changed AI Help assistant failures returned as `/help/ask` 400 responses to
+  emit route-level `ERROR` logs with a trace ID, status code, error class, and
+  bounded detail so provider/configuration problems are visible in app console
+  output.
 
 ## 1.2.2 - 07.03.2026 - Health alerts, app icon, user manual, and Swarm storage
 

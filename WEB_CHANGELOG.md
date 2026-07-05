@@ -7,7 +7,8 @@ Short release notes shown on the authenticated `/changelog` page.
 - The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.
 - Help now sits beside Log out in the header, while the main route buttons stay grouped together.
 - The Help page now opens the version changelog in an overlay with an X close button.
-- On phones, the current version and version changelog button now share one row, and the AI Help question box is taller.
+- On phones, the current version and version changelog button now share one row.
+- Ask AI Help now uses a one-line question field that submits when Enter is pressed.
 - The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions.
 
 ## 1.2.2 - 07.03.2026 - App icon, user manual, ticket history, and Config workflow

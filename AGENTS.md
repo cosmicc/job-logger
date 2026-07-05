@@ -188,7 +188,11 @@ authentication and CSRF, bound question, instruction, and context size, keep API
 keys and private deployment details out of source control, avoid local database
 storage of prompts and answers, and refuse source-code, deployment, secret,
 credential, or internal configuration questions. The assistant is for end-user
-Job Logger support only.
+Job Logger support only. AI Help troubleshooting logs may include sanitized
+metadata such as trace ID, provider, model, HTTP status, error class, input and
+answer lengths, context source count, and timing, but must not log Gemini API
+keys, full questions, prompts, source context, provider request bodies, or
+answers.
 
 ## Core Workflow
 

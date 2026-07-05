@@ -272,7 +272,11 @@ documentation/source context, call Gemini through its OpenAI-compatible
 chat-completions API, and avoid any local database storage of prompts or
 answers. The assistant may use source code as reference for user-facing app
 behavior, but it must refuse source-code, deployment, secret, credential, or
-internal configuration questions.
+internal configuration questions. AI Help troubleshooting logs may include
+metadata such as trace ID, provider, model, HTTP status, provider error code,
+input and answer lengths, context source count, and elapsed time, but must not
+log Gemini API keys, raw questions, prompts, provider request bodies, local
+source context, or answers.
 
 ## Audit Requirements
 

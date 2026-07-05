@@ -42,13 +42,14 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label>
           <span>Question</span>
-          <textarea
+          <input
+            type="text"
             name="question"
-            rows="2"
             maxlength="{{ ai_help_max_question_chars }}"
             data-help-question-input
+            autocomplete="off"
             {% if not ai_help_configured %}disabled{% endif %}
-          ></textarea>
+          >
         </label>
         <div class="help-action-row">
           <p class="workflow-status-line help-status-line" data-help-status aria-live="polite">{% if not ai_help_configured %}AI Help is not configured. Contact your app administrator.{% endif %}</p>
