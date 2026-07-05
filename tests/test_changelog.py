@@ -146,6 +146,7 @@ def test_changelog_parser_reads_current_release() -> None:
             "On phones, the current version and version changelog button now share one row.",
             "Ask AI Help now uses a one-line question field that submits when Enter is pressed.",
             "The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions.",
+            "Ask AI Help now keeps broad/simple answers concise and avoids showing unfinished trailing fragments.",
         ),
     )
 
@@ -197,6 +198,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert (
         "The Help page can answer one Job Logger support question at a time "
         "when the app administrator configures Gemini AI Help instructions."
+    ) in response.text
+    assert (
+        "Ask AI Help now keeps broad/simple answers concise and avoids showing "
+        "unfinished trailing fragments."
     ) in response.text
     assert (
         "Updated the app icon, browser favicon, and desktop header logo "

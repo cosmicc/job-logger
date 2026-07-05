@@ -191,11 +191,13 @@ credential, or internal configuration questions. `GEMINI_API_BASE` is the
 OpenAI-compatible Gemini base URL; the app may accept a full
 `.../chat/completions` endpoint for operator recovery, but it must build the
 final endpoint once and never append that path twice. The assistant is for
-end-user Job Logger support only. AI Help troubleshooting logs may include sanitized
-metadata such as trace ID, provider, model, HTTP status, error class, input and
-answer lengths, context source count, and timing, but must not log Gemini API
-keys, full questions, prompts, source context, provider request bodies, or
-answers.
+end-user Job Logger support only. Built-in Help instructions should favor
+concise complete answers, and server-side answer cleanup may remove short
+dangling trailing fragments after a complete sentence. AI Help troubleshooting
+logs may include sanitized metadata such as trace ID, provider, model, HTTP
+status, error class, input and answer lengths, context source count, and timing,
+but must not log Gemini API keys, full questions, prompts, source context,
+provider request bodies, or answers.
 
 ## Core Workflow
 

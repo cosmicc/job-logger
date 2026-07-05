@@ -273,11 +273,12 @@ chat-completions API, build the final Gemini endpoint without duplicating the
 `/chat/completions` suffix, and avoid any local database storage of prompts or
 answers. The assistant may use source code as reference for user-facing app
 behavior, but it must refuse source-code, deployment, secret, credential, or
-internal configuration questions. AI Help troubleshooting logs may include
-metadata such as trace ID, provider, model, HTTP status, provider error code,
-input and answer lengths, context source count, and elapsed time, but must not
-log Gemini API keys, raw questions, prompts, provider request bodies, local
-source context, or answers.
+internal configuration questions. Answer cleanup may trim a short dangling
+fragment after a complete sentence, but it must not log answer text. AI Help
+troubleshooting logs may include metadata such as trace ID, provider, model,
+HTTP status, provider error code, input and answer lengths, context source
+count, and elapsed time, but must not log Gemini API keys, raw questions,
+prompts, provider request bodies, local source context, or answers.
 
 ## Audit Requirements
 

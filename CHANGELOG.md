@@ -57,6 +57,9 @@ All notable changes to Job Logger are documented in this file.
   documented OpenAI-compatible base URL or a full `.../chat/completions`
   endpoint without the app appending `/chat/completions` twice, and changed
   HTML 404 provider responses to show base-URL guidance.
+- Tightened AI Help answer guidance for broad/simple questions and added
+  metadata-only cleanup for short dangling trailing fragments after complete
+  sentences.
 
 ## 1.2.2 - 07.03.2026 - Health alerts, app icon, user manual, and Swarm storage
 

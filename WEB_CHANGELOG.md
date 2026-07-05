@@ -10,6 +10,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - On phones, the current version and version changelog button now share one row.
 - Ask AI Help now uses a one-line question field that submits when Enter is pressed.
 - The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions.
+- Ask AI Help now keeps broad/simple answers concise and avoids showing unfinished trailing fragments.
 
 ## 1.2.2 - 07.03.2026 - App icon, user manual, ticket history, and Config workflow
 

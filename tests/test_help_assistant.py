@@ -86,6 +86,8 @@ def test_help_assistant_builds_gemini_chat_completion_payload(monkeypatch) -> No
     assert captured_payload["stream"] is False
     assert captured_payload["messages"][0]["role"] == "system"
     assert "Job Logger Help" in captured_payload["messages"][0]["content"]
+    assert "one or two complete sentences" in captured_payload["messages"][0]["content"]
+    assert "never start a list, section, or" in captured_payload["messages"][0]["content"]
     assert TEST_HELP_INSTRUCTIONS in captured_payload["messages"][0]["content"]
     assert captured_payload["messages"][1]["role"] == "user"
     assert "USER_MANUAL.md" in captured_payload["messages"][1]["content"]
@@ -126,6 +128,56 @@ def test_help_assistant_logs_sanitized_success_metadata(monkeypatch, caplog) -> 
     assert "test-gemini-key" not in log_text
     assert "How do I start work" not in log_text
     assert "ticket 123" not in log_text
+
+
+def test_help_assistant_trims_incomplete_trailing_answer_fragment(monkeypatch, caplog) -> None:
+    """A dangling model lead-in should be removed after a complete sentence."""
+
+    application_settings = replace(
+        settings,
+        ai_help_enabled=True,
+        ai_help_provider="gemini",
+        gemini_api_key="test-gemini-key",
+        gemini_model="gemini-test-model",
+        ai_help_instructions=TEST_HELP_INSTRUCTIONS,
+    )
+    partial_answer = (
+        "Job Logger is a web application designed to help you track, manage, "
+        "and submit your work entries directly to Autotask.\n\nHere is what you"
+    )
+
+    def fake_provider_call(request_payload, passed_settings, *, trace_id="-"):
+        assert trace_id == "trace-trim"
+        return {"choices": [{"message": {"content": partial_answer}}]}
+
+    monkeypatch.setattr(help_assistant, "_post_gemini_chat_completion", fake_provider_call)
+    caplog.set_level(logging.DEBUG, logger="job_logger.services.help_assistant")
+
+    result = answer_help_question(
+        question="What does this app do?",
+        application_settings=application_settings,
+        trace_id="trace-trim",
+    )
+
+    assert result.answer_text == (
+        "Job Logger is a web application designed to help you track, manage, "
+        "and submit your work entries directly to Autotask."
+    )
+    log_text = caplog.text
+    assert "AI Help answer cleanup trimmed incomplete trailing fragment trace_id=trace-trim" in log_text
+    assert "original_length=" in log_text
+    assert "answer_length=" in log_text
+    assert "Here is what you" not in log_text
+    assert "Job Logger is a web application" not in log_text
+
+
+def test_help_assistant_keeps_short_unpunctuated_answers() -> None:
+    """Short complete answers without punctuation should not be discarded."""
+
+    assert help_assistant._trim_incomplete_answer_tail("Use Start Work") == "Use Start Work"
+    assert help_assistant._trim_incomplete_answer_tail("Open Review. Then click Submit") == (
+        "Open Review. Then click Submit"
+    )
 
 
 def test_help_assistant_logs_provider_http_failures(caplog, monkeypatch) -> None:
