@@ -46,7 +46,9 @@ def test_authenticated_help_page_renders_version_and_changelog(
     assert 'type="text"' in response.text
     assert "data-help-question-input" in response.text
     assert "<textarea" not in response.text
+    assert 'id="operational-status"' in response.text
     assert 'data-help-operational-card' in response.text
+    assert "help-operational-panel-ok" in response.text
     assert ">Application status<" not in response.text
     assert ">Operational Status<" in response.text
     assert ">Operational<" in response.text
@@ -127,11 +129,40 @@ def test_help_page_hides_health_details_from_non_admin_users(
 
     assert response.status_code == 200
     assert 'data-help-operational-card' in response.text
+    assert "help-operational-panel-critical" in response.text
     assert ">Degraded<" in response.text
     assert "Job Logger is degraded. An administrator can review Diagnostics for details." in response.text
     assert "data-help-operational-detail-list" not in response.text
     assert "Autotask API needs attention" not in response.text
     assert "Autotask company lookup could not reach the Autotask API." not in response.text
+
+
+def test_help_page_uses_warning_operational_status_color(
+    authenticated_client: TestClient,
+    monkeypatch,
+) -> None:
+    """Warning-only degraded health should use the Help warning status color."""
+
+    warning_snapshot = AppHealthSnapshot(
+        issues=(
+            AppHealthIssue(
+                code="disk-space",
+                label="Disk space warning",
+                severity="warning",
+                summary="Disk free space is below the warning threshold.",
+            ),
+        )
+    )
+    monkeypatch.setattr(ui_context, "collect_app_health_snapshot", lambda database_session=None: warning_snapshot)
+
+    response = authenticated_client.get("/help")
+
+    assert response.status_code == 200
+    assert "help-operational-panel-warning" in response.text
+    assert "help-operational-panel-critical" not in response.text
+    assert ">Degraded<" in response.text
+    assert "Job Logger is degraded. An administrator can review Diagnostics for details." in response.text
+    assert "Disk space warning" not in response.text
 
 
 def test_help_page_shows_health_details_to_admin_users(
@@ -156,6 +187,7 @@ def test_help_page_shows_health_details_to_admin_users(
 
     assert response.status_code == 200
     assert 'data-help-operational-card' in response.text
+    assert "help-operational-panel-critical" in response.text
     assert 'data-help-operational-detail-list' in response.text
     assert "App health critical. Review Diagnostics for details and recovery actions." in response.text
     assert "Database unavailable" in response.text

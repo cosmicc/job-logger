@@ -158,6 +158,11 @@ def test_changelog_parser_reads_current_release() -> None:
                 "when users start another one, and shows a general app operational-status card."
             ),
             (
+                "The degraded app-health alert now opens Operational Status on the Help page "
+                "and uses yellow or red to show severity; Operational Status shows green when "
+                "the app is healthy."
+            ),
+            (
                 "New managed users and users whose password was reset now have to change that "
                 "temporary password before using the app; phones still show the device sign-in "
                 "setup prompt after the password is changed."
@@ -234,6 +239,11 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert (
         "Ask AI for help now explains what users can ask, clears the old question "
         "when users start another one, and shows a general app operational-status card."
+    ) in response.text
+    assert (
+        "The degraded app-health alert now opens Operational Status on the Help page "
+        "and uses yellow or red to show severity; Operational Status shows green when "
+        "the app is healthy."
     ) in response.text
     assert (
         "New managed users and users whose password was reset now have to change that "

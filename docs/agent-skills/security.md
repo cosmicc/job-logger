@@ -92,12 +92,13 @@ must not see the Diag/Diagnostics navigation item, and direct requests from
 those sessions must receive 403 instead of being treated as anonymous login
 redirects.
 The cached app-health top-bar indicator is visible to every authenticated user
-when app health is degraded. Keep it non-clickable, keep `/debug`
-authorization as the server-side source of truth for Diagnostics, and do not
-expose secrets or raw provider details in the header; detailed troubleshooting
-belongs on Diagnostics. Diagnostics may show a yellow or red app-health banner
-for admins while ordinary authenticated users see only the compact top-bar
-indicator.
+when app health is degraded. It may link to `/help#operational-status`, but
+keep `/debug` authorization as the server-side source of truth for Diagnostics
+and do not expose secrets, raw provider details, or specific issue labels in
+the header; detailed troubleshooting belongs on Diagnostics. The header button
+uses yellow for warning and red for critical. Diagnostics may show a yellow or
+red app-health banner for admins while ordinary authenticated users see only
+the compact top-bar Help status link.
 The Diagnostics **Log out web users** action is CSRF-protected, audited, and
 must invalidate only managed web-user sessions. It must not clear the current
 config super-admin session. If a managed Admin user triggers it, that user is
@@ -213,7 +214,7 @@ connectivity status, latency, backend/driver, migration revision, pool class,
 pool counters, and configured pool limits/timeouts. It must not display the
 database URL, host, database name, username, password, or raw exception details.
 The shared app-health service uses the same disk warning/critical thresholds
-for the authenticated top-bar degraded-health icon and also tracks database
+for the authenticated top-bar degraded-health Help link and also tracks database
 availability, database query latency, database connection-pool pressure, active
 local login lockouts, app-managed Cloudflare IP blocks, and cached Autotask
 operation failures. Page rendering may read local app-health checks, but it

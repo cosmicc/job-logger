@@ -18,6 +18,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Gemini AI Cleanup now uses the same Gemini endpoint setup as Ask AI for help.
 - Ask AI for help now keeps broad/simple answers concise and avoids showing unfinished trailing fragments.
 - Ask AI for help now explains what users can ask, clears the old question when users start another one, and shows a general app operational-status card.
+- The degraded app-health alert now opens Operational Status on the Help page and uses yellow or red to show severity; Operational Status shows green when the app is healthy.
 - New managed users and users whose password was reset now have to change that temporary password before using the app; phones still show the device sign-in setup prompt after the password is changed.
 - Help now labels released version dates as Released: MM.DD.YYYY and shows previous changelog entries as full-width cards without timeline dots.
 

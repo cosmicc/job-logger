@@ -1551,8 +1551,11 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".ticket-time-entry-list-header" in stylesheet
     assert ".ticket-time-entry-list-hours" in stylesheet
     assert ".health-alert-button" in stylesheet
+    assert ".health-alert-button-warning" in stylesheet
+    assert ".health-alert-button-critical" in stylesheet
     assert ".health-alert-indicator" in stylesheet
-    assert "pointer-events: none;" in stylesheet
+    assert "cursor: pointer;" in stylesheet
+    assert "text-decoration: none;" in stylesheet
     assert ".desktop-health-alert-group" in stylesheet
     assert "grid-column: 3;" in stylesheet
     assert ".dev-build-pill" not in stylesheet

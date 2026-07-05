@@ -537,13 +537,16 @@ Enabled buttons and button-like navigation controls should show a slight
 brighter hover state, and workflow action buttons should have a raised idle
 state plus a pressed-in active state. Destructive red controls should stay red
 on hover and use a brighter red treatment, not a neutral or black hover.
-When cached application health is degraded, every authenticated user sees a red
-exclamation status icon in the top bar. The icon is a non-clickable health
-indicator, does not open Diagnostics, and must not expose diagnostic details to
-ordinary managed users. The desktop icon sits in a reserved header status area
-between primary navigation and the right-side Help/logout actions; the phone
-icon joins the compact left-side route group so Help can stay immediately
-beside logout. Do not run live Autotask probes while rendering a page.
+When cached application health is degraded, every authenticated user sees a
+top-bar exclamation status button that links to `/help#operational-status`.
+The button must use the app-health severity color, yellow for warning and red
+for critical, and must not expose diagnostic details to ordinary managed users.
+The Help page **Operational Status** card uses the same severity colors and
+also shows green when all monitored checks are operational. The desktop icon
+sits in a reserved header status area between primary navigation and the
+right-side Help/logout actions; the phone icon joins the compact left-side
+route group so Help can stay immediately beside logout. Do not run live
+Autotask probes while rendering a page.
 The unauthenticated login page should not show a top app icon or wordmark above
 the sign-in form.
 
@@ -922,7 +925,7 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/system_health.py` owns shared app-health snapshots,
   including disk usage, cached Autotask API health, database status, database
   latency, database connection-pool pressure, and active login-protection
-  state used by Diagnostics, the authenticated top-bar degraded-health icon,
+  state used by Diagnostics, the authenticated top-bar degraded-health Help link,
   and best-effort admin notifications.
 - `job_logger/services/app_health_monitor.py` runs the optional in-process
   app-health notification loop and suppresses repeated Pushover alerts until
@@ -1128,12 +1131,13 @@ The normal workflow is:
     **Operational Status**, then shows the current source-controlled version,
     `DEV` when `DEV_BUILD=true`, `Released: MM.DD.YYYY` when the current
     changelog entry has a release date, and a **version changelog** button that
-    opens release notes in an overlay. The overlay shows previous versions as
-    full-width cards without timeline marker dots and only labels dates for
-    released versions. `/changelog` remains authenticated as a fallback route
-    and shows prior concise release notes parsed from `WEB_CHANGELOG.md`. The
-    current-version panel must show that version's simple change list, not only
-    the release title.
+    opens release notes in an overlay. The shared degraded-health top-bar
+    button opens this **Operational Status** card directly. The overlay shows
+    previous versions as full-width cards without timeline marker dots and only
+    labels dates for released versions. `/changelog` remains authenticated as a
+    fallback route and shows prior concise release notes parsed from
+    `WEB_CHANGELOG.md`. The current-version panel must show that version's
+    simple change list, not only the release title.
 
 ## Current Autotask Dependency
 
@@ -1171,7 +1175,7 @@ In production:
   results, and failed Diagnostics connectivity tests must mark the cached
   Autotask health state as degraded until a later Autotask API request or
   connectivity test succeeds. This cached state powers the authenticated
-  top-bar degraded-health icon, Diagnostics health banner, and optional
+  top-bar degraded-health Help link, Diagnostics health banner, and optional
   best-effort Pushover notification loop; page rendering must not run a fresh
   Autotask contactability probe.
 - The `/debug` page provides a Diagnostics-admin **Log out web users** action

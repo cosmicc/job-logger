@@ -414,21 +414,44 @@ svg {
 }
 
 .health-alert-button {
-  border-color: rgba(248, 113, 113, 0.72);
-  background: var(--danger-soft);
-  color: var(--danger);
+  cursor: pointer;
 }
 
 .health-alert-indicator {
-  cursor: default;
-  pointer-events: none;
+  text-decoration: none;
 }
 
-.health-alert-button:hover {
+.health-alert-button-warning {
+  border-color: rgba(245, 158, 11, 0.72);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.health-alert-button-critical {
   border-color: rgba(248, 113, 113, 0.72);
   background: var(--danger-soft);
-  box-shadow: var(--nav-action-shadow);
   color: var(--danger);
+}
+
+.health-alert-button-warning:hover,
+.health-alert-button-warning:focus-visible {
+  border-color: rgba(245, 158, 11, 0.86);
+  background: rgba(245, 158, 11, 0.2);
+  box-shadow: var(--button-hover-shadow);
+  color: var(--warning);
+}
+
+.health-alert-button-critical:hover,
+.health-alert-button-critical:focus-visible {
+  border-color: rgba(248, 113, 113, 0.86);
+  background: rgba(248, 113, 113, 0.2);
+  box-shadow: var(--button-hover-shadow);
+  color: var(--danger);
+}
+
+.health-alert-button:active {
+  transform: translateY(1px) scale(0.985);
+  box-shadow: var(--pressed-shadow);
 }
 
 .mobile-nav-actions,
@@ -465,13 +488,6 @@ svg {
   background: rgba(245, 158, 11, 0.2);
   box-shadow: var(--button-hover-shadow);
   color: var(--warning);
-}
-
-.mobile-nav-action.health-alert-button:hover {
-  border-color: rgba(248, 113, 113, 0.72);
-  background: var(--danger-soft);
-  box-shadow: var(--nav-action-shadow);
-  color: var(--danger);
 }
 
 .mobile-logout-action:hover {
@@ -4703,6 +4719,11 @@ td a {
 .help-operational-panel {
   display: grid;
   gap: 12px;
+  scroll-margin-top: 84px;
+}
+
+.help-operational-panel:focus {
+  outline: none;
 }
 
 .help-operational-panel-ok {

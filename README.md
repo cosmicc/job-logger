@@ -567,11 +567,15 @@ Authenticated pages show a Help button in the shared header. `/help` starts
 with **Ask AI for help**, shows **Operational Status**, then shows the current
 version card with a little space between each card, `Released: MM.DD.YYYY`
 when that version has a release date, and a **version changelog** button that
-opens concise release notes in an overlay. `/changelog` remains available as
-an authenticated fallback page and uses `WEB_CHANGELOG.md` as its source. The
-changelog shows version numbers
-without brackets, uses `MM.DD.YYYY` dates for released versions, and lists
-short user-facing changes for each version. `CHANGELOG.md` remains the detailed source changelog for operators and agents.
+opens concise release notes in an overlay. When monitored app health is
+degraded, the top-bar alert opens the **Operational Status** card directly and
+uses yellow for warning or red for critical. The Help card uses the same colors
+and green when all monitored checks are operational. `/changelog` remains
+available as an authenticated fallback page and uses `WEB_CHANGELOG.md` as its
+source. The changelog shows version numbers without brackets, uses
+`MM.DD.YYYY` dates for released versions, and lists short user-facing changes
+for each version. `CHANGELOG.md` remains the detailed source changelog for
+operators and agents.
 `WEB_CHANGELOG.md` is only for user-facing changes; keep diagnostics,
 debug-page, super-admin-only, operator-only, and agent-facing notes in
 `CHANGELOG.md` only. The Help and
@@ -1162,16 +1166,18 @@ required workflow configuration and the live Companies/Tickets API calls used
 by the app. The **Test Autotask API** button is manual and always runs a fresh
 live check. It is not used by the
 initial mobile page or blank Start Work route.
-When cached app health is degraded, every signed-in user sees a red exclamation
-status icon in the top bar. The icon is only an indicator and does not open
-Diagnostics. It appears for conditions such as low disk space, unavailable
-database connectivity, high database query latency, high database connection
-pool pressure, active local login protection or app-managed Cloudflare IP
-blocks, or a cached Autotask API failure. Autotask failures from any managed
-user, managed Admin user, or config super admin keep the indicator visible
-until the same type of Autotask operation succeeds again. Successful unrelated
-Autotask requests do not clear another active failure. The top of Diagnostics
-also shows a yellow warning banner or red critical banner while any monitored
+When cached app health is degraded, every signed-in user sees an exclamation
+status button in the top bar that opens `/help#operational-status`. It is
+yellow for warning and red for critical, while specific Diagnostics details
+remain limited to Diagnostics-authorized users. It appears for conditions such
+as low disk space, unavailable database connectivity, high database query
+latency, high database connection pool pressure, active local login protection
+or app-managed Cloudflare IP blocks, or a cached Autotask API failure.
+Autotask failures from any managed user, managed Admin user, or config super
+admin keep the button visible until the same type of Autotask operation
+succeeds again. Successful unrelated Autotask requests do not clear another
+active failure. The top of Diagnostics also shows a yellow warning banner or
+red critical banner while any monitored
 app-health issue is active.
 
 The same `/debug` page also shows compact, paginated successful-login,

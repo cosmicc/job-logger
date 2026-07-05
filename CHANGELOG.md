@@ -86,6 +86,9 @@ All notable changes to Job Logger are documented in this file.
   operational-status card that shows generic degraded status to ordinary users
   while keeping specific health details limited to Diagnostics-authorized
   users.
+- Changed the degraded-health top-bar icon into an authenticated Help link to
+  **Operational Status**, using yellow for warning and red for critical while
+  the Help status card also shows green for operational.
 - Added temporary-password enforcement for newly created or super-admin-reset
   managed users. Those users are forced through `/config/password` before using
   other app routes, and successful password changes clear the requirement.

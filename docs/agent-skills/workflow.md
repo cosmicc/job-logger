@@ -80,10 +80,13 @@ When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 the Help button in yellow, while `/help` shows the current version with `DEV`,
 such as `v1.2.3 DEV`. Keep the Help icon compact so it does not crowd the
 mobile navigation icons.
-When cached app health is degraded, every authenticated user sees a red
-exclamation status icon in the top bar. The icon is non-clickable and must not
-open Diagnostics. On phone layouts, keep the indicator in the left-side route
-group so Help remains immediately beside logout.
+When cached app health is degraded, every authenticated user sees an exclamation
+status button in the top bar that links to `/help#operational-status`. Use
+yellow for warning and red for critical, and keep specific issue details out of
+the header for ordinary managed users. On phone layouts, keep the status button
+in the left-side route group so Help remains immediately beside logout. The
+Help page **Operational Status** card uses matching colors and shows green when
+all monitored checks are operational.
 The unauthenticated login page should render the sign-in form without a top app
 icon or wordmark.
 
