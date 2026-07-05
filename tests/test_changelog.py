@@ -142,6 +142,7 @@ def test_changelog_parser_reads_current_release() -> None:
         changes=(
             "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.",
             "Help now sits beside Log out in the header, while the main route buttons stay grouped together.",
+            "On phones, Work and Review now stay on the left, while Help, Config, any optional admin shortcut, and Log out sit on the right.",
             "Phone header icons are larger inside the same compact navigation buttons.",
             "The Help page now opens the version changelog in an overlay with an X close button.",
             "On phones, the current version and version changelog button now share one row.",
@@ -204,6 +205,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert V120_WEB_TITLE in response.text
     assert "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help." in response.text
     assert "Help now sits beside Log out in the header, while the main route buttons stay grouped together." in response.text
+    assert (
+        "On phones, Work and Review now stay on the left, while Help, Config, "
+        "any optional admin shortcut, and Log out sit on the right."
+    ) in response.text
     assert "Phone header icons are larger inside the same compact navigation buttons." in response.text
     assert "The Help page now opens the version changelog in an overlay with an X close button." in response.text
     assert "On phones, the current version and version changelog button now share one row." in response.text

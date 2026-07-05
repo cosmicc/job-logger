@@ -39,18 +39,18 @@ and leave `job_logger/static/phone.css` unchanged unless the request explicitly
 targets the phone or installed mobile app.
 
 Phone-sized authenticated layouts hide the brand mark and desktop logout form.
-The visible top bar should place route and status icons on the left, then the
-Help icon immediately to the left of the logout icon on the right. Managed web
-users see Work, Review, and Config on the left. The Work button links to
-`/home` and uses the same work-entry icon on phone and full-browser navigation.
-Managed users marked as Admin also see Diagnostics on the left, but that flag
-must not remove Config or grant super-admin-only Users navigation.
-The config super admin sees Users, Review, and Diagnostics on the left, with
-Help and logout on the right, and must not see Config. The mobile logout button must
-submit the normal `/logout` form with the rendered CSRF token. Do not wire
-mobile logout through `window.close()`, `about:blank`, a GET link, or another
-browser-only action. Keep the explicit desktop logout form available on
-non-mobile authenticated pages. Full-browser top navigation should stay
+The visible top bar should place Work and Review left-aligned for managed web
+users, then right-align Help, Config, optional Diagnostics, and logout in that
+order. The Work button links to `/home` and uses the same work-entry icon on
+phone and full-browser navigation. Managed users marked as Admin also see
+Diagnostics in the right-side phone action group, but that flag must not remove
+Config or grant super-admin-only Users navigation. The config super admin sees
+Users and Review on the left, with Help, Diagnostics, and logout on the right,
+and must not see Config. The mobile logout button must submit the normal
+`/logout` form with the rendered CSRF token. Do not wire mobile logout through
+`window.close()`, `about:blank`, a GET link, or another browser-only action.
+Keep the explicit desktop logout form available on non-mobile authenticated
+pages. Full-browser top navigation should stay
 centered for route links and use raised blue icon-and-text buttons. Full-browser
 Help belongs in the right-side action group immediately to the left of the
 visible **Log out** button. The authenticated desktop brand mark
@@ -457,6 +457,9 @@ save/review/submitted-entry update workflow.
 Configured `AI_CLEANUP_INSTRUCTIONS` must be sent through the selected
 provider's instruction field. Keep the user-visible cleanup prompt focused on
 the cleanup task, job context, and untrusted summary text.
+Gemini cleanup uses the same `GEMINI_API_BASE` OpenAI-compatible endpoint
+setting as AI Help, but it must keep `GEMINI_CLEANUP_MODEL` and
+`AI_CLEANUP_INSTRUCTIONS` separate from the Help model and support prompt.
 
 Mobile active jobs use `POST /jobs/{job_id}/summary/cleanup`. After a successful
 response, `job_logger/static/mobile.js` replaces the active summary textarea and

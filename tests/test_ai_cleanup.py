@@ -25,21 +25,17 @@ def test_ai_cleanup_requires_enabled_configuration(monkeypatch: pytest.MonkeyPat
         )
 
 
-def test_gemini_cleanup_builds_generate_content_payload(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Gemini cleanup uses the generateContent request shape."""
+def test_gemini_cleanup_builds_chat_completions_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Gemini cleanup uses its own model and prompt on the shared Gemini URL family."""
 
     captured_payload: dict[str, Any] = {}
 
     def fake_create_gemini_response(request_payload: dict[str, Any], _application_settings: object) -> dict[str, Any]:
         captured_payload.update(request_payload)
         return {
-            "candidates": [
+            "choices": [
                 {
-                    "content": {
-                        "parts": [
-                            {"text": "Remote restarted the firewall and verified VPN connectivity."},
-                        ],
-                    },
+                    "message": {"content": "Remote restarted the firewall and verified VPN connectivity."},
                 }
             ],
         }
@@ -49,6 +45,7 @@ def test_gemini_cleanup_builds_generate_content_payload(monkeypatch: pytest.Monk
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     monkeypatch.setenv("GEMINI_CLEANUP_MODEL", "test-gemini-model")
     monkeypatch.setenv("AI_CLEANUP_INSTRUCTIONS", "Clean the summary.")
+    monkeypatch.setenv("AI_HELP_INSTRUCTIONS", "Answer end-user support questions.")
     monkeypatch.setattr(ai_cleanup, "_create_gemini_response", fake_create_gemini_response)
 
     cleanup_result = cleanup_summary_text(
@@ -69,10 +66,57 @@ def test_gemini_cleanup_builds_generate_content_payload(monkeypatch: pytest.Monk
     assert cleanup_result.cleaned_text == "Remote restarted the firewall and verified VPN connectivity."
     assert cleanup_result.provider == "gemini"
     assert cleanup_result.model == "test-gemini-model"
+    assert captured_payload["model"] == "test-gemini-model"
     assert captured_payload["store"] is False
-    assert captured_payload["systemInstruction"] == {"parts": [{"text": "Clean the summary."}]}
-    assert "remote restarted firewall verified vpn" in str(captured_payload["contents"])
-    assert "Acme Energy" in str(captured_payload["contents"])
+    assert captured_payload["stream"] is False
+    assert captured_payload["messages"][0] == {"role": "system", "content": "Clean the summary."}
+    assert "Answer end-user support questions." not in str(captured_payload)
+    assert "remote restarted firewall verified vpn" in captured_payload["messages"][1]["content"]
+    assert "Acme Energy" in captured_payload["messages"][1]["content"]
+
+
+def test_gemini_cleanup_uses_gemini_api_base(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Gemini cleanup should use GEMINI_API_BASE instead of a cleanup-only URL."""
+
+    captured_request: dict[str, Any] = {}
+    endpoint_url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+
+    def fake_post_provider_json(**kwargs: Any) -> dict[str, Any]:
+        captured_request.update(kwargs)
+        return {
+            "choices": [
+                {
+                    "message": {"content": "Remote restarted the firewall and verified VPN connectivity."},
+                }
+            ],
+        }
+
+    monkeypatch.setenv("AI_CLEANUP_ENABLED", "true")
+    monkeypatch.setenv("AI_CLEANUP_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setenv("GEMINI_API_BASE", endpoint_url)
+    monkeypatch.setenv("GEMINI_CLEANUP_MODEL", "cleanup-model")
+    monkeypatch.setenv("AI_CLEANUP_INSTRUCTIONS", "Clean the summary.")
+    monkeypatch.setenv("AI_HELP_INSTRUCTIONS", "Answer end-user support questions.")
+    monkeypatch.setenv("GEMINI_CLEANUP_API_BASE_URL", "https://wrong.example.test/v1beta")
+    monkeypatch.setattr(ai_cleanup, "_post_provider_json", fake_post_provider_json)
+
+    cleanup_result = cleanup_summary_text(
+        summary_text="remote restarted firewall verified vpn",
+        cleanup_context=AiCleanupContext(job_id="job-1", source="review", job_status="ready_for_review"),
+        actor="admin",
+        application_settings=load_settings(),
+    )
+
+    assert cleanup_result.model == "cleanup-model"
+    assert captured_request["provider_label"] == "Gemini"
+    assert captured_request["url"] == endpoint_url
+    assert captured_request["headers"]["Authorization"] == "Bearer test-key"
+    assert captured_request["request_payload"]["model"] == "cleanup-model"
+    assert captured_request["request_payload"]["messages"][0] == {
+        "role": "system",
+        "content": "Clean the summary.",
+    }
 
 
 def test_groq_cleanup_builds_chat_completions_payload(monkeypatch: pytest.MonkeyPatch) -> None:

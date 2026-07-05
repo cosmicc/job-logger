@@ -6,6 +6,7 @@ Short release notes shown on the authenticated `/changelog` page.
 
 - The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.
 - Help now sits beside Log out in the header, while the main route buttons stay grouped together.
+- On phones, Work and Review now stay on the left, while Help, Config, any optional admin shortcut, and Log out sit on the right.
 - Phone header icons are larger inside the same compact navigation buttons.
 - The Help page now opens the version changelog in an overlay with an X close button.
 - On phones, the current version and version changelog button now share one row.

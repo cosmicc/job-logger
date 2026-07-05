@@ -74,8 +74,9 @@ The signed-in header includes these main areas:
 - **Help** opens support help and version information.
 - **Log out** ends your signed-in session.
 
-On a phone, these controls appear as compact icons. On a full browser, they use
-icon-and-text buttons.
+On a phone, Work and Review sit on the left side of the top bar. Help, Config,
+any optional admin shortcut, and Log out sit on the right side. On a full
+browser, these controls use icon-and-text buttons.
 
 If a red app-health icon appears in the header, Job Logger has detected that
 something needs attention. You can usually keep working unless the page shows a

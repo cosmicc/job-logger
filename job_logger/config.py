@@ -289,9 +289,6 @@ class Settings:
     # GEMINI_CLEANUP_MODEL selects the Gemini model used for text cleanup.
     gemini_cleanup_model: str
 
-    # GEMINI_CLEANUP_API_BASE_URL supports Gemini API endpoint overrides.
-    gemini_cleanup_api_base_url: str
-
     # GROQ_API_KEY authorizes GroqCloud cleanup requests. The user-facing provider
     # value remains "grok" for compatibility with the requested spelling.
     groq_api_key: str | None
@@ -512,10 +509,6 @@ def load_settings() -> Settings:
         ai_cleanup_provider=_get_ai_cleanup_provider(),
         gemini_api_key=(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip() or None,
         gemini_cleanup_model=os.getenv("GEMINI_CLEANUP_MODEL", "gemini-3.5-flash").strip() or "gemini-3.5-flash",
-        gemini_cleanup_api_base_url=os.getenv(
-            "GEMINI_CLEANUP_API_BASE_URL",
-            "https://generativelanguage.googleapis.com/v1beta",
-        ).rstrip("/"),
         groq_api_key=os.getenv("GROQ_API_KEY") or os.getenv("GROK_API_KEY") or None,
         groq_cleanup_model=(
             os.getenv("GROQ_CLEANUP_MODEL")

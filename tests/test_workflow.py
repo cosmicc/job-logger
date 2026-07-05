@@ -1371,7 +1371,11 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert 'class="icon-button mobile-nav-action mobile-config-action"' in response.text
     assert 'aria-label="Config"' in response.text
     assert 'data-mobile-config-link' in response.text
-    assert response.text.index("data-mobile-config-link") < response.text.index('class="mobile-nav-actions mobile-nav-right"')
+    assert response.text.index("data-mobile-review-link") < response.text.index('class="mobile-nav-actions mobile-nav-right"')
+    assert response.text.index('class="mobile-nav-actions mobile-nav-right"') < response.text.index("data-mobile-help-link")
+    assert response.text.index("data-mobile-help-link") < response.text.index("data-mobile-config-link")
+    assert response.text.index("data-mobile-config-link") < response.text.index("mobile-logout-action")
+    assert response.text.index("data-mobile-home-link") < response.text.index("data-mobile-review-link")
     assert response.text.index("data-mobile-help-link") < response.text.index("mobile-logout-action")
     assert 'class="logout-form desktop-logout-form"' in response.text
     assert 'class="desktop-header-actions"' in response.text
@@ -1407,10 +1411,36 @@ def test_super_admin_mobile_header_renders_users_review_debug_and_logout(super_a
     assert 'class="icon-button mobile-nav-action mobile-logout-action"' in response.text
     assert 'aria-label="Log out"' in response.text
     assert response.text.index("data-mobile-users-link") < response.text.index("data-mobile-review-link")
-    assert response.text.index("data-mobile-review-link") < response.text.index("data-mobile-debug-link")
-    assert response.text.index("data-mobile-debug-link") < response.text.index('class="mobile-nav-actions mobile-nav-right"')
+    assert response.text.index("data-mobile-review-link") < response.text.index('class="mobile-nav-actions mobile-nav-right"')
     assert response.text.index('class="mobile-nav-actions mobile-nav-right"') < response.text.index("data-mobile-help-link")
-    assert response.text.index("data-mobile-help-link") < response.text.index("mobile-logout-action")
+    assert response.text.index("data-mobile-help-link") < response.text.index("data-mobile-debug-link")
+    assert response.text.index("data-mobile-debug-link") < response.text.index("mobile-logout-action")
+
+
+def test_managed_admin_mobile_header_places_optional_diag_on_right(authenticated_client: TestClient) -> None:
+    """Managed Admin users should see right-side Help, Config, Diagnostics, and logout."""
+
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user.is_admin = True
+        database_session.commit()
+
+    response = authenticated_client.get("/home")
+
+    assert response.status_code == 200
+    assert 'data-mobile-home-link' in response.text
+    assert 'data-mobile-review-link' in response.text
+    assert 'data-mobile-help-link' in response.text
+    assert 'data-mobile-config-link' in response.text
+    assert 'data-mobile-debug-link' in response.text
+    assert 'class="icon-button mobile-nav-action mobile-debug-action"' in response.text
+    assert response.text.index("data-mobile-home-link") < response.text.index("data-mobile-review-link")
+    assert response.text.index("data-mobile-review-link") < response.text.index('class="mobile-nav-actions mobile-nav-right"')
+    assert response.text.index('class="mobile-nav-actions mobile-nav-right"') < response.text.index("data-mobile-help-link")
+    assert response.text.index("data-mobile-help-link") < response.text.index("data-mobile-config-link")
+    assert response.text.index("data-mobile-config-link") < response.text.index("data-mobile-debug-link")
+    assert response.text.index("data-mobile-debug-link") < response.text.index("mobile-logout-action")
 
 
 def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(authenticated_client: TestClient) -> None:

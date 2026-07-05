@@ -13,6 +13,9 @@ All notable changes to Job Logger are documented in this file.
 - Moved the shared header Help control beside logout on both desktop and phone
   layouts while keeping the primary route navigation grouped on the left or
   centered as appropriate for the viewport.
+- Changed phone-sized navigation so Work and Review stay left-aligned while
+  Help, Config, optional Diagnostics, and Log out are right-aligned in that
+  order.
 - Increased the phone-sized header navigation icons inside their existing
   compact buttons so Work, Review, Config, Diagnostics, Help, and Log out are
   easier to scan without changing the mobile header footprint.
@@ -37,6 +40,10 @@ All notable changes to Job Logger are documented in this file.
   `AI_HELP_INSTRUCTIONS` runtime settings to Compose, Swarm, and
   `.env.example`. `GEMINI_API_KEY` is reused for both Gemini cleanup and AI
   Help.
+- Changed Gemini AI cleanup to use the same OpenAI-compatible
+  `GEMINI_API_BASE` endpoint setting as AI Help, removed the separate
+  `GEMINI_CLEANUP_API_BASE_URL` setting, and kept `GEMINI_CLEANUP_MODEL` plus
+  `AI_CLEANUP_INSTRUCTIONS` cleanup-specific.
 - Added bounded local help context from `USER_MANUAL.md`,
   `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files, and selected app source
   files so the server can answer user-support questions without committing

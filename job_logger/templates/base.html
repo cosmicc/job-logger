@@ -126,6 +126,15 @@
               </svg>
             </span>
           {% endif %}
+        </nav>
+        <nav class="mobile-nav-actions mobile-nav-right" aria-label="Mobile quick actions">
+          <a class="icon-button mobile-nav-action mobile-help-action header-help-link{% if dev_build %} header-help-link-dev{% endif %}" href="/help" title="Help" aria-label="Help{% if dev_build %} development build{% endif %}" data-mobile-help-link>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.1 9a3 3 0 1 1 5.8 1c-.6 1-1.7 1.4-2.3 2.2-.4.5-.6.9-.6 1.8"></path>
+              <path d="M12 17h.01"></path>
+            </svg>
+          </a>
           {% if not current_is_super_admin %}
             <a class="icon-button mobile-nav-action mobile-config-action" href="/config" title="Config" aria-label="Config" data-mobile-config-link>
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -141,15 +150,6 @@
               </svg>
             </a>
           {% endif %}
-        </nav>
-        <nav class="mobile-nav-actions mobile-nav-right" aria-label="Mobile quick actions">
-          <a class="icon-button mobile-nav-action mobile-help-action header-help-link{% if dev_build %} header-help-link-dev{% endif %}" href="/help" title="Help" aria-label="Help{% if dev_build %} development build{% endif %}" data-mobile-help-link>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M9.1 9a3 3 0 1 1 5.8 1c-.6 1-1.7 1.4-2.3 2.2-.4.5-.6.9-.6 1.8"></path>
-              <path d="M12 17h.01"></path>
-            </svg>
-          </a>
           <form method="post" action="/logout" class="logout-form mobile-logout-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="icon-button mobile-nav-action mobile-logout-action" type="submit" title="Log out" aria-label="Log out">

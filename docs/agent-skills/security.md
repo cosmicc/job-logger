@@ -122,13 +122,14 @@ Per-user configuration lives behind authenticated managed-web-user-only
 `/config` routes. The config super admin has no user settings, must not see the
 Config menu item or phone-sized Config icon, must receive 403 on direct
 `/config` access, and always renders in dark mode. Phone-sized super-admin
-navigation may show Users, Review, and Diagnostics icons; those links do not
-grant any capability beyond the server-side authorization checks on the target
-routes. Phone-sized managed-user navigation may show Home, Review, Config, and
-Diagnostics only when `web_users.is_admin` is enabled. Non-admin managed users
-must not show Diag or Diagnostics navigation. Phone-sized logout controls must
-submit the normal CSRF-protected `/logout` form rather than using browser-only
-close behavior.
+navigation may show Users and Review on the left, with Help, Diagnostics, and
+logout on the right; those links do not grant any capability beyond the
+server-side authorization checks on the target routes. Phone-sized managed-user
+navigation may show Home and Review on the left, with Help, Config,
+Diagnostics only when `web_users.is_admin` is enabled, and logout on the right.
+Non-admin managed users must not show Diag or Diagnostics navigation.
+Phone-sized logout controls must submit the normal CSRF-protected `/logout`
+form rather than using browser-only close behavior.
 Theme and workflow preferences are not secrets, but autosaving them is still a
 state-changing action that must require
 authentication and CSRF. The workflow preference **Submit from Work in
@@ -337,9 +338,12 @@ Cleanup handling must:
   server-side in Docker or another approved secret store.
 - Send only bounded summary text and minimal job context to the selected
   provider.
-- Set `store=false` on Gemini generateContent requests.
+- Set `store=false` on Gemini cleanup requests.
+- Use `GEMINI_API_BASE` for Gemini cleanup endpoint construction while keeping
+  `GEMINI_CLEANUP_MODEL` separate from the Help model.
 - Send configured cleanup instructions through the provider instruction field
-  without duplicating those private rules in the user-visible summary prompt.
+  without using `AI_HELP_INSTRUCTIONS` or duplicating those private rules in
+  the user-visible summary prompt.
 - Reject public Ollama and LM Studio base URLs.
 - Return cleaned text to the browser without submitting to Autotask.
 - Audit provider, model, source, status, and text lengths only.

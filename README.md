@@ -688,7 +688,11 @@ For Gemini free-tier cleanup, configure:
 
 - `GEMINI_API_KEY`
 - `GEMINI_CLEANUP_MODEL`, default `gemini-3.5-flash`
-- `GEMINI_CLEANUP_API_BASE_URL`, default `https://generativelanguage.googleapis.com/v1beta`
+- `GEMINI_API_BASE`, default `https://generativelanguage.googleapis.com/v1beta/openai/`
+
+Gemini cleanup uses the same OpenAI-compatible `GEMINI_API_BASE` endpoint
+setting as AI Help while keeping `GEMINI_CLEANUP_MODEL` and
+`AI_CLEANUP_INSTRUCTIONS` separate from the Help model and support prompt.
 
 For GroqCloud free/start-plan cleanup, configure:
 
@@ -1043,14 +1047,12 @@ The full-browser
 active-card finish/delete row sits directly below the **Record** and
 **AI Cleanup** row with recording and cleanup status text below all action
 buttons. On phone-sized Review detail, Record and AI Cleanup status text also
-stays below the Review action buttons. Phone-sized authenticated layouts
-hide the brand mark and desktop logout button, place left navigation
-icons on the left, center the Help icon, and put right-side actions on the
-right. Managed web users see Work and Review on the left, with Config and a
-logout icon on the right. The Work icon links to `/home` and uses the same
-work-entry symbol as the full-browser Work nav button. The config super admin
-sees Users, Review, and Diagnostics on the left, with a logout icon on the
-right. The mobile logout
+stays below the Review action buttons. Phone-sized authenticated layouts hide
+the brand mark and desktop logout button. Managed web users see Work and
+Review left-aligned, then Help, Config, optional Diagnostics, and logout
+right-aligned. The Work icon links to `/home` and uses the same work-entry
+symbol as the full-browser Work nav button. The config super admin sees Users
+and Review on the left, with Help, Diagnostics, and logout on the right. The mobile logout
 icon submits the normal CSRF-protected `/logout` form. Full-width `/home`,
 review, debug, and other non-mobile pages keep the explicit desktop logout
 button. Mobile submit actions show a loading overlay once the

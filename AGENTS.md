@@ -170,11 +170,14 @@ AI summary cleanup sends job summary text to the configured provider only when
 `ollama`, or `lm_studio`. Treat summary text as customer/work data. The server
 must validate authentication and CSRF, bound input length, keep API keys,
 provider URLs, and cleanup instructions server-side in Docker or environment
-variables, set `store=false` on Gemini requests, constrain Ollama and LM Studio
-cleanup URLs to loopback or private-network endpoints, send configured cleanup
-instructions through the provider instruction field, and audit only metadata
-such as provider, model, source, and text lengths. Do not store raw cleanup
-prompts or full cleaned/uncleaned summaries in audit details.
+variables, set `store=false` on Gemini cleanup requests, constrain Ollama and
+LM Studio cleanup URLs to loopback or private-network endpoints, send
+`AI_CLEANUP_INSTRUCTIONS` through the provider instruction field, and audit
+only metadata such as provider, model, source, and text lengths. Gemini cleanup
+uses the same OpenAI-compatible `GEMINI_API_BASE` endpoint setting as AI Help
+while keeping `GEMINI_CLEANUP_MODEL` separate from the Help model and
+`AI_CLEANUP_INSTRUCTIONS` separate from `AI_HELP_INSTRUCTIONS`. Do not store
+raw cleanup prompts or full cleaned/uncleaned summaries in audit details.
 After a successful cleanup, the UI may store the pre-cleanup summary on the job
 only for the explicit **Revert cleanup** workflow. That stored customer/work
 text must not be copied into audit details or diagnostics, and it should be
@@ -507,12 +510,12 @@ must show the current version with `DEV`, such as `v1.2.3 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows compact route and status icons on the left,
-with the Help icon immediately to the left of the mobile logout icon on the
-right.
-Managed web users see Work, Review, and Config on the left. The Work button
-links to `/home` and uses the same work-entry icon on phone and full-browser
-navigation. The config super admin sees Users, Review, and Diagnostics on the
-left, with Help and logout on the right, and must not see the Config shortcut.
+with Work and Review left-aligned for managed web users. Help, Config,
+optional Diagnostics, and logout are right-aligned in that order. The Work
+button links to `/home` and uses the same work-entry icon on phone and
+full-browser navigation. The config super admin sees Users and Review on the
+left, with Help, Diagnostics, and logout on the right, and must not see the
+Config shortcut.
 The mobile logout button must post to `/logout` with the
 rendered CSRF token and
 must not use `window.close()` or a browser-only app close fallback. Full-width
