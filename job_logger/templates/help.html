@@ -8,37 +8,14 @@
       <div>
         <p class="eyebrow-text">Support</p>
         <h1>Help</h1>
-        <p class="muted-text">Ask a Job Logger question or view the version changelog.</p>
       </div>
     </div>
-
-    <section class="help-version-panel" aria-labelledby="help-version-heading">
-      <div>
-        <p class="eyebrow-text">Current version</p>
-        <h2 id="help-version-heading">v{{ app_version }}{% if dev_build %} DEV{% endif %}</h2>
-        {% if current_changelog_entry.release_date %}
-          <p class="help-version-release-date">Released: {{ current_changelog_entry.release_date }}</p>
-        {% endif %}
-      </div>
-      <a
-        class="secondary-link-button help-changelog-button"
-        href="/changelog"
-        aria-haspopup="dialog"
-        data-help-changelog-open
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 3v18h18"></path>
-          <path d="M7 14l3-3 3 2 4-6"></path>
-        </svg>
-        <span>version changelog</span>
-      </a>
-    </section>
 
     <section class="edit-panel help-assistant-panel" aria-labelledby="help-assistant-heading">
       <div class="panel-title-row">
         <div>
-          <h2 id="help-assistant-heading">Ask AI Help</h2>
-          <p class="muted-text help-assistant-description">Ask AI Help anything about using Job Logger, including Work in Progress, Review, Config, Device sign-in, and common app messages.</p>
+          <h2 id="help-assistant-heading">Ask AI for help</h2>
+          <p class="muted-text help-assistant-description">Ask AI for help with using Job Logger, including Work in Progress, Review, Config, Device sign-in, and common app messages.</p>
         </div>
       </div>
 
@@ -86,8 +63,7 @@
     >
       <div class="panel-title-row">
         <div>
-          <p class="eyebrow-text">Application status</p>
-          <h2 id="help-operational-heading">Operational status</h2>
+          <h2 id="help-operational-heading">Operational Status</h2>
         </div>
         {% if app_health_snapshot.degraded %}
           {% if app_health_snapshot.severity == "critical" %}
@@ -117,6 +93,28 @@
       {% else %}
         <p class="muted-text" data-help-operational-summary>All monitored app checks are fully operational.</p>
       {% endif %}
+    </section>
+
+    <section class="help-version-panel" aria-labelledby="help-version-heading">
+      <div>
+        <p class="eyebrow-text">Current version</p>
+        <h2 id="help-version-heading">v{{ app_version }}{% if dev_build %} DEV{% endif %}</h2>
+        {% if current_changelog_entry.release_date %}
+          <p class="help-version-release-date">Released: {{ current_changelog_entry.release_date }}</p>
+        {% endif %}
+      </div>
+      <a
+        class="secondary-link-button help-changelog-button"
+        href="/changelog"
+        aria-haspopup="dialog"
+        data-help-changelog-open
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 3v18h18"></path>
+          <path d="M7 14l3-3 3 2 4-6"></path>
+        </svg>
+        <span>version changelog</span>
+      </a>
     </section>
 
     <div class="help-changelog-overlay is-hidden" data-help-changelog-overlay aria-hidden="true">

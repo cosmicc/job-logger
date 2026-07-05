@@ -6,12 +6,14 @@ Short release notes shown on the authenticated `/changelog` page.
 
 - The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.
 - Help now sits beside Log out in the header, while the main route buttons stay grouped together.
+- Phone header icons are larger inside the same compact navigation buttons.
 - The Help page now opens the version changelog in an overlay with an X close button.
 - On phones, the current version and version changelog button now share one row.
-- Ask AI Help now uses a one-line question field that submits when Enter is pressed.
+- The Help page now starts with Ask AI for help, then shows Operational Status, with Current version as the last card.
+- Ask AI for help now uses a one-line question field that submits when Enter is pressed.
 - The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions.
-- Ask AI Help now keeps broad/simple answers concise and avoids showing unfinished trailing fragments.
-- Ask AI Help now explains what users can ask, clears the old question when users start another one, and shows a general app operational-status card.
+- Ask AI for help now keeps broad/simple answers concise and avoids showing unfinished trailing fragments.
+- Ask AI for help now explains what users can ask, clears the old question when users start another one, and shows a general app operational-status card.
 - New managed users and users whose password was reset now have to change that temporary password before using the app; phones still show the device sign-in setup prompt after the password is changed.
 - Help now labels released version dates as Released: MM.DD.YYYY and shows previous changelog entries as full-width cards without timeline dots.
 

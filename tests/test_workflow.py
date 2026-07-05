@@ -1756,6 +1756,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".mobile-nav-actions {\n  display: flex;" in phone_stylesheet
     assert ".mobile-nav-left {\n  grid-column: 1;" in phone_stylesheet
     assert ".mobile-nav-right {\n  grid-column: 2;" in phone_stylesheet
+    assert ".mobile-nav-action svg,\n.mobile-logout-action svg {\n  width: 22px;" in phone_stylesheet
+    assert ".has-health-alert .mobile-nav-action svg,\n.has-health-alert .mobile-logout-action svg {\n  width: 20px;" in phone_stylesheet
     assert ".mobile-logout-form {\n  display: inline-grid;" in phone_stylesheet
     assert ".desktop-header-actions,\n.desktop-logout-form {\n  display: none;" in phone_stylesheet
     assert ".help-version-panel {\n  align-items: center;\n  flex-direction: row;" in phone_stylesheet

@@ -63,10 +63,22 @@
   height: 38px;
 }
 
+.mobile-nav-action svg,
+.mobile-logout-action svg {
+  width: 22px;
+  height: 22px;
+}
+
 .has-health-alert .mobile-nav-action,
 .has-health-alert .mobile-logout-action {
   width: 34px;
   height: 34px;
+}
+
+.has-health-alert .mobile-nav-action svg,
+.has-health-alert .mobile-logout-action svg {
+  width: 20px;
+  height: 20px;
 }
 
 .mobile-logout-form {

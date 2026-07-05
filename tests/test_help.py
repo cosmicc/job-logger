@@ -39,14 +39,16 @@ def test_authenticated_help_page_renders_version_and_changelog(
     assert response.status_code == 200
     assert 'class="help-shell"' in response.text
     assert "<h1>Help</h1>" in response.text
-    assert '<h2 id="help-assistant-heading">Ask AI Help</h2>' in response.text
-    assert "Ask AI Help anything about using Job Logger" in response.text
+    assert "Ask a Job Logger question or view the version changelog." not in response.text
+    assert '<h2 id="help-assistant-heading">Ask AI for help</h2>' in response.text
+    assert "Ask AI for help with using Job Logger" in response.text
     assert "Single question, single answer." not in response.text
     assert 'type="text"' in response.text
     assert "data-help-question-input" in response.text
     assert "<textarea" not in response.text
     assert 'data-help-operational-card' in response.text
-    assert ">Operational status<" in response.text
+    assert ">Application status<" not in response.text
+    assert ">Operational Status<" in response.text
     assert ">Operational<" in response.text
     assert "All monitored app checks are fully operational." in response.text
     assert ">v1.2.3<" in response.text
@@ -63,6 +65,10 @@ def test_authenticated_help_page_renders_version_and_changelog(
     assert ">version changelog<" in response.text
     assert "/static/help.js?v=" in response.text
     assert "AI Help is not configured. Contact your app administrator." in response.text
+    assistant_index = response.text.index('class="edit-panel help-assistant-panel"')
+    operational_index = response.text.index("data-help-operational-card")
+    version_index = response.text.index('class="help-version-panel"')
+    assert assistant_index < operational_index < version_index
 
 
 def test_help_page_shows_released_current_version_date(

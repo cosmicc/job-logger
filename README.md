@@ -563,11 +563,12 @@ Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
 currently `v1.2.3`. Version history starts at `v1.0.0`.
 
-Authenticated pages show a Help button in the shared header. `/help` displays
-the current version, `Released: MM.DD.YYYY` when that version has a release
-date, and a **version changelog** button that opens the concise release notes in
-an overlay. `/changelog` remains available as an authenticated fallback page
-and uses `WEB_CHANGELOG.md` as its source. The changelog shows version numbers
+Authenticated pages show a Help button in the shared header. `/help` starts
+with **Ask AI for help**, shows **Operational Status**, then shows the current
+version card with `Released: MM.DD.YYYY` when that version has a release date
+and a **version changelog** button that opens concise release notes in an
+overlay. `/changelog` remains available as an authenticated fallback page and
+uses `WEB_CHANGELOG.md` as its source. The changelog shows version numbers
 without brackets, uses `MM.DD.YYYY` dates for released versions, and lists
 short user-facing changes for each version. `CHANGELOG.md` remains the detailed source changelog for operators and agents.
 `WEB_CHANGELOG.md` is only for user-facing changes; keep diagnostics,
@@ -778,9 +779,10 @@ Provider setup and data-handling docs:
 
 ### AI Help
 
-The Help page is available to every signed-in user. It always shows the current
-version and the **version changelog** overlay button. The question-answer
-assistant is disabled until configured.
+The Help page is available to every signed-in user. It starts with **Ask AI for
+help**, but the question-answer assistant is disabled until configured. The
+page also shows operational status and the current version card with the
+**version changelog** overlay button.
 
 Set these variables to enable one-question help answers:
 

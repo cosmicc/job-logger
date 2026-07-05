@@ -60,14 +60,15 @@ artwork so installed home-screen icons fill the icon frame with the dark
 app-icon background. Use the `job-logger-install-icon-*` files and do not
 advertise maskable install icons unless a future design includes a tested
 full-bleed mask-safe background.
-Phone-sized navigation remains compact blue icon buttons. Full-browser
-navigation includes a right-side Help button with the same help icon and
-visible **Help** label. The Help page, not the shared header, shows the current
-version and opens the release notes overlay with a raised **version changelog**
-button. When a release date is available, Help labels it as
-`Released: MM.DD.YYYY`; the Help overlay shows previous versions as full-width
-cards without timeline marker dots and omits date labels for unreleased
-versions.
+Phone-sized navigation remains compact blue icon buttons with icon artwork
+large enough to scan quickly. Full-browser navigation includes a right-side
+Help button with the same help icon and visible **Help** label. The Help page,
+not the shared header, starts with **Ask AI for help**, then **Operational
+Status**, then the current version and a raised **version changelog** button
+that opens the release notes overlay. When a release date is available, Help
+labels it as `Released: MM.DD.YYYY`; the Help overlay shows previous versions
+as full-width cards without timeline marker dots and omits date labels for
+unreleased versions.
 Enabled buttons and button-like navigation controls should visibly brighten on
 hover. Workflow actions such as **Record**, **AI Cleanup**, finish, delete, and
 review submit controls should look raised at rest and pressed in while active.

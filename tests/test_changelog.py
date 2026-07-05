@@ -142,13 +142,15 @@ def test_changelog_parser_reads_current_release() -> None:
         changes=(
             "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.",
             "Help now sits beside Log out in the header, while the main route buttons stay grouped together.",
+            "Phone header icons are larger inside the same compact navigation buttons.",
             "The Help page now opens the version changelog in an overlay with an X close button.",
             "On phones, the current version and version changelog button now share one row.",
-            "Ask AI Help now uses a one-line question field that submits when Enter is pressed.",
+            "The Help page now starts with Ask AI for help, then shows Operational Status, with Current version as the last card.",
+            "Ask AI for help now uses a one-line question field that submits when Enter is pressed.",
             "The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions.",
-            "Ask AI Help now keeps broad/simple answers concise and avoids showing unfinished trailing fragments.",
+            "Ask AI for help now keeps broad/simple answers concise and avoids showing unfinished trailing fragments.",
             (
-                "Ask AI Help now explains what users can ask, clears the old question "
+                "Ask AI for help now explains what users can ask, clears the old question "
                 "when users start another one, and shows a general app operational-status card."
             ),
             (
@@ -202,19 +204,24 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert V120_WEB_TITLE in response.text
     assert "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help." in response.text
     assert "Help now sits beside Log out in the header, while the main route buttons stay grouped together." in response.text
+    assert "Phone header icons are larger inside the same compact navigation buttons." in response.text
     assert "The Help page now opens the version changelog in an overlay with an X close button." in response.text
     assert "On phones, the current version and version changelog button now share one row." in response.text
-    assert "Ask AI Help now uses a one-line question field that submits when Enter is pressed." in response.text
+    assert (
+        "The Help page now starts with Ask AI for help, then shows Operational Status, "
+        "with Current version as the last card."
+    ) in response.text
+    assert "Ask AI for help now uses a one-line question field that submits when Enter is pressed." in response.text
     assert (
         "The Help page can answer one Job Logger support question at a time "
         "when the app administrator configures Gemini AI Help instructions."
     ) in response.text
     assert (
-        "Ask AI Help now keeps broad/simple answers concise and avoids showing "
+        "Ask AI for help now keeps broad/simple answers concise and avoids showing "
         "unfinished trailing fragments."
     ) in response.text
     assert (
-        "Ask AI Help now explains what users can ask, clears the old question "
+        "Ask AI for help now explains what users can ask, clears the old question "
         "when users start another one, and shows a general app operational-status card."
     ) in response.text
     assert (

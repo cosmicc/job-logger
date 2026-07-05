@@ -321,17 +321,19 @@ Progress fields and want fewer steps.
 ## Help And Changelog
 
 Select **Help** in the header to open the Help page. On a phone, Help appears
-as a question-mark icon. The Help page shows the current app version and a
-release date when that version has been released. The **version changelog**
-button opens an overlay with short release notes for the app version you are
-using and prior versions. Use the X in the top right to close it.
+as a question-mark icon. The Help page starts with **Ask AI for help**, then
+shows **Operational Status**, and ends with the current app version card. The
+version card shows a release date when that version has been released. The
+**version changelog** button opens an overlay with short release notes for the
+app version you are using and prior versions. Use the X in the top right to
+close it.
 
 If the Help page shows **DEV** beside the version, or the Help button is
 yellow, you are using a development or testing instance rather than the
 production instance.
 
-If AI Help is enabled, you can ask one Job Logger support question at a time
-and read the answer on the Help page.
+If AI Help is enabled, you can ask one Job Logger support question at a time in
+the **Ask AI for help** card and read the answer on the Help page.
 
 ## Common Messages And What To Do
 

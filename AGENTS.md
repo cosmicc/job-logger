@@ -1120,15 +1120,16 @@ The normal workflow is:
     `/login/passkey/options` and `/login/passkey/verify`; failed or canceled
     passkey login must leave the normal password form available.
 19. Authenticated users may open `/help` from the shared header Help button.
-    `/help` shows the current source-controlled version, `DEV` when
-    `DEV_BUILD=true`, `Released: MM.DD.YYYY` when the current changelog entry
-    has a release date, a **version changelog** button that opens release notes
-    in an overlay, and the optional stateless help assistant. The overlay shows
-    previous versions as full-width cards without timeline marker dots and only
-    labels dates for released versions. `/changelog` remains authenticated as a
-    fallback route and shows prior concise release notes parsed from
-    `WEB_CHANGELOG.md`. The current-version panel must show that version's
-    simple change list, not only the release title.
+    `/help` starts with the **Ask AI for help** card, then shows
+    **Operational Status**, then shows the current source-controlled version,
+    `DEV` when `DEV_BUILD=true`, `Released: MM.DD.YYYY` when the current
+    changelog entry has a release date, and a **version changelog** button that
+    opens release notes in an overlay. The overlay shows previous versions as
+    full-width cards without timeline marker dots and only labels dates for
+    released versions. `/changelog` remains authenticated as a fallback route
+    and shows prior concise release notes parsed from `WEB_CHANGELOG.md`. The
+    current-version panel must show that version's simple change list, not only
+    the release title.
 
 ## Current Autotask Dependency
 

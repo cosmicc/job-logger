@@ -13,6 +13,9 @@ All notable changes to Job Logger are documented in this file.
 - Moved the shared header Help control beside logout on both desktop and phone
   layouts while keeping the primary route navigation grouped on the left or
   centered as appropriate for the viewport.
+- Increased the phone-sized header navigation icons inside their existing
+  compact buttons so Work, Review, Config, Diagnostics, Help, and Log out are
+  easier to scan without changing the mobile header footprint.
 - Changed the Help page **version changelog** control to open release notes in
   an authenticated overlay with an X close button while keeping `/changelog`
   available as the direct authenticated fallback route.
@@ -23,7 +26,7 @@ All notable changes to Job Logger are documented in this file.
   Gemini-backed end-user help assistant using Gemini's OpenAI-compatible
   chat-completions API. The assistant is available to every authenticated
   account only when configured through environment variables.
-- Tightened the Help page assistant layout with an **Ask AI Help** heading,
+- Tightened the Help page assistant layout with an **Ask AI for help** heading,
   a one-line question field that submits on Enter, and a status line directly
   under the question field beside the Ask button.
 - Trimmed `GEMINI_API_KEY` when loading runtime settings and changed Gemini
@@ -60,6 +63,11 @@ All notable changes to Job Logger are documented in this file.
 - Tightened AI Help answer guidance for broad/simple questions and added
   metadata-only cleanup for short dangling trailing fragments after complete
   sentences.
+- Changed the Help page layout so **Ask AI for help** appears directly under
+  the Help title, **Operational Status** follows it, and **Current version**
+  sits as the last card below the operational status card.
+- Removed the extra Help page subtitle and the redundant **Application status**
+  eyebrow so the page uses the requested concise card headings.
 - Added Help page guidance text, clear-on-next-question input behavior, and an
   operational-status card that shows generic degraded status to ordinary users
   while keeping specific health details limited to Diagnostics-authorized
