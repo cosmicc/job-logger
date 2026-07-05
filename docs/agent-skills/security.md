@@ -338,7 +338,6 @@ Cleanup handling must:
   server-side in Docker or another approved secret store.
 - Send only bounded summary text and minimal job context to the selected
   provider.
-- Set `store=false` on Gemini cleanup requests.
 - Use `GEMINI_API_BASE` for Gemini cleanup endpoint construction while keeping
   `GEMINI_CLEANUP_MODEL` separate from the Help model.
 - Send configured cleanup instructions through the provider instruction field

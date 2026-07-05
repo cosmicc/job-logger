@@ -231,7 +231,6 @@ def _build_gemini_payload(cleanup_input: str, application_settings: Settings) ->
         ],
         "temperature": 0.2,
         "stream": False,
-        "store": False,
     }
 
 

@@ -170,8 +170,8 @@ AI summary cleanup sends job summary text to the configured provider only when
 `ollama`, or `lm_studio`. Treat summary text as customer/work data. The server
 must validate authentication and CSRF, bound input length, keep API keys,
 provider URLs, and cleanup instructions server-side in Docker or environment
-variables, set `store=false` on Gemini cleanup requests, constrain Ollama and
-LM Studio cleanup URLs to loopback or private-network endpoints, send
+variables, constrain Ollama and LM Studio cleanup URLs to loopback or
+private-network endpoints, send
 `AI_CLEANUP_INSTRUCTIONS` through the provider instruction field, and audit
 only metadata such as provider, model, source, and text lengths. Gemini cleanup
 uses the same OpenAI-compatible `GEMINI_API_BASE` endpoint setting as AI Help

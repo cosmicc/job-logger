@@ -67,8 +67,8 @@ def test_gemini_cleanup_builds_chat_completions_payload(monkeypatch: pytest.Monk
     assert cleanup_result.provider == "gemini"
     assert cleanup_result.model == "test-gemini-model"
     assert captured_payload["model"] == "test-gemini-model"
-    assert captured_payload["store"] is False
     assert captured_payload["stream"] is False
+    assert "store" not in captured_payload
     assert captured_payload["messages"][0] == {"role": "system", "content": "Clean the summary."}
     assert "Answer end-user support questions." not in str(captured_payload)
     assert "remote restarted firewall verified vpn" in captured_payload["messages"][1]["content"]
@@ -113,6 +113,7 @@ def test_gemini_cleanup_uses_gemini_api_base(monkeypatch: pytest.MonkeyPatch) ->
     assert captured_request["url"] == endpoint_url
     assert captured_request["headers"]["Authorization"] == "Bearer test-key"
     assert captured_request["request_payload"]["model"] == "cleanup-model"
+    assert "store" not in captured_request["request_payload"]
     assert captured_request["request_payload"]["messages"][0] == {
         "role": "system",
         "content": "Clean the summary.",

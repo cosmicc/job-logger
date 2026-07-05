@@ -763,10 +763,10 @@ or successful Autotask finalization. It also clears stale revert text after
 
 AI cleanup requests require the local authenticated session and CSRF token. The
 server sends bounded summary text plus minimal job context to the selected
-provider, sets `store=false` for Gemini requests, and records only metadata such
-as provider, model, source, and text lengths in the audit log. Do not put
-Gemini or Groq keys, private-network provider API keys, private cleanup
-instructions, or customer summary text in source control.
+provider and records only metadata such as provider, model, source, and text
+lengths in the audit log. Do not put Gemini or Groq keys, private-network
+provider API keys, private cleanup instructions, or customer summary text in
+source control.
 
 Provider setup and data-handling docs:
 
