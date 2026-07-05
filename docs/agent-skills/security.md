@@ -269,7 +269,8 @@ Do not put secrets, private URLs, or environment-specific credentials in that
 prompt. The `/help/ask` route must require local authentication and a CSRF
 header, cap submitted question and instruction length, send only bounded local
 documentation/source context, call Gemini through its OpenAI-compatible
-chat-completions API, and avoid any local database storage of prompts or
+chat-completions API, build the final Gemini endpoint without duplicating the
+`/chat/completions` suffix, and avoid any local database storage of prompts or
 answers. The assistant may use source code as reference for user-facing app
 behavior, but it must refuse source-code, deployment, secret, credential, or
 internal configuration questions. AI Help troubleshooting logs may include

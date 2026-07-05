@@ -320,6 +320,17 @@ def _api_base_log_label(api_base_url: str) -> str:
     return f"{parsed_url.scheme or 'unknown'}://{parsed_url.netloc}{parsed_url.path.rstrip('/')}"
 
 
+def _gemini_chat_completions_url(api_base_url: str) -> str:
+    """Return the Gemini OpenAI-compatible chat-completions endpoint URL."""
+
+    normalized_api_base_url = api_base_url.strip().rstrip("/")
+    parsed_url = urlparse(normalized_api_base_url)
+    if parsed_url.path.rstrip("/").endswith(OPENAI_COMPATIBLE_CHAT_COMPLETIONS_PATH):
+        return normalized_api_base_url
+
+    return f"{normalized_api_base_url}{OPENAI_COMPATIBLE_CHAT_COMPLETIONS_PATH}"
+
+
 def _provider_error_log_code(response_payload: Any) -> str:
     """Return a safe provider error code/type label without logging messages."""
 
@@ -340,6 +351,24 @@ def _provider_error_log_code(response_payload: Any) -> str:
     return "unknown"
 
 
+def _safe_non_json_provider_error_message(status_code: int) -> str:
+    """Return a bounded provider error for HTML or otherwise non-JSON failures."""
+
+    if status_code == 404:
+        return (
+            "Gemini returned HTTP 404. Contact your app administrator to verify "
+            "GEMINI_API_BASE is the OpenAI-compatible Gemini base URL."
+        )
+
+    if status_code in {401, 403}:
+        return _safe_provider_error_message({}, status_code)
+
+    if status_code >= 400:
+        return f"Gemini help request failed with HTTP {status_code} and did not return JSON."
+
+    return "Help assistant returned an invalid response."
+
+
 def _post_gemini_chat_completion(
     request_payload: dict[str, Any],
     application_settings: Settings,
@@ -353,12 +382,15 @@ def _post_gemini_chat_completion(
         raise HelpAssistantError("AI Help is not configured with a Gemini API key.")
 
     request_started_at = time.perf_counter()
+    request_url = _gemini_chat_completions_url(application_settings.gemini_api_base)
     api_base_label = _api_base_log_label(application_settings.gemini_api_base)
+    endpoint_label = _api_base_log_label(request_url)
     logger.info(
-        "AI Help Gemini request sending trace_id=%s model=%s api_base=%s timeout_seconds=%s",
+        "AI Help Gemini request sending trace_id=%s model=%s api_base=%s endpoint=%s timeout_seconds=%s",
         trace_id,
         request_payload.get("model"),
         api_base_label,
+        endpoint_label,
         AI_HELP_TIMEOUT_SECONDS,
     )
     logger.debug(
@@ -373,7 +405,7 @@ def _post_gemini_chat_completion(
     try:
         with httpx.Client(timeout=AI_HELP_TIMEOUT_SECONDS) as client:
             response = client.post(
-                f"{application_settings.gemini_api_base}{OPENAI_COMPATIBLE_CHAT_COMPLETIONS_PATH}",
+                request_url,
                 headers={
                     "Authorization": f"Bearer {application_settings.gemini_api_key}",
                     "Content-Type": "application/json",
@@ -414,7 +446,7 @@ def _post_gemini_chat_completion(
             response.headers.get("content-type", ""),
             exc_info=True,
         )
-        raise HelpAssistantError("Help assistant returned an invalid response.") from exc
+        raise HelpAssistantError(_safe_non_json_provider_error_message(response.status_code)) from exc
 
     if response.status_code >= 400:
         elapsed_seconds = time.perf_counter() - request_started_at

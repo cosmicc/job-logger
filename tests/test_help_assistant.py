@@ -242,3 +242,111 @@ def test_help_assistant_sanitizes_gemini_credential_errors() -> None:
 
     assert "Gemini rejected the AI Help credentials" in message
     assert "API key not valid" not in message
+
+
+def test_help_assistant_builds_chat_completion_url_once() -> None:
+    """Gemini base URLs should not duplicate the chat-completions path."""
+
+    base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+    endpoint_url = f"{base_url}/chat/completions"
+
+    assert help_assistant._gemini_chat_completions_url(base_url) == endpoint_url
+    assert help_assistant._gemini_chat_completions_url(f"{base_url}/") == endpoint_url
+    assert help_assistant._gemini_chat_completions_url(endpoint_url) == endpoint_url
+    assert help_assistant._gemini_chat_completions_url(f"{endpoint_url}/") == endpoint_url
+
+
+def test_help_assistant_posts_to_configured_full_chat_endpoint(monkeypatch, caplog) -> None:
+    """A full GEMINI_API_BASE endpoint should not receive another suffix."""
+
+    captured_urls: list[str] = []
+    endpoint_url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"content-type": "application/json"}
+
+        def json(self):
+            return {"choices": [{"message": {"content": "Use Start Work."}}]}
+
+    class FakeClient:
+        def __init__(self, *, timeout):
+            assert timeout == help_assistant.AI_HELP_TIMEOUT_SECONDS
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def post(self, url, **kwargs):
+            captured_urls.append(url)
+            return FakeResponse()
+
+    application_settings = replace(
+        settings,
+        gemini_api_key="test-gemini-key",
+        gemini_api_base=endpoint_url,
+    )
+
+    monkeypatch.setattr(help_assistant.httpx, "Client", FakeClient)
+    caplog.set_level(logging.INFO, logger="job_logger.services.help_assistant")
+
+    response_payload = help_assistant._post_gemini_chat_completion(
+        {"model": "gemini-test-model", "messages": [], "stream": False},
+        application_settings,
+        trace_id="trace-full-endpoint",
+    )
+
+    assert response_payload == {"choices": [{"message": {"content": "Use Start Work."}}]}
+    assert captured_urls == [endpoint_url]
+    assert "endpoint=https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" in caplog.text
+    assert "test-gemini-key" not in caplog.text
+
+
+def test_help_assistant_reports_non_json_404_as_base_url_guidance(caplog, monkeypatch) -> None:
+    """HTML 404 provider responses should point operators at GEMINI_API_BASE."""
+
+    class FakeResponse:
+        status_code = 404
+        headers = {"content-type": "text/html"}
+
+        def json(self):
+            raise ValueError("not json")
+
+    class FakeClient:
+        def __init__(self, *, timeout):
+            assert timeout == help_assistant.AI_HELP_TIMEOUT_SECONDS
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def post(self, *args, **kwargs):
+            return FakeResponse()
+
+    application_settings = replace(
+        settings,
+        ai_help_enabled=True,
+        ai_help_provider="gemini",
+        gemini_api_key="test-gemini-key",
+        ai_help_instructions=TEST_HELP_INSTRUCTIONS,
+    )
+
+    monkeypatch.setattr(help_assistant.httpx, "Client", FakeClient)
+    caplog.set_level(logging.ERROR, logger="job_logger.services.help_assistant")
+
+    with pytest.raises(HelpAssistantError, match="GEMINI_API_BASE"):
+        answer_help_question(
+            question="How do I start work?",
+            application_settings=application_settings,
+            trace_id="trace-html-404",
+        )
+
+    log_text = caplog.text
+    assert "AI Help Gemini response was not JSON trace_id=trace-html-404 status_code=404" in log_text
+    assert "content_type=text/html" in log_text
+    assert "test-gemini-key" not in log_text
+    assert "How do I start work" not in log_text

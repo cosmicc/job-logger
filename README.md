@@ -789,14 +789,17 @@ Set these variables to enable one-question help answers:
 - `AI_HELP_INSTRUCTIONS`, the server-side support prompt sent before the user's question
 
 Job Logger calls Gemini's OpenAI-compatible chat-completions API from the
-server. The browser never sees the API key. Each answer is stateless: the app
-does not store help questions or answers in the database. The assistant uses
-bounded context from `USER_MANUAL.md`, `WEB_CHANGELOG.md`, `AGENTS.md`, agent
-skill files, and selected app source to answer end-user support questions. It
-refuses source code, deployment, secret, credential, and internal configuration
-questions. Keep `AI_HELP_INSTRUCTIONS` focused on how the assistant should
-answer end-user Job Logger support questions, and do not put secrets or private
-deployment values in it.
+server. Set `GEMINI_API_BASE` to the OpenAI-compatible base URL above; Job
+Logger appends `/chat/completions` when needed and also accepts a full
+`.../chat/completions` endpoint without appending it twice. The browser never
+sees the API key. Each answer is stateless: the app does not store help
+questions or answers in the database. The assistant uses bounded context from
+`USER_MANUAL.md`, `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files, and
+selected app source to answer end-user support questions. It refuses source
+code, deployment, secret, credential, and internal configuration questions.
+Keep `AI_HELP_INSTRUCTIONS` focused on how the assistant should answer end-user
+Job Logger support questions, and do not put secrets or private deployment
+values in it.
 If Gemini rejects the credentials, confirm the running container was recreated
 with the current key and that the Google AI Studio key has Gemini API access.
 Set `LOG_LEVEL=DEBUG` temporarily while troubleshooting AI Help. The app logs

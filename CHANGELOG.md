@@ -53,6 +53,10 @@ All notable changes to Job Logger are documented in this file.
   emit route-level `ERROR` logs with a trace ID, status code, error class, and
   bounded detail so provider/configuration problems are visible in app console
   output.
+- Fixed Gemini AI Help endpoint construction so `GEMINI_API_BASE` can be the
+  documented OpenAI-compatible base URL or a full `.../chat/completions`
+  endpoint without the app appending `/chat/completions` twice, and changed
+  HTML 404 provider responses to show base-URL guidance.
 
 ## 1.2.2 - 07.03.2026 - Health alerts, app icon, user manual, and Swarm storage
 
