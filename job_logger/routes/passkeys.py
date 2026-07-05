@@ -223,12 +223,14 @@ async def passkey_login_verify(
         web_user = authentication.web_user
         reset_login_failure_counter(database_session, request, submitted_username="passkey")
         reset_login_failure_counter(database_session, request, submitted_username=web_user.username)
+        password_change_required = bool(web_user.password_must_change)
         mark_web_user_login_succeeded(web_user)
         login_web_user_session(
             request,
             username=web_user.username,
             web_user_id=web_user.id,
             authentication_method=PASSKEY_AUTH_METHOD,
+            password_change_required=password_change_required,
         )
         log_successful_login_attempt(
             database_session,
@@ -247,10 +249,16 @@ async def passkey_login_verify(
             details={
                 "web_user_id": web_user.id,
                 "credential_row_id": authentication.credential.id,
+                "temporary_credential_change_required": password_change_required,
             },
         )
         database_session.commit()
-        return JSONResponse({"authenticated": True, "redirect_url": "/home"})
+        return JSONResponse(
+            {
+                "authenticated": True,
+                "redirect_url": "/config?password_required=1" if password_change_required else "/home",
+            }
+        )
     except (HTTPException, PasskeyError) as exc:
         database_session.rollback()
         record_audit_event(

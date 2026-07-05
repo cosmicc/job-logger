@@ -2,6 +2,104 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## 1.2.3 - 07.05.2026 - Help navigation, AI Help and cleanup, changelog display, and Portainer env guidance
+
+- Advanced the source-controlled dev runtime version to `v1.2.3`, including
+  the Python package metadata and PWA service worker cache version.
+- Replaced the authenticated header version/changelog badge with a Help
+  button. Full-browser navigation now shows the help icon and **Help** label,
+  phone-sized navigation shows the help icon, and dev builds mark the Help
+  control in yellow while showing `DEV` on the Help page.
+- Moved the shared header Help control beside logout on both desktop and phone
+  layouts while keeping the primary route navigation grouped on the left or
+  centered as appropriate for the viewport.
+- Changed phone-sized navigation so Work and Review stay left-aligned while
+  Help, Config, optional Diagnostics, and Log out are right-aligned in that
+  order.
+- Increased the phone-sized header navigation icons inside their existing
+  compact buttons so Work, Review, Config, Diagnostics, Help, and Log out are
+  easier to scan without changing the mobile header footprint.
+- Changed the Help page **version changelog** control to open release notes in
+  an authenticated overlay with an X close button while keeping `/changelog`
+  available as the direct authenticated fallback route.
+- Restyled the **version changelog** control as a raised button and tightened
+  the phone-sized current-version card so the version and changelog button sit
+  on one row.
+- Added authenticated `/help` and `/help/ask` routes for a stateless
+  Gemini-backed end-user help assistant using Gemini's OpenAI-compatible
+  chat-completions API. The assistant is available to every authenticated
+  account only when configured through environment variables.
+- Tightened the Help page assistant layout with an **Ask AI for help** heading,
+  a one-line question field that submits on Enter, and a status line directly
+  under the question field beside the Ask button.
+- Trimmed `GEMINI_API_KEY` when loading runtime settings and changed Gemini
+  401/403 help failures to show bounded credential guidance instead of raw
+  provider troubleshooting text.
+- Added `AI_HELP_ENABLED`, `AI_HELP_PROVIDER`, `GEMINI_MODEL`,
+  `GEMINI_API_BASE`, `AI_HELP_MAX_TOKENS`, `AI_HELP_TEMPERATURE`, and
+  `AI_HELP_INSTRUCTIONS` runtime settings to Compose, Swarm, and
+  `.env.example`. `GEMINI_API_KEY` is reused for both Gemini cleanup and AI
+  Help.
+- Changed Gemini AI cleanup to use the same OpenAI-compatible
+  `GEMINI_API_BASE` endpoint setting as AI Help, removed the separate
+  `GEMINI_CLEANUP_API_BASE_URL` setting, and kept `GEMINI_CLEANUP_MODEL` plus
+  `AI_CLEANUP_INSTRUCTIONS` cleanup-specific.
+- Fixed Gemini AI cleanup requests for the OpenAI-compatible Gemini endpoint
+  by matching the working chat-completions payload shape used by AI Help.
+- Increased phone-sized header navigation icons again and normalized every
+  mobile nav icon to the same visible size inside its button, including
+  degraded-health layouts.
+- Added consistent spacing between the Help page cards across phone and
+  full-browser layouts.
+- Added bounded local help context from `USER_MANUAL.md`,
+  `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files, and selected app source
+  files so the server can answer user-support questions without committing
+  provider credentials.
+- Added help-assistant guardrails that reject likely source-code,
+  deployment, secret, or internal configuration questions, require CSRF on
+  help questions, and avoid local database storage of prompts and answers.
+- Documented Portainer stack environment troubleshooting for redeploy errors
+  where `/data/compose/.../stack.env` contains copied comments, headings, or
+  prose instead of only `KEY=value` environment lines.
+- Added sanitized AI Help console logging for request receipt, validation
+  failures, refused internal questions, Gemini request/response metadata,
+  provider errors, timeouts, and successful answers using a per-request trace
+  ID without logging API keys, prompts, full questions, source context, or
+  answers.
+- Changed AI Help assistant failures returned as `/help/ask` 400 responses to
+  emit route-level `ERROR` logs with a trace ID, status code, error class, and
+  bounded detail so provider/configuration problems are visible in app console
+  output.
+- Fixed Gemini AI Help endpoint construction so `GEMINI_API_BASE` can be the
+  documented OpenAI-compatible base URL or a full `.../chat/completions`
+  endpoint without the app appending `/chat/completions` twice, and changed
+  HTML 404 provider responses to show base-URL guidance.
+- Tightened AI Help answer guidance for broad/simple questions and added
+  metadata-only cleanup for short dangling trailing fragments after complete
+  sentences.
+- Changed the Help page layout so **Ask AI for help** appears directly under
+  the Help title, **Operational Status** follows it, and **Current version**
+  sits as the last card below the operational status card.
+- Removed the extra Help page subtitle and the redundant **Application status**
+  eyebrow so the page uses the requested concise card headings.
+- Added Help page guidance text, clear-on-next-question input behavior, and an
+  operational-status card that shows generic degraded status to ordinary users
+  while keeping specific health details limited to Diagnostics-authorized
+  users.
+- Changed the degraded-health top-bar icon into an authenticated Help link to
+  **Operational Status**, using yellow for warning and red for critical while
+  the Help status card also shows green for operational.
+- Added temporary-password enforcement for newly created or super-admin-reset
+  managed users. Those users are forced through `/config/password` before using
+  other app routes, and successful password changes clear the requirement.
+- Limited the post-login Device sign-in setup prompt to phone-sized Home
+  layouts and changed the prompt dismissal so desktop visits do not consume the
+  mobile-only nudge.
+- Changed the Help page and changelog overlay to label released dates as
+  `Released: MM.DD.YYYY` only when the version has a release date, and changed
+  previous overlay entries from an indented timeline to full-width cards that
+  match the current-version card.
+
 ## 1.2.2 - 07.03.2026 - Health alerts, app icon, user manual, and Swarm storage
 
 - Advanced the source-controlled dev runtime version to `v1.2.2`, including

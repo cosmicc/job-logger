@@ -61,8 +61,8 @@ Autotask REST API references used by this app:
    and stderr log verbosity. Docker defaults to `INFO`; use `docker compose
    logs app` or the runtime log collector for history.
    Set `DEV_BUILD=true` only for dev deployments that should show the
-   authenticated desktop and mobile version badge in yellow with `DEV` folded
-   into the version text and should suppress Pushover health notifications.
+   authenticated Help button in yellow, show `DEV` on the Help page, and
+   suppress Pushover health notifications.
 
 5. Start the stack:
 
@@ -107,6 +107,9 @@ Autotask REST API references used by this app:
    When Autotask returns an email for the selected resource, Job Logger saves it
    with that web-user account. Managed-user passwords must be at least 8
    characters and include lowercase, uppercase, number, and symbol characters.
+   Passwords created or reset by the config super admin are temporary; the
+   managed user must choose a new password on the next sign-in before using the
+   rest of the app.
    The first web user you create takes ownership of any existing unowned jobs
    from earlier single-user installs.
 
@@ -119,9 +122,10 @@ Autotask REST API references used by this app:
    Autotask immediately instead of requiring Review first. The same page
    includes an explicit **Change password** action with two matching password
    fields and the password requirements shown in the password card; password
-   changes are not autosaved. Managed users can also add passkeys after signing
-   in normally once. The config super-admin account has no user settings and
-   always uses dark mode.
+   changes are not autosaved. When a temporary password is required, Config
+   shows only the password-change step until the password is changed. Managed
+   users can also add passkeys after signing in normally once. The config
+   super-admin account has no user settings and always uses dark mode.
 
 ## Branch And Deployment Flow
 
@@ -258,6 +262,17 @@ Use these profile combinations for standalone Compose:
   nginx/cloudflared.
 - `COMPOSE_PROFILES=`: remote PostgreSQL with external nginx/cloudflared.
 
+When deploying from Portainer, keep the stack environment field or uploaded
+environment file to plain `KEY=value` lines only. Do not paste markdown
+headings, bullet text, or explanatory comments into Portainer's environment
+editor, and do not upload `.env.example` directly without stripping comment
+lines first. If redeploy fails before pulling images with an error like
+`failed to read /data/compose/1/stack.env: line 1: key cannot contain a space`,
+line 1 of the generated Portainer `stack.env` contains text that is not a valid
+environment variable name. Remove that prose or convert it to a valid key such
+as `AI_HELP_INSTRUCTIONS=Answer Job Logger support questions for end users.`
+on one line.
+
 For a remote PostgreSQL server, provide:
 
 ```env
@@ -284,8 +299,8 @@ Use `docker-swarm.yml` for Swarm. It is image-based, does not build locally,
 and expects PostgreSQL to run outside the stack:
 
 ```bash
-export JOB_LOGGER_APP_IMAGE=registry.example.com/job-logger-app:1.2.2
-export JOB_LOGGER_NGINX_IMAGE=registry.example.com/job-logger-nginx:1.2.2
+export JOB_LOGGER_APP_IMAGE=registry.example.com/job-logger-app:1.2.3
+export JOB_LOGGER_NGINX_IMAGE=registry.example.com/job-logger-nginx:1.2.3
 export JOB_LOGGER_BUNDLED_EDGE_REPLICAS=1
 export JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger
 export DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
@@ -520,9 +535,10 @@ or with registered device sign-in. The app labels this feature **Device
 sign-in** because the underlying passkey can use a phone, browser profile,
 security key, fingerprint, Face ID, PIN, pattern, or another local unlock
 method. Device sign-in can be set up from `/config` after a normal password
-login. The `/home` page prompts managed users without a registered credential
-only once after each successful login, while `/config` always keeps setup
-available. Job Logger stores only the public credential ID, public key,
+login. On phone-sized layouts, the `/home` page prompts managed users without a
+registered credential only once after each successful login, while `/config`
+always keeps setup available. Job Logger stores only the public credential ID,
+public key,
 signature counter, and device metadata. The phone, browser, or passkey provider
 keeps the private key and performs the local unlock prompt.
 
@@ -545,20 +561,29 @@ Set these passkey variables for production when needed:
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.2.2`. Version history starts at `v1.0.0`.
+currently `v1.2.3`. Version history starts at `v1.0.0`.
 
-Authenticated pages show the current version discreetly in the shared header.
-Clicking that version opens `/changelog`, which displays the current version
-and concise release notes parsed from `WEB_CHANGELOG.md`. The changelog page
-shows version numbers without brackets, release dates in `MM.DD.YYYY` format,
-and short user-facing changes for each version. `CHANGELOG.md` remains the
-detailed source changelog for operators and agents. `WEB_CHANGELOG.md` is only
-for user-facing changes; keep diagnostics, debug-page, super-admin-only,
-operator-only, and agent-facing notes in `CHANGELOG.md` only. The changelog
-page uses the same authenticated session, dark/light theme variables, and
-responsive layout system as the rest of the app.
-When Docker/runtime `DEV_BUILD=true`, the same authenticated header also shows a
-yellow version badge on desktop and phone layouts, such as `v1.2.2 DEV`.
+Authenticated pages show a Help button in the shared header. `/help` starts
+with **Ask AI for help**, shows **Operational Status**, then shows the current
+version card with a little space between each card, `Released: MM.DD.YYYY`
+when that version has a release date, and a **version changelog** button that
+opens concise release notes in an overlay. When monitored app health is
+degraded, the top-bar alert opens the **Operational Status** card directly and
+uses yellow for warning or red for critical. The Help card uses the same colors
+and green when all monitored checks are operational. `/changelog` remains
+available as an authenticated fallback page and uses `WEB_CHANGELOG.md` as its
+source. The changelog shows version numbers without brackets, uses
+`MM.DD.YYYY` dates for released versions, and lists short user-facing changes
+for each version. `CHANGELOG.md` remains the detailed source changelog for
+operators and agents.
+`WEB_CHANGELOG.md` is only for user-facing changes; keep diagnostics,
+debug-page, super-admin-only, operator-only, and agent-facing notes in
+`CHANGELOG.md` only. The Help and
+changelog views use the same authenticated session, dark/light theme variables,
+and responsive layout system as the rest of the app.
+When Docker/runtime `DEV_BUILD=true`, the authenticated Help button is yellow
+on desktop and phone layouts, and `/help` shows the current version with `DEV`,
+such as `v1.2.3 DEV`.
 
 ## Provider Modes
 
@@ -668,7 +693,11 @@ For Gemini free-tier cleanup, configure:
 
 - `GEMINI_API_KEY`
 - `GEMINI_CLEANUP_MODEL`, default `gemini-3.5-flash`
-- `GEMINI_CLEANUP_API_BASE_URL`, default `https://generativelanguage.googleapis.com/v1beta`
+- `GEMINI_API_BASE`, default `https://generativelanguage.googleapis.com/v1beta/openai/`
+
+Gemini cleanup uses the same OpenAI-compatible `GEMINI_API_BASE` endpoint
+setting as AI Help while keeping `GEMINI_CLEANUP_MODEL` and
+`AI_CLEANUP_INSTRUCTIONS` separate from the Help model and support prompt.
 
 For GroqCloud free/start-plan cleanup, configure:
 
@@ -739,10 +768,10 @@ or successful Autotask finalization. It also clears stale revert text after
 
 AI cleanup requests require the local authenticated session and CSRF token. The
 server sends bounded summary text plus minimal job context to the selected
-provider, sets `store=false` for Gemini requests, and records only metadata such
-as provider, model, source, and text lengths in the audit log. Do not put
-Gemini or Groq keys, private-network provider API keys, private cleanup
-instructions, or customer summary text in source control.
+provider and records only metadata such as provider, model, source, and text
+lengths in the audit log. Do not put Gemini or Groq keys, private-network
+provider API keys, private cleanup instructions, or customer summary text in
+source control.
 
 Provider setup and data-handling docs:
 
@@ -756,6 +785,49 @@ Provider setup and data-handling docs:
 - LM Studio local server and OpenAI-compatible endpoints:
   https://lmstudio.ai/docs/developer/core/server and
   https://lmstudio.ai/docs/developer/openai-compat
+
+### AI Help
+
+The Help page is available to every signed-in user. It starts with **Ask AI for
+help**, but the question-answer assistant is disabled until configured. The
+page also shows operational status and the current version card with the
+**version changelog** overlay button.
+
+Set these variables to enable one-question help answers:
+
+- `AI_HELP_ENABLED=true`
+- `AI_HELP_PROVIDER=gemini`
+- `GEMINI_API_KEY`, the Google AI Studio API key
+- `GEMINI_MODEL`, default `gemini-3.5-flash`
+- `GEMINI_API_BASE`, default `https://generativelanguage.googleapis.com/v1beta/openai/`
+- `AI_HELP_MAX_TOKENS`, default `800`
+- `AI_HELP_TEMPERATURE`, default `0.2`
+- `AI_HELP_INSTRUCTIONS`, the server-side support prompt sent before the user's question
+
+Job Logger calls Gemini's OpenAI-compatible chat-completions API from the
+server. Set `GEMINI_API_BASE` to the OpenAI-compatible base URL above; Job
+Logger appends `/chat/completions` when needed and also accepts a full
+`.../chat/completions` endpoint without appending it twice. The browser never
+sees the API key. Each answer is stateless: the app does not store help
+questions or answers in the database. The assistant uses bounded context from
+`USER_MANUAL.md`, `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files, and
+selected app source to answer end-user support questions. It refuses source
+code, deployment, secret, credential, and internal configuration questions.
+Keep `AI_HELP_INSTRUCTIONS` focused on how the assistant should answer end-user
+Job Logger support questions, and do not put secrets or private deployment
+values in it.
+If Gemini rejects the credentials, confirm the running container was recreated
+with the current key and that the Google AI Studio key has Gemini API access.
+Set `LOG_LEVEL=DEBUG` temporarily while troubleshooting AI Help. The app logs
+sanitized AI Help request metadata to the console, including a trace id,
+provider/model, question length, context source count, Gemini HTTP status,
+provider error code when available, and timing. `/help/ask` failures that
+return 400 also log a route-level error with the trace id, status code, error
+class, and bounded detail. It does not log Gemini API keys, full questions,
+source context, prompts, or answers.
+The Help page also shows a general operational-status card. Ordinary managed
+users see only whether monitored app health is operational or degraded;
+Diagnostics-authorized users see the specific monitored issue details.
 
 ### Autotask
 
@@ -980,14 +1052,13 @@ The full-browser
 active-card finish/delete row sits directly below the **Record** and
 **AI Cleanup** row with recording and cleanup status text below all action
 buttons. On phone-sized Review detail, Record and AI Cleanup status text also
-stays below the Review action buttons. Phone-sized authenticated layouts
-hide the brand mark and desktop logout button, place left navigation
-icons on the left, center the version link, and put right-side actions on the
-right. Managed web users see Work and Review on the left, with Config and a
-logout icon on the right. The Work icon links to `/home` and uses the same
-work-entry symbol as the full-browser Work nav button. The config super admin
-sees Users, Review, and Diagnostics on the left, with a logout icon on the
-right. The mobile logout
+stays below the Review action buttons. Phone-sized authenticated layouts hide
+the brand mark and desktop logout button. Managed web users see Work and
+Review left-aligned, then Help, Config, optional Diagnostics, and logout
+right-aligned. The Work icon links to `/home` and uses the same work-entry
+symbol as the full-browser Work nav button. The config super admin sees Users
+and Review on the left, with Help, Diagnostics, and logout on the right. Phone
+nav icons use one larger shared size inside the compact buttons. The mobile logout
 icon submits the normal CSRF-protected `/logout` form. Full-width `/home`,
 review, debug, and other non-mobile pages keep the explicit desktop logout
 button. Mobile submit actions show a loading overlay once the
@@ -1089,21 +1160,24 @@ users to sign in again while leaving the config super admin signed in; a
 managed admin who clicks it is included because that account is a managed web
 user. The authenticated desktop navigation labels this route as **Diag**, while
 the page title remains **Diagnostics**. All authenticated pages also include a
-discreet version link to `/changelog`. The Diagnostics Autotask check verifies
+Help button that opens `/help`; the Help page opens release notes with
+**version changelog**. The Diagnostics Autotask check verifies
 required workflow configuration and the live Companies/Tickets API calls used
 by the app. The **Test Autotask API** button is manual and always runs a fresh
 live check. It is not used by the
 initial mobile page or blank Start Work route.
-When cached app health is degraded, every signed-in user sees a red exclamation
-status icon in the top bar. The icon is only an indicator and does not open
-Diagnostics. It appears for conditions such as low disk space, unavailable
-database connectivity, high database query latency, high database connection
-pool pressure, active local login protection or app-managed Cloudflare IP
-blocks, or a cached Autotask API failure. Autotask failures from any managed
-user, managed Admin user, or config super admin keep the indicator visible
-until the same type of Autotask operation succeeds again. Successful unrelated
-Autotask requests do not clear another active failure. The top of Diagnostics
-also shows a yellow warning banner or red critical banner while any monitored
+When cached app health is degraded, every signed-in user sees an exclamation
+status button in the top bar that opens `/help#operational-status`. It is
+yellow for warning and red for critical, while specific Diagnostics details
+remain limited to Diagnostics-authorized users. It appears for conditions such
+as low disk space, unavailable database connectivity, high database query
+latency, high database connection pool pressure, active local login protection
+or app-managed Cloudflare IP blocks, or a cached Autotask API failure.
+Autotask failures from any managed user, managed Admin user, or config super
+admin keep the button visible until the same type of Autotask operation
+succeeds again. Successful unrelated Autotask requests do not clear another
+active failure. The top of Diagnostics also shows a yellow warning banner or
+red critical banner while any monitored
 app-health issue is active.
 
 The same `/debug` page also shows compact, paginated successful-login,

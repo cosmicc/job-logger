@@ -485,7 +485,7 @@ unreadable columns.
 Autotask provider failures also update cached app health. Any failed live
 Autotask HTTP/status response, failed time-entry or ticket-note
 submission/update/delete result, or failed manual connectivity test should keep
-the authenticated top-bar degraded-health icon, Diagnostics app-health banner,
+the authenticated top-bar degraded-health Help link, Diagnostics app-health banner,
 and optional Pushover health notification state degraded until the same
 semantic Autotask operation type succeeds again. A successful request for a
 different operation must not clear another operation's active failure. This

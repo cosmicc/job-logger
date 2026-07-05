@@ -125,6 +125,16 @@ class WebUser(Base):
         comment="UTC timestamp for the latest successful managed web-user login.",
     )
 
+    # password_must_change forces managed users through `/config/password`
+    # after a super-admin-created or reset password is used for sign-in.
+    password_must_change: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Whether this user must change the temporary password before using the app.",
+    )
+
     # created_at_utc and updated_at_utc support account-management audit review.
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(

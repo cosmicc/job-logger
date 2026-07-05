@@ -27,6 +27,10 @@ DEFAULT_AI_CLEANUP_INSTRUCTIONS = (
     "summary text with no markdown, title, explanation, or surrounding quotes."
 )
 
+DEFAULT_AI_HELP_PROVIDER = "gemini"
+DEFAULT_GEMINI_HELP_MODEL = "gemini-3.5-flash"
+DEFAULT_GEMINI_HELP_API_BASE = "https://generativelanguage.googleapis.com/v1beta/openai"
+
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR"}
 
 
@@ -80,6 +84,15 @@ def _get_positive_float(environment_variable_name: str, default_value: float) ->
     value = _get_float(environment_variable_name, default_value)
     if value <= 0:
         raise ValueError(f"{environment_variable_name} must be greater than zero.")
+    return value
+
+
+def _get_nonnegative_float(environment_variable_name: str, default_value: float) -> float:
+    """Return a non-negative float setting, failing fast for unsafe values."""
+
+    value = _get_float(environment_variable_name, default_value)
+    if value < 0:
+        raise ValueError(f"{environment_variable_name} must be greater than or equal to zero.")
     return value
 
 
@@ -276,9 +289,6 @@ class Settings:
     # GEMINI_CLEANUP_MODEL selects the Gemini model used for text cleanup.
     gemini_cleanup_model: str
 
-    # GEMINI_CLEANUP_API_BASE_URL supports Gemini API endpoint overrides.
-    gemini_cleanup_api_base_url: str
-
     # GROQ_API_KEY authorizes GroqCloud cleanup requests. The user-facing provider
     # value remains "grok" for compatibility with the requested spelling.
     groq_api_key: str | None
@@ -315,6 +325,27 @@ class Settings:
 
     # AI_CLEANUP_REVERT_RETENTION_HOURS limits how long pre-cleanup text is retained for undo.
     ai_cleanup_revert_retention_hours: float
+
+    # AI_HELP_ENABLED gates provider-backed end-user help answers.
+    ai_help_enabled: bool
+
+    # AI_HELP_PROVIDER selects the help backend. Gemini is currently supported.
+    ai_help_provider: str
+
+    # GEMINI_MODEL selects the Gemini model used for help answers.
+    gemini_model: str
+
+    # GEMINI_API_BASE is the Gemini OpenAI-compatible API base URL.
+    gemini_api_base: str
+
+    # AI_HELP_MAX_TOKENS limits generated help-answer length.
+    ai_help_max_tokens: int
+
+    # AI_HELP_TEMPERATURE controls help-answer determinism.
+    ai_help_temperature: float
+
+    # AI_HELP_INSTRUCTIONS stores the server-side support prompt for help answers.
+    ai_help_instructions: str
 
     # AUTOTASK_PROVIDER selects the live Autotask REST client; mock is for tests/development only.
     autotask_provider: str
@@ -391,6 +422,17 @@ class Settings:
 
         return self.pushover_enabled and not self.dev_build
 
+    @property
+    def ai_help_configured(self) -> bool:
+        """Return whether the help assistant has the secret settings it needs."""
+
+        return bool(
+            self.ai_help_enabled
+            and self.ai_help_provider == "gemini"
+            and self.gemini_api_key
+            and self.ai_help_instructions.strip()
+        )
+
 
 def load_settings() -> Settings:
     """Load application settings from the current process environment."""
@@ -465,12 +507,8 @@ def load_settings() -> Settings:
         faster_whisper_remote_timeout_seconds=_get_positive_float("FASTER_WHISPER_REMOTE_TIMEOUT_SECONDS", 120.0),
         ai_cleanup_enabled=_get_boolean("AI_CLEANUP_ENABLED", False),
         ai_cleanup_provider=_get_ai_cleanup_provider(),
-        gemini_api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or None,
+        gemini_api_key=(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip() or None,
         gemini_cleanup_model=os.getenv("GEMINI_CLEANUP_MODEL", "gemini-3.5-flash").strip() or "gemini-3.5-flash",
-        gemini_cleanup_api_base_url=os.getenv(
-            "GEMINI_CLEANUP_API_BASE_URL",
-            "https://generativelanguage.googleapis.com/v1beta",
-        ).rstrip("/"),
         groq_api_key=os.getenv("GROQ_API_KEY") or os.getenv("GROK_API_KEY") or None,
         groq_cleanup_model=(
             os.getenv("GROQ_CLEANUP_MODEL")
@@ -501,6 +539,19 @@ def load_settings() -> Settings:
         ai_cleanup_timeout_seconds=_get_float("AI_CLEANUP_TIMEOUT_SECONDS", 20.0),
         ai_cleanup_max_input_chars=_get_integer("AI_CLEANUP_MAX_INPUT_CHARS", 12000),
         ai_cleanup_revert_retention_hours=_get_positive_float("AI_CLEANUP_REVERT_RETENTION_HOURS", 24.0),
+        ai_help_enabled=_get_boolean("AI_HELP_ENABLED", False),
+        ai_help_provider=(
+            os.getenv("AI_HELP_PROVIDER", DEFAULT_AI_HELP_PROVIDER).strip().lower().replace("-", "_")
+            or DEFAULT_AI_HELP_PROVIDER
+        ),
+        gemini_model=os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_HELP_MODEL).strip() or DEFAULT_GEMINI_HELP_MODEL,
+        gemini_api_base=(
+            os.getenv("GEMINI_API_BASE", DEFAULT_GEMINI_HELP_API_BASE).strip().rstrip("/")
+            or DEFAULT_GEMINI_HELP_API_BASE
+        ),
+        ai_help_max_tokens=_get_positive_integer("AI_HELP_MAX_TOKENS", 800),
+        ai_help_temperature=_get_nonnegative_float("AI_HELP_TEMPERATURE", 0.2),
+        ai_help_instructions=os.getenv("AI_HELP_INSTRUCTIONS", "").strip(),
         autotask_provider=os.getenv("AUTOTASK_PROVIDER", "autotask").strip().lower(),
         autotask_base_url=os.getenv("AUTOTASK_BASE_URL") or None,
         autotask_username=os.getenv("AUTOTASK_USERNAME") or None,

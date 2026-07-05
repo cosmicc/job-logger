@@ -76,6 +76,9 @@ _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
         # v1.1.5 added Diagnostics admin grants. Older backups must restore
         # with managed users lacking that elevated debug capability.
         "is_admin": False,
+        # v1.2.3 added temporary-password enforcement for newly created or
+        # reset accounts. Older backups should not unexpectedly force changes.
+        "password_must_change": False,
     },
     "user_preferences": {
         # v1.1.0 added this preference as default-off. Older full backups should

@@ -136,10 +136,52 @@ def test_compose_and_swarm_expose_pushover_health_settings() -> None:
     assert "external monitor" in env_example_text
 
 
+def test_compose_and_swarm_expose_ai_help_settings() -> None:
+    """Gemini AI Help settings should pass through container configs."""
+
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+    swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+
+    for deployment_text in (compose_text, swarm_text):
+        assert "AI_HELP_ENABLED: ${AI_HELP_ENABLED:-false}" in deployment_text
+        assert "AI_HELP_PROVIDER: ${AI_HELP_PROVIDER:-gemini}" in deployment_text
+        assert "GEMINI_API_KEY: ${GEMINI_API_KEY:-}" in deployment_text
+        assert "GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}" in deployment_text
+        assert "GEMINI_API_BASE: ${GEMINI_API_BASE:-https://generativelanguage.googleapis.com/v1beta/openai/}" in deployment_text
+        assert "AI_HELP_MAX_TOKENS: ${AI_HELP_MAX_TOKENS:-800}" in deployment_text
+        assert "AI_HELP_TEMPERATURE: ${AI_HELP_TEMPERATURE:-0.2}" in deployment_text
+        assert "AI_HELP_INSTRUCTIONS: ${AI_HELP_INSTRUCTIONS:-}" in deployment_text
+
+    assert "AI_HELP_ENABLED=false" in env_example_text
+    assert "AI_HELP_PROVIDER=gemini" in env_example_text
+    assert "GEMINI_API_KEY=" in env_example_text
+    assert "GEMINI_MODEL=gemini-3.5-flash" in env_example_text
+    assert "AI_HELP_INSTRUCTIONS=" in env_example_text
+
+
+def test_gemini_cleanup_uses_shared_gemini_api_base_setting() -> None:
+    """Gemini cleanup should not expose a separate base URL setting."""
+
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+    swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+
+    for deployment_text in (compose_text, swarm_text):
+        assert "GEMINI_API_BASE: ${GEMINI_API_BASE:-https://generativelanguage.googleapis.com/v1beta/openai/}" in deployment_text
+        assert "GEMINI_CLEANUP_MODEL: ${GEMINI_CLEANUP_MODEL:-gemini-3.5-flash}" in deployment_text
+        assert "GEMINI_CLEANUP_API_BASE_URL" not in deployment_text
+
+    assert "GEMINI_API_BASE=https://generativelanguage.googleapis.com/v1beta/openai/" in env_example_text
+    assert "GEMINI_CLEANUP_MODEL=gemini-3.5-flash" in env_example_text
+    assert "GEMINI_CLEANUP_API_BASE_URL" not in env_example_text
+
+
 def test_env_example_defaults_to_bundled_profiles_and_documents_switching() -> None:
     """The sample env should preserve bundled defaults and document deployment switching."""
 
     env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+    readme_text = README_FILE.read_text(encoding="utf-8")
 
     assert "COMPOSE_PROFILES=local-db,bundled-edge" in env_example_text
     assert "For a remote PostgreSQL server, remove `local-db`" in env_example_text
@@ -147,6 +189,8 @@ def test_env_example_defaults_to_bundled_profiles_and_documents_switching() -> N
     assert "remove `bundled-edge`" in env_example_text
     assert "JOB_LOGGER_BUNDLED_EDGE_REPLICAS=1" in env_example_text
     assert "JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger" in env_example_text
+    assert "failed to read /data/compose/1/stack.env: line 1: key cannot contain a space" in readme_text
+    assert "plain `KEY=value` lines only" in readme_text
     assert "DATABASE_URL=" in env_example_text
     assert "DATABASE_POOL_RECYCLE_SECONDS=1800" in env_example_text
     assert "LOG_DIR=/data/logs" in env_example_text

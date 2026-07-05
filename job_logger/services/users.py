@@ -355,6 +355,7 @@ def create_web_user(
     email: str | None = None,
     disabled: bool = False,
     is_admin: bool = False,
+    password_must_change: bool = True,
 ) -> WebUserCreateResult:
     """Create a managed user and assign legacy jobs when this is the first one."""
 
@@ -372,6 +373,7 @@ def create_web_user(
         email=normalize_optional_email(email),
         disabled=disabled,
         is_admin=is_admin,
+        password_must_change=password_must_change,
     )
     database_session.add(user)
     database_session.flush()
@@ -411,6 +413,8 @@ def update_web_user(
     user.username_normalized = username_normalized(normalized_username)
     if password:
         user.password_hash = hash_password(password)
+        user.password_must_change = True
+        invalidate_web_user_sessions(user)
     user.autotask_resource_id = normalize_autotask_resource_id(autotask_resource_id)
     user.autotask_default_service_desk_role_id = normalize_optional_autotask_role_id(autotask_default_service_desk_role_id)
     user.email = normalize_optional_email(email)
@@ -433,6 +437,7 @@ def change_web_user_password(
     if (new_password or "") != (confirm_password or ""):
         raise WebUserError("Password entries must match.")
     user.password_hash = hash_password(new_password or "")
+    user.password_must_change = False
     database_session.add(user)
     return user
 

@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Help - Job Logger{% endblock %}
+
+{% block content %}
+  <section class="help-shell">
+    <div class="review-header help-page-header">
+      <div>
+        <p class="eyebrow-text">Support</p>
+        <h1>Help</h1>
+      </div>
+    </div>
+
+    <section class="edit-panel help-assistant-panel" aria-labelledby="help-assistant-heading">
+      <div class="panel-title-row">
+        <div>
+          <h2 id="help-assistant-heading">Ask AI for help</h2>
+          <p class="muted-text help-assistant-description">Ask AI for help with using Job Logger, including Work in Progress, Review, Config, Device sign-in, and common app messages.</p>
+        </div>
+      </div>
+
+      <form class="stack-form help-question-form" data-help-question-form>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>
+          <span>Question</span>
+          <input
+            type="text"
+            name="question"
+            maxlength="{{ ai_help_max_question_chars }}"
+            data-help-question-input
+            autocomplete="off"
+            {% if not ai_help_configured %}disabled{% endif %}
+          >
+        </label>
+        <div class="help-action-row">
+          <p class="workflow-status-line help-status-line" data-help-status aria-live="polite">{% if not ai_help_configured %}AI Help is not configured. Contact your app administrator.{% endif %}</p>
+          <button
+            class="primary-button help-submit-button"
+            type="submit"
+            data-help-submit-button
+            {% if not ai_help_configured %}disabled{% endif %}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.1 9a3 3 0 1 1 5.8 1c-.6 1-1.7 1.4-2.3 2.2-.4.5-.6.9-.6 1.8"></path>
+              <path d="M12 17h.01"></path>
+            </svg>
+            Ask
+          </button>
+        </div>
+      </form>
+
+      <section class="help-answer-panel is-hidden" aria-live="polite" data-help-answer-panel>
+        <h3>Answer</h3>
+        <div class="help-answer-text" data-help-answer-text></div>
+      </section>
+    </section>
+
+    <section
+      id="operational-status"
+      class="edit-panel help-operational-panel help-operational-panel-{{ app_health_snapshot.severity }}"
+      aria-labelledby="help-operational-heading"
+      tabindex="-1"
+      data-help-operational-card
+    >
+      <div class="panel-title-row">
+        <div>
+          <h2 id="help-operational-heading">Operational Status</h2>
+        </div>
+        {% if app_health_snapshot.degraded %}
+          {% if app_health_snapshot.severity == "critical" %}
+            <span class="status-chip status-submission_failed" data-help-operational-status>Degraded</span>
+          {% else %}
+            <span class="status-chip status-waiting_customer" data-help-operational-status>Degraded</span>
+          {% endif %}
+        {% else %}
+          <span class="status-chip status-complete" data-help-operational-status>Operational</span>
+        {% endif %}
+      </div>
+
+      {% if app_health_snapshot.degraded %}
+        {% if current_can_access_debug %}
+          <p class="muted-text" data-help-operational-summary>{{ app_health_snapshot.status_label }}. Review Diagnostics for details and recovery actions.</p>
+          <ul class="help-health-issue-list" data-help-operational-detail-list>
+            {% for issue in app_health_snapshot.issues %}
+              <li>
+                <span class="status-chip diagnostics-health-issue diagnostics-health-issue-{{ issue.severity }}">{{ issue.label }}</span>
+                <span>{{ issue.summary }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted-text" data-help-operational-summary>Job Logger is degraded. An administrator can review Diagnostics for details.</p>
+        {% endif %}
+      {% else %}
+        <p class="muted-text" data-help-operational-summary>All monitored app checks are fully operational.</p>
+      {% endif %}
+    </section>
+
+    <section class="help-version-panel" aria-labelledby="help-version-heading">
+      <div>
+        <p class="eyebrow-text">Current version</p>
+        <h2 id="help-version-heading">v{{ app_version }}{% if dev_build %} DEV{% endif %}</h2>
+        {% if current_changelog_entry.release_date %}
+          <p class="help-version-release-date">Released: {{ current_changelog_entry.release_date }}</p>
+        {% endif %}
+      </div>
+      <a
+        class="secondary-link-button help-changelog-button"
+        href="/changelog"
+        aria-haspopup="dialog"
+        data-help-changelog-open
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 3v18h18"></path>
+          <path d="M7 14l3-3 3 2 4-6"></path>
+        </svg>
+        <span>version changelog</span>
+      </a>
+    </section>
+
+    <div class="help-changelog-overlay is-hidden" data-help-changelog-overlay aria-hidden="true">
+      <section class="help-changelog-dialog" role="dialog" aria-modal="true" aria-labelledby="help-changelog-overlay-title">
+        <div class="help-changelog-dialog-header">
+          <div>
+            <p class="eyebrow-text">Version history</p>
+            <h2 id="help-changelog-overlay-title">Version changelog</h2>
+          </div>
+          <button class="secondary-button help-changelog-close-button" type="button" data-help-changelog-close aria-label="Close version changelog">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6L6 18"></path>
+              <path d="M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="help-changelog-dialog-body">
+          <section class="changelog-current-panel" aria-labelledby="help-current-version-heading">
+            <div class="changelog-current-copy">
+              <p class="eyebrow-text">Current version</p>
+              <div class="changelog-entry-header">
+                <span class="release-version">{{ current_changelog_entry.version }}</span>
+                {% if current_changelog_entry.release_date %}
+                  <span class="release-date">Released: {{ current_changelog_entry.release_date }}</span>
+                {% endif %}
+              </div>
+              <h2 id="help-current-version-heading">{{ current_changelog_entry.display_title }}</h2>
+              <ul class="changelog-current-change-list">
+                {% for change in current_changelog_entry.changes %}
+                  <li>{{ change }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+            <span class="version-chip">Active</span>
+          </section>
+
+          <section class="help-changelog-entry-list" aria-label="Release history">
+            {% for entry in changelog_entries %}
+              {% if entry.version != app_version %}
+                <article class="changelog-current-panel help-changelog-history-card">
+                  <div class="changelog-current-copy">
+                    <div class="changelog-entry-header">
+                      <span class="release-version">{{ entry.version }}</span>
+                      {% if entry.release_date %}
+                        <span class="release-date">Released: {{ entry.release_date }}</span>
+                      {% endif %}
+                    </div>
+                    <h2>{{ entry.display_title }}</h2>
+                    <ul class="changelog-change-list">
+                      {% for change in entry.changes %}
+                        <li>{{ change }}</li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                </article>
+              {% endif %}
+            {% endfor %}
+          </section>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <script src="/static/help.js?v={{ static_asset_version }}" defer></script>
+{% endblock %}

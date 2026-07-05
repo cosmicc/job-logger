@@ -63,8 +63,8 @@ services:
       AI_CLEANUP_REVERT_RETENTION_HOURS: ${AI_CLEANUP_REVERT_RETENTION_HOURS:-24}
       AI_CLEANUP_INSTRUCTIONS: ${AI_CLEANUP_INSTRUCTIONS:-Clean up MSP work-summary notes for an Autotask time entry. Preserve the technical facts, customer impact, ticket context, and any leading Remote or On-Site prefix. Improve grammar, punctuation, capitalization, and readability. Do not invent work, parts, durations, ticket numbers, root causes, customer approvals, or follow-up actions. Return only the cleaned summary text with no markdown, title, explanation, or surrounding quotes.}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_API_BASE: ${GEMINI_API_BASE:-https://generativelanguage.googleapis.com/v1beta/openai/}
       GEMINI_CLEANUP_MODEL: ${GEMINI_CLEANUP_MODEL:-gemini-3.5-flash}
-      GEMINI_CLEANUP_API_BASE_URL: ${GEMINI_CLEANUP_API_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GROK_API_KEY: ${GROK_API_KEY:-}
       GROQ_CLEANUP_MODEL: ${GROQ_CLEANUP_MODEL:-}
@@ -76,6 +76,12 @@ services:
       LM_STUDIO_CLEANUP_MODEL: ${LM_STUDIO_CLEANUP_MODEL:-local-model}
       LM_STUDIO_CLEANUP_API_BASE_URL: ${LM_STUDIO_CLEANUP_API_BASE_URL:-http://127.0.0.1:1234/v1}
       LM_STUDIO_API_KEY: ${LM_STUDIO_API_KEY:-}
+      AI_HELP_ENABLED: ${AI_HELP_ENABLED:-false}
+      AI_HELP_PROVIDER: ${AI_HELP_PROVIDER:-gemini}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+      AI_HELP_MAX_TOKENS: ${AI_HELP_MAX_TOKENS:-800}
+      AI_HELP_TEMPERATURE: ${AI_HELP_TEMPERATURE:-0.2}
+      AI_HELP_INSTRUCTIONS: ${AI_HELP_INSTRUCTIONS:-}
       AUTOTASK_PROVIDER: ${AUTOTASK_PROVIDER:-autotask}
       AUTOTASK_BASE_URL: ${AUTOTASK_BASE_URL:-}
       AUTOTASK_USERNAME: ${AUTOTASK_USERNAME:-}
@@ -114,7 +120,7 @@ services:
         failure_action: rollback
 
   nginx:
-    image: ${JOB_LOGGER_NGINX_IMAGE:-replace-with-registry/job-logger-nginx:1.2.2}
+    image: ${JOB_LOGGER_NGINX_IMAGE:-replace-with-registry/job-logger-nginx:1.2.3}
     environment:
       APP_UPSTREAM_HOST: app
       NGINX_ACCESS_LOG: ${NGINX_ACCESS_LOG:-/var/log/nginx/access.log}

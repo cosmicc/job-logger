@@ -17,7 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from job_logger.config import Settings, settings
 from job_logger.logging_config import configure_logging
-from job_logger.routes import auth, changelog, configuration, debug, health, mobile, passkeys, pwa, review, users
+from job_logger.routes import auth, changelog, configuration, debug, health, help, mobile, passkeys, pwa, review, users
 from job_logger.security import current_username
 from job_logger.services.app_health_monitor import app_health_notification_scheduler
 from job_logger.services.backups import automatic_backup_scheduler
@@ -346,6 +346,7 @@ def create_app(
     fastapi_app.include_router(configuration.router)
     fastapi_app.include_router(users.router)
     fastapi_app.include_router(changelog.router)
+    fastapi_app.include_router(help.router)
     fastapi_app.include_router(debug.router)
     fastapi_app.include_router(review.router)
     return fastapi_app

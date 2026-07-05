@@ -10,12 +10,15 @@ from job_logger.database import get_database_session
 from job_logger.enums import ThemeMode
 from job_logger.models import WebUser
 from job_logger.security import (
+    SESSION_PASSWORD_CHANGE_REQUIRED_KEY,
+    SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY,
     WEB_USER_SESSION_KIND,
     add_flash_message,
     current_user_kind,
     current_web_user_id,
     logout_session,
     require_authenticated_username,
+    validate_csrf_header,
     validate_csrf_token,
 )
 from job_logger.services.audit import record_audit_event
@@ -77,6 +80,12 @@ def config_page(request: Request, database_session: Session = Depends(get_databa
     current_theme = get_theme_for_principal(database_session, principal.key)
     submit_from_work_in_progress = get_submit_from_work_in_progress_for_principal(database_session, principal.key)
     current_web_user = _current_config_web_user(request, database_session)
+    password_change_required = bool(
+        request.session.get(SESSION_PASSWORD_CHANGE_REQUIRED_KEY)
+        or current_web_user.password_must_change
+    )
+    if password_change_required:
+        request.session[SESSION_PASSWORD_CHANGE_REQUIRED_KEY] = True
     return templates.TemplateResponse(
         request,
         "config.html",
@@ -91,6 +100,7 @@ def config_page(request: Request, database_session: Session = Depends(get_databa
             ],
             submit_from_work_in_progress=submit_from_work_in_progress,
             passkey_credentials=list_passkey_credentials_for_user(database_session, current_web_user.id),
+            password_change_required=password_change_required,
         ),
     )
 
@@ -153,6 +163,19 @@ async def save_config(
     return RedirectResponse(url="/config", status_code=303)
 
 
+@router.post("/device-sign-in-prompt/seen")
+def mark_device_sign_in_prompt_seen(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Clear the one-login Home prompt after it has been displayed on a phone."""
+
+    validate_csrf_header(request)
+    _current_config_web_user(request, database_session)
+    request.session.pop(SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY, None)
+    return JSONResponse({"seen": True})
+
+
 @router.post("/password")
 async def change_password(
     request: Request,
@@ -177,6 +200,10 @@ async def change_password(
     try:
         form_data = await request.form()
         validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+        was_password_change_required = bool(
+            request.session.get(SESSION_PASSWORD_CHANGE_REQUIRED_KEY)
+            or user.password_must_change
+        )
         change_web_user_password(
             database_session,
             user,
@@ -191,9 +218,11 @@ async def change_password(
             details={"web_user_id": user.id, "username": user.username},
         )
         database_session.commit()
+        request.session.pop(SESSION_PASSWORD_CHANGE_REQUIRED_KEY, None)
         add_flash_message(request, "Password changed.", "success")
     except (HTTPException, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
+        return RedirectResponse(url="/config?password_required=1" if request.session.get(SESSION_PASSWORD_CHANGE_REQUIRED_KEY) else "/config", status_code=303)
 
-    return RedirectResponse(url="/config", status_code=303)
+    return RedirectResponse(url="/home" if was_password_change_required else "/config", status_code=303)

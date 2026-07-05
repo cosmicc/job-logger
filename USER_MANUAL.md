@@ -23,6 +23,9 @@ pages also work from a full browser.
 Open the Job Logger URL provided by your organization. Sign in with your
 username and password.
 
+If your account is new or your administrator reset your password, Job Logger
+will ask you to choose a new password before you can use the rest of the app.
+
 Your password must have:
 
 - At least 8 characters.
@@ -46,9 +49,13 @@ unlock method.
 To set it up:
 
 1. Sign in with your normal username and password.
-2. Open **Config**.
-3. In **Device sign-in**, select **Set up device sign-in**.
-4. Follow the browser or device prompt.
+2. If Job Logger asks you to change a temporary password, change it first.
+3. Open **Config**.
+4. In **Device sign-in**, select **Set up device sign-in**.
+5. Follow the browser or device prompt.
+
+On phones, Job Logger may also show a one-time Work page prompt to set up
+device sign-in when your account does not have one yet.
 
 After setup, the login page still shows username/password first. Use the
 **Device sign-in** button when you want to sign in with the saved device
@@ -64,11 +71,12 @@ The signed-in header includes these main areas:
 - **Work** opens the active Work in Progress page.
 - **Review** opens completed or submitted work records.
 - **Config** opens your personal settings.
-- The version number opens the app changelog.
+- **Help** opens support help and version information.
 - **Log out** ends your signed-in session.
 
-On a phone, these controls appear as compact icons. On a full browser, they use
-icon-and-text buttons.
+On a phone, Work and Review sit on the left side of the top bar. Help, Config,
+any optional admin shortcut, and Log out sit on the right side. On a full
+browser, these controls use icon-and-text buttons.
 
 If a red app-health icon appears in the header, Job Logger has detected that
 something needs attention. You can usually keep working unless the page shows a
@@ -291,6 +299,9 @@ Dark is the default.
 Enter a new password twice and select **Change password**. Password changes do
 not save automatically because they require explicit confirmation.
 
+When Job Logger says you are using a temporary password, Config shows only the
+password-change step until the new password is saved.
+
 ### Device Sign-In
 
 Set up or delete device sign-in credentials for your account.
@@ -308,13 +319,22 @@ Use the default off setting when you want to review and edit every completed
 record before Autotask submission. Turn it on when you trust the Work in
 Progress fields and want fewer steps.
 
-## Changelog
+## Help And Changelog
 
-Select the version number in the header to open the changelog. The changelog
-shows short release notes for the app version you are using and prior versions.
+Select **Help** in the header to open the Help page. On a phone, Help appears
+as a question-mark icon. The Help page starts with **Ask AI for help**, then
+shows **Operational Status**, and ends with the current app version card. The
+version card shows a release date when that version has been released. The
+**version changelog** button opens an overlay with short release notes for the
+app version you are using and prior versions. Use the X in the top right to
+close it.
 
-If the version badge includes **DEV**, you are using a development or testing
-instance rather than the production instance.
+If the Help page shows **DEV** beside the version, or the Help button is
+yellow, you are using a development or testing instance rather than the
+production instance.
+
+If AI Help is enabled, you can ask one Job Logger support question at a time in
+the **Ask AI for help** card and read the answer on the Help page.
 
 ## Common Messages And What To Do
 

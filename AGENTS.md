@@ -56,7 +56,10 @@ picker should show Autotask `Roles.name` labels when that metadata is readable
 while storing only the selected numeric `roleID` on the managed web-user row.
 Store only salted password verifiers, never raw managed user passwords.
 Managed-user passwords must be at least 8 characters and include lowercase,
-uppercase, number, and symbol characters.
+uppercase, number, and symbol characters. Passwords created or reset by the
+config super admin are temporary: the managed user must change that password on
+the next sign-in before using any page other than `/config/password` or logout.
+Changing the password from `/config` clears the temporary-password requirement.
 Disabled web users must be blocked from new logins and from using old signed
 sessions. Deleting a web user from `/users` disables the account, invalidates
 that user's signed sessions, preserves the row for audit/login-state clarity,
@@ -88,7 +91,8 @@ The login page shows the normal username/password form first and places the
 Device sign-in button under the password sign-in button as the alternate
 managed-user login path.
 `/home` may show a device sign-in setup card only once after each successful
-login, and only while that managed user has no registered passkeys.
+login, only on phone-sized layouts, and only while that managed user has no
+registered passkeys.
 
 Managed web users may change per-login configuration on `/config`. Per-user
 configuration is database-backed, defaults to the dark theme, saves immediately
@@ -166,11 +170,14 @@ AI summary cleanup sends job summary text to the configured provider only when
 `ollama`, or `lm_studio`. Treat summary text as customer/work data. The server
 must validate authentication and CSRF, bound input length, keep API keys,
 provider URLs, and cleanup instructions server-side in Docker or environment
-variables, set `store=false` on Gemini requests, constrain Ollama and LM Studio
-cleanup URLs to loopback or private-network endpoints, send configured cleanup
-instructions through the provider instruction field, and audit only metadata
-such as provider, model, source, and text lengths. Do not store raw cleanup
-prompts or full cleaned/uncleaned summaries in audit details.
+variables, constrain Ollama and LM Studio cleanup URLs to loopback or
+private-network endpoints, send
+`AI_CLEANUP_INSTRUCTIONS` through the provider instruction field, and audit
+only metadata such as provider, model, source, and text lengths. Gemini cleanup
+uses the same OpenAI-compatible `GEMINI_API_BASE` endpoint setting as AI Help
+while keeping `GEMINI_CLEANUP_MODEL` separate from the Help model and
+`AI_CLEANUP_INSTRUCTIONS` separate from `AI_HELP_INSTRUCTIONS`. Do not store
+raw cleanup prompts or full cleaned/uncleaned summaries in audit details.
 After a successful cleanup, the UI may store the pre-cleanup summary on the job
 only for the explicit **Revert cleanup** workflow. That stored customer/work
 text must not be copied into audit details or diagnostics, and it should be
@@ -178,6 +185,28 @@ cleared when the user reverts cleanup or the cleaned notes are successfully
 finalized in Autotask. Stale cleanup undo text must also be cleared after
 `AI_CLEANUP_REVERT_RETENTION_HOURS`, defaulting to 24 hours, so the app does
 not retain extra customer/work text indefinitely.
+
+The Help assistant sends authenticated end-user support questions and bounded
+local documentation/source context to Gemini only when
+`AI_HELP_ENABLED=true`, `AI_HELP_PROVIDER=gemini`, `GEMINI_API_KEY`, and
+`AI_HELP_INSTRUCTIONS` are configured server-side. Treat help questions, help
+instructions, and source context as sensitive. The server must validate
+authentication and CSRF, bound question, instruction, and context size, keep API
+keys and private deployment details out of source control, avoid local database
+storage of prompts and answers, and refuse source-code, deployment, secret,
+credential, or internal configuration questions. `GEMINI_API_BASE` is the
+OpenAI-compatible Gemini base URL; the app may accept a full
+`.../chat/completions` endpoint for operator recovery, but it must build the
+final endpoint once and never append that path twice. The assistant is for
+end-user Job Logger support only. Built-in Help instructions should favor
+concise complete answers, and server-side answer cleanup may remove short
+dangling trailing fragments after a complete sentence. The Help page may show a
+general operational-status card to all authenticated users, but specific health
+issue labels and summaries must be visible only to Diagnostics-authorized
+users. AI Help troubleshooting logs may include sanitized metadata such as trace
+ID, provider, model, HTTP status, error class, input and answer lengths, context
+source count, and timing, but must not log Gemini API keys, full questions,
+prompts, source context, provider request bodies, or answers.
 
 ## Core Workflow
 
@@ -475,45 +504,49 @@ user management, config, debug, and login surfaces through shared CSS variables
 instead of a separate unaudited template branch. Super-admin pages always use
 dark mode.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
-must show the version link as one yellow badge that includes `DEV`, such as
-`v1.2.2 DEV`, so dev instances are visually distinct from production without
-adding a separate pill.
+must mark the Help navigation button in yellow so dev instances are visually
+distinct from production without adding a separate pill. The Help page itself
+must show the current version with `DEV`, such as `v1.2.3 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
-desktop logout control. It shows only the discreet version link, compact
-navigation icons, and a mobile logout icon button on the right. The version
-link is centered between the left navigation group and the right action group.
-Managed web users see Work and Review on the left, with Config and logout on
-the right. The Work button links to `/home` and uses the same work-entry icon
-on phone and full-browser navigation. The config super admin sees Users,
-Review, and Diagnostics on the left, with logout on the right, and must not see
-the Config shortcut. The mobile logout button must post to `/logout` with the
+desktop logout control. It shows compact route and status icons on the left,
+with Work and Review left-aligned for managed web users. Help, Config,
+optional Diagnostics, and logout are right-aligned in that order. The Work
+button links to `/home` and uses the same work-entry icon on phone and
+full-browser navigation. The config super admin sees Users and Review on the
+left, with Help, Diagnostics, and logout on the right, and must not see the
+Config shortcut.
+The mobile logout button must post to `/logout` with the
 rendered CSRF token and
 must not use `window.close()` or a browser-only app close fallback. Full-width
 `/home`, review, debug, and other non-mobile authenticated views still expose
-the explicit desktop logout control. Full-browser top navigation should be
-centered, use raised blue icon-and-text buttons, and show the source-controlled
-transparent Job Logger logo asset as the authenticated desktop brand mark. The
+the explicit desktop logout control. Full-browser route navigation should be
+centered, use raised blue icon-and-text buttons, place Help immediately before
+the right-side **Log out** button, and show the source-controlled transparent
+Job Logger logo asset as the authenticated desktop brand mark. The
 PWA manifest and favicon should use the source-controlled icon-format Job
 Logger artwork through the `job-logger-install-icon-*` files so installed
 home-screen icons fill the icon frame with the dark app-icon background. Do not
 advertise maskable install icons unless a future design includes a tested
 full-bleed mask-safe background. It should include a **Log out**
 button with the logout icon and visible text while preserving the phone-sized
-icon navigation. Phone top-bar
-navigation buttons should use the same blue visual treatment as the
-full-browser navigation buttons.
+icon navigation. Phone top-bar navigation buttons should use the same blue
+visual treatment as the full-browser navigation buttons, and all phone nav
+icons should use one shared visible size inside their compact buttons.
 Enabled buttons and button-like navigation controls should show a slight
 brighter hover state, and workflow action buttons should have a raised idle
 state plus a pressed-in active state. Destructive red controls should stay red
 on hover and use a brighter red treatment, not a neutral or black hover.
-When cached application health is degraded, every authenticated user sees a red
-exclamation status icon in the top bar. The icon is a non-clickable health
-indicator, does not open Diagnostics, and must not expose diagnostic details to
-ordinary managed users. The desktop icon sits in a reserved header status area
-between primary navigation and logout; the phone icon joins the compact
-right-side action group without crowding Config, Diagnostics, or logout
-controls. Do not run live Autotask probes while rendering a page.
+When cached application health is degraded, every authenticated user sees a
+top-bar exclamation status button that links to `/help#operational-status`.
+The button must use the app-health severity color, yellow for warning and red
+for critical, and must not expose diagnostic details to ordinary managed users.
+The Help page **Operational Status** card uses the same severity colors and
+also shows green when all monitored checks are operational. The desktop icon
+sits in a reserved header status area between primary navigation and the
+right-side Help/logout actions; the phone icon joins the compact left-side
+route group so Help can stay immediately beside logout. Do not run live
+Autotask probes while rendering a page.
 The unauthenticated login page should not show a top app icon or wordmark above
 the sign-in form.
 
@@ -818,17 +851,18 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/main.py` creates the FastAPI app, registers routers, applies
   session, Cloudflare Access, CSP, and security-header middleware.
 - `job_logger/version.py` owns the source-controlled application version shown
-  in authenticated headers, `/changelog`, and diagnostics. Advance it only
-  when requested and keep it aligned with `pyproject.toml`.
+  on `/help`, `/changelog`, and diagnostics. Advance it only when requested and
+  keep it aligned with `pyproject.toml`.
 - `job_logger/session_timeout.py` clears expired local authenticated sessions
   according to the configured `APP_SESSION_TIMEOUT_HOURS` value and rejects
   managed web-user sessions that were disabled or administratively invalidated.
 - `job_logger/config.py` loads every runtime setting from environment variables.
   Production must use `AUTOTASK_PROVIDER=autotask`; Autotask resource IDs are
-  stored on managed web users, not in config. Remote faster-whisper settings
-  live here as environment-backed values. `DEV_BUILD=true` marks a dev runtime
-  by folding `DEV` into the authenticated header version badge and suppressing
-  Pushover health notifications.
+  stored on managed web users, not in config. Remote faster-whisper, AI
+  cleanup, and help assistant settings live here as environment-backed values.
+  `DEV_BUILD=true` marks a dev runtime by turning the authenticated Help
+  button yellow, showing `DEV` on `/help`, and suppressing Pushover health
+  notifications.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.
 - `job_logger/models.py` defines persistent tables for managed web users,
   managed-user session invalidation cutoffs, per-user preferences, jobs, audit
@@ -843,6 +877,10 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/changelog.py` parses the source-controlled
   `WEB_CHANGELOG.md` into concise plain-text release entries for authenticated
   display.
+- `job_logger/services/help_assistant.py` builds bounded end-user help context
+  from `USER_MANUAL.md`, `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files,
+  and selected app source, then calls Gemini's OpenAI-compatible
+  chat-completions API only when server-side AI Help is configured.
 - `USER_MANUAL.md` is the full end-user manual. It must describe only surfaces
   normal managed web users can access and must not document Diagnostics or
   other admin-only pages.
@@ -872,7 +910,10 @@ The application is a FastAPI project under `job_logger/`.
   configuration such as immediate light/dark theme selection and explicit
   managed-user password changes.
 - `job_logger/routes/changelog.py` handles authenticated `/changelog` release
-  history for the discreet version link shown in the shared app header.
+  history used by the Help page's **version changelog** overlay and by direct
+  authenticated fallback navigation.
+- `job_logger/routes/help.py` handles authenticated `/help` and `/help/ask`
+  for the Help page and stateless, single-question help assistant answers.
 - `job_logger/routes/debug.py` handles the super-admin diagnostic page, the
   sanitized successful/failed login windows, disk-space monitor, database
   diagnostics, full backup/restore actions, managed web-user session
@@ -884,7 +925,7 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/services/system_health.py` owns shared app-health snapshots,
   including disk usage, cached Autotask API health, database status, database
   latency, database connection-pool pressure, and active login-protection
-  state used by Diagnostics, the authenticated top-bar degraded-health icon,
+  state used by Diagnostics, the authenticated top-bar degraded-health Help link,
   and best-effort admin notifications.
 - `job_logger/services/app_health_monitor.py` runs the optional in-process
   app-health notification loop and suppresses repeated Pushover alerts until
@@ -967,10 +1008,13 @@ The normal workflow is:
    earlier single-user installs.
 3. A managed web user may open `/config` to choose dark or light theme for
    their own login, enable the default-off **Submit from Work in Progress**
-   option, change their password, and add or delete passkeys. Config changes
-   save and apply immediately without a visible save action, except password
-   and passkey actions which are explicit. The password card shows password
-   requirements. The config super admin has no `/config` access and stays dark.
+   option, change their password, and add or delete passkeys. If the account is
+   using a temporary super-admin-created or reset password, `/config` shows only
+   the required password-change flow until the user chooses a new password.
+   Config changes save and apply immediately without a visible save action,
+   except password and passkey actions which are explicit. The password card
+   shows password requirements. The config super admin has no `/config` access
+   and stays dark.
 4. A managed web user opens `/home`.
 5. The `/home` page renders from local application state without running an
    Autotask API contactability check. After the page has loaded, browser
@@ -1076,16 +1120,24 @@ The normal workflow is:
     while the job remains submitted.
 17. Submission attempts and important state changes are recorded for audit and
     diagnostics.
-18. Managed users without a passkey see a Home prompt to set up device sign-in
-    once after a successful login. `/config` always shows device sign-in
+18. Managed users without a passkey see a phone-sized Home prompt to set up
+    device sign-in once after a successful login. `/config` always shows device sign-in
     management backed by passkeys. The login page places Device sign-in under
     the password sign-in button. Later device sign-in uses
     `/login/passkey/options` and `/login/passkey/verify`; failed or canceled
     passkey login must leave the normal password form available.
-19. Authenticated users may open `/changelog` from the discreet header version
-    link to view the current source-controlled version and prior concise release
-    notes parsed from `WEB_CHANGELOG.md`. The current-version panel must show
-    that version's simple change list, not only the release title.
+19. Authenticated users may open `/help` from the shared header Help button.
+    `/help` starts with the **Ask AI for help** card, then shows
+    **Operational Status**, then shows the current source-controlled version,
+    `DEV` when `DEV_BUILD=true`, `Released: MM.DD.YYYY` when the current
+    changelog entry has a release date, and a **version changelog** button that
+    opens release notes in an overlay. The shared degraded-health top-bar
+    button opens this **Operational Status** card directly. The overlay shows
+    previous versions as full-width cards without timeline marker dots and only
+    labels dates for released versions. `/changelog` remains authenticated as a
+    fallback route and shows prior concise release notes parsed from
+    `WEB_CHANGELOG.md`. The current-version panel must show that version's
+    simple change list, not only the release title.
 
 ## Current Autotask Dependency
 
@@ -1123,7 +1175,7 @@ In production:
   results, and failed Diagnostics connectivity tests must mark the cached
   Autotask health state as degraded until a later Autotask API request or
   connectivity test succeeds. This cached state powers the authenticated
-  top-bar degraded-health icon, Diagnostics health banner, and optional
+  top-bar degraded-health Help link, Diagnostics health banner, and optional
   best-effort Pushover notification loop; page rendering must not run a fresh
   Autotask contactability probe.
 - The `/debug` page provides a Diagnostics-admin **Log out web users** action

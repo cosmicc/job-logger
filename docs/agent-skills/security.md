@@ -35,7 +35,12 @@ Admin Diagnostics access, and disabled state.
 Disabled web users must be blocked from new logins and from old signed sessions.
 Managed-user passwords must be at least 8 characters and include lowercase,
 uppercase, number, and symbol characters. Enforce that rule server-side before
-hashing; browser validation is only a usability aid.
+hashing; browser validation is only a usability aid. Passwords created or reset
+by the config super admin are temporary. On the next managed-user sign-in,
+`job_logger/session_timeout.py` and
+`job_logger/services/session_control.py` must allow only `GET /config`,
+`POST /config/password`, and logout until `/config/password` successfully
+changes the password and clears `web_users.password_must_change`.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`.
 `job_logger/session_timeout.py` enforces the server-side timestamp check, and
@@ -59,8 +64,9 @@ form. Failed, canceled, or unsupported passkey authentication must leave the
 username/password form usable.
 User-facing controls should call this feature **Device sign-in** even though the
 technical implementation remains WebAuthn/passkeys. The `/home` device sign-in
-setup card is only a one-time post-login prompt for managed users without a
-passkey; `/config` must always keep the device sign-in setup action available.
+setup card is only a one-time phone-sized post-login prompt for managed users
+without a passkey; `/config` must always keep the device sign-in setup action
+available.
 The super-admin `/users` table may show only passkey setup status, such as a
 green/red icon or safe count. It must not expose credential IDs, public keys,
 transports, AAGUIDs, user agents, or other authenticator metadata.
@@ -86,12 +92,13 @@ must not see the Diag/Diagnostics navigation item, and direct requests from
 those sessions must receive 403 instead of being treated as anonymous login
 redirects.
 The cached app-health top-bar indicator is visible to every authenticated user
-when app health is degraded. Keep it non-clickable, keep `/debug`
-authorization as the server-side source of truth for Diagnostics, and do not
-expose secrets or raw provider details in the header; detailed troubleshooting
-belongs on Diagnostics. Diagnostics may show a yellow or red app-health banner
-for admins while ordinary authenticated users see only the compact top-bar
-indicator.
+when app health is degraded. It may link to `/help#operational-status`, but
+keep `/debug` authorization as the server-side source of truth for Diagnostics
+and do not expose secrets, raw provider details, or specific issue labels in
+the header; detailed troubleshooting belongs on Diagnostics. The header button
+uses yellow for warning and red for critical. Diagnostics may show a yellow or
+red app-health banner for admins while ordinary authenticated users see only
+the compact top-bar Help status link.
 The Diagnostics **Log out web users** action is CSRF-protected, audited, and
 must invalidate only managed web-user sessions. It must not clear the current
 config super-admin session. If a managed Admin user triggers it, that user is
@@ -116,13 +123,14 @@ Per-user configuration lives behind authenticated managed-web-user-only
 `/config` routes. The config super admin has no user settings, must not see the
 Config menu item or phone-sized Config icon, must receive 403 on direct
 `/config` access, and always renders in dark mode. Phone-sized super-admin
-navigation may show Users, Review, and Diagnostics icons; those links do not
-grant any capability beyond the server-side authorization checks on the target
-routes. Phone-sized managed-user navigation may show Home, Review, Config, and
-Diagnostics only when `web_users.is_admin` is enabled. Non-admin managed users
-must not show Diag or Diagnostics navigation. Phone-sized logout controls must
-submit the normal CSRF-protected `/logout` form rather than using browser-only
-close behavior.
+navigation may show Users and Review on the left, with Help, Diagnostics, and
+logout on the right; those links do not grant any capability beyond the
+server-side authorization checks on the target routes. Phone-sized managed-user
+navigation may show Home and Review on the left, with Help, Config,
+Diagnostics only when `web_users.is_admin` is enabled, and logout on the right.
+Non-admin managed users must not show Diag or Diagnostics navigation.
+Phone-sized logout controls must submit the normal CSRF-protected `/logout`
+form rather than using browser-only close behavior.
 Theme and workflow preferences are not secrets, but autosaving them is still a
 state-changing action that must require
 authentication and CSRF. The workflow preference **Submit from Work in
@@ -133,8 +141,9 @@ sessions to change preferences. The `/config/password` route is
 managed-web-user-only, requires CSRF, requires two matching password entries,
 uses the managed-user complexity policy before hashing, and must audit only
 safe metadata such as user ID or username. The password card should show those
-requirements so users can fix validation failures before submitting. Never log,
-audit, or flash the raw submitted password.
+requirements so users can fix validation failures before submitting. It must
+clear the temporary-password flag after a successful change. Never log, audit,
+or flash the raw submitted password.
 The `/config` page should keep its cards ordered as **Appearance**,
 **Password**, **Device sign-in**, then **Workflow** so routine password and
 passkey controls appear before the optional direct-submit workflow preference.
@@ -205,7 +214,7 @@ connectivity status, latency, backend/driver, migration revision, pool class,
 pool counters, and configured pool limits/timeouts. It must not display the
 database URL, host, database name, username, password, or raw exception details.
 The shared app-health service uses the same disk warning/critical thresholds
-for the authenticated top-bar degraded-health icon and also tracks database
+for the authenticated top-bar degraded-health Help link and also tracks database
 availability, database query latency, database connection-pool pressure, active
 local login lockouts, app-managed Cloudflare IP blocks, and cached Autotask
 operation failures. Page rendering may read local app-health checks, but it
@@ -253,11 +262,34 @@ Never commit or print:
 Diagnostic pages and audit details must use safe summaries only.
 Authenticated pages may show the source-controlled application version because
 it is non-secret build metadata; do not source that value from environment
-variables that could drift between containers. Keep `/changelog` authenticated
-so release history stays inside the app shell even though it contains only
-source-controlled release notes. The web changelog must come from concise
-`WEB_CHANGELOG.md` entries, while `CHANGELOG.md` remains the detailed
-operator/agent release record.
+variables that could drift between containers. The shared header links to
+`/help`, where authenticated users can see the current version and open the
+version changelog overlay. Keep both the Help overlay and authenticated
+`/changelog` fallback inside the app shell even though the version and release
+notes are source-controlled metadata. The web changelog must come from concise
+`WEB_CHANGELOG.md` entries, while
+`CHANGELOG.md` remains the detailed operator/agent release record.
+
+AI Help is an external AI integration for authenticated end-user support. Keep
+`GEMINI_API_KEY` in runtime environment or secrets, never in source control.
+Use `AI_HELP_INSTRUCTIONS` for the server-side setup prompt that tells Gemini
+how to answer Job Logger support questions before the user's question is sent.
+Do not put secrets, private URLs, or environment-specific credentials in that
+prompt. The `/help/ask` route must require local authentication and a CSRF
+header, cap submitted question and instruction length, send only bounded local
+documentation/source context, call Gemini through its OpenAI-compatible
+chat-completions API, build the final Gemini endpoint without duplicating the
+`/chat/completions` suffix, and avoid any local database storage of prompts or
+answers. The assistant may use source code as reference for user-facing app
+behavior, but it must refuse source-code, deployment, secret, credential, or
+internal configuration questions. Answer cleanup may trim a short dangling
+fragment after a complete sentence, but it must not log answer text. Help page
+operational-status cards must hide specific health issue details from ordinary
+managed users and show those details only to Diagnostics-authorized users. AI
+Help troubleshooting logs may include metadata such as trace ID, provider,
+model, HTTP status, provider error code, input and answer lengths, context
+source count, and elapsed time, but must not log Gemini API keys, raw questions,
+prompts, provider request bodies, local source context, or answers.
 
 ## Audit Requirements
 
@@ -307,9 +339,11 @@ Cleanup handling must:
   server-side in Docker or another approved secret store.
 - Send only bounded summary text and minimal job context to the selected
   provider.
-- Set `store=false` on Gemini generateContent requests.
+- Use `GEMINI_API_BASE` for Gemini cleanup endpoint construction while keeping
+  `GEMINI_CLEANUP_MODEL` separate from the Help model.
 - Send configured cleanup instructions through the provider instruction field
-  without duplicating those private rules in the user-visible summary prompt.
+  without using `AI_HELP_INSTRUCTIONS` or duplicating those private rules in
+  the user-visible summary prompt.
 - Reject public Ollama and LM Studio base URLs.
 - Return cleaned text to the browser without submitting to Autotask.
 - Audit provider, model, source, status, and text lengths only.
@@ -579,5 +613,6 @@ Security-sensitive changes usually need tests in:
 - `tests/test_workflow.py`.
 - `tests/test_debug.py`.
 - `tests/test_changelog.py` when version or release-history display changes.
+- `tests/test_help.py` when Help navigation or help assistant behavior changes.
 
 When in doubt, add a regression test for the security boundary being changed.

@@ -35,7 +35,7 @@ class UnavailableDatabaseMonitor:
 def test_anonymous_sensitive_pages_redirect_to_login(client: TestClient) -> None:
     """Normal browser pages with app data should not render without a session."""
 
-    for path in ("/home", "/review", "/users", "/debug", "/config", "/changelog"):
+    for path in ("/home", "/review", "/users", "/debug", "/config", "/changelog", "/help"):
         response = client.get(path, follow_redirects=False)
 
         assert response.status_code == 303, path
@@ -71,6 +71,7 @@ def test_anonymous_json_and_action_routes_require_authentication(client: TestCli
         "/jobs/job-1/end",
         "/jobs/job-1/description/text",
         "/jobs/job-1/summary/cleanup",
+        "/help/ask",
         "/review/job-1/save",
         "/review/job-1/client",
         "/review/job-1/accept",

@@ -20,6 +20,7 @@ import httpx
 from job_logger.config import Settings, settings
 
 GROQ_CHAT_COMPLETIONS_PATH = "/chat/completions"
+GEMINI_CHAT_COMPLETIONS_PATH = "/chat/completions"
 LM_STUDIO_CHAT_COMPLETIONS_PATH = "/chat/completions"
 OLLAMA_GENERATE_PATH = "/generate"
 MAX_CLEANED_SUMMARY_CHARS = 32000
@@ -170,6 +171,17 @@ def _validate_private_network_provider_base_url(provider_label: str, base_url: s
     return normalized_base_url
 
 
+def _gemini_chat_completions_url(api_base_url: str) -> str:
+    """Return the configured Gemini OpenAI-compatible chat-completions endpoint."""
+
+    normalized_api_base_url = api_base_url.strip().rstrip("/")
+    parsed_url = urlparse(normalized_api_base_url)
+    if parsed_url.path.rstrip("/").endswith(GEMINI_CHAT_COMPLETIONS_PATH):
+        return normalized_api_base_url
+
+    return f"{normalized_api_base_url}{GEMINI_CHAT_COMPLETIONS_PATH}"
+
+
 def _post_provider_json(
     *,
     provider_label: str,
@@ -203,33 +215,36 @@ def _post_provider_json(
 
 
 def _build_gemini_payload(cleanup_input: str, application_settings: Settings) -> dict[str, Any]:
-    """Build a Gemini generateContent payload for text cleanup."""
+    """Build a Gemini OpenAI-compatible chat-completions payload."""
 
     return {
-        "store": False,
-        "systemInstruction": {
-            "parts": [{"text": application_settings.ai_cleanup_instructions}],
-        },
-        "contents": [
+        "model": application_settings.gemini_cleanup_model,
+        "messages": [
+            {
+                "role": "system",
+                "content": application_settings.ai_cleanup_instructions,
+            },
             {
                 "role": "user",
-                "parts": [{"text": cleanup_input}],
-            }
+                "content": cleanup_input,
+            },
         ],
+        "temperature": 0.2,
+        "stream": False,
     }
 
 
 def _create_gemini_response(request_payload: dict[str, Any], application_settings: Settings) -> dict[str, Any]:
-    """Call the Gemini generateContent API and return a JSON object response."""
+    """Call the configured Gemini OpenAI-compatible API for cleanup."""
 
     if not application_settings.gemini_api_key:
         raise AiCleanupError("AI cleanup is not configured with a Gemini API key.")
 
     return _post_provider_json(
         provider_label="Gemini",
-        url=f"{application_settings.gemini_cleanup_api_base_url}/models/{application_settings.gemini_cleanup_model}:generateContent",
+        url=_gemini_chat_completions_url(application_settings.gemini_api_base),
         headers={
-            "x-goog-api-key": application_settings.gemini_api_key,
+            "Authorization": f"Bearer {application_settings.gemini_api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         },
@@ -239,26 +254,27 @@ def _create_gemini_response(request_payload: dict[str, Any], application_setting
 
 
 def _extract_gemini_output_text(response_payload: dict[str, Any]) -> str:
-    """Extract text from a Gemini generateContent response."""
+    """Extract text from a Gemini OpenAI-compatible chat-completions response."""
 
-    candidates = response_payload.get("candidates")
+    choices = response_payload.get("choices")
     collected_text: list[str] = []
-    if isinstance(candidates, list):
-        for candidate in candidates:
-            if not isinstance(candidate, dict):
+    if isinstance(choices, list):
+        for choice in choices:
+            if not isinstance(choice, dict):
                 continue
-            content = candidate.get("content")
-            if not isinstance(content, dict):
+            message = choice.get("message")
+            if not isinstance(message, dict):
                 continue
-            parts = content.get("parts")
-            if not isinstance(parts, list):
-                continue
-            for part in parts:
-                if not isinstance(part, dict):
-                    continue
-                text_value = part.get("text")
-                if isinstance(text_value, str) and text_value:
-                    collected_text.append(text_value)
+            content = message.get("content")
+            if isinstance(content, str) and content:
+                collected_text.append(content)
+            elif isinstance(content, list):
+                for content_part in content:
+                    if not isinstance(content_part, dict):
+                        continue
+                    text_value = content_part.get("text")
+                    if isinstance(text_value, str) and text_value:
+                        collected_text.append(text_value)
 
     return "\n".join(collected_text).strip()
 

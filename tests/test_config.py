@@ -180,6 +180,45 @@ def test_app_health_and_pushover_settings_load_from_environment(monkeypatch) -> 
     assert dev_settings.pushover_notifications_enabled is False
 
 
+def test_ai_help_settings_load_from_environment(monkeypatch) -> None:
+    """AI Help settings should stay environment-backed and secret-safe."""
+
+    monkeypatch.setenv("AI_HELP_ENABLED", "true")
+    monkeypatch.setenv("AI_HELP_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", " gemini-key-value \n")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-3.5-flash")
+    monkeypatch.setenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta/openai/")
+    monkeypatch.setenv("AI_HELP_MAX_TOKENS", "800")
+    monkeypatch.setenv("AI_HELP_TEMPERATURE", "0.2")
+    monkeypatch.setenv("AI_HELP_INSTRUCTIONS", "Answer Job Logger support questions for end users.")
+
+    loaded_settings = load_settings()
+
+    assert loaded_settings.ai_help_enabled is True
+    assert loaded_settings.ai_help_provider == "gemini"
+    assert loaded_settings.gemini_api_key == "gemini-key-value"
+    assert loaded_settings.gemini_model == "gemini-3.5-flash"
+    assert loaded_settings.gemini_api_base == "https://generativelanguage.googleapis.com/v1beta/openai"
+    assert loaded_settings.ai_help_max_tokens == 800
+    assert loaded_settings.ai_help_temperature == 0.2
+    assert loaded_settings.ai_help_instructions == "Answer Job Logger support questions for end users."
+    assert loaded_settings.ai_help_configured is True
+
+
+def test_gemini_cleanup_reuses_gemini_api_base(monkeypatch) -> None:
+    """Gemini cleanup should share the Gemini URL setting while keeping its model."""
+
+    monkeypatch.setenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta/openai/")
+    monkeypatch.setenv("GEMINI_CLEANUP_MODEL", "cleanup-only-model")
+    monkeypatch.setenv("GEMINI_CLEANUP_API_BASE_URL", "https://wrong.example.test/v1beta")
+
+    loaded_settings = load_settings()
+
+    assert loaded_settings.gemini_api_base == "https://generativelanguage.googleapis.com/v1beta/openai"
+    assert loaded_settings.gemini_cleanup_model == "cleanup-only-model"
+    assert not hasattr(loaded_settings, "gemini_cleanup_api_base_url")
+
+
 def test_plain_postgresql_urls_use_installed_psycopg_driver() -> None:
     """Provider-style PostgreSQL URLs should not require the psycopg2 package."""
 
@@ -415,6 +454,7 @@ def test_web_user_can_change_password_from_config(authenticated_client: TestClie
         user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
         assert user is not None
         assert user.password_hash != password_hash_after_mismatch
+        assert user.password_must_change is False
         audit_event = database_session.scalar(
             select(AuditEvent).where(AuditEvent.action == "user.config.password_changed")
         )

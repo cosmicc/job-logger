@@ -704,7 +704,7 @@ def home_page(
         principal.key if principal else None,
     )
     show_passkey_setup_prompt = (
-        bool(request.session.pop(SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY, False))
+        bool(request.session.get(SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY, False))
         and passkey_credential_count_for_user(database_session, web_user.id) == 0
     )
 

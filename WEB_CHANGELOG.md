@@ -2,7 +2,27 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## 1.2.2 - 07.03.2026 - User manual, app icon, and Config workflow
+## 1.2.3 - 07.05.2026 - Help navigation, AI Help, AI Cleanup, and changelog display
+
+- The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.
+- Help now sits beside Log out in the header, while the main route buttons stay grouped together.
+- On phones, Work and Review now stay on the left, while Help, Config, any optional admin shortcut, and Log out sit on the right.
+- Phone header icons are larger inside the same compact navigation buttons.
+- Phone header icons are now even larger and use the same size inside every nav button.
+- The Help page now opens the version changelog in an overlay with an X close button.
+- On phones, the current version and version changelog button now share one row.
+- The Help page now starts with Ask AI for help, then shows Operational Status, with Current version as the last card.
+- The Help page cards now have a little more space between them.
+- Ask AI for help now uses a one-line question field that submits when Enter is pressed.
+- The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions.
+- Gemini AI Cleanup now uses the same Gemini endpoint setup as Ask AI for help.
+- Ask AI for help now keeps broad/simple answers concise and avoids showing unfinished trailing fragments.
+- Ask AI for help now explains what users can ask, clears the old question when users start another one, and shows a general app operational-status card.
+- The degraded app-health alert now opens Operational Status on the Help page and uses yellow or red to show severity; Operational Status shows green when the app is healthy.
+- New managed users and users whose password was reset now have to change that temporary password before using the app; phones still show the device sign-in setup prompt after the password is changed.
+- Help now labels released version dates as Released: MM.DD.YYYY and shows previous changelog entries as full-width cards without timeline dots.
+
+## 1.2.2 - 07.03.2026 - App icon, user manual, ticket history, and Config workflow
 
 - Updated the app icon, browser favicon, and desktop header logo to the new Job Logger artwork.
 - The installed app icon now uses the original dark-background icon artwork, fills the icon frame, and avoids the over-zoomed maskable icon crop.
@@ -42,7 +62,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - The login page no longer shows a top app mark above the sign-in form.
 - The full-browser header now uses the same installed-app icon asset.
 - If storage is temporarily unavailable, the browser now shows a Job Logger-styled Service Temporarily Unavailable page that retries sign-in automatically.
-- The changelog now shows version numbers without brackets and release dates for each version.
+- The changelog now shows version numbers without brackets and release dates for released versions.
 - The work-entry navigation button now says Work, uses a work-entry icon, and the mobile top-bar buttons use the same blue style as the full web nav.
 - Work in Progress and Review detail now show the ticket title with the state pill beside it, center key field labels, and use matching action button sizes.
 - Work in Progress active cards show the Work in Progress label again, and full-browser summary notes line up with the job date cards.

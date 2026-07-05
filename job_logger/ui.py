@@ -61,6 +61,7 @@ def template_context(
 ) -> dict[str, object]:
     """Build common context for all templates."""
 
+    application_settings = getattr(request.app.state, "application_settings", settings)
     current_theme = ThemeMode.DARK
     if database_session is not None and current_username(request):
         current_theme = get_theme_for_session(database_session, request.session)
@@ -83,8 +84,8 @@ def template_context(
         "current_theme": current_theme.value,
         "theme_color": THEME_META_COLORS[current_theme],
         "flash_messages": pop_flash_messages(request),
-        "ai_cleanup_enabled": settings.ai_cleanup_enabled,
-        "dev_build": settings.dev_build,
+        "ai_cleanup_enabled": application_settings.ai_cleanup_enabled,
+        "dev_build": application_settings.dev_build,
         "app_version": APP_VERSION,
         "static_asset_version": static_asset_version(),
     }
