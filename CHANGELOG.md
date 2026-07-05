@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## 1.2.3 - Help navigation, AI Help and cleanup, changelog display, and Portainer env guidance
+## 1.2.3 - 07.05.2026 - Help navigation, AI Help and cleanup, changelog display, and Portainer env guidance
 
 - Advanced the source-controlled dev runtime version to `v1.2.3`, including
   the Python package metadata and PWA service worker cache version.

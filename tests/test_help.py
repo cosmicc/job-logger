@@ -54,7 +54,7 @@ def test_authenticated_help_page_renders_version_and_changelog(
     assert ">Operational<" in response.text
     assert "All monitored app checks are fully operational." in response.text
     assert ">v1.2.3<" in response.text
-    assert 'class="help-version-release-date"' not in response.text
+    assert '<p class="help-version-release-date">Released: 07.05.2026</p>' in response.text
     assert 'href="/changelog"' in response.text
     assert "data-help-changelog-open" in response.text
     assert "data-help-changelog-overlay" in response.text

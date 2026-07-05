@@ -2,7 +2,7 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## 1.2.3 - Help navigation, AI Help, AI Cleanup, and changelog display
+## 1.2.3 - 07.05.2026 - Help navigation, AI Help, AI Cleanup, and changelog display
 
 - The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.
 - Help now sits beside Log out in the header, while the main route buttons stay grouped together.
