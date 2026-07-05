@@ -4571,6 +4571,8 @@ td a {
 
 .changelog-shell,
 .help-shell {
+  display: grid;
+  gap: 14px;
   width: min(980px, calc(100% - 32px));
 }
 

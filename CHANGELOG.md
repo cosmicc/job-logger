@@ -46,6 +46,11 @@ All notable changes to Job Logger are documented in this file.
   `AI_CLEANUP_INSTRUCTIONS` cleanup-specific.
 - Fixed Gemini AI cleanup requests for the OpenAI-compatible Gemini endpoint
   by matching the working chat-completions payload shape used by AI Help.
+- Increased phone-sized header navigation icons again and normalized every
+  mobile nav icon to the same visible size inside its button, including
+  degraded-health layouts.
+- Added consistent spacing between the Help page cards across phone and
+  full-browser layouts.
 - Added bounded local help context from `USER_MANUAL.md`,
   `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files, and selected app source
   files so the server can answer user-support questions without committing

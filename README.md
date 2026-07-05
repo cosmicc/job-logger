@@ -565,10 +565,11 @@ currently `v1.2.3`. Version history starts at `v1.0.0`.
 
 Authenticated pages show a Help button in the shared header. `/help` starts
 with **Ask AI for help**, shows **Operational Status**, then shows the current
-version card with `Released: MM.DD.YYYY` when that version has a release date
-and a **version changelog** button that opens concise release notes in an
-overlay. `/changelog` remains available as an authenticated fallback page and
-uses `WEB_CHANGELOG.md` as its source. The changelog shows version numbers
+version card with a little space between each card, `Released: MM.DD.YYYY`
+when that version has a release date, and a **version changelog** button that
+opens concise release notes in an overlay. `/changelog` remains available as
+an authenticated fallback page and uses `WEB_CHANGELOG.md` as its source. The
+changelog shows version numbers
 without brackets, uses `MM.DD.YYYY` dates for released versions, and lists
 short user-facing changes for each version. `CHANGELOG.md` remains the detailed source changelog for operators and agents.
 `WEB_CHANGELOG.md` is only for user-facing changes; keep diagnostics,
@@ -1052,7 +1053,8 @@ the brand mark and desktop logout button. Managed web users see Work and
 Review left-aligned, then Help, Config, optional Diagnostics, and logout
 right-aligned. The Work icon links to `/home` and uses the same work-entry
 symbol as the full-browser Work nav button. The config super admin sees Users
-and Review on the left, with Help, Diagnostics, and logout on the right. The mobile logout
+and Review on the left, with Help, Diagnostics, and logout on the right. Phone
+nav icons use one larger shared size inside the compact buttons. The mobile logout
 icon submits the normal CSRF-protected `/logout` form. Full-width `/home`,
 review, debug, and other non-mobile pages keep the explicit desktop logout
 button. Mobile submit actions show a loading overlay once the

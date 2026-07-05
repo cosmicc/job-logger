@@ -65,8 +65,8 @@
 
 .mobile-nav-action svg,
 .mobile-logout-action svg {
-  width: 22px;
-  height: 22px;
+  width: 25px;
+  height: 25px;
 }
 
 .has-health-alert .mobile-nav-action,
@@ -77,8 +77,8 @@
 
 .has-health-alert .mobile-nav-action svg,
 .has-health-alert .mobile-logout-action svg {
-  width: 20px;
-  height: 20px;
+  width: 25px;
+  height: 25px;
 }
 
 .mobile-logout-form {

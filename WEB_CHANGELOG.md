@@ -8,9 +8,11 @@ Short release notes shown on the authenticated `/changelog` page.
 - Help now sits beside Log out in the header, while the main route buttons stay grouped together.
 - On phones, Work and Review now stay on the left, while Help, Config, any optional admin shortcut, and Log out sit on the right.
 - Phone header icons are larger inside the same compact navigation buttons.
+- Phone header icons are now even larger and use the same size inside every nav button.
 - The Help page now opens the version changelog in an overlay with an X close button.
 - On phones, the current version and version changelog button now share one row.
 - The Help page now starts with Ask AI for help, then shows Operational Status, with Current version as the last card.
+- The Help page cards now have a little more space between them.
 - Ask AI for help now uses a one-line question field that submits when Enter is pressed.
 - The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions.
 - Gemini AI Cleanup now uses the same Gemini endpoint setup as Ask AI for help.

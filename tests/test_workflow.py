@@ -1544,6 +1544,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".help-changelog-button" in stylesheet
     assert ".help-changelog-button:hover" in stylesheet
     assert ".help-changelog-button:active" in stylesheet
+    assert ".help-shell {\n  display: grid;\n  gap: 14px;" in stylesheet
     assert ".help-question-form input[data-help-question-input] {\n  height: 44px;" in stylesheet
     assert ".help-operational-panel" in stylesheet
     assert ".help-health-issue-list" in stylesheet
@@ -1786,8 +1787,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".mobile-nav-actions {\n  display: flex;" in phone_stylesheet
     assert ".mobile-nav-left {\n  grid-column: 1;" in phone_stylesheet
     assert ".mobile-nav-right {\n  grid-column: 2;" in phone_stylesheet
-    assert ".mobile-nav-action svg,\n.mobile-logout-action svg {\n  width: 22px;" in phone_stylesheet
-    assert ".has-health-alert .mobile-nav-action svg,\n.has-health-alert .mobile-logout-action svg {\n  width: 20px;" in phone_stylesheet
+    assert ".mobile-nav-action svg,\n.mobile-logout-action svg {\n  width: 25px;" in phone_stylesheet
+    assert ".has-health-alert .mobile-nav-action svg,\n.has-health-alert .mobile-logout-action svg {\n  width: 25px;" in phone_stylesheet
     assert ".mobile-logout-form {\n  display: inline-grid;" in phone_stylesheet
     assert ".desktop-header-actions,\n.desktop-logout-form {\n  display: none;" in phone_stylesheet
     assert ".help-version-panel {\n  align-items: center;\n  flex-direction: row;" in phone_stylesheet

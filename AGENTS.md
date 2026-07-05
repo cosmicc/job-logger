@@ -531,7 +531,8 @@ advertise maskable install icons unless a future design includes a tested
 full-bleed mask-safe background. It should include a **Log out**
 button with the logout icon and visible text while preserving the phone-sized
 icon navigation. Phone top-bar navigation buttons should use the same blue
-visual treatment as the full-browser navigation buttons.
+visual treatment as the full-browser navigation buttons, and all phone nav
+icons should use one shared visible size inside their compact buttons.
 Enabled buttons and button-like navigation controls should show a slight
 brighter hover state, and workflow action buttons should have a raised idle
 state plus a pressed-in active state. Destructive red controls should stay red
