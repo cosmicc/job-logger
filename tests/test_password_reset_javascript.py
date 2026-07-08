@@ -170,6 +170,7 @@ def test_password_reset_turnstile_retries_api_script_load_failure(tmp_path: Path
 
             const passwordResetScript = fs.readFileSync({str(password_reset_script_path)!r}, "utf8");
             const eventHandlers = {{}};
+            const fetchCalls = [];
             let appendedScript = null;
             const statusElement = {{
               textContent: "",
@@ -218,6 +219,13 @@ def test_password_reset_turnstile_retries_api_script_load_failure(tmp_path: Path
               }},
               addEventListener() {{}},
               querySelector(selector) {{
+                if (selector === "meta[name='csrf-token']") {{
+                  return {{
+                    getAttribute(name) {{
+                      return name === "content" ? "csrf-value" : "";
+                    }},
+                  }};
+                }}
                 if (selector === 'form[action="/forgot-password"]') {{
                   return formElement;
                 }}
@@ -246,6 +254,12 @@ def test_password_reset_turnstile_retries_api_script_load_failure(tmp_path: Path
                 return 1;
               }},
               window: {{
+                fetch(url, options) {{
+                  fetchCalls.push({{url, options, body: JSON.parse(options.body)}});
+                  return {{
+                    catch() {{}},
+                  }};
+                }},
                 setTimeout() {{
                   return 1;
                 }},
@@ -270,6 +284,14 @@ def test_password_reset_turnstile_retries_api_script_load_failure(tmp_path: Path
               statusElement.textContent,
               "Human verification could not load. Reload this page or check browser content blockers.",
             );
+            const eventNames = fetchCalls.map((call) => call.body.event);
+            assert(eventNames.includes("turnstile.initialize"));
+            assert(eventNames.includes("turnstile.api_script_error"));
+            assert(eventNames.includes("turnstile.fallback_script_appended"));
+            assert(eventNames.includes("turnstile.fallback_script_unavailable"));
+            assert(eventNames.includes("turnstile.load_failed"));
+            assert(fetchCalls.every((call) => call.url === "/forgot-password/turnstile-event"));
+            assert(fetchCalls.every((call) => call.options.headers["X-CSRF-Token"] === "csrf-value"));
           """
         ),
         encoding="utf-8",

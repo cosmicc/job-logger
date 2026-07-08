@@ -96,6 +96,11 @@ script fails before rendering. Do not call `turnstile.ready()` from a deferred
 script. Keep the reset button disabled until a non-empty Turnstile token
 exists; server-side verification remains mandatory and must reject mismatched
 Turnstile action or public hostname values returned by Cloudflare Siteverify.
+Forgot-password Turnstile browser diagnostics may post CSRF-protected,
+same-origin, sanitized lifecycle events to the app for logging. Those logs may
+include event names, script host/path metadata, callback state, token length,
+render state, request IP, and user agent, but must never include raw Turnstile
+tokens, email addresses, reset URLs, cookies, secrets, site keys, or API keys.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`,
 measured in hours. The configured value controls both the signed session cookie
@@ -935,7 +940,8 @@ The application is a FastAPI project under `job_logger/`.
   login, logout, and local authenticated sessions, including sanitized
   database-backed login-attempt records.
 - `job_logger/routes/password_reset.py` handles self-service managed-user
-  password reset requests and token completion without account enumeration.
+  password reset requests, sanitized Turnstile browser diagnostics, and token
+  completion without account enumeration.
 - `job_logger/routes/passkeys.py` handles managed-user passkey registration,
   deletion, and passkey login challenge/verification routes.
 - `job_logger/routes/mobile.py` handles `/home`, active job start/end/save,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import replace
 from typing import Any
 
@@ -93,6 +94,30 @@ def test_turnstile_validation_posts_required_siteverify_fields(monkeypatch) -> N
     assert request["data"]["response"] == "token"
     assert request["data"]["remoteip"] == "203.0.113.10"
     assert request["data"]["idempotency_key"]
+
+
+def test_turnstile_validation_logs_safe_debug_metadata(monkeypatch, caplog) -> None:
+    """Siteverify diagnostics should include useful metadata without raw tokens."""
+
+    _FakeAsyncClient.calls = []
+    _FakeAsyncClient.response_payload = {
+        "success": True,
+        "hostname": "joblogger.example.test",
+        "action": "password_reset",
+    }
+    monkeypatch.setattr(turnstile_service.httpx, "AsyncClient", _FakeAsyncClient)
+
+    with caplog.at_level(logging.DEBUG, logger="job_logger.services.turnstile"):
+        result = _run_validation(response_token="raw-sensitive-token")
+
+    assert result.success is True
+    assert "Turnstile Siteverify request start" in caplog.text
+    assert "Turnstile Siteverify response" in caplog.text
+    assert "Turnstile verification succeeded" in caplog.text
+    assert "token_length=19" in caplog.text
+    assert "joblogger.example.test" in caplog.text
+    assert "raw-sensitive-token" not in caplog.text
+    assert "secret-key" not in caplog.text
 
 
 def test_turnstile_validation_rejects_action_mismatch(monkeypatch) -> None:

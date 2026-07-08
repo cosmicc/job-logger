@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import re
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -32,6 +35,35 @@ from job_logger.services.users import WebUserError
 from job_logger.ui import template_context, templates
 
 router = APIRouter(tags=["password-reset"])
+LOGGER = logging.getLogger(__name__)
+TURNSTILE_BROWSER_EVENT_NAME_RE = re.compile(r"[^a-z0-9_.-]")
+TURNSTILE_BROWSER_EVENT_TEXT_LIMIT = 180
+TURNSTILE_BROWSER_EVENT_DETAIL_LIMIT = 20
+TURNSTILE_BROWSER_EVENT_WARNING_NAMES = {
+    "turnstile.api_script_error",
+    "turnstile.fallback_script_unavailable",
+    "turnstile.load_failed",
+    "turnstile.render_exception",
+    "turnstile.callback_error",
+    "turnstile.callback_timeout",
+    "turnstile.callback_unsupported",
+    "turnstile.submit_blocked",
+}
+TURNSTILE_BROWSER_EVENT_UNSAFE_KEY_PARTS = (
+    "authorization",
+    "cookie",
+    "email",
+    "key",
+    "password",
+    "response",
+    "secret",
+    "token",
+)
+TURNSTILE_BROWSER_EVENT_SAFE_EXCEPTION_KEYS = {
+    "response_input_has_value",
+    "response_input_present",
+    "token_length",
+}
 
 
 def _application_settings(request: Request):
@@ -57,6 +89,74 @@ def _reset_status_action(reset_status: str) -> str:
     return "auth.password_reset.token_invalid"
 
 
+def _bounded_log_text(value: object, *, limit: int = TURNSTILE_BROWSER_EVENT_TEXT_LIMIT) -> str:
+    """Return single-line bounded text safe for diagnostic logs."""
+
+    text_value = str(value or "")
+    text_value = " ".join(text_value.split())
+    if len(text_value) <= limit:
+        return text_value
+    return f"{text_value[:limit]}..."
+
+
+def _safe_browser_event_name(value: object) -> str:
+    """Return a normalized browser telemetry event name."""
+
+    event_name = _bounded_log_text(value, limit=80).casefold()
+    event_name = TURNSTILE_BROWSER_EVENT_NAME_RE.sub("_", event_name).strip("._-")
+    return event_name or "turnstile.unknown"
+
+
+def _safe_browser_event_key(value: object) -> str | None:
+    """Return a safe detail key or None when the key may identify sensitive data."""
+
+    key_name = _bounded_log_text(value, limit=48).casefold()
+    key_name = TURNSTILE_BROWSER_EVENT_NAME_RE.sub("_", key_name).strip("._-")
+    if not key_name:
+        return None
+    if key_name not in TURNSTILE_BROWSER_EVENT_SAFE_EXCEPTION_KEYS and any(
+        unsafe_part in key_name for unsafe_part in TURNSTILE_BROWSER_EVENT_UNSAFE_KEY_PARTS
+    ):
+        return None
+    return key_name
+
+
+def _safe_browser_event_url(value: object) -> str:
+    """Return a URL without query or fragment values for safe script diagnostics."""
+
+    parsed_url = urlparse(str(value or ""))
+    if not parsed_url.scheme or not parsed_url.netloc:
+        return _bounded_log_text(parsed_url.path or value)
+    return _bounded_log_text(f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}")
+
+
+def _safe_browser_event_value(key_name: str, value: object) -> object:
+    """Return a bounded value for Turnstile browser diagnostic logs."""
+
+    if isinstance(value, bool | int | float):
+        return value
+    if value is None:
+        return None
+    if key_name.endswith("_src") or key_name.endswith("_url") or key_name in {"src", "url"}:
+        return _safe_browser_event_url(value)
+    return _bounded_log_text(value)
+
+
+def _safe_browser_event_details(payload_details: object) -> dict[str, object]:
+    """Return allowlisted, bounded, non-secret browser event details."""
+
+    if not isinstance(payload_details, dict):
+        return {}
+
+    safe_details: dict[str, object] = {}
+    for raw_key, raw_value in list(payload_details.items())[:TURNSTILE_BROWSER_EVENT_DETAIL_LIMIT]:
+        safe_key = _safe_browser_event_key(raw_key)
+        if safe_key is None:
+            continue
+        safe_details[safe_key] = _safe_browser_event_value(safe_key, raw_value)
+    return safe_details
+
+
 def _render_invalid_reset_link(
     request: Request,
     *,
@@ -74,6 +174,35 @@ def _render_invalid_reset_link(
         ),
         status_code=status_code,
     )
+
+
+@router.post("/forgot-password/turnstile-event")
+async def log_turnstile_browser_event(request: Request) -> Response:
+    """Log sanitized browser-side Turnstile lifecycle diagnostics."""
+
+    _require_password_reset_enabled(request)
+    validate_csrf_token(request, request.headers.get("x-csrf-token"))
+    try:
+        payload = await request.json()
+    except ValueError:
+        payload = {}
+
+    event_name = _safe_browser_event_name(payload.get("event") if isinstance(payload, dict) else "")
+    details = _safe_browser_event_details(payload.get("details") if isinstance(payload, dict) else {})
+    application_settings = _application_settings(request)
+    safe_context = {
+        "ip": enforcement_client_ip_from_request(request),
+        "path": request.url.path,
+        "turnstile_enabled": application_settings.turnstile_enabled,
+        "dev_build": application_settings.dev_build,
+        "user_agent": _bounded_log_text(request.headers.get("user-agent", ""), limit=220),
+    }
+    LOGGER.debug("Turnstile browser debug event=%s context=%s details=%s", event_name, safe_context, details)
+    if event_name in TURNSTILE_BROWSER_EVENT_WARNING_NAMES:
+        LOGGER.warning("Turnstile browser event event=%s context=%s details=%s", event_name, safe_context, details)
+    else:
+        LOGGER.info("Turnstile browser event event=%s context=%s details=%s", event_name, safe_context, details)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/forgot-password", response_class=HTMLResponse)

@@ -57,6 +57,9 @@ All notable changes to Job Logger are documented in this file.
 - Tightened password reset Turnstile server validation by rejecting oversized
   tokens before Siteverify and requiring Cloudflare's returned action and
   hostname to match the forgot-password flow and configured public URL.
+- Added sanitized forgot-password Turnstile browser and Siteverify logging,
+  including debug-level lifecycle metadata and warning-level browser failure
+  events without logging raw tokens, emails, reset URLs, site keys, or secrets.
 - Fixed the login page version label spacing so the version renders 6px below
   the sign-in card instead of being pushed down by stretched grid rows.
 - Lowered the full-browser header version label a few pixels under the Job

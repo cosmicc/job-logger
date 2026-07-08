@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 from urllib.parse import urlsplit
 
@@ -279,3 +280,55 @@ def test_turnstile_csp_is_added_when_password_reset_uses_turnstile(client: TestC
     assert "script-src 'self' https://challenges.cloudflare.com" in csp_header
     assert "frame-src https://challenges.cloudflare.com" in csp_header
     assert "frame-ancestors 'none'" in csp_header
+
+
+def test_turnstile_browser_event_logging_requires_csrf_and_sanitizes_details(caplog) -> None:
+    """Browser-side Turnstile telemetry should be CSRF-protected and sanitized."""
+
+    reset_settings = _reset_settings(
+        turnstile_enabled=True,
+        turnstile_site_key="site-key",
+        turnstile_secret_key="secret-key",
+    )
+    with TestClient(create_app(reset_settings)) as reset_client:
+        page_response = reset_client.get("/forgot-password")
+        csrf_token = extract_csrf_token(page_response.text)
+
+        missing_csrf_response = reset_client.post(
+            "/forgot-password/turnstile-event",
+            json={"event": "turnstile.api_script_error"},
+        )
+        assert missing_csrf_response.status_code == 403
+
+        with caplog.at_level(logging.DEBUG, logger="job_logger.routes.password_reset"):
+            response = reset_client.post(
+                "/forgot-password/turnstile-event",
+                headers={"X-CSRF-Token": csrf_token},
+                json={
+                    "event": "turnstile.api_script_error",
+                    "details": {
+                        "script_src": "https://challenges.cloudflare.com/turnstile/v0/api.js?token=secret",
+                        "token": "raw-turnstile-token",
+                        "token_length": 21,
+                        "email": "tech@example.test",
+                        "response_value": "raw-response",
+                        "response_input_present": True,
+                        "response_input_has_value": False,
+                        "sitekey": "site-key",
+                        "fallback_attempted": False,
+                    },
+                },
+            )
+
+    assert response.status_code == 204
+    assert "Turnstile browser debug event=turnstile.api_script_error" in caplog.text
+    assert "Turnstile browser event event=turnstile.api_script_error" in caplog.text
+    assert "https://challenges.cloudflare.com/turnstile/v0/api.js" in caplog.text
+    assert "fallback_attempted" in caplog.text
+    assert "token_length" in caplog.text
+    assert "response_input_present" in caplog.text
+    assert "response_input_has_value" in caplog.text
+    assert "raw-turnstile-token" not in caplog.text
+    assert "tech@example.test" not in caplog.text
+    assert "raw-response" not in caplog.text
+    assert "site-key" not in caplog.text

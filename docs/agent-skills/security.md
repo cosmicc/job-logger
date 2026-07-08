@@ -75,7 +75,12 @@ a visible verification status. That browser guard is usability only;
 server-side Turnstile verification remains mandatory. Server-side Siteverify
 handling must also reject responses whose returned `action` is not
 `password_reset` or whose returned hostname does not match
-`APP_PUBLIC_BASE_URL`.
+`APP_PUBLIC_BASE_URL`. The forgot-password page may post CSRF-protected
+same-origin Turnstile browser lifecycle diagnostics for app logging. Keep those
+events strictly sanitized: event names, script host/path metadata, callback
+state, render state, token length, request IP, and user agent are acceptable;
+raw tokens, emails, reset URLs, cookies, secrets, site keys, and API keys are
+not.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`.
 `job_logger/session_timeout.py` enforces the server-side timestamp check, and
