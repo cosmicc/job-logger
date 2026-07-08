@@ -167,8 +167,11 @@ def test_login_version_label_uses_small_close_spacing() -> None:
         encoding="utf-8"
     )
 
+    assert "grid-auto-rows: max-content;" in stylesheet
+    assert "align-content: start;" in stylesheet
+    assert "row-gap: 6px;" in stylesheet
     assert ".login-version-label" in stylesheet
-    assert "margin: 5px 0 0;" in stylesheet
+    assert "margin: 0;" in stylesheet
     assert "font-size: 10px;" in stylesheet
     assert "line-height: 1;" in stylesheet
 

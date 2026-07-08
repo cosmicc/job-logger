@@ -237,6 +237,28 @@ svg {
   font-weight: 750;
 }
 
+.brand-text-stack {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  line-height: 1;
+}
+
+.brand-title {
+  display: block;
+  white-space: nowrap;
+}
+
+.desktop-brand-version {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .desktop-header-left {
   display: inline-flex;
   grid-column: 1;
@@ -546,6 +568,9 @@ svg {
 
 .login-shell {
   display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  row-gap: 6px;
   min-height: calc(100dvh - 118px);
   padding-top: clamp(30px, 9vh, 84px);
   place-items: start center;
@@ -573,7 +598,7 @@ svg {
 }
 
 .login-version-label {
-  margin: 5px 0 0;
+  margin: 0;
   color: var(--muted);
   font-size: 10px;
   font-weight: 700;

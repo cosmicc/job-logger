@@ -264,14 +264,14 @@ def test_turnstile_csp_is_added_when_password_reset_uses_turnstile(client: TestC
 
     assert response.status_code == 200
     assert "/static/password-reset.js?v=" in response.text
-    assert '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script>' in response.text
+    assert (
+        '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" '
+        "defer data-turnstile-api-script></script>"
+    ) in response.text
     assert 'id="password-reset-turnstile"' in response.text
     assert "data-turnstile-widget" in response.text
-    assert 'class="cf-turnstile"' in response.text
+    assert 'class="cf-turnstile"' not in response.text
     assert 'data-sitekey="site-key"' in response.text
-    assert 'data-action="password_reset"' in response.text
-    assert 'data-callback="jobLoggerTurnstileSuccess"' in response.text
-    assert 'data-error-callback="jobLoggerTurnstileError"' in response.text
     assert "Human verification is loading..." in response.text
     assert "data-password-reset-submit disabled" in response.text
     csp_header = response.headers["content-security-policy"]

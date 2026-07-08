@@ -88,11 +88,12 @@ existing SMTP transport and requires SMTP host/port settings when reset mail is
 enabled. `smtp2go` sends through SMTP2GO's HTTPS API and requires
 `MAIL_SMTP2GO_API_KEY`; the API key must never be logged or committed.
 When Turnstile is enabled, the static forgot-password page uses Cloudflare's
-implicit `cf-turnstile` widget with local named callbacks for verification
-status and button state. Keep the reset button disabled until a non-empty
-Turnstile token exists; server-side verification remains mandatory and must
-reject mismatched Turnstile action or public hostname values returned by
-Cloudflare Siteverify.
+explicit `api.js?render=explicit` widget rendering through the local password
+reset script. Do not call `turnstile.ready()` from a deferred script; render
+with `turnstile.render()` only after the Cloudflare API is available. Keep the
+reset button disabled until a non-empty Turnstile token exists; server-side
+verification remains mandatory and must reject mismatched Turnstile action or
+public hostname values returned by Cloudflare Siteverify.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`,
 measured in hours. The configured value controls both the signed session cookie
@@ -536,8 +537,10 @@ instead of a separate unaudited template branch. Super-admin pages always use
 dark mode.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
 must mark the Help navigation button in yellow so dev instances are visually
-distinct from production without adding a separate pill. The Help page itself
-must show the current version with `DEV`, such as `v1.2.4 DEV`.
+distinct from production without adding a separate pill. Full-browser
+authenticated headers also show the version under the left-side Job Logger
+title, using `vX.Y.Z-DEV` for dev builds. The Help page itself must show the
+current version with `DEV`, such as `v1.2.4 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows compact route and status icons on the left,
@@ -895,9 +898,10 @@ The application is a FastAPI project under `job_logger/`.
   stored on managed web users, not in config. Remote faster-whisper, AI
   cleanup, help assistant, password reset, SMTP, and Turnstile settings live
   here as environment-backed values. `DEV_BUILD=true` marks a dev runtime by
-  turning the authenticated Help button yellow, showing `DEV` on `/help`,
-  suppressing Pushover health notifications, and allowing Turnstile bypass only
-  for password reset in non-production dev/testing.
+  turning the authenticated Help button yellow, adding `-DEV` to the
+  full-browser header version label, showing `DEV` on `/help`, suppressing
+  Pushover health notifications, and allowing Turnstile bypass only for
+  password reset in non-production dev/testing.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.
 - `job_logger/models.py` defines persistent tables for managed web users,
   managed-user session invalidation cutoffs, per-user preferences, password

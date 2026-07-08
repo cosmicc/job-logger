@@ -2,7 +2,7 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## 1.2.4 - 07.08.2026 - Review activity cleanup, password reset, and login polish
+## 1.2.4 - 07.08.2026 - Review activity cleanup, password reset, and version polish
 
 ### Added
 
@@ -13,10 +13,13 @@ Short release notes shown on the authenticated `/changelog` page.
 
 - Review activity now skips automatic summary-note saves so the timeline only shows meaningful job actions.
 - The password reset page now shows verification status and waits for human verification to finish before sending a reset request.
+- Full browsers now show the app version under the Job Logger title in the header, with DEV added for development builds.
 
 ### Fixed
 
 - Human verification on the password reset page now loads more reliably instead of leaving a blank verification box.
+- The password reset page now starts Cloudflare verification directly instead of waiting for automatic widget loading.
+- The login page version number now sits close under the sign-in card instead of being pushed down the page.
 
 ## 1.2.3 - 07.05.2026 - Help navigation, AI Help, AI Cleanup, and changelog display
 

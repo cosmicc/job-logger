@@ -2,6 +2,11 @@
   "use strict";
 
   let verificationToken = "";
+  let turnstileWidgetId = null;
+  let turnstileRenderAttempted = false;
+  let turnstileApiLoadFailed = false;
+  let loadCheckCount = 0;
+  const maxLoadChecks = 30;
 
   function elements() {
     return {
@@ -9,6 +14,7 @@
       widget: document.querySelector("[data-turnstile-widget]"),
       status: document.querySelector("[data-turnstile-status]"),
       submit: document.querySelector("[data-password-reset-submit]"),
+      apiScript: document.querySelector("[data-turnstile-api-script]"),
     };
   }
 
@@ -41,6 +47,37 @@
   function widgetHasRenderedMarkup() {
     const widgetElement = elements().widget;
     return Boolean(widgetElement && widgetElement.querySelector('iframe, input[name="cf-turnstile-response"]'));
+  }
+
+  function renderTurnstileWidget() {
+    const widgetElement = elements().widget;
+    if (!widgetElement || turnstileWidgetId !== null || turnstileRenderAttempted || !turnstileAvailable()) {
+      return;
+    }
+
+    turnstileRenderAttempted = true;
+    try {
+      turnstileWidgetId = window.turnstile.render("#password-reset-turnstile", {
+        sitekey: widgetElement.dataset.sitekey || "",
+        theme: widgetElement.dataset.theme || "auto",
+        action: "password_reset",
+        appearance: "always",
+        execution: "render",
+        "response-field": true,
+        "response-field-name": "cf-turnstile-response",
+        callback: handleTurnstileSuccess,
+        "error-callback": handleTurnstileError,
+        "expired-callback": handleTurnstileExpired,
+        "timeout-callback": handleTurnstileTimeout,
+        "unsupported-callback": handleTurnstileUnsupported,
+      });
+      setStatus("Complete human verification before sending the reset link.", false);
+    } catch (_error) {
+      turnstileWidgetId = null;
+      verificationToken = "";
+      setStatus("Human verification could not start. Reload this page and try again.", true);
+      setSubmitEnabled(false);
+    }
   }
 
   function handleTurnstileSuccess(token) {
@@ -97,21 +134,53 @@
     window.jobLoggerTurnstileUnsupported = handleTurnstileUnsupported;
   }
 
+  function monitorTurnstileLoad() {
+    if (submittedToken()) {
+      return;
+    }
+    if (turnstileAvailable()) {
+      renderTurnstileWidget();
+      return;
+    }
+    if (turnstileApiLoadFailed) {
+      setStatus("Human verification could not load. Reload this page or check browser content blockers.", true);
+      setSubmitEnabled(false);
+      return;
+    }
+    if (widgetHasRenderedMarkup()) {
+      setStatus("Complete human verification before sending the reset link.", false);
+      return;
+    }
+    loadCheckCount += 1;
+    if (loadCheckCount >= maxLoadChecks) {
+      setStatus("Human verification is still loading. Reload this page if the verification box stays blank.", true);
+      return;
+    }
+    window.setTimeout(monitorTurnstileLoad, 1000);
+  }
+
+  function setupTurnstileApiListeners() {
+    const apiScript = elements().apiScript;
+    if (!apiScript || apiScript.dataset.turnstileListenersAttached === "true") {
+      return;
+    }
+    apiScript.dataset.turnstileListenersAttached = "true";
+    apiScript.addEventListener("load", function () {
+      window.setTimeout(monitorTurnstileLoad, 0);
+    });
+    apiScript.addEventListener("error", function () {
+      turnstileApiLoadFailed = true;
+      monitorTurnstileLoad();
+    });
+  }
+
   function initialize() {
     setSubmitEnabled(false);
     setStatus("Human verification is loading...", false);
     setupFormGuard();
+    setupTurnstileApiListeners();
     exposeTurnstileCallbacks();
-    window.setTimeout(function () {
-      if (submittedToken()) {
-        return;
-      }
-      if (turnstileAvailable() || widgetHasRenderedMarkup()) {
-        setStatus("Complete human verification before sending the reset link.", false);
-        return;
-      }
-      setStatus("Human verification could not load. Reload this page or check browser content blockers.", true);
-    }, 8000);
+    monitorTurnstileLoad();
   }
 
   if (document.readyState === "loading") {

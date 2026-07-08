@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## 1.2.4 - 07.08.2026 - Review activity cleanup, password reset, and login polish
+## 1.2.4 - 07.08.2026 - Review activity cleanup, password reset, and version polish
 
 ### Added
 
@@ -34,6 +34,8 @@ All notable changes to Job Logger are documented in this file.
   password reset is enabled.
 - Changed the login page to show a small app version label directly under the
   sign-in card, using `vX.Y.Z-DEV` on development builds.
+- Changed the full-browser authenticated header to show the app version under
+  the left-side Job Logger title, using `vX.Y.Z-DEV` on development builds.
 - Changed both changelog files to use applicable non-empty `Added`, `Changed`,
   and `Fixed` sections for every historical version while keeping the web page
   output limited to concise user-facing bullets.
@@ -45,15 +47,16 @@ All notable changes to Job Logger are documented in this file.
   history.
 - Prevented reset emails for disabled users, unknown emails, and duplicate
   enabled-user email matches while keeping the same user-facing message.
-- Fixed the forgot-password Turnstile widget to use Cloudflare's implicit
-  static-form rendering with local callbacks, show user-facing verification
-  status, and keep the reset button disabled until Cloudflare returns a
-  verification token.
-- Removed the `turnstile.ready()` timing path that made Cloudflare reject the
-  deferred Turnstile script and leave the verification box blank.
+- Fixed the forgot-password Turnstile widget to render explicitly with
+  `api.js?render=explicit`, show user-facing verification status, and keep the
+  reset button disabled until Cloudflare returns a verification token.
+- Removed the `turnstile.ready()` and implicit auto-scan timing paths that left
+  the verification box blank on the deployed forgot-password page.
 - Tightened password reset Turnstile server validation by rejecting oversized
   tokens before Siteverify and requiring Cloudflare's returned action and
   hostname to match the forgot-password flow and configured public URL.
+- Fixed the login page version label spacing so the version renders 6px below
+  the sign-in card instead of being pushed down by stretched grid rows.
 
 ## 1.2.3 - 07.05.2026 - Help navigation, AI Help and cleanup, changelog display, and Portainer env guidance
 

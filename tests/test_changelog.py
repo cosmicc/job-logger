@@ -19,9 +19,9 @@ from tests.conftest import extract_csrf_token
 CURRENT_RELEASE_DATE = "07.08.2026"
 CURRENT_DETAILED_HEADING = (
     f"## 1.2.4 - {CURRENT_RELEASE_DATE} - "
-    "Review activity cleanup, password reset, and login polish"
+    "Review activity cleanup, password reset, and version polish"
 )
-CURRENT_WEB_TITLE = "Review activity cleanup, password reset, and login polish"
+CURRENT_WEB_TITLE = "Review activity cleanup, password reset, and version polish"
 CURRENT_WEB_HEADING = f"## 1.2.4 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
 V123_WEB_TITLE = "Help navigation, AI Help, AI Cleanup, and changelog display"
 V123_RELEASE_DATE = "07.05.2026"
@@ -211,9 +211,18 @@ def test_changelog_parser_reads_current_release() -> None:
                 "to finish before sending a reset request."
             ),
             (
+                "Full browsers now show the app version under the Job Logger title in the header, with DEV "
+                "added for development builds."
+            ),
+            (
                 "Human verification on the password reset page now loads more reliably instead of leaving "
                 "a blank verification box."
             ),
+            (
+                "The password reset page now starts Cloudflare verification directly instead of waiting for "
+                "automatic widget loading."
+            ),
+            "The login page version number now sits close under the sign-in card instead of being pushed down the page.",
         ),
     )
 
@@ -276,6 +285,11 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "Human verification on the password reset page now loads more reliably instead of leaving "
         "a blank verification box."
     ) in response.text
+    assert (
+        "The password reset page now starts Cloudflare verification directly instead of waiting for "
+        "automatic widget loading."
+    ) in response.text
+    assert "The login page version number now sits close under the sign-in card instead of being pushed down the page." in response.text
     assert (
         "The login page now shows the app version in small text under the sign-in card, "
         "with DEV added for development builds."

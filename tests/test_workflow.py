@@ -20,6 +20,7 @@ from job_logger.services.ai_cleanup import AiCleanupResult
 from job_logger.services.autotask import AutotaskSubmissionResult
 from job_logger.services.jobs import get_active_job
 from job_logger.time_utils import format_local_time, local_date_for
+from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token, login_as_super_admin
 
 
@@ -1345,6 +1346,9 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert "Secure session" not in response.text
     assert 'class="desktop-header-left"' in response.text
     assert 'class="brand-icon" src="/static/icons/job-logger-logo-transparent.png?v=' in response.text
+    assert '<span class="brand-title">Job Logger</span>' in response.text
+    assert f'<span class="desktop-brand-version">v{APP_VERSION}</span>' in response.text
+    assert f"v{APP_VERSION}-DEV" not in response.text
     assert 'href="/help"' in response.text
     assert 'data-desktop-help-link' in response.text
     assert 'data-mobile-help-link' in response.text
@@ -1460,6 +1464,9 @@ def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(aut
     assert 'class="icon-button desktop-logout-button"' in response.text
     assert 'aria-label="Log out"' in response.text
     assert "<span>Log out</span>" in response.text
+    assert '<span class="brand-title">Job Logger</span>' in response.text
+    assert f'<span class="desktop-brand-version">v{APP_VERSION}</span>' in response.text
+    assert f"v{APP_VERSION}-DEV" not in response.text
     assert 'data-close-app-button' not in response.text
     assert 'mobile-logout-action' in response.text
     assert '/static/pwa.js?v=' in response.text
@@ -1488,6 +1495,7 @@ def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_
     assert response.text.count("header-help-link-dev") == 2
     assert "dev-build-pill" not in response.text
     assert ">v1.2.4 DEV<" not in response.text
+    assert f'<span class="desktop-brand-version">v{APP_VERSION}-DEV</span>' in response.text
     assert 'aria-label="Help development build"' in response.text
     assert response.text.index('class="mobile-nav-actions mobile-nav-right"') < response.text.index('data-mobile-help-link')
     assert response.text.index('data-mobile-help-link') < response.text.index('mobile-logout-action')
@@ -1531,6 +1539,10 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".top-nav a:active" in stylesheet
     assert ".desktop-header-left" in stylesheet
     assert ".brand-icon" in stylesheet
+    assert ".brand-text-stack" in stylesheet
+    assert ".desktop-brand-version" in stylesheet
+    assert "font-size: 10px;" in stylesheet
+    assert "letter-spacing: 0;" in stylesheet
     assert "grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);" in stylesheet
     assert "justify-self: center;" in stylesheet
     assert ".mobile-nav-action:not(.health-alert-button)" in stylesheet

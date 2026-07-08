@@ -65,13 +65,14 @@ existing SMTP transport and `smtp2go` uses SMTP2GO's HTTPS API with
 `MAIL_SMTP2GO_API_KEY`. Never log or persist SMTP passwords, SMTP2GO API keys,
 or full reset URLs.
 When Turnstile is enabled, the static forgot-password browser page must use
-Cloudflare's implicit `cf-turnstile` widget and local named callbacks for
-verification status and button state. Keep the submit button disabled until a
-non-empty Turnstile token is returned, and show a visible verification status.
-That browser guard is usability only; server-side Turnstile verification
-remains mandatory. Server-side Siteverify handling must also reject responses
-whose returned `action` is not `password_reset` or whose returned hostname does
-not match `APP_PUBLIC_BASE_URL`.
+Cloudflare's explicit `api.js?render=explicit` widget and render it through the
+local password reset script after the Cloudflare API is available. Do not call
+`turnstile.ready()` from a deferred script. Keep the submit button disabled
+until a non-empty Turnstile token is returned, and show a visible verification
+status. That browser guard is usability only; server-side Turnstile
+verification remains mandatory. Server-side Siteverify handling must also
+reject responses whose returned `action` is not `password_reset` or whose
+returned hostname does not match `APP_PUBLIC_BASE_URL`.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`.
 `job_logger/session_timeout.py` enforces the server-side timestamp check, and

@@ -10,8 +10,8 @@ from pathlib import Path
 import pytest
 
 
-def test_password_reset_turnstile_callbacks_control_submit_state(tmp_path: Path) -> None:
-    """The reset script should expose implicit Turnstile callbacks before the API loads."""
+def test_password_reset_turnstile_renders_explicit_widget(tmp_path: Path) -> None:
+    """The reset script should render Turnstile explicitly without turnstile.ready()."""
 
     node_path = shutil.which("node")
     if node_path is None:
@@ -29,6 +29,7 @@ def test_password_reset_turnstile_callbacks_control_submit_state(tmp_path: Path)
 
             const passwordResetScript = fs.readFileSync({str(password_reset_script_path)!r}, "utf8");
             const eventHandlers = {{}};
+            const renderCalls = [];
             const statusElement = {{
               textContent: "",
               classList: {{
@@ -36,6 +37,12 @@ def test_password_reset_turnstile_callbacks_control_submit_state(tmp_path: Path)
               }},
             }};
             const submitButton = {{disabled: false}};
+            const apiScriptElement = {{
+              dataset: {{}},
+              addEventListener(eventName, handler) {{
+                eventHandlers[`api:${{eventName}}`] = handler;
+              }},
+            }};
             const widgetElement = {{
               dataset: {{
                 sitekey: "site-key",
@@ -48,12 +55,21 @@ def test_password_reset_turnstile_callbacks_control_submit_state(tmp_path: Path)
             const formElement = {{
               dataset: {{}},
               addEventListener(eventName, handler) {{
-                eventHandlers[eventName] = handler;
+                eventHandlers[`form:${{eventName}}`] = handler;
               }},
             }};
             const browserWindow = {{
-              setTimeout() {{
+              setTimeout(callback) {{
+                if (typeof callback === "function") {{
+                  callback();
+                }}
                 return 1;
+              }},
+              turnstile: {{
+                render(containerSelector, options) {{
+                  renderCalls.push({{containerSelector, options}});
+                  return "widget-id";
+                }},
               }},
             }};
             const browserDocument = {{
@@ -72,6 +88,9 @@ def test_password_reset_turnstile_callbacks_control_submit_state(tmp_path: Path)
                 if (selector === "[data-password-reset-submit]") {{
                   return submitButton;
                 }}
+                if (selector === "[data-turnstile-api-script]") {{
+                  return apiScriptElement;
+                }}
                 if (selector === 'input[name="cf-turnstile-response"]') {{
                   return null;
                 }}
@@ -81,9 +100,7 @@ def test_password_reset_turnstile_callbacks_control_submit_state(tmp_path: Path)
 
             vm.runInNewContext(passwordResetScript, {{
               document: browserDocument,
-              setTimeout() {{
-                return 1;
-              }},
+              setTimeout: browserWindow.setTimeout,
               window: browserWindow,
             }}, {{filename: "password-reset.js"}});
 
@@ -94,8 +111,20 @@ def test_password_reset_turnstile_callbacks_control_submit_state(tmp_path: Path)
             assert.strictEqual(typeof browserWindow.jobLoggerTurnstileTimeout, "function");
             assert.strictEqual(typeof browserWindow.jobLoggerTurnstileUnsupported, "function");
             assert.strictEqual(formElement.dataset.turnstileGuardAttached, "true");
+            assert.strictEqual(apiScriptElement.dataset.turnstileListenersAttached, "true");
+            assert.strictEqual(renderCalls.length, 1);
+            assert.strictEqual(renderCalls[0].containerSelector, "#password-reset-turnstile");
+            assert.strictEqual(renderCalls[0].options.sitekey, "site-key");
+            assert.strictEqual(renderCalls[0].options.theme, "dark");
+            assert.strictEqual(renderCalls[0].options.action, "password_reset");
+            assert.strictEqual(renderCalls[0].options.appearance, "always");
+            assert.strictEqual(renderCalls[0].options.execution, "render");
+            assert.strictEqual(renderCalls[0].options["response-field"], true);
+            assert.strictEqual(renderCalls[0].options["response-field-name"], "cf-turnstile-response");
+            assert.strictEqual(typeof renderCalls[0].options.callback, "function");
+            assert.strictEqual(typeof renderCalls[0].options["error-callback"], "function");
             assert.strictEqual(submitButton.disabled, true);
-            assert.strictEqual(statusElement.textContent, "Human verification is loading...");
+            assert.strictEqual(statusElement.textContent, "Complete human verification before sending the reset link.");
 
             browserWindow.jobLoggerTurnstileSuccess("token-value");
 
