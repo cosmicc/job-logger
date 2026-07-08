@@ -160,6 +160,10 @@ def test_changelog_parser_reads_current_release() -> None:
                 "The password reset page now shows verification status and waits for human verification "
                 "to finish before sending a reset request."
             ),
+            (
+                "Human verification on the password reset page now loads more reliably instead of leaving "
+                "a blank verification box."
+            ),
         ),
     )
 
@@ -217,6 +221,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert (
         "The password reset page now shows verification status and waits for human verification "
         "to finish before sending a reset request."
+    ) in response.text
+    assert (
+        "Human verification on the password reset page now loads more reliably instead of leaving "
+        "a blank verification box."
     ) in response.text
     assert "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help." in response.text
     assert "Help now sits beside Log out in the header, while the main route buttons stay grouped together." in response.text

@@ -3,7 +3,9 @@
 
   let widgetId = null;
   let widgetRendered = false;
+  let widgetRenderScheduled = false;
   let verificationToken = "";
+  const turnstileWidgetSelector = "#password-reset-turnstile";
 
   function elements() {
     return {
@@ -40,20 +42,14 @@
     return verificationToken || (responseInput ? responseInput.value : "");
   }
 
-  function renderTurnstile() {
+  function renderTurnstileWidget() {
     const widgetElement = elements().widget;
     if (!widgetElement || widgetRendered) {
       return;
     }
 
-    if (!turnstileAvailable()) {
-      setStatus("Human verification is loading...", false);
-      setSubmitEnabled(false);
-      return;
-    }
-
     try {
-      widgetId = window.turnstile.render(widgetElement, {
+      widgetId = window.turnstile.render(turnstileWidgetSelector, {
         sitekey: widgetElement.dataset.sitekey || "",
         theme: widgetElement.dataset.theme || "auto",
         action: "password_reset",
@@ -96,6 +92,32 @@
       setStatus("Human verification could not load. Reload this page or check browser content blockers.", true);
       setSubmitEnabled(false);
     }
+  }
+
+  function renderTurnstile() {
+    if (!elements().widget || widgetRendered) {
+      return;
+    }
+
+    if (!turnstileAvailable()) {
+      setStatus("Human verification is loading...", false);
+      setSubmitEnabled(false);
+      return;
+    }
+
+    if (typeof window.turnstile.ready === "function") {
+      if (widgetRenderScheduled) {
+        return;
+      }
+      widgetRenderScheduled = true;
+      window.turnstile.ready(function () {
+        widgetRenderScheduled = false;
+        renderTurnstileWidget();
+      });
+      return;
+    }
+
+    renderTurnstileWidget();
   }
 
   function setupFormGuard() {
