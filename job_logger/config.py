@@ -210,6 +210,38 @@ class Settings:
     # LOGIN_LOCAL_LOCKOUT_MINUTES is the app-enforced lockout after the threshold.
     login_local_lockout_minutes: int
 
+    # PASSWORD_RESET_ENABLED gates self-service managed-user password resets.
+    password_reset_enabled: bool
+
+    # PASSWORD_RESET_TOKEN_TTL_HOURS controls how long emailed reset links work.
+    password_reset_token_ttl_hours: float
+
+    # APP_PUBLIC_BASE_URL is the absolute HTTPS origin used in password-reset email links.
+    app_public_base_url: str
+
+    # MAIL_ENABLED gates SMTP delivery for password-reset email.
+    mail_enabled: bool
+
+    # MAIL_FROM_* controls the sender identity shown on password-reset email.
+    mail_from_email: str
+    mail_from_name: str
+
+    # MAIL_SMTP_* settings configure the generic SMTP transport.
+    mail_smtp_host: str
+    mail_smtp_port: int
+    mail_smtp_username: str | None
+    mail_smtp_password: str | None
+    mail_smtp_starttls: bool
+    mail_smtp_ssl: bool
+    mail_smtp_timeout_seconds: float
+
+    # TURNSTILE_* settings configure Cloudflare Turnstile verification for reset requests.
+    turnstile_enabled: bool
+    turnstile_site_key: str
+    turnstile_secret_key: str
+    turnstile_verify_url: str
+    turnstile_timeout_seconds: float
+
     # PUSHOVER_ENABLED gates best-effort admin health notifications.
     pushover_enabled: bool
 
@@ -411,6 +443,18 @@ class Settings:
         return max(int(self.session_timeout_hours * 60 * 60), 1)
 
     @property
+    def password_reset_token_ttl_seconds(self) -> int:
+        """Return the password-reset token lifetime as whole seconds."""
+
+        return max(int(self.password_reset_token_ttl_hours * 60 * 60), 1)
+
+    @property
+    def password_reset_mail_configured(self) -> bool:
+        """Return whether SMTP has the minimum settings needed for reset mail."""
+
+        return bool(self.mail_enabled and self.mail_from_email and self.mail_smtp_host and self.mail_smtp_port > 0)
+
+    @property
     def pushover_configured(self) -> bool:
         """Return whether Pushover has the secrets needed to send messages."""
 
@@ -475,6 +519,27 @@ def load_settings() -> Settings:
             5,
         ),
         login_local_lockout_minutes=_get_positive_integer("LOGIN_LOCAL_LOCKOUT_MINUTES", 15),
+        password_reset_enabled=_get_boolean("PASSWORD_RESET_ENABLED", False),
+        password_reset_token_ttl_hours=_get_positive_float("PASSWORD_RESET_TOKEN_TTL_HOURS", 24.0),
+        app_public_base_url=(os.getenv("APP_PUBLIC_BASE_URL") or "").strip().rstrip("/"),
+        mail_enabled=_get_boolean("MAIL_ENABLED", False),
+        mail_from_email=(os.getenv("MAIL_FROM_EMAIL", "joblogger@example.com").strip() or "joblogger@example.com"),
+        mail_from_name=(os.getenv("MAIL_FROM_NAME", "Job Logger").strip() or "Job Logger"),
+        mail_smtp_host=(os.getenv("MAIL_SMTP_HOST") or "").strip(),
+        mail_smtp_port=_get_positive_integer("MAIL_SMTP_PORT", 587),
+        mail_smtp_username=(os.getenv("MAIL_SMTP_USERNAME") or "").strip() or None,
+        mail_smtp_password=(os.getenv("MAIL_SMTP_PASSWORD") or "").strip() or None,
+        mail_smtp_starttls=_get_boolean("MAIL_SMTP_STARTTLS", True),
+        mail_smtp_ssl=_get_boolean("MAIL_SMTP_SSL", False),
+        mail_smtp_timeout_seconds=_get_positive_float("MAIL_SMTP_TIMEOUT_SECONDS", 10.0),
+        turnstile_enabled=_get_boolean("TURNSTILE_ENABLED", True),
+        turnstile_site_key=(os.getenv("TURNSTILE_SITE_KEY") or "").strip(),
+        turnstile_secret_key=(os.getenv("TURNSTILE_SECRET_KEY") or "").strip(),
+        turnstile_verify_url=(
+            os.getenv("TURNSTILE_VERIFY_URL", "https://challenges.cloudflare.com/turnstile/v0/siteverify").strip()
+            or "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+        ),
+        turnstile_timeout_seconds=_get_positive_float("TURNSTILE_TIMEOUT_SECONDS", 10.0),
         pushover_enabled=_get_boolean("PUSHOVER_ENABLED", False),
         pushover_user_key=(os.getenv("PUSHOVER_USER_KEY") or "").strip() or None,
         pushover_app_key=(os.getenv("PUSHOVER_APP_KEY") or "").strip() or None,

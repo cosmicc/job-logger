@@ -2,6 +2,42 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## 1.2.4 - 07.08.2026 - Review activity cleanup and password reset
+
+### Added
+
+- Advanced the source-controlled dev runtime version to `v1.2.4`, including
+  the Python package metadata and PWA service worker cache version.
+- Added optional self-service managed-user password reset behind
+  `PASSWORD_RESET_ENABLED`, with Cloudflare Turnstile verification, generic SMTP
+  delivery, HMAC-stored single-use token hashes, 24-hour default expiry, CSRF
+  validation, reset request throttles, existing-session invalidation after
+  success, and non-enumerating browser messages.
+- Added `password_reset_tokens` and `password_reset_request_counters` tables for
+  reset-token hashes and IP/email/account reset throttles.
+- Added Docker Compose, Swarm, and `.env.example` settings for password reset,
+  SMTP delivery, `APP_PUBLIC_BASE_URL`, and Turnstile.
+
+### Changed
+
+- Changed active browser summary-note autosaves so they update the job without
+  writing `job.description.browser_text_saved` activity events.
+- Documented that browser summary-note autosaves are excluded from the Review
+  audit timeline while explicit workflow, transcription, review, submission,
+  and cleanup actions remain audited.
+- Changed production startup validation so enabling password reset requires an
+  absolute public base URL, configured SMTP mail, and Turnstile site/secret keys.
+- Changed the login page to show **Forgot password?** only when self-service
+  password reset is enabled.
+
+### Fixed
+
+- Hid legacy `job.description.browser_text_saved` rows from the Review audit
+  timeline while preserving all other job activity and existing database
+  history.
+- Prevented reset emails for disabled users, unknown emails, and duplicate
+  enabled-user email matches while keeping the same user-facing message.
+
 ## 1.2.3 - 07.05.2026 - Help navigation, AI Help and cleanup, changelog display, and Portainer env guidance
 
 - Advanced the source-controlled dev runtime version to `v1.2.3`, including

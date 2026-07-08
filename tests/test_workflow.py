@@ -1487,7 +1487,7 @@ def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_
     assert response.status_code == 200
     assert response.text.count("header-help-link-dev") == 2
     assert "dev-build-pill" not in response.text
-    assert ">v1.2.3 DEV<" not in response.text
+    assert ">v1.2.4 DEV<" not in response.text
     assert 'aria-label="Help development build"' in response.text
     assert response.text.index('class="mobile-nav-actions mobile-nav-right"') < response.text.index('data-mobile-help-link')
     assert response.text.index('data-mobile-help-link') < response.text.index('mobile-logout-action')
@@ -3159,6 +3159,60 @@ def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_
     updated_mobile_html = updated_mobile_page_response.text
     assert "data-active-ticket-picker" in updated_mobile_html
     assert "On-Site Saved from mobile active form" not in updated_mobile_html
+
+
+def test_browser_description_save_skips_activity_timeline(authenticated_client: TestClient) -> None:
+    """Browser summary autosaves should not add or display noisy job activity."""
+
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    save_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/description/text",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": "Autosaved browser notes"},
+    )
+    assert save_response.status_code == 200
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
+        assert active_job.summary_notes == "Autosaved browser notes"
+        browser_save_events = list(
+            database_session.scalars(
+                select(AuditEvent).where(
+                    AuditEvent.job_id == active_job_id,
+                    AuditEvent.action == "job.description.browser_text_saved",
+                )
+            )
+        )
+        assert browser_save_events == []
+        database_session.add(
+            AuditEvent(
+                job_id=active_job_id,
+                actor="tech",
+                action="job.description.browser_text_saved",
+                details={"text_length": len("legacy autosave")},
+            )
+        )
+        database_session.commit()
+
+    review_response = authenticated_client.get(f"/review/{active_job_id}")
+    assert review_response.status_code == 200
+    assert "job.started" in review_response.text
+    assert "job.description.browser_text_saved" not in review_response.text
+    assert '<span class="audit-count">1 event</span>' in review_response.text
 
 
 def test_mobile_active_job_background_save_returns_ticket_lookup_context(authenticated_client: TestClient) -> None:

@@ -72,6 +72,8 @@ router = APIRouter(prefix="/review", tags=["review"])
 
 SESSION_DELETE_AUTOTASK_FAILED_JOB_ID_KEY = "delete_autotask_failed_job_id"
 SESSION_DELETE_AUTOTASK_FAILED_EXTERNAL_ID_KEY = "delete_autotask_failed_external_id"
+BROWSER_TEXT_SAVED_AUDIT_ACTION = "job.description.browser_text_saved"
+HIDDEN_AUDIT_TIMELINE_ACTIONS = {BROWSER_TEXT_SAVED_AUDIT_ACTION}
 
 
 def _ticket_status_options() -> list[tuple[str, str]]:
@@ -114,7 +116,12 @@ def _selected_review_context(
     if selected_job is not None:
         audit_events = list(
             database_session.execute(
-                select(AuditEvent).where(AuditEvent.job_id == selected_job.id).order_by(desc(AuditEvent.created_at_utc))
+                select(AuditEvent)
+                .where(
+                    AuditEvent.job_id == selected_job.id,
+                    ~AuditEvent.action.in_(HIDDEN_AUDIT_TIMELINE_ACTIONS),
+                )
+                .order_by(desc(AuditEvent.created_at_utc))
             ).scalars()
         )
 

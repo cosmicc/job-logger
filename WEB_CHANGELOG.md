@@ -2,6 +2,11 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## 1.2.4 - 07.08.2026 - Review activity cleanup and password reset
+
+- Review activity now skips automatic summary-note saves so the timeline only shows meaningful job actions.
+- When enabled by the app administrator, the login page can send a secure password reset email without revealing whether an email address is on an account.
+
 ## 1.2.3 - 07.05.2026 - Help navigation, AI Help, AI Cleanup, and changelog display
 
 - The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.

@@ -6,7 +6,8 @@ or web browser, reviewing or directly submitting recorded jobs, and sending
 accepted records to Autotask.
 
 End users can use [USER_MANUAL.md](USER_MANUAL.md) for a full walkthrough of
-sign-in, Work in Progress, Review, Config, and common app messages.
+sign-in, password reset, Work in Progress, Review, Config, and common app
+messages.
 
 ## Architecture
 
@@ -19,6 +20,7 @@ sign-in, Work in Progress, Review, Config, and common app messages.
 - Alembic manages database migrations.
 - Cloudflare Tunnel publishes the app without opening an inbound firewall port.
 - Cloudflare Access can protect the public hostname before the app login page.
+- Optional self-service password reset uses Cloudflare Turnstile and SMTP mail.
 - Configurable providers support mock or live speech-to-text and Autotask modes.
 
 Cloudflare documents Tunnel as an outbound `cloudflared` connector and Access as
@@ -204,14 +206,18 @@ container can come up with one `docker compose up -d --build` command. Remove
    setting to true, but `APP_ENV=production` no longer refuses startup solely
    because the optional Access header gate is disabled. Secure session cookies
    are still required in production.
-6. Set `WEBAUTHN_ORIGIN` to the public HTTPS origin that phones see in the
+6. Set `APP_PUBLIC_BASE_URL` to the same public HTTPS origin before enabling
+   self-service password reset, because reset emails use that value for absolute
+   links. Keep `/forgot-password` and `/reset-password/...` behind the same
+   Cloudflare Access application as the login page.
+7. Set `WEBAUTHN_ORIGIN` to the public HTTPS origin that phones see in the
    browser, such as `https://logger.example.com`, before using passkeys through
    Cloudflare Tunnel. Use this setting whenever the app needs the
    browser-facing public URL. The bundled nginx origin also preserves
    Cloudflare's forwarded HTTPS scheme for WebAuthn, but this explicit setting
    is the safest production pin. Set `WEBAUTHN_RP_ID` to the same hostname if
    the app cannot reliably derive the public host from forwarded headers.
-7. Start the full stack:
+8. Start the full stack:
 
    ```bash
    docker compose up -d --build
@@ -299,8 +305,8 @@ Use `docker-swarm.yml` for Swarm. It is image-based, does not build locally,
 and expects PostgreSQL to run outside the stack:
 
 ```bash
-export JOB_LOGGER_APP_IMAGE=registry.example.com/job-logger-app:1.2.3
-export JOB_LOGGER_NGINX_IMAGE=registry.example.com/job-logger-nginx:1.2.3
+export JOB_LOGGER_APP_IMAGE=registry.example.com/job-logger-app:1.2.4
+export JOB_LOGGER_NGINX_IMAGE=registry.example.com/job-logger-nginx:1.2.4
 export JOB_LOGGER_BUNDLED_EDGE_REPLICAS=1
 export JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger
 export DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
@@ -547,6 +553,26 @@ not support passkeys, the device cancels, or signature verification fails, the
 normal username/password login form remains available above the Device sign-in
 button.
 
+Self-service password reset is disabled by default. When
+`PASSWORD_RESET_ENABLED=true`, configure `APP_PUBLIC_BASE_URL`, SMTP mail
+settings, and Cloudflare Turnstile keys first. Production startup fails closed if
+those dependencies are missing. Reset requests are non-enumerating, send email
+only when exactly one enabled managed user has the submitted email address, store
+only HMAC token hashes, expire links after 24 hours by default, invalidate old
+managed-user sessions after a successful reset, and keep reset routes behind
+Cloudflare Access.
+
+Password reset settings:
+
+- `PASSWORD_RESET_ENABLED`, default `false`
+- `PASSWORD_RESET_TOKEN_TTL_HOURS`, default `24`
+- `APP_PUBLIC_BASE_URL`, such as `https://logger.example.com`
+- `MAIL_ENABLED`, `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME`, `MAIL_SMTP_HOST`,
+  `MAIL_SMTP_PORT`, `MAIL_SMTP_USERNAME`, `MAIL_SMTP_PASSWORD`,
+  `MAIL_SMTP_STARTTLS`, `MAIL_SMTP_SSL`, and `MAIL_SMTP_TIMEOUT_SECONDS`
+- `TURNSTILE_ENABLED`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`,
+  `TURNSTILE_VERIFY_URL`, and `TURNSTILE_TIMEOUT_SECONDS`
+
 Set these passkey variables for production when needed:
 
 - `WEBAUTHN_RP_NAME`, the label shown by the browser, defaults to `Job Logger`.
@@ -561,7 +587,7 @@ Set these passkey variables for production when needed:
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.2.3`. Version history starts at `v1.0.0`.
+currently `v1.2.4`. Version history starts at `v1.0.0`.
 
 Authenticated pages show a Help button in the shared header. `/help` starts
 with **Ask AI for help**, shows **Operational Status**, then shows the current
@@ -583,7 +609,7 @@ changelog views use the same authenticated session, dark/light theme variables,
 and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the authenticated Help button is yellow
 on desktop and phone layouts, and `/help` shows the current version with `DEV`,
-such as `v1.2.3 DEV`.
+such as `v1.2.4 DEV`.
 
 ## Provider Modes
 
@@ -1114,7 +1140,9 @@ remove active or other unsubmitted local jobs from the selected review detail
 when the logged-in managed web user owns the job.
 
 The selected job's audit timeline is collapsed by default and can be expanded
-from the review detail when troubleshooting or checking history.
+from the review detail when troubleshooting or checking history. Automatic
+summary-note autosaves are not shown there; the timeline focuses on explicit
+job workflow, transcription, review, submission, and cleanup actions.
 
 The mobile Work in Progress card stores a work-location mode of `Remote` or
 `On-Site` for time entries, defaulting to `Remote`. This mode does not appear
@@ -1200,6 +1228,11 @@ The raw submitted password is never stored or displayed. The
 `/debug/logs/login-failures` and `/debug/logs/login-successes` endpoints
 generate sanitized JSONL downloads from the database for authenticated
 diagnostics.
+Password reset audit events store only safe metadata such as hashed submitted
+email identifiers, user IDs when a unique enabled account was matched, reset row
+IDs, delivery status, and rate-limit results. They never store raw reset tokens,
+full reset URLs, submitted passwords, SMTP secrets, Turnstile secrets, cookies,
+or authorization headers.
 
 Failed-login rows can be hidden from the `/debug` table by setting a hidden
 timestamp on the database row. When `CLOUDFLARE_IP_BLOCKING_ENABLED=true` and

@@ -572,6 +572,43 @@ svg {
   padding: 28px;
 }
 
+.password-reset-panel {
+  gap: 20px;
+}
+
+.password-reset-heading {
+  display: grid;
+  gap: 8px;
+}
+
+.password-reset-heading h1,
+.password-reset-heading p {
+  margin-bottom: 0;
+}
+
+.login-help-row {
+  margin: 0;
+  text-align: center;
+}
+
+.login-help-row a {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.login-help-row a:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+.turnstile-field {
+  display: flex;
+  justify-content: center;
+  min-height: 65px;
+}
+
 .error-shell {
   display: grid;
   min-height: calc(100dvh - 118px);

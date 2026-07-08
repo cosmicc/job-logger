@@ -23,6 +23,11 @@
           </svg>
           Sign in
         </button>
+        {% if password_reset_enabled %}
+          <p class="login-help-row">
+            <a href="/forgot-password">Forgot password?</a>
+          </p>
+        {% endif %}
       </form>
       <div class="passkey-login-panel" data-passkey-login-panel>
         <button class="secondary-button full-width" type="button" data-passkey-login-button>

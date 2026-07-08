@@ -78,7 +78,7 @@ Destructive red controls must stay red on hover, using a brighter red instead
 of falling back to a neutral dark hover.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 the Help button in yellow, while `/help` shows the current version with `DEV`,
-such as `v1.2.3 DEV`. Keep the Help icon compact so it does not crowd the
+such as `v1.2.4 DEV`. Keep the Help icon compact so it does not crowd the
 mobile navigation icons.
 When cached app health is degraded, every authenticated user sees an exclamation
 status button in the top bar that links to `/help#operational-status`. Use
@@ -448,6 +448,11 @@ Manual summary autosave must not replace the focused mobile textarea with the
 server-normalized response. The server trims persisted notes for storage and
 Autotask payloads, but trailing whitespace in the active textarea can be normal
 typing state between words on mobile keyboards.
+Browser summary autosaves through `/jobs/{job_id}/description/text` persist the
+active job notes but must not write `job.description.browser_text_saved` audit
+events, and legacy copies of that event must stay out of the Review audit
+timeline. Keep audio transcription, AI cleanup, explicit active edits, review
+saves, and submission actions audited.
 
 ## AI Summary Cleanup
 

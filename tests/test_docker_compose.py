@@ -55,6 +55,32 @@ def test_compose_exposes_cloudflare_block_settings() -> None:
     assert "LOGIN_LOCAL_LOCKOUT_MINUTES: ${LOGIN_LOCAL_LOCKOUT_MINUTES:-15}" in compose_text
 
 
+def test_compose_and_swarm_expose_password_reset_settings() -> None:
+    """Self-service reset settings should pass through container configs."""
+
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+    swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+
+    for deployment_text in (compose_text, swarm_text):
+        assert "PASSWORD_RESET_ENABLED: ${PASSWORD_RESET_ENABLED:-false}" in deployment_text
+        assert "PASSWORD_RESET_TOKEN_TTL_HOURS: ${PASSWORD_RESET_TOKEN_TTL_HOURS:-24}" in deployment_text
+        assert "APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-}" in deployment_text
+        assert "MAIL_ENABLED: ${MAIL_ENABLED:-false}" in deployment_text
+        assert "MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-joblogger@example.com}" in deployment_text
+        assert "MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-}" in deployment_text
+        assert "MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:-587}" in deployment_text
+        assert "MAIL_SMTP_PASSWORD: ${MAIL_SMTP_PASSWORD:-}" in deployment_text
+        assert "TURNSTILE_ENABLED: ${TURNSTILE_ENABLED:-true}" in deployment_text
+        assert "TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}" in deployment_text
+        assert "TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}" in deployment_text
+
+    assert "PASSWORD_RESET_ENABLED=false" in env_example_text
+    assert "APP_PUBLIC_BASE_URL=https://joblogger.example.com" in env_example_text
+    assert "MAIL_ENABLED=false" in env_example_text
+    assert "TURNSTILE_VERIFY_URL=https://challenges.cloudflare.com/turnstile/v0/siteverify" in env_example_text
+
+
 def test_compose_requires_app_and_database_secrets() -> None:
     """A bare Compose run should fail closed instead of using development secrets."""
 

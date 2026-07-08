@@ -65,6 +65,24 @@ sessions. Deleting a web user from `/users` disables the account, invalidates
 that user's signed sessions, preserves the row for audit/login-state clarity,
 and lets the login screen explain that the account is disabled after the
 correct password is submitted.
+Self-service password reset is controlled by `PASSWORD_RESET_ENABLED` and must
+stay hidden from the login page while disabled. When enabled, `/forgot-password`
+and `/reset-password/{token}` remain behind Cloudflare Access and use
+application CSRF protection. The reset request flow must not reveal whether an
+email address belongs to an account. Send a reset email only when exactly one
+enabled managed web user matches the submitted email address. Disabled users,
+zero matches, and multiple enabled matches all receive the same generic browser
+message without creating a reset token or sending email. Store only HMAC-SHA256
+reset-token hashes keyed by `APP_SECRET_KEY`, never raw reset tokens or full
+reset URLs. Reset links are single-use, expire after
+`PASSWORD_RESET_TOKEN_TTL_HOURS` defaulting to 24, clear
+`password_must_change` through the normal managed-user password-change helper,
+and invalidate the user's existing signed sessions after success. Reset requests
+must verify Cloudflare Turnstile server-side when enabled, use independent
+IP/email/account throttles, and audit only safe metadata such as email hashes,
+user IDs, usernames, reset row IDs, provider names, delivery results, and
+rate-limit scopes. `TURNSTILE_ENABLED=false` is allowed for password reset only
+when `DEV_BUILD=true` and the app is not production.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`,
 measured in hours. The configured value controls both the signed session cookie
@@ -115,8 +133,8 @@ all submitted text.
 
 Store all secrets outside source control. Autotask credentials, transcription
 provider credentials, session secrets, database passwords, Cloudflare Tunnel
-tokens, and API keys must come from environment variables, Docker secrets, or
-another approved secret store.
+tokens, SMTP passwords, Turnstile secrets, and API keys must come from
+environment variables, Docker secrets, or another approved secret store.
 
 Do not log secrets, session tokens, raw authentication headers, Cloudflare Access
 JWTs, Autotask API credentials, transcription provider credentials, raw audio,
@@ -158,9 +176,11 @@ protection.
 
 The application must maintain immutable audit events for important actions,
 including job start, job end, description recording, transcription updates,
-manual edits, review decisions, direct Work in Progress Autotask submission,
-Autotask submission attempts, Autotask submission success, Autotask submission
-failure, and authentication-sensitive events.
+manual workflow edits, review decisions, direct Work in Progress Autotask
+submission, Autotask submission attempts, Autotask submission success, Autotask
+submission failure, password reset events, and authentication-sensitive events.
+Browser summary-note autosaves through `/jobs/{job_id}/description/text` must not record
+`job.description.browser_text_saved` or appear in the Review audit timeline.
 
 Raw audio must not be stored by default. If audio retention is ever added, it
 must be explicit, configurable, documented, access-controlled, and auditable.
@@ -506,7 +526,7 @@ dark mode.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
 must mark the Help navigation button in yellow so dev instances are visually
 distinct from production without adding a separate pill. The Help page itself
-must show the current version with `DEV`, such as `v1.2.3 DEV`.
+must show the current version with `DEV`, such as `v1.2.4 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows compact route and status icons on the left,
@@ -789,7 +809,8 @@ in `WEB_CHANGELOG.md`.
 Use changelog headings in the form
 `## 1.2.0 - 07.02.2026 - Release title`: write the version number without a
 leading `v` and without brackets, use `MM.DD.YYYY` release dates, then place
-the version title after the date.
+the version title after the date. New detailed `CHANGELOG.md` version entries
+should include `Added`, `Changed`, and `Fixed` subsections.
 
 ## Development Process
 
@@ -859,14 +880,16 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/config.py` loads every runtime setting from environment variables.
   Production must use `AUTOTASK_PROVIDER=autotask`; Autotask resource IDs are
   stored on managed web users, not in config. Remote faster-whisper, AI
-  cleanup, and help assistant settings live here as environment-backed values.
-  `DEV_BUILD=true` marks a dev runtime by turning the authenticated Help
-  button yellow, showing `DEV` on `/help`, and suppressing Pushover health
-  notifications.
+  cleanup, help assistant, password reset, SMTP, and Turnstile settings live
+  here as environment-backed values. `DEV_BUILD=true` marks a dev runtime by
+  turning the authenticated Help button yellow, showing `DEV` on `/help`,
+  suppressing Pushover health notifications, and allowing Turnstile bypass only
+  for password reset in non-production dev/testing.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.
 - `job_logger/models.py` defines persistent tables for managed web users,
-  managed-user session invalidation cutoffs, per-user preferences, jobs, audit
-  events, sanitized login attempts, and Autotask submission attempts.
+  managed-user session invalidation cutoffs, per-user preferences, password
+  reset token hashes and throttles, jobs, audit events, sanitized login
+  attempts, and Autotask submission attempts.
 - `job_logger/enums.py` defines workflow, transcription, and ticket-status
   enums used by routes, services, templates, and migrations.
 - `job_logger/time_utils.py` centralizes UTC/local conversion and 15-minute
@@ -892,6 +915,8 @@ The application is a FastAPI project under `job_logger/`.
 - `job_logger/routes/auth.py` handles config super-admin login, managed web-user
   login, logout, and local authenticated sessions, including sanitized
   database-backed login-attempt records.
+- `job_logger/routes/password_reset.py` handles self-service managed-user
+  password reset requests and token completion without account enumeration.
 - `job_logger/routes/passkeys.py` handles managed-user passkey registration,
   deletion, and passkey login challenge/verification routes.
 - `job_logger/routes/mobile.py` handles `/home`, active job start/end/save,

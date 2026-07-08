@@ -154,6 +154,13 @@ class WebUser(Base):
         cascade="all, delete-orphan",
     )
 
+    # password_reset_tokens stores only HMAC token hashes for self-service reset links.
+    password_reset_tokens: Mapped[list[PasswordResetToken]] = relationship(
+        "PasswordResetToken",
+        back_populates="web_user",
+        cascade="save-update",
+    )
+
     __table_args__ = (
         Index("ix_web_users_disabled", "disabled"),
     )
@@ -252,6 +259,67 @@ class WebAuthnCredential(Base):
     __table_args__ = (
         Index("ix_webauthn_credentials_web_user_created_at", "web_user_id", "created_at_utc"),
         Index("ix_webauthn_credentials_credential_id", "credential_id"),
+    )
+
+
+class PasswordResetToken(Base):
+    """Single-use HMAC hash for a managed web-user password-reset link."""
+
+    __tablename__ = "password_reset_tokens"
+
+    # id is safe to audit. The raw reset token is sent only by email and is never stored.
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string, comment="Stable password-reset row UUID.")
+    web_user_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("web_users.id", ondelete="CASCADE"),
+        nullable=False,
+        comment="Managed web-user UUID that requested the reset.",
+    )
+    token_hash: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        unique=True,
+        comment="HMAC-SHA256 hash of the reset token keyed by APP_SECRET_KEY.",
+    )
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    expires_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    request_ip: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="Trusted request IP that started the reset.")
+    request_user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True, comment="Bounded browser user agent.")
+    sent_to_email: Mapped[str] = mapped_column(String(254), nullable=False, comment="Destination email address used for delivery.")
+    delivery_error: Mapped[str | None] = mapped_column(Text, nullable=True, comment="Safe bounded mail delivery error, if delivery failed.")
+
+    web_user: Mapped[WebUser] = relationship("WebUser", back_populates="password_reset_tokens")
+
+    __table_args__ = (
+        Index("ix_password_reset_tokens_web_user_id", "web_user_id"),
+        Index("ix_password_reset_tokens_expires_at", "expires_at_utc"),
+        Index("ix_password_reset_tokens_web_user_used_at", "web_user_id", "used_at_utc"),
+        Index("ix_password_reset_tokens_created_at", "created_at_utc"),
+    )
+
+
+class PasswordResetRequestCounter(Base):
+    """Persistent fixed-window throttle for self-service password-reset requests."""
+
+    __tablename__ = "password_reset_request_counters"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string, comment="Stable reset throttle counter UUID.")
+    scope: Mapped[str] = mapped_column(String(20), nullable=False, comment="Throttle scope: ip, email, or account.")
+    scope_key: Mapped[str] = mapped_column(String(128), nullable=False, comment="Safe throttle key for the scope.")
+    window_started_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint("scope", "scope_key", name="uq_password_reset_request_counters_scope_key"),
+        Index("ix_password_reset_request_counters_scope_key", "scope", "scope_key"),
     )
 
 
