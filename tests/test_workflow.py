@@ -1540,6 +1540,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".desktop-header-left" in stylesheet
     assert ".brand-icon" in stylesheet
     assert ".brand-text-stack" in stylesheet
+    assert "gap: 5px;" in stylesheet
     assert ".desktop-brand-version" in stylesheet
     assert "font-size: 10px;" in stylesheet
     assert "letter-spacing: 0;" in stylesheet

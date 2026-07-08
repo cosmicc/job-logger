@@ -17,9 +17,10 @@ Short release notes shown on the authenticated `/changelog` page.
 
 ### Fixed
 
-- Human verification on the password reset page now loads more reliably instead of leaving a blank verification box.
+- Human verification on the password reset page now loads Cloudflare's standard verification script first and retries before showing a load failure.
 - The password reset page now starts Cloudflare verification directly instead of waiting for automatic widget loading.
 - The login page version number now sits close under the sign-in card instead of being pushed down the page.
+- The full-browser header version number now sits a little lower under the Job Logger title.
 
 ## 1.2.3 - 07.05.2026 - Help navigation, AI Help, AI Cleanup, and changelog display
 

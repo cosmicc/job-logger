@@ -5,6 +5,7 @@
   let turnstileWidgetId = null;
   let turnstileRenderAttempted = false;
   let turnstileApiLoadFailed = false;
+  let turnstileFallbackLoadAttempted = false;
   let loadCheckCount = 0;
   const maxLoadChecks = 30;
 
@@ -134,6 +135,30 @@
     window.jobLoggerTurnstileUnsupported = handleTurnstileUnsupported;
   }
 
+  function loadFallbackTurnstileScript() {
+    const apiScript = elements().apiScript;
+    const fallbackSource = apiScript ? apiScript.dataset.turnstileFallbackSrc : "";
+    if (!fallbackSource || turnstileFallbackLoadAttempted || !document.createElement) {
+      return false;
+    }
+
+    turnstileFallbackLoadAttempted = true;
+    const fallbackScript = document.createElement("script");
+    fallbackScript.src = fallbackSource;
+    fallbackScript.defer = true;
+    fallbackScript.async = true;
+    fallbackScript.dataset.turnstileApiScript = "true";
+    fallbackScript.dataset.turnstileFallbackScript = "true";
+    setupTurnstileApiScriptListeners(fallbackScript);
+    const scriptParent = document.head || document.body || document.documentElement;
+    if (!scriptParent || !scriptParent.appendChild) {
+      return false;
+    }
+    scriptParent.appendChild(fallbackScript);
+    setStatus("Human verification is retrying...", false);
+    return true;
+  }
+
   function monitorTurnstileLoad() {
     if (submittedToken()) {
       return;
@@ -159,8 +184,7 @@
     window.setTimeout(monitorTurnstileLoad, 1000);
   }
 
-  function setupTurnstileApiListeners() {
-    const apiScript = elements().apiScript;
+  function setupTurnstileApiScriptListeners(apiScript) {
     if (!apiScript || apiScript.dataset.turnstileListenersAttached === "true") {
       return;
     }
@@ -169,9 +193,16 @@
       window.setTimeout(monitorTurnstileLoad, 0);
     });
     apiScript.addEventListener("error", function () {
+      if (loadFallbackTurnstileScript()) {
+        return;
+      }
       turnstileApiLoadFailed = true;
       monitorTurnstileLoad();
     });
+  }
+
+  function setupTurnstileApiListeners() {
+    setupTurnstileApiScriptListeners(elements().apiScript);
   }
 
   function initialize() {

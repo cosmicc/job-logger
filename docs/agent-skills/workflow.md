@@ -78,8 +78,9 @@ Destructive red controls must stay red on hover, using a brighter red instead
 of falling back to a neutral dark hover.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 the Help button in yellow, while the full-browser header version label under
-the Job Logger title appends `-DEV`, such as `v1.2.4-DEV`. The `/help` page
-shows the current version with `DEV`, such as `v1.2.4 DEV`. Keep the Help icon
+the Job Logger title appends `-DEV`, such as `v1.2.4-DEV`. Keep a small but
+visible gap between the title and header version label. The `/help` page shows
+the current version with `DEV`, such as `v1.2.4 DEV`. Keep the Help icon
 compact so it does not crowd the mobile navigation icons.
 When cached app health is degraded, every authenticated user sees an exclamation
 status button in the top bar that links to `/help#operational-status`. Use

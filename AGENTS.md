@@ -87,13 +87,15 @@ Password reset mail delivery is selected by `MAIL_MODE`. `smtp` preserves the
 existing SMTP transport and requires SMTP host/port settings when reset mail is
 enabled. `smtp2go` sends through SMTP2GO's HTTPS API and requires
 `MAIL_SMTP2GO_API_KEY`; the API key must never be logged or committed.
-When Turnstile is enabled, the static forgot-password page uses Cloudflare's
-explicit `api.js?render=explicit` widget rendering through the local password
-reset script. Do not call `turnstile.ready()` from a deferred script; render
-with `turnstile.render()` only after the Cloudflare API is available. Keep the
-reset button disabled until a non-empty Turnstile token exists; server-side
-verification remains mandatory and must reject mismatched Turnstile action or
-public hostname values returned by Cloudflare Siteverify.
+When Turnstile is enabled, the static forgot-password page loads Cloudflare's
+standard `api.js` script, does not use the implicit `cf-turnstile` auto-render
+class, and renders the widget through the local password reset script with
+`turnstile.render()` only after the Cloudflare API is available. The local
+script may retry the explicit `api.js?render=explicit` URL if the standard API
+script fails before rendering. Do not call `turnstile.ready()` from a deferred
+script. Keep the reset button disabled until a non-empty Turnstile token
+exists; server-side verification remains mandatory and must reject mismatched
+Turnstile action or public hostname values returned by Cloudflare Siteverify.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`,
 measured in hours. The configured value controls both the signed session cookie

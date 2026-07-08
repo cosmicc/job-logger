@@ -265,8 +265,9 @@ def test_turnstile_csp_is_added_when_password_reset_uses_turnstile(client: TestC
     assert response.status_code == 200
     assert "/static/password-reset.js?v=" in response.text
     assert (
-        '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" '
-        "defer data-turnstile-api-script></script>"
+        '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer '
+        'data-turnstile-api-script data-turnstile-fallback-src="'
+        'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"></script>'
     ) in response.text
     assert 'id="password-reset-turnstile"' in response.text
     assert "data-turnstile-widget" in response.text

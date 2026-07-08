@@ -149,3 +149,138 @@ def test_password_reset_turnstile_renders_explicit_widget(tmp_path: Path) -> Non
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_password_reset_turnstile_retries_api_script_load_failure(tmp_path: Path) -> None:
+    """The reset script should retry the alternate Turnstile URL before failing."""
+
+    node_path = shutil.which("node")
+    if node_path is None:
+        pytest.skip("Node.js is required to execute password-reset.js.")
+
+    repository_root = Path(__file__).resolve().parents[1]
+    password_reset_script_path = repository_root / "job_logger" / "static" / "password-reset.js"
+    harness_path = tmp_path / "password_reset_turnstile_retry_test.js"
+    harness_path.write_text(
+        textwrap.dedent(
+            f"""
+            const assert = require("assert");
+            const fs = require("fs");
+            const vm = require("vm");
+
+            const passwordResetScript = fs.readFileSync({str(password_reset_script_path)!r}, "utf8");
+            const eventHandlers = {{}};
+            let appendedScript = null;
+            const statusElement = {{
+              textContent: "",
+              classList: {{
+                toggle() {{}},
+              }},
+            }};
+            const submitButton = {{disabled: false}};
+            const apiScriptElement = {{
+              src: "https://challenges.cloudflare.com/turnstile/v0/api.js",
+              dataset: {{
+                turnstileFallbackSrc: "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit",
+              }},
+              addEventListener(eventName, handler) {{
+                eventHandlers[`primary:${{eventName}}`] = handler;
+              }},
+            }};
+            const widgetElement = {{
+              dataset: {{
+                sitekey: "site-key",
+                theme: "dark",
+              }},
+              querySelector() {{
+                return null;
+              }},
+            }};
+            const formElement = {{
+              dataset: {{}},
+              addEventListener() {{}},
+            }};
+            const browserDocument = {{
+              readyState: "complete",
+              head: {{
+                appendChild(scriptElement) {{
+                  appendedScript = scriptElement;
+                }},
+              }},
+              createElement(tagName) {{
+                assert.strictEqual(tagName, "script");
+                return {{
+                  dataset: {{}},
+                  addEventListener(eventName, handler) {{
+                    eventHandlers[`fallback:${{eventName}}`] = handler;
+                  }},
+                }};
+              }},
+              addEventListener() {{}},
+              querySelector(selector) {{
+                if (selector === 'form[action="/forgot-password"]') {{
+                  return formElement;
+                }}
+                if (selector === "[data-turnstile-widget]") {{
+                  return widgetElement;
+                }}
+                if (selector === "[data-turnstile-status]") {{
+                  return statusElement;
+                }}
+                if (selector === "[data-password-reset-submit]") {{
+                  return submitButton;
+                }}
+                if (selector === "[data-turnstile-api-script]") {{
+                  return apiScriptElement;
+                }}
+                if (selector === 'input[name="cf-turnstile-response"]') {{
+                  return null;
+                }}
+                return null;
+              }},
+            }};
+
+            vm.runInNewContext(passwordResetScript, {{
+              document: browserDocument,
+              setTimeout() {{
+                return 1;
+              }},
+              window: {{
+                setTimeout() {{
+                  return 1;
+                }},
+              }},
+            }}, {{filename: "password-reset.js"}});
+
+            eventHandlers["primary:error"]();
+
+            assert.notStrictEqual(appendedScript, null);
+            assert.strictEqual(appendedScript.src, "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit");
+            assert.strictEqual(appendedScript.defer, true);
+            assert.strictEqual(appendedScript.async, true);
+            assert.strictEqual(appendedScript.dataset.turnstileApiScript, "true");
+            assert.strictEqual(appendedScript.dataset.turnstileFallbackScript, "true");
+            assert.strictEqual(appendedScript.dataset.turnstileListenersAttached, "true");
+            assert.strictEqual(statusElement.textContent, "Human verification is retrying...");
+            assert.strictEqual(submitButton.disabled, true);
+
+            eventHandlers["fallback:error"]();
+
+            assert.strictEqual(
+              statusElement.textContent,
+              "Human verification could not load. Reload this page or check browser content blockers.",
+            );
+          """
+        ),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [node_path, str(harness_path)],
+        cwd=repository_root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr

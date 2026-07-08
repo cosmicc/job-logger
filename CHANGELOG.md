@@ -47,9 +47,11 @@ All notable changes to Job Logger are documented in this file.
   history.
 - Prevented reset emails for disabled users, unknown emails, and duplicate
   enabled-user email matches while keeping the same user-facing message.
-- Fixed the forgot-password Turnstile widget to render explicitly with
-  `api.js?render=explicit`, show user-facing verification status, and keep the
-  reset button disabled until Cloudflare returns a verification token.
+- Fixed the forgot-password Turnstile widget to load Cloudflare's standard
+  `api.js` script before explicit local rendering, retry the explicit
+  `api.js?render=explicit` URL if that first load fails, show user-facing
+  verification status, and keep the reset button disabled until Cloudflare
+  returns a verification token.
 - Removed the `turnstile.ready()` and implicit auto-scan timing paths that left
   the verification box blank on the deployed forgot-password page.
 - Tightened password reset Turnstile server validation by rejecting oversized
@@ -57,6 +59,8 @@ All notable changes to Job Logger are documented in this file.
   hostname to match the forgot-password flow and configured public URL.
 - Fixed the login page version label spacing so the version renders 6px below
   the sign-in card instead of being pushed down by stretched grid rows.
+- Lowered the full-browser header version label a few pixels under the Job
+  Logger title.
 
 ## 1.2.3 - 07.05.2026 - Help navigation, AI Help and cleanup, changelog display, and Portainer env guidance
 

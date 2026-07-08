@@ -215,14 +215,15 @@ def test_changelog_parser_reads_current_release() -> None:
                 "added for development builds."
             ),
             (
-                "Human verification on the password reset page now loads more reliably instead of leaving "
-                "a blank verification box."
+                "Human verification on the password reset page now loads Cloudflare's standard verification "
+                "script first and retries before showing a load failure."
             ),
             (
                 "The password reset page now starts Cloudflare verification directly instead of waiting for "
                 "automatic widget loading."
             ),
             "The login page version number now sits close under the sign-in card instead of being pushed down the page.",
+            "The full-browser header version number now sits a little lower under the Job Logger title.",
         ),
     )
 
@@ -282,14 +283,15 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "to finish before sending a reset request."
     ) in response.text
     assert (
-        "Human verification on the password reset page now loads more reliably instead of leaving "
-        "a blank verification box."
+        "Human verification on the password reset page now loads Cloudflare&#39;s standard verification "
+        "script first and retries before showing a load failure."
     ) in response.text
     assert (
         "The password reset page now starts Cloudflare verification directly instead of waiting for "
         "automatic widget loading."
     ) in response.text
     assert "The login page version number now sits close under the sign-in card instead of being pushed down the page." in response.text
+    assert "The full-browser header version number now sits a little lower under the Job Logger title." in response.text
     assert (
         "The login page now shows the app version in small text under the sign-in card, "
         "with DEV added for development builds."
