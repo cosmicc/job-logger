@@ -60,6 +60,11 @@ minutes, per submitted email 3 per hour, and per matched account 1 email per 15
 minutes. Store email throttle keys and audit email identifiers as HMAC hashes,
 not raw submitted addresses. `TURNSTILE_ENABLED=false` is allowed only when
 `DEV_BUILD=true` and the app is not production.
+When Turnstile is enabled, the forgot-password browser page must render the
+widget explicitly through the local password reset script, keep the submit
+button disabled until a non-empty Turnstile token is returned, and show a
+visible verification status. That browser guard is usability only; server-side
+Turnstile verification remains mandatory.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`.
 `job_logger/session_timeout.py` enforces the server-side timestamp check, and

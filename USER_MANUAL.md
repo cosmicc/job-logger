@@ -359,6 +359,12 @@ contact your app administrator.
 Check your email for the reset link. If no message arrives, confirm you entered
 the email address connected to your account and contact your app administrator.
 
+**Human verification is not complete yet**
+
+Wait for the verification prompt to finish, then try again. If the verification
+area stays blank, reload the page, check browser content blockers, or try
+another browser or device.
+
 **This password reset link is invalid or expired**
 
 Request a new reset link from the sign-in page. Reset links can be used only

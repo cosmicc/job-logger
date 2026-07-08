@@ -252,7 +252,7 @@ def test_password_reset_requests_are_rate_limited_by_ip(client: TestClient) -> N
 
 
 def test_turnstile_csp_is_added_when_password_reset_uses_turnstile(client: TestClient) -> None:
-    """The reset page should allow only Cloudflare Turnstile script and frame origins."""
+    """The reset page should explicitly render Turnstile and keep CSP scoped to Cloudflare."""
 
     reset_settings = _reset_settings(
         turnstile_enabled=True,
@@ -263,7 +263,14 @@ def test_turnstile_csp_is_added_when_password_reset_uses_turnstile(client: TestC
         response = reset_client.get("/forgot-password")
 
     assert response.status_code == 200
+    assert "/static/password-reset.js?v=" in response.text
+    assert "api.js?render=explicit&amp;onload=jobLoggerTurnstileReady" in response.text
+    assert 'id="password-reset-turnstile"' in response.text
+    assert "data-turnstile-widget" in response.text
     assert 'data-sitekey="site-key"' in response.text
+    assert "Human verification is loading..." in response.text
+    assert "data-password-reset-submit disabled" in response.text
+    assert "cf-turnstile" not in response.text
     csp_header = response.headers["content-security-policy"]
     assert "script-src 'self' https://challenges.cloudflare.com" in csp_header
     assert "frame-src https://challenges.cloudflare.com" in csp_header

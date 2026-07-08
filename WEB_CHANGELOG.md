@@ -6,6 +6,7 @@ Short release notes shown on the authenticated `/changelog` page.
 
 - Review activity now skips automatic summary-note saves so the timeline only shows meaningful job actions.
 - When enabled by the app administrator, the login page can send a secure password reset email without revealing whether an email address is on an account.
+- The password reset page now shows verification status and waits for human verification to finish before sending a reset request.
 
 ## 1.2.3 - 07.05.2026 - Help navigation, AI Help, AI Cleanup, and changelog display
 

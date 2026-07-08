@@ -37,6 +37,9 @@ All notable changes to Job Logger are documented in this file.
   history.
 - Prevented reset emails for disabled users, unknown emails, and duplicate
   enabled-user email matches while keeping the same user-facing message.
+- Fixed the forgot-password Turnstile widget to render explicitly, show
+  user-facing verification status, and keep the reset button disabled until
+  Cloudflare returns a verification token.
 
 ## 1.2.3 - 07.05.2026 - Help navigation, AI Help and cleanup, changelog display, and Portainer env guidance
 

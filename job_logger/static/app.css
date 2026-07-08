@@ -609,6 +609,18 @@ svg {
   min-height: 65px;
 }
 
+.turnstile-status {
+  min-height: 18px;
+  margin: -4px 0 0;
+  font-size: 13px;
+  font-weight: 750;
+  text-align: center;
+}
+
+.turnstile-status-error {
+  color: var(--danger);
+}
+
 .error-shell {
   display: grid;
   min-height: calc(100dvh - 118px);

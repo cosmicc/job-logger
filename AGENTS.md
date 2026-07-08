@@ -83,6 +83,9 @@ IP/email/account throttles, and audit only safe metadata such as email hashes,
 user IDs, usernames, reset row IDs, provider names, delivery results, and
 rate-limit scopes. `TURNSTILE_ENABLED=false` is allowed for password reset only
 when `DEV_BUILD=true` and the app is not production.
+When Turnstile is enabled, the forgot-password page must render it explicitly
+with visible verification status and keep the reset button disabled until a
+non-empty Turnstile token exists; server-side verification remains mandatory.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`,
 measured in hours. The configured value controls both the signed session cookie

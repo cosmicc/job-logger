@@ -132,6 +132,7 @@ def test_user_manual_stays_end_user_focused() -> None:
     assert "Submit from Work in Progress" in manual_text
     assert "Forgot" in manual_text
     assert "reset link" in manual_text
+    assert "Human verification is not complete yet" in manual_text
     assert "This password reset link is invalid or expired" in manual_text
     assert "Diagnostics" not in manual_text
     assert "/debug" not in manual_text
@@ -154,6 +155,10 @@ def test_changelog_parser_reads_current_release() -> None:
             (
                 "When enabled by the app administrator, the login page can send a secure password reset email "
                 "without revealing whether an email address is on an account."
+            ),
+            (
+                "The password reset page now shows verification status and waits for human verification "
+                "to finish before sending a reset request."
             ),
         ),
     )
@@ -208,6 +213,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert (
         "When enabled by the app administrator, the login page can send a secure password reset email "
         "without revealing whether an email address is on an account."
+    ) in response.text
+    assert (
+        "The password reset page now shows verification status and waits for human verification "
+        "to finish before sending a reset request."
     ) in response.text
     assert "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help." in response.text
     assert "Help now sits beside Log out in the header, while the main route buttons stay grouped together." in response.text
