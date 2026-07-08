@@ -40,6 +40,9 @@ All notable changes to Job Logger are documented in this file.
 - Fixed the forgot-password Turnstile widget to render explicitly, show
   user-facing verification status, and keep the reset button disabled until
   Cloudflare returns a verification token.
+- Tightened password reset Turnstile server validation by rejecting oversized
+  tokens before Siteverify and requiring Cloudflare's returned action and
+  hostname to match the forgot-password flow and configured public URL.
 
 ## 1.2.3 - 07.05.2026 - Help navigation, AI Help and cleanup, changelog display, and Portainer env guidance
 

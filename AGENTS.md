@@ -85,7 +85,9 @@ rate-limit scopes. `TURNSTILE_ENABLED=false` is allowed for password reset only
 when `DEV_BUILD=true` and the app is not production.
 When Turnstile is enabled, the forgot-password page must render it explicitly
 with visible verification status and keep the reset button disabled until a
-non-empty Turnstile token exists; server-side verification remains mandatory.
+non-empty Turnstile token exists; server-side verification remains mandatory
+and must reject mismatched Turnstile action or public hostname values returned
+by Cloudflare Siteverify.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`,
 measured in hours. The configured value controls both the signed session cookie

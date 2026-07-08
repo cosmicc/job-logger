@@ -64,7 +64,9 @@ When Turnstile is enabled, the forgot-password browser page must render the
 widget explicitly through the local password reset script, keep the submit
 button disabled until a non-empty Turnstile token is returned, and show a
 visible verification status. That browser guard is usability only; server-side
-Turnstile verification remains mandatory.
+Turnstile verification remains mandatory. Server-side Siteverify handling must
+also reject responses whose returned `action` is not `password_reset` or whose
+returned hostname does not match `APP_PUBLIC_BASE_URL`.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`.
 `job_logger/session_timeout.py` enforces the server-side timestamp check, and
