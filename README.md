@@ -554,22 +554,24 @@ normal username/password login form remains available above the Device sign-in
 button.
 
 Self-service password reset is disabled by default. When
-`PASSWORD_RESET_ENABLED=true`, configure `APP_PUBLIC_BASE_URL`, SMTP mail
-settings, and Cloudflare Turnstile keys first. Production startup fails closed if
-those dependencies are missing. Reset requests are non-enumerating, send email
-only when exactly one enabled managed user has the submitted email address, store
-only HMAC token hashes, expire links after 24 hours by default, invalidate old
-managed-user sessions after a successful reset, and keep reset routes behind
-Cloudflare Access.
+`PASSWORD_RESET_ENABLED=true`, configure `APP_PUBLIC_BASE_URL`, mail delivery
+settings, and Cloudflare Turnstile keys first. Production startup fails closed
+if those dependencies are missing. Reset requests are non-enumerating, send
+email only when exactly one enabled managed user has the submitted email
+address, store only HMAC token hashes, expire links after 24 hours by default,
+invalidate old managed-user sessions after a successful reset, and keep reset
+routes behind Cloudflare Access.
 
 Password reset settings:
 
 - `PASSWORD_RESET_ENABLED`, default `false`
 - `PASSWORD_RESET_TOKEN_TTL_HOURS`, default `24`
 - `APP_PUBLIC_BASE_URL`, such as `https://logger.example.com`
-- `MAIL_ENABLED`, `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME`, `MAIL_SMTP_HOST`,
-  `MAIL_SMTP_PORT`, `MAIL_SMTP_USERNAME`, `MAIL_SMTP_PASSWORD`,
-  `MAIL_SMTP_STARTTLS`, `MAIL_SMTP_SSL`, and `MAIL_SMTP_TIMEOUT_SECONDS`
+- `MAIL_ENABLED`, `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME`, and `MAIL_MODE`.
+  `MAIL_MODE=smtp` uses `MAIL_SMTP_HOST`, `MAIL_SMTP_PORT`,
+  `MAIL_SMTP_USERNAME`, `MAIL_SMTP_PASSWORD`, `MAIL_SMTP_STARTTLS`,
+  `MAIL_SMTP_SSL`, and `MAIL_SMTP_TIMEOUT_SECONDS`. `MAIL_MODE=smtp2go` sends
+  through SMTP2GO's API using `MAIL_SMTP2GO_API_KEY`.
 - `TURNSTILE_ENABLED`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`,
   `TURNSTILE_VERIFY_URL`, and `TURNSTILE_TIMEOUT_SECONDS`
 

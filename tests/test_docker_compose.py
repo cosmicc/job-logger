@@ -68,9 +68,11 @@ def test_compose_and_swarm_expose_password_reset_settings() -> None:
         assert "APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-}" in deployment_text
         assert "MAIL_ENABLED: ${MAIL_ENABLED:-false}" in deployment_text
         assert "MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-joblogger@example.com}" in deployment_text
+        assert "MAIL_MODE: ${MAIL_MODE:-smtp}" in deployment_text
         assert "MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-}" in deployment_text
         assert "MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:-587}" in deployment_text
         assert "MAIL_SMTP_PASSWORD: ${MAIL_SMTP_PASSWORD:-}" in deployment_text
+        assert "MAIL_SMTP2GO_API_KEY: ${MAIL_SMTP2GO_API_KEY:-}" in deployment_text
         assert "TURNSTILE_ENABLED: ${TURNSTILE_ENABLED:-true}" in deployment_text
         assert "TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}" in deployment_text
         assert "TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}" in deployment_text
@@ -78,6 +80,8 @@ def test_compose_and_swarm_expose_password_reset_settings() -> None:
     assert "PASSWORD_RESET_ENABLED=false" in env_example_text
     assert "APP_PUBLIC_BASE_URL=https://joblogger.example.com" in env_example_text
     assert "MAIL_ENABLED=false" in env_example_text
+    assert "MAIL_MODE=smtp" in env_example_text
+    assert "MAIL_SMTP2GO_API_KEY=" in env_example_text
     assert "TURNSTILE_VERIFY_URL=https://challenges.cloudflare.com/turnstile/v0/siteverify" in env_example_text
 
 

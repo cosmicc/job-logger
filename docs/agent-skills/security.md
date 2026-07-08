@@ -60,6 +60,10 @@ minutes, per submitted email 3 per hour, and per matched account 1 email per 15
 minutes. Store email throttle keys and audit email identifiers as HMAC hashes,
 not raw submitted addresses. `TURNSTILE_ENABLED=false` is allowed only when
 `DEV_BUILD=true` and the app is not production.
+Password reset mail delivery is selected by `MAIL_MODE`. `smtp` uses the
+existing SMTP transport and `smtp2go` uses SMTP2GO's HTTPS API with
+`MAIL_SMTP2GO_API_KEY`. Never log or persist SMTP passwords, SMTP2GO API keys,
+or full reset URLs.
 When Turnstile is enabled, the forgot-password browser page must render the
 widget explicitly through the local password reset script, keep the submit
 button disabled until a non-empty Turnstile token is returned, and show a

@@ -131,6 +131,7 @@ def test_password_reset_settings_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("MAIL_ENABLED", "true")
     monkeypatch.setenv("MAIL_FROM_EMAIL", "support@example.test")
     monkeypatch.setenv("MAIL_FROM_NAME", "Job Logger Support")
+    monkeypatch.setenv("MAIL_MODE", "smtp")
     monkeypatch.setenv("MAIL_SMTP_HOST", "smtp.example.test")
     monkeypatch.setenv("MAIL_SMTP_PORT", "465")
     monkeypatch.setenv("MAIL_SMTP_USERNAME", "smtp-user")
@@ -138,6 +139,7 @@ def test_password_reset_settings_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("MAIL_SMTP_STARTTLS", "false")
     monkeypatch.setenv("MAIL_SMTP_SSL", "true")
     monkeypatch.setenv("MAIL_SMTP_TIMEOUT_SECONDS", "7.5")
+    monkeypatch.setenv("MAIL_SMTP2GO_API_KEY", "api-test-key")
     monkeypatch.setenv("TURNSTILE_ENABLED", "true")
     monkeypatch.setenv("TURNSTILE_SITE_KEY", "site-key")
     monkeypatch.setenv("TURNSTILE_SECRET_KEY", "secret-key")
@@ -154,6 +156,7 @@ def test_password_reset_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.mail_enabled is True
     assert loaded_settings.mail_from_email == "support@example.test"
     assert loaded_settings.mail_from_name == "Job Logger Support"
+    assert loaded_settings.mail_mode == "smtp"
     assert loaded_settings.mail_smtp_host == "smtp.example.test"
     assert loaded_settings.mail_smtp_port == 465
     assert loaded_settings.mail_smtp_username == "smtp-user"
@@ -161,6 +164,7 @@ def test_password_reset_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.mail_smtp_starttls is False
     assert loaded_settings.mail_smtp_ssl is True
     assert loaded_settings.mail_smtp_timeout_seconds == 7.5
+    assert loaded_settings.mail_smtp2go_api_key == "api-test-key"
     assert loaded_settings.turnstile_enabled is True
     assert loaded_settings.turnstile_site_key == "site-key"
     assert loaded_settings.turnstile_secret_key == "secret-key"
@@ -203,6 +207,26 @@ def test_password_reset_runtime_validation_requires_mail_public_url_and_turnstil
 
     with pytest.raises(RuntimeError, match="MAIL_SMTP_SSL"):
         validate_runtime_settings(replace(safe_reset_settings, mail_smtp_ssl=True, mail_smtp_starttls=True))
+
+    smtp2go_settings = replace(
+        safe_reset_settings,
+        mail_mode="smtp2go",
+        mail_smtp_host="",
+        mail_smtp2go_api_key="api-test-key",
+    )
+    validate_runtime_settings(smtp2go_settings)
+
+    with pytest.raises(RuntimeError, match="MAIL_SMTP2GO_API_KEY"):
+        validate_runtime_settings(replace(smtp2go_settings, mail_smtp2go_api_key=None))
+
+
+def test_invalid_mail_mode_fails_fast(monkeypatch) -> None:
+    """Mail delivery mode should stay restricted to known implementations."""
+
+    monkeypatch.setenv("MAIL_MODE", "sendmail")
+
+    with pytest.raises(ValueError, match="MAIL_MODE"):
+        load_settings()
 
 
 def test_database_pool_settings_load_from_environment(monkeypatch) -> None:

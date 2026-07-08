@@ -83,6 +83,10 @@ IP/email/account throttles, and audit only safe metadata such as email hashes,
 user IDs, usernames, reset row IDs, provider names, delivery results, and
 rate-limit scopes. `TURNSTILE_ENABLED=false` is allowed for password reset only
 when `DEV_BUILD=true` and the app is not production.
+Password reset mail delivery is selected by `MAIL_MODE`. `smtp` preserves the
+existing SMTP transport and requires SMTP host/port settings when reset mail is
+enabled. `smtp2go` sends through SMTP2GO's HTTPS API and requires
+`MAIL_SMTP2GO_API_KEY`; the API key must never be logged or committed.
 When Turnstile is enabled, the forgot-password page must render it explicitly
 with visible verification status and keep the reset button disabled until a
 non-empty Turnstile token exists; server-side verification remains mandatory
@@ -138,8 +142,9 @@ all submitted text.
 
 Store all secrets outside source control. Autotask credentials, transcription
 provider credentials, session secrets, database passwords, Cloudflare Tunnel
-tokens, SMTP passwords, Turnstile secrets, and API keys must come from
-environment variables, Docker secrets, or another approved secret store.
+tokens, SMTP passwords, SMTP2GO API keys, Turnstile secrets, and API keys must
+come from environment variables, Docker secrets, or another approved secret
+store.
 
 Do not log secrets, session tokens, raw authentication headers, Cloudflare Access
 JWTs, Autotask API credentials, transcription provider credentials, raw audio,

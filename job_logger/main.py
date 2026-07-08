@@ -108,9 +108,16 @@ def _validate_password_reset_settings(application_settings: Settings) -> None:
         raise RuntimeError("APP_PUBLIC_BASE_URL must use HTTPS in production when PASSWORD_RESET_ENABLED=true.")
 
     if not application_settings.password_reset_mail_configured:
-        raise RuntimeError("MAIL_ENABLED, MAIL_FROM_EMAIL, MAIL_SMTP_HOST, and MAIL_SMTP_PORT are required when PASSWORD_RESET_ENABLED=true.")
+        raise RuntimeError(
+            "MAIL_ENABLED, MAIL_FROM_EMAIL, and either SMTP settings or MAIL_SMTP2GO_API_KEY "
+            "are required when PASSWORD_RESET_ENABLED=true."
+        )
 
-    if application_settings.mail_smtp_ssl and application_settings.mail_smtp_starttls:
+    if (
+        application_settings.mail_mode == "smtp"
+        and application_settings.mail_smtp_ssl
+        and application_settings.mail_smtp_starttls
+    ):
         raise RuntimeError("MAIL_SMTP_SSL and MAIL_SMTP_STARTTLS cannot both be true.")
 
     if not application_settings.turnstile_enabled and not (

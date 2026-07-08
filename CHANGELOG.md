@@ -17,6 +17,9 @@ All notable changes to Job Logger are documented in this file.
   reset-token hashes and IP/email/account reset throttles.
 - Added Docker Compose, Swarm, and `.env.example` settings for password reset,
   SMTP delivery, `APP_PUBLIC_BASE_URL`, and Turnstile.
+- Added `MAIL_MODE=smtp2go` support for password-reset email delivery through
+  SMTP2GO's HTTPS API using `MAIL_SMTP2GO_API_KEY`, while keeping
+  `MAIL_MODE=smtp` as the default existing SMTP behavior.
 
 ### Changed
 
