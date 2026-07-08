@@ -41,6 +41,7 @@
         <p class="muted-text passkey-status" data-passkey-login-status aria-live="polite"></p>
       </div>
     </div>
+    <p class="login-version-label">v{{ app_version }}{% if dev_build %}-DEV{% endif %}</p>
   </section>
   <script src="/static/passkeys.js?v={{ static_asset_version }}" defer></script>
 {% endblock %}

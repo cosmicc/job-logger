@@ -100,9 +100,9 @@ def load_changelog_entries(path: Path | None = None) -> list[ChangelogEntry]:
     """Load versioned web changelog entries from the concise web changelog file.
 
     The parser intentionally supports a small markdown subset: level-two
-    headings followed by short bullet lines. Rendering escaped plain text keeps
-    the release history display predictable and avoids treating changelog
-    content as trusted HTML.
+    version headings, optional level-three section headings, and short bullet
+    lines. Rendering escaped plain text keeps the release history display
+    predictable and avoids treating changelog content as trusted HTML.
     """
 
     resolved_path = _resolve_changelog_path(path)

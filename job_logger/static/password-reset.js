@@ -1,11 +1,7 @@
 (function () {
   "use strict";
 
-  let widgetId = null;
-  let widgetRendered = false;
-  let widgetRenderScheduled = false;
   let verificationToken = "";
-  const turnstileWidgetSelector = "#password-reset-turnstile";
 
   function elements() {
     return {
@@ -42,82 +38,39 @@
     return verificationToken || (responseInput ? responseInput.value : "");
   }
 
-  function renderTurnstileWidget() {
+  function widgetHasRenderedMarkup() {
     const widgetElement = elements().widget;
-    if (!widgetElement || widgetRendered) {
-      return;
-    }
-
-    try {
-      widgetId = window.turnstile.render(turnstileWidgetSelector, {
-        sitekey: widgetElement.dataset.sitekey || "",
-        theme: widgetElement.dataset.theme || "auto",
-        action: "password_reset",
-        appearance: "always",
-        execution: "render",
-        "response-field": true,
-        "response-field-name": "cf-turnstile-response",
-        callback(token) {
-          verificationToken = token || "";
-          setStatus("Human verification complete.", false);
-          setSubmitEnabled(Boolean(verificationToken));
-        },
-        "error-callback"() {
-          verificationToken = "";
-          setStatus("Human verification could not complete. Reload this page and try again.", true);
-          setSubmitEnabled(false);
-        },
-        "expired-callback"() {
-          verificationToken = "";
-          setStatus("Human verification expired. Complete it again before sending the reset link.", true);
-          setSubmitEnabled(false);
-        },
-        "timeout-callback"() {
-          verificationToken = "";
-          setStatus("Human verification timed out. Complete it again before sending the reset link.", true);
-          setSubmitEnabled(false);
-        },
-        "unsupported-callback"() {
-          verificationToken = "";
-          setStatus("This browser does not support human verification. Try another browser or device.", true);
-          setSubmitEnabled(false);
-        },
-      });
-      widgetRendered = true;
-      setStatus("Human verification is running...", false);
-    } catch (_error) {
-      widgetId = null;
-      widgetRendered = false;
-      verificationToken = "";
-      setStatus("Human verification could not load. Reload this page or check browser content blockers.", true);
-      setSubmitEnabled(false);
-    }
+    return Boolean(widgetElement && widgetElement.querySelector('iframe, input[name="cf-turnstile-response"]'));
   }
 
-  function renderTurnstile() {
-    if (!elements().widget || widgetRendered) {
-      return;
-    }
+  function handleTurnstileSuccess(token) {
+    verificationToken = token || "";
+    setStatus("Human verification complete.", false);
+    setSubmitEnabled(Boolean(verificationToken));
+  }
 
-    if (!turnstileAvailable()) {
-      setStatus("Human verification is loading...", false);
-      setSubmitEnabled(false);
-      return;
-    }
+  function handleTurnstileError() {
+    verificationToken = "";
+    setStatus("Human verification could not complete. Reload this page and try again.", true);
+    setSubmitEnabled(false);
+  }
 
-    if (typeof window.turnstile.ready === "function") {
-      if (widgetRenderScheduled) {
-        return;
-      }
-      widgetRenderScheduled = true;
-      window.turnstile.ready(function () {
-        widgetRenderScheduled = false;
-        renderTurnstileWidget();
-      });
-      return;
-    }
+  function handleTurnstileExpired() {
+    verificationToken = "";
+    setStatus("Human verification expired. Complete it again before sending the reset link.", true);
+    setSubmitEnabled(false);
+  }
 
-    renderTurnstileWidget();
+  function handleTurnstileTimeout() {
+    verificationToken = "";
+    setStatus("Human verification timed out. Complete it again before sending the reset link.", true);
+    setSubmitEnabled(false);
+  }
+
+  function handleTurnstileUnsupported() {
+    verificationToken = "";
+    setStatus("This browser does not support human verification. Try another browser or device.", true);
+    setSubmitEnabled(false);
   }
 
   function setupFormGuard() {
@@ -133,31 +86,31 @@
       event.preventDefault();
       setStatus("Human verification is not complete yet. Wait for it to finish, then try again.", true);
       setSubmitEnabled(false);
-      if (window.turnstile && widgetId !== null && typeof window.turnstile.reset === "function") {
-        try {
-          window.turnstile.reset(widgetId);
-        } catch (_error) {
-          setStatus("Human verification could not restart. Reload this page and try again.", true);
-        }
-      }
     });
+  }
+
+  function exposeTurnstileCallbacks() {
+    window.jobLoggerTurnstileSuccess = handleTurnstileSuccess;
+    window.jobLoggerTurnstileError = handleTurnstileError;
+    window.jobLoggerTurnstileExpired = handleTurnstileExpired;
+    window.jobLoggerTurnstileTimeout = handleTurnstileTimeout;
+    window.jobLoggerTurnstileUnsupported = handleTurnstileUnsupported;
   }
 
   function initialize() {
     setSubmitEnabled(false);
+    setStatus("Human verification is loading...", false);
     setupFormGuard();
-    renderTurnstile();
+    exposeTurnstileCallbacks();
     window.setTimeout(function () {
-      if (!submittedToken()) {
-        if (widgetRendered) {
-          setStatus(
-            "Complete human verification before sending the reset link. Reload this page if the verification box stays blank.",
-            true,
-          );
-        } else {
-          setStatus("Human verification could not load. Reload this page or check browser content blockers.", true);
-        }
+      if (submittedToken()) {
+        return;
       }
+      if (turnstileAvailable() || widgetHasRenderedMarkup()) {
+        setStatus("Complete human verification before sending the reset link.", false);
+        return;
+      }
+      setStatus("Human verification could not load. Reload this page or check browser content blockers.", true);
     }, 8000);
   }
 
@@ -167,5 +120,5 @@
     initialize();
   }
 
-  window.jobLoggerTurnstileReady = renderTurnstile;
+  exposeTurnstileCallbacks();
 })();

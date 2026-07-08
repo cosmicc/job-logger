@@ -10,8 +10,8 @@ from pathlib import Path
 import pytest
 
 
-def test_password_reset_turnstile_renders_with_documented_selector(tmp_path: Path) -> None:
-    """The reset script should use Cloudflare's explicit-render selector flow."""
+def test_password_reset_turnstile_callbacks_control_submit_state(tmp_path: Path) -> None:
+    """The reset script should expose implicit Turnstile callbacks before the API loads."""
 
     node_path = shutil.which("node")
     if node_path is None:
@@ -28,8 +28,6 @@ def test_password_reset_turnstile_renders_with_documented_selector(tmp_path: Pat
             const vm = require("vm");
 
             const passwordResetScript = fs.readFileSync({str(password_reset_script_path)!r}, "utf8");
-            const readyCallbacks = [];
-            const renderCalls = [];
             const eventHandlers = {{}};
             const statusElement = {{
               textContent: "",
@@ -43,6 +41,9 @@ def test_password_reset_turnstile_renders_with_documented_selector(tmp_path: Pat
                 sitekey: "site-key",
                 theme: "dark",
               }},
+              querySelector() {{
+                return null;
+              }},
             }};
             const formElement = {{
               dataset: {{}},
@@ -53,16 +54,6 @@ def test_password_reset_turnstile_renders_with_documented_selector(tmp_path: Pat
             const browserWindow = {{
               setTimeout() {{
                 return 1;
-              }},
-              turnstile: {{
-                ready(callback) {{
-                  readyCallbacks.push(callback);
-                }},
-                render(containerSelector, options) {{
-                  renderCalls.push({{containerSelector, options}});
-                  return "widget-id";
-                }},
-                reset() {{}},
               }},
             }};
             const browserDocument = {{
@@ -96,21 +87,25 @@ def test_password_reset_turnstile_renders_with_documented_selector(tmp_path: Pat
               window: browserWindow,
             }}, {{filename: "password-reset.js"}});
 
-            assert.strictEqual(typeof browserWindow.jobLoggerTurnstileReady, "function");
-            assert.strictEqual(readyCallbacks.length, 1);
-            browserWindow.jobLoggerTurnstileReady();
-            assert.strictEqual(readyCallbacks.length, 1);
-
-            readyCallbacks[0]();
-
-            assert.strictEqual(renderCalls.length, 1);
-            assert.strictEqual(renderCalls[0].containerSelector, "#password-reset-turnstile");
-            assert.strictEqual(renderCalls[0].options.sitekey, "site-key");
-            assert.strictEqual(renderCalls[0].options.theme, "dark");
-            assert.strictEqual(renderCalls[0].options.action, "password_reset");
-            assert.strictEqual(renderCalls[0].options["response-field-name"], "cf-turnstile-response");
+            assert.strictEqual(browserWindow.jobLoggerTurnstileReady, undefined);
+            assert.strictEqual(typeof browserWindow.jobLoggerTurnstileSuccess, "function");
+            assert.strictEqual(typeof browserWindow.jobLoggerTurnstileError, "function");
+            assert.strictEqual(typeof browserWindow.jobLoggerTurnstileExpired, "function");
+            assert.strictEqual(typeof browserWindow.jobLoggerTurnstileTimeout, "function");
+            assert.strictEqual(typeof browserWindow.jobLoggerTurnstileUnsupported, "function");
             assert.strictEqual(formElement.dataset.turnstileGuardAttached, "true");
             assert.strictEqual(submitButton.disabled, true);
+            assert.strictEqual(statusElement.textContent, "Human verification is loading...");
+
+            browserWindow.jobLoggerTurnstileSuccess("token-value");
+
+            assert.strictEqual(submitButton.disabled, false);
+            assert.strictEqual(statusElement.textContent, "Human verification complete.");
+
+            browserWindow.jobLoggerTurnstileExpired();
+
+            assert.strictEqual(submitButton.disabled, true);
+            assert.strictEqual(statusElement.textContent, "Human verification expired. Complete it again before sending the reset link.");
           """
         ),
         encoding="utf-8",

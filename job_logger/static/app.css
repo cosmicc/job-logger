@@ -572,6 +572,15 @@ svg {
   padding: 28px;
 }
 
+.login-version-label {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+}
+
 .password-reset-panel {
   gap: 20px;
 }

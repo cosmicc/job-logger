@@ -19,9 +19,9 @@ from tests.conftest import extract_csrf_token
 CURRENT_RELEASE_DATE = "07.08.2026"
 CURRENT_DETAILED_HEADING = (
     f"## 1.2.4 - {CURRENT_RELEASE_DATE} - "
-    "Review activity cleanup and password reset"
+    "Review activity cleanup, password reset, and login polish"
 )
-CURRENT_WEB_TITLE = "Review activity cleanup and password reset"
+CURRENT_WEB_TITLE = "Review activity cleanup, password reset, and login polish"
 CURRENT_WEB_HEADING = f"## 1.2.4 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
 V123_WEB_TITLE = "Help navigation, AI Help, AI Cleanup, and changelog display"
 V123_RELEASE_DATE = "07.05.2026"
@@ -65,6 +65,53 @@ WEB_RELEASE_HEADINGS = (
     "## 1.0.1 - 06.20.2026 - Mobile shell navigation and close behavior",
     "## 1.0.0 - 06.16.2026 - Initial release",
 )
+CHANGELOG_SECTION_HEADINGS = ("### Added", "### Changed", "### Fixed")
+
+
+def _changelog_sections_by_version(changelog_text: str) -> dict[str, list[tuple[str, int]]]:
+    """Return level-three section headings and bullet counts grouped by version."""
+
+    sections_by_version: dict[str, list[tuple[str, int]]] = {}
+    current_version = ""
+    current_section_index = -1
+    for line in changelog_text.splitlines():
+        if line.startswith("## "):
+            heading_text = line[3:].strip()
+            current_version = heading_text.partition(" - ")[0]
+            sections_by_version[current_version] = []
+            current_section_index = -1
+            continue
+
+        if current_version and line.startswith("### "):
+            sections_by_version[current_version].append((line, 0))
+            current_section_index = len(sections_by_version[current_version]) - 1
+            continue
+
+        if current_version and current_section_index >= 0 and line.startswith("- "):
+            section_name, bullet_count = sections_by_version[current_version][current_section_index]
+            sections_by_version[current_version][current_section_index] = (section_name, bullet_count + 1)
+    return sections_by_version
+
+
+def _assert_changelog_sections_are_non_empty(
+    changelog_text: str,
+    expected_headings: tuple[str, ...],
+) -> None:
+    """Assert each release uses ordered, non-empty Added/Changed/Fixed sections."""
+
+    sections_by_version = _changelog_sections_by_version(changelog_text)
+    expected_versions = {heading[3:].partition(" - ")[0] for heading in expected_headings}
+    section_order = {section_heading: index for index, section_heading in enumerate(CHANGELOG_SECTION_HEADINGS)}
+
+    assert set(sections_by_version) == expected_versions
+    for version, section_data in sections_by_version.items():
+        assert section_data, version
+        seen_order: list[int] = []
+        for section_heading, bullet_count in section_data:
+            assert section_heading in CHANGELOG_SECTION_HEADINGS
+            assert bullet_count > 0, f"{version} {section_heading} has no bullets"
+            seen_order.append(section_order[section_heading])
+        assert seen_order == sorted(seen_order), version
 
 
 def test_app_version_matches_current_changelog_version() -> None:
@@ -99,6 +146,8 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "Diagnostics" not in web_changelog_text
     assert "debug page" not in web_changelog_text
     assert "super admin" not in web_changelog_text.lower()
+    _assert_changelog_sections_are_non_empty(changelog_text, DETAILED_RELEASE_HEADINGS)
+    _assert_changelog_sections_are_non_empty(web_changelog_text, WEB_RELEASE_HEADINGS)
 
 
 def test_web_changelog_is_available_to_runtime_artifacts() -> None:
@@ -151,11 +200,12 @@ def test_changelog_parser_reads_current_release() -> None:
         release_date=CURRENT_RELEASE_DATE,
         title=CURRENT_WEB_TITLE,
         changes=(
-            "Review activity now skips automatic summary-note saves so the timeline only shows meaningful job actions.",
             (
                 "When enabled by the app administrator, the login page can send a secure password reset email "
                 "without revealing whether an email address is on an account."
             ),
+            "The login page now shows the app version in small text under the sign-in card, with DEV added for development builds.",
+            "Review activity now skips automatic summary-note saves so the timeline only shows meaningful job actions.",
             (
                 "The password reset page now shows verification status and waits for human verification "
                 "to finish before sending a reset request."
@@ -225,6 +275,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert (
         "Human verification on the password reset page now loads more reliably instead of leaving "
         "a blank verification box."
+    ) in response.text
+    assert (
+        "The login page now shows the app version in small text under the sign-in card, "
+        "with DEV added for development builds."
     ) in response.text
     assert "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help." in response.text
     assert "Help now sits beside Log out in the header, while the main route buttons stay grouped together." in response.text

@@ -602,8 +602,10 @@ and green when all monitored checks are operational. `/changelog` remains
 available as an authenticated fallback page and uses `WEB_CHANGELOG.md` as its
 source. The changelog shows version numbers without brackets, uses
 `MM.DD.YYYY` dates for released versions, and lists short user-facing changes
-for each version. `CHANGELOG.md` remains the detailed source changelog for
-operators and agents.
+for each version. Source entries in `WEB_CHANGELOG.md` use applicable
+non-empty `Added`, `Changed`, and `Fixed` subsections like the detailed
+changelog. `CHANGELOG.md` remains the detailed source changelog for operators
+and agents.
 `WEB_CHANGELOG.md` is only for user-facing changes; keep diagnostics,
 debug-page, super-admin-only, operator-only, and agent-facing notes in
 `CHANGELOG.md` only. The Help and

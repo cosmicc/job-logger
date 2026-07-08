@@ -87,11 +87,12 @@ Password reset mail delivery is selected by `MAIL_MODE`. `smtp` preserves the
 existing SMTP transport and requires SMTP host/port settings when reset mail is
 enabled. `smtp2go` sends through SMTP2GO's HTTPS API and requires
 `MAIL_SMTP2GO_API_KEY`; the API key must never be logged or committed.
-When Turnstile is enabled, the forgot-password page must render it explicitly
-with visible verification status and keep the reset button disabled until a
-non-empty Turnstile token exists; server-side verification remains mandatory
-and must reject mismatched Turnstile action or public hostname values returned
-by Cloudflare Siteverify.
+When Turnstile is enabled, the static forgot-password page uses Cloudflare's
+implicit `cf-turnstile` widget with local named callbacks for verification
+status and button state. Keep the reset button disabled until a non-empty
+Turnstile token exists; server-side verification remains mandatory and must
+reject mismatched Turnstile action or public hostname values returned by
+Cloudflare Siteverify.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`,
 measured in hours. The configured value controls both the signed session cookie
@@ -819,8 +820,10 @@ in `WEB_CHANGELOG.md`.
 Use changelog headings in the form
 `## 1.2.0 - 07.02.2026 - Release title`: write the version number without a
 leading `v` and without brackets, use `MM.DD.YYYY` release dates, then place
-the version title after the date. New detailed `CHANGELOG.md` version entries
-should include `Added`, `Changed`, and `Fixed` subsections.
+the version title after the date. Detailed `CHANGELOG.md` and concise
+`WEB_CHANGELOG.md` version entries should use the applicable non-empty
+`Added`, `Changed`, and `Fixed` subsections; omit a subsection from that
+version when it has no bullets.
 
 ## Development Process
 

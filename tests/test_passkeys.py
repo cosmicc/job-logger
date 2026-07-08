@@ -20,6 +20,7 @@ from job_logger.security import (
     SESSION_USERNAME_KEY,
     authenticated_session_is_expired,
 )
+from job_logger.version import APP_VERSION
 from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as, login_as_web_user
 
 
@@ -142,8 +143,34 @@ def test_login_page_exposes_password_fallback_and_passkey_button(client: TestCli
     assert "Use the local app account configured for this deployment." not in response.text
     assert response.text.index('type="submit"') < response.text.index("data-passkey-login-panel")
     assert "login-brand" not in response.text
+    assert f'<p class="login-version-label">v{APP_VERSION}</p>' in response.text
+    assert f"v{APP_VERSION}-DEV" not in response.text
     assert '<header class="app-header' not in response.text
     assert 'aria-label="Job Logger home"' not in response.text
+
+
+def test_login_page_marks_dev_build_version(client: TestClient) -> None:
+    """DEV_BUILD should append DEV to the tiny login-page version label."""
+
+    client.app.state.application_settings = replace(client.app.state.application_settings, dev_build=True)
+
+    response = client.get("/login")
+
+    assert response.status_code == 200
+    assert f'<p class="login-version-label">v{APP_VERSION}-DEV</p>' in response.text
+
+
+def test_login_version_label_uses_small_close_spacing() -> None:
+    """The login version label should stay visually small and close to the card."""
+
+    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert ".login-version-label" in stylesheet
+    assert "margin: 5px 0 0;" in stylesheet
+    assert "font-size: 10px;" in stylesheet
+    assert "line-height: 1;" in stylesheet
 
 
 def test_config_can_register_and_delete_passkey(client: TestClient, monkeypatch) -> None:
