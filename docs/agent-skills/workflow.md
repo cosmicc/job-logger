@@ -453,8 +453,11 @@ typing state between words on mobile keyboards.
 Browser summary autosaves through `/jobs/{job_id}/description/text` persist the
 active job notes but must not write `job.description.browser_text_saved` audit
 events, and legacy copies of that event must stay out of the Review audit
-timeline. Keep audio transcription, AI cleanup, explicit active edits, review
-saves, and submission actions audited.
+timeline. Review autosaves must not write `job.review.saved`, and legacy
+copies of that event must also stay out of the Review audit timeline. Keep
+audio transcription, AI cleanup, explicit active edits, review decisions, and
+submission actions audited. Successful Autotask submissions should add the
+visible `job.autotask.submitted` activity.
 
 ## AI Summary Cleanup
 
@@ -664,6 +667,12 @@ with two spaces between them. Other selected dates show only the centered date.
 Jobs do not span multiple dates; validation must reject edits where the end
 time is not after the start time on that same date. Keep the audit timeline
 collapsed by default with an expandable detail section.
+Time-entry duration validation must also enforce the selected work-location
+minimum: Remote requires at least 15 rounded minutes, while On-Site requires at
+least 1 rounded hour. Enforce this in `job_logger/services/jobs.py` for active
+end-work, active time edits with an end override, Review saves, Review
+submission/retry, submitted-entry edits, and final Autotask submission
+readiness. Ticket notes do not use start/stop time fields and are exempt.
 
 ## Job Status Expectations
 

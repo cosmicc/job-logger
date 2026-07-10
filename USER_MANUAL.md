@@ -133,6 +133,8 @@ Time entries use rounded start and end times in 15-minute increments. You can
 adjust the visible times with the time controls. **Work Duration** shows the
 rounded duration that will be used for the time entry. Ticket notes hide these
 time fields because ticket notes do not use start and end time.
+Remote time entries must be at least 15 minutes. On-Site time entries must be
+at least 1 hour.
 
 **Client name**
 

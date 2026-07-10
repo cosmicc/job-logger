@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## 1.2.4 - 07.08.2026 - Review activity cleanup, password reset, and version polish
+## 1.2.4 - 07.08.2026 - Review activity cleanup, work minimums, password reset, Autotask throttling, and version polish
 
 ### Added
 
@@ -18,6 +18,11 @@ All notable changes to Job Logger are documented in this file.
 - Added `MAIL_MODE=smtp2go` support for password-reset email delivery through
   SMTP2GO's HTTPS API using `MAIL_SMTP2GO_API_KEY`, while keeping
   `MAIL_MODE=smtp` as the default existing SMTP behavior.
+- Added `AUTOTASK_MAX_CONCURRENT_REQUESTS` and
+  `AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS` runtime settings for live Autotask
+  request throttling.
+- Added a visible `job.autotask.submitted` job activity when a time entry or
+  ticket note is successfully submitted to Autotask.
 
 ### Changed
 
@@ -25,9 +30,15 @@ All notable changes to Job Logger are documented in this file.
   the Python package metadata and PWA service worker cache version.
 - Changed active browser summary-note autosaves so they update the job without
   writing `job.description.browser_text_saved` activity events.
+- Changed review autosaves so they update the job without writing
+  `job.review.saved` activity events.
 - Documented that browser summary-note autosaves are excluded from the Review
-  audit timeline while explicit workflow, transcription, review, submission,
-  and cleanup actions remain audited.
+  audit timeline while explicit workflow, transcription, review decisions,
+  submission, and cleanup actions remain audited.
+- Changed time-entry validation so Remote work requires at least 15 rounded
+  minutes and On-Site work requires at least 1 rounded hour across active
+  end-work, Review save/submit/retry, submitted-entry edits, and direct
+  Work in Progress Autotask submission.
 - Changed production startup validation so enabling password reset requires an
   absolute public base URL, configured SMTP mail, and Turnstile site/secret keys.
 - Changed the login page to show **Forgot password?** only when self-service
@@ -36,6 +47,9 @@ All notable changes to Job Logger are documented in this file.
   sign-in card, using `vX.Y.Z-DEV` on development builds.
 - Changed the full-browser authenticated header to show the app version under
   the left-side Job Logger title, using `vX.Y.Z-DEV` on development builds.
+- Changed live Autotask REST calls to pass through a shared request limiter,
+  defaulting to two concurrent calls and coordinating across PostgreSQL-backed
+  app processes with advisory locks when they share the same database.
 - Changed both changelog files to use applicable non-empty `Added`, `Changed`,
   and `Fixed` sections for every historical version while keeping the web page
   output limited to concise user-facing bullets.
@@ -45,6 +59,8 @@ All notable changes to Job Logger are documented in this file.
 - Hid legacy `job.description.browser_text_saved` rows from the Review audit
   timeline while preserving all other job activity and existing database
   history.
+- Hid legacy `job.review.saved` rows from the Review audit timeline while
+  preserving the historical audit rows in the database.
 - Prevented reset emails for disabled users, unknown emails, and duplicate
   enabled-user email matches while keeping the same user-facing message.
 - Fixed the forgot-password Turnstile widget to load Cloudflare's standard
@@ -64,6 +80,9 @@ All notable changes to Job Logger are documented in this file.
   the sign-in card instead of being pushed down by stretched grid rows.
 - Lowered the full-browser header version label a few pixels under the Job
   Logger title.
+- Reduced the chance of Autotask **Thread Threshold Exceeded** notifications by
+  validating the app's live Autotask concurrency cap between one and three
+  calls and defaulting below the three-thread threshold.
 
 ## 1.2.3 - 07.05.2026 - Help navigation, AI Help and cleanup, changelog display, and Portainer env guidance
 

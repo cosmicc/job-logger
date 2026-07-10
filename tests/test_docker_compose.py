@@ -190,6 +190,21 @@ def test_compose_and_swarm_expose_ai_help_settings() -> None:
     assert "AI_HELP_INSTRUCTIONS=" in env_example_text
 
 
+def test_compose_and_swarm_expose_autotask_thread_limit_settings() -> None:
+    """Autotask request concurrency limits should pass through deployments."""
+
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+    swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+
+    for deployment_text in (compose_text, swarm_text):
+        assert "AUTOTASK_MAX_CONCURRENT_REQUESTS: ${AUTOTASK_MAX_CONCURRENT_REQUESTS:-2}" in deployment_text
+        assert "AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS: ${AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS:-30}" in deployment_text
+
+    assert "AUTOTASK_MAX_CONCURRENT_REQUESTS=2" in env_example_text
+    assert "AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS=30" in env_example_text
+
+
 def test_gemini_cleanup_uses_shared_gemini_api_base_setting() -> None:
     """Gemini cleanup should not expose a separate base URL setting."""
 

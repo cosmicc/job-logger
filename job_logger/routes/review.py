@@ -23,7 +23,7 @@ from job_logger.security import (
     validate_csrf_token,
 )
 from job_logger.services.ai_cleanup import AiCleanupContext, AiCleanupError, cleanup_summary_text
-from job_logger.services.audit import record_audit_event
+from job_logger.services.audit import record_audit_event, record_job_submitted_to_autotask_event
 from job_logger.services.autotask import (
     AutotaskSubmissionError,
     AutotaskTicketNote,
@@ -73,7 +73,8 @@ router = APIRouter(prefix="/review", tags=["review"])
 SESSION_DELETE_AUTOTASK_FAILED_JOB_ID_KEY = "delete_autotask_failed_job_id"
 SESSION_DELETE_AUTOTASK_FAILED_EXTERNAL_ID_KEY = "delete_autotask_failed_external_id"
 BROWSER_TEXT_SAVED_AUDIT_ACTION = "job.description.browser_text_saved"
-HIDDEN_AUDIT_TIMELINE_ACTIONS = {BROWSER_TEXT_SAVED_AUDIT_ACTION}
+REVIEW_SAVED_AUDIT_ACTION = "job.review.saved"
+HIDDEN_AUDIT_TIMELINE_ACTIONS = {BROWSER_TEXT_SAVED_AUDIT_ACTION, REVIEW_SAVED_AUDIT_ACTION}
 
 
 def _ticket_status_options() -> list[tuple[str, str]]:
@@ -554,7 +555,7 @@ async def save_review(
 ) -> Response:
     """Save reviewer edits without submitting to Autotask."""
 
-    actor = require_authenticated_username(request)
+    require_authenticated_username(request)
     wants_json_response = "application/json" in request.headers.get("accept", "").lower()
     try:
         form_values = await _form_values(request)
@@ -572,7 +573,6 @@ async def save_review(
             require_end_time_fields=require_end_time_fields,
         )
         apply_review_fields(job, review_fields)
-        record_audit_event(database_session, actor=actor, action="job.review.saved", job_id=job.id, request=request)
         database_session.commit()
         if wants_json_response:
             return JSONResponse(_review_save_payload(job))
@@ -935,6 +935,8 @@ async def accept_review(
             resource_id=web_user.autotask_resource_id,
             default_service_desk_role_id=web_user.autotask_default_service_desk_role_id,
         )
+        if job.autotask_error is None:
+            record_job_submitted_to_autotask_event(database_session, actor=actor, job=job, request=request)
         record_audit_event(
             database_session,
             actor=actor,
@@ -983,6 +985,8 @@ async def retry_submission(
             resource_id=web_user.autotask_resource_id,
             default_service_desk_role_id=web_user.autotask_default_service_desk_role_id,
         )
+        if job.autotask_error is None:
+            record_job_submitted_to_autotask_event(database_session, actor=actor, job=job, request=request)
         record_audit_event(
             database_session,
             actor=actor,

@@ -23,11 +23,13 @@ from job_logger.time_utils import (
     LOCAL_TIMEZONE,
     enforce_minimum_rounded_end,
     ensure_utc,
+    format_duration_minutes,
     local_date_for,
     now_utc,
     parse_local_form_datetime,
     round_end_for_technician,
     round_start_for_technician,
+    rounded_duration_minutes,
     to_local,
 )
 
@@ -54,6 +56,12 @@ RECORDABLE_JOB_STATUSES = {
 DESCRIPTION_RECORDING_UNAVAILABLE_MESSAGE = (
     "Audio descriptions can only be recorded before the job has been submitted to Autotask."
 )
+MINIMUM_TIME_ENTRY_DURATION_MINUTES = {
+    WorkLocation.REMOTE: 15,
+    WorkLocation.ON_SITE: 60,
+}
+
+
 @dataclass(frozen=True)
 class ReviewFields:
     """Validated editable fields submitted from the review form."""
@@ -395,6 +403,7 @@ def ensure_job_ready_for_autotask_submission(job: Job) -> None:
 
     if job.rounded_end_utc is None:
         raise JobWorkflowError("End time is required before Autotask submission.")
+    ensure_job_time_entry_duration_meets_minimum(job, require_complete_time_fields=True)
 
 
 def list_active_jobs(database_session: Session) -> list[Job]:
@@ -692,6 +701,61 @@ def normalize_work_location(work_location: WorkLocation | str | None) -> WorkLoc
         raise JobWorkflowError("Work location must be Remote or On-Site.") from exc
 
 
+def _work_location_label(work_location: WorkLocation) -> str:
+    """Return the user-facing label for a normalized work location."""
+
+    return "On-Site" if work_location == WorkLocation.ON_SITE else "Remote"
+
+
+def minimum_time_entry_duration_minutes(work_location: WorkLocation | str | None) -> int:
+    """Return the required rounded time-entry duration for one work location."""
+
+    normalized_work_location = normalize_work_location(work_location)
+    return MINIMUM_TIME_ENTRY_DURATION_MINUTES[normalized_work_location]
+
+
+def ensure_time_entry_duration_meets_minimum(
+    *,
+    work_location: WorkLocation | str | None,
+    rounded_start_utc: datetime | None,
+    rounded_end_utc: datetime | None,
+) -> None:
+    """Reject time entries shorter than the work-location minimum."""
+
+    normalized_work_location = normalize_work_location(work_location)
+    if rounded_start_utc is None or rounded_end_utc is None:
+        raise JobWorkflowError("Start time and end time are required before Autotask submission.")
+
+    minimum_minutes = MINIMUM_TIME_ENTRY_DURATION_MINUTES[normalized_work_location]
+    actual_minutes = rounded_duration_minutes(rounded_start_utc, rounded_end_utc)
+    if actual_minutes < minimum_minutes:
+        location_label = _work_location_label(normalized_work_location)
+        minimum_label = format_duration_minutes(minimum_minutes)
+        raise JobWorkflowError(f"{location_label} work requires at least {minimum_label}.")
+
+
+def ensure_job_time_entry_duration_meets_minimum(
+    job: Job,
+    *,
+    require_complete_time_fields: bool = False,
+) -> None:
+    """Reject a time-entry job when its rounded duration is too short."""
+
+    if job.entry_type != EntryType.TIME_ENTRY:
+        return
+
+    if job.rounded_start_utc is None or job.rounded_end_utc is None:
+        if require_complete_time_fields:
+            raise JobWorkflowError("Start time and end time are required before Autotask submission.")
+        return
+
+    ensure_time_entry_duration_meets_minimum(
+        work_location=job.work_location,
+        rounded_start_utc=job.rounded_start_utc,
+        rounded_end_utc=job.rounded_end_utc,
+    )
+
+
 def preserve_locked_active_autotask_client(
     job: Job,
     client_name: str | None,
@@ -855,6 +919,9 @@ def update_active_job_ticket_number(
     if job_date is not None:
         apply_active_job_local_work_date(job, job_date)
 
+    if job.rounded_end_utc is not None:
+        ensure_job_time_entry_duration_meets_minimum(job)
+
     return job
 
 
@@ -878,6 +945,7 @@ def apply_active_job_local_work_date(job: Job, job_date: str) -> Job:
             job.rounded_start_utc,
             _replace_timestamp_local_date(job.rounded_end_utc, selected_local_date),
         )
+        ensure_job_time_entry_duration_meets_minimum(job)
     job.local_work_date = selected_local_date
     return job
 
@@ -952,6 +1020,7 @@ def adjust_active_job_rounded_start(database_session: Session, job_id: str, delt
     )
     if job.rounded_end_utc is not None:
         job.rounded_end_utc = enforce_minimum_rounded_end(job.rounded_start_utc, job.rounded_end_utc)
+        ensure_job_time_entry_duration_meets_minimum(job)
     job.local_work_date = local_date_for(job.rounded_start_utc)
     return job
 
@@ -986,6 +1055,7 @@ def set_active_job_rounded_start(
     job.rounded_start_utc = rounded_start_utc
     if job.rounded_end_utc is not None:
         job.rounded_end_utc = enforce_minimum_rounded_end(job.rounded_start_utc, job.rounded_end_utc)
+        ensure_job_time_entry_duration_meets_minimum(job)
     job.local_work_date = local_date_for(job.rounded_start_utc)
     return job
 
@@ -1014,6 +1084,7 @@ def adjust_active_job_rounded_stop(database_session: Session, job_id: str, delta
         current_rounded_stop + timedelta(minutes=normalized_delta)
     )
     job.rounded_end_utc = enforce_minimum_rounded_end(job.rounded_start_utc, requested_rounded_stop)
+    ensure_job_time_entry_duration_meets_minimum(job)
     return job
 
 
@@ -1049,6 +1120,7 @@ def set_active_job_rounded_stop(
         raise JobWorkflowError("Rounded stop time must be after rounded start time.")
 
     job.rounded_end_utc = rounded_stop_utc
+    ensure_job_time_entry_duration_meets_minimum(job)
     return job
 
 
@@ -1079,6 +1151,7 @@ def end_job(
     rounded_end_timestamp = job.rounded_end_utc or round_end_for_technician(end_timestamp)
     job.raw_end_utc = end_timestamp
     job.rounded_end_utc = enforce_minimum_rounded_end(job.rounded_start_utc, rounded_end_timestamp)
+    ensure_job_time_entry_duration_meets_minimum(job)
     job.local_work_date = local_date_for(job.rounded_start_utc)
     job.status = JobStatus.READY_FOR_REVIEW
     return job
@@ -1300,6 +1373,11 @@ def validate_review_fields(
             raise JobWorkflowError("Rounded end time must stay on the selected job date.")
         if rounded_end_utc <= rounded_start_utc:
             raise JobWorkflowError("End time must be after start time on the same job date.")
+        ensure_time_entry_duration_meets_minimum(
+            work_location=work_location,
+            rounded_start_utc=rounded_start_utc,
+            rounded_end_utc=rounded_end_utc,
+        )
     return ReviewFields(
         ticket_number=ticket_number,
         ticket_title=ticket_title,
@@ -1354,6 +1432,7 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
         job.local_work_date = review_fields.local_work_date
     job.client_name = review_fields.client_name
     job.autotask_company_id = review_fields.autotask_company_id
+    ensure_job_time_entry_duration_meets_minimum(job)
     return job
 
 
@@ -1379,6 +1458,7 @@ def _apply_submitted_entry_fields(job: Job, review_fields: ReviewFields) -> Job:
         job.rounded_end_utc = review_fields.rounded_end_utc
     if review_fields.local_work_date is not None:
         job.local_work_date = review_fields.local_work_date
+    ensure_job_time_entry_duration_meets_minimum(job)
     return job
 
 

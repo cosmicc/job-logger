@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from threading import Lock
 from typing import Any
 
 import httpx
@@ -145,6 +148,33 @@ class FakeSuccessfulApiClient:
         """Return a success response for POST query operations."""
 
         return FakeAutotaskResponse({})
+
+
+class FakeSlowAutotaskClient:
+    """Fake client that records concurrent calls entering the HTTP method."""
+
+    def __init__(self) -> None:
+        """Initialize concurrency counters for limiter assertions."""
+
+        self.active_call_count = 0
+        self.max_active_call_count = 0
+        self.post_call_count = 0
+        self.lock = Lock()
+
+    def post(self, _endpoint_path: str, **_kwargs: Any) -> FakeAutotaskResponse:
+        """Sleep briefly while recording how many calls are in flight."""
+
+        with self.lock:
+            self.active_call_count += 1
+            self.post_call_count += 1
+            self.max_active_call_count = max(self.max_active_call_count, self.active_call_count)
+
+        try:
+            time.sleep(0.05)
+            return FakeAutotaskResponse({})
+        finally:
+            with self.lock:
+                self.active_call_count -= 1
 
 
 class FakeTicketStatusClient:
@@ -1484,6 +1514,29 @@ def test_live_provider_updates_cached_autotask_health_from_api_results() -> None
     assert recovered_health.operation == "Autotask company lookup"
     assert recovered_health.active_failure_count == 0
     assert recovered_health.active_operations == ()
+
+
+def test_live_provider_limits_concurrent_autotask_api_requests() -> None:
+    """Live Autotask HTTP calls should stay below the tenant thread threshold."""
+
+    provider = LiveAutotaskProvider(replace(_live_test_provider().application_settings, autotask_max_concurrent_requests=2))
+    fake_client = FakeSlowAutotaskClient()
+
+    def run_request(_index: int) -> FakeAutotaskResponse:
+        return provider._api_request(
+            fake_client,
+            "POST",
+            "/Companies/query",
+            "Autotask company lookup",
+            json={"MaxRecords": 1},
+        )
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        responses = list(executor.map(run_request, range(5)))
+
+    assert [response.status_code for response in responses] == [200, 200, 200, 200, 200]
+    assert fake_client.post_call_count == 5
+    assert fake_client.max_active_call_count <= 2
 
 
 def test_company_lookup_uses_pagination_and_cache() -> None:

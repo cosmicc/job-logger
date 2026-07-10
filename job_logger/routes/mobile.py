@@ -30,7 +30,7 @@ from job_logger.security import (
     validate_csrf_token,
 )
 from job_logger.services.ai_cleanup import AiCleanupContext, AiCleanupError, cleanup_summary_text
-from job_logger.services.audit import record_audit_event
+from job_logger.services.audit import record_audit_event, record_job_submitted_to_autotask_event
 from job_logger.services.autotask import (
     AutotaskServiceCallOption,
     AutotaskSubmissionError,
@@ -1454,6 +1454,8 @@ async def end_work(
                     "succeeded": job.autotask_error is None,
                 },
             )
+            if job.autotask_error is None:
+                record_job_submitted_to_autotask_event(database_session, actor=actor, job=job, request=request)
         database_session.commit()
         if submit_from_work_in_progress:
             if job.autotask_error:

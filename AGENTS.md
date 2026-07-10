@@ -200,6 +200,10 @@ submission, Autotask submission attempts, Autotask submission success, Autotask
 submission failure, password reset events, and authentication-sensitive events.
 Browser summary-note autosaves through `/jobs/{job_id}/description/text` must not record
 `job.description.browser_text_saved` or appear in the Review audit timeline.
+Review autosaves must not record `job.review.saved`, and legacy
+`job.review.saved` rows must also stay hidden from the Review audit timeline.
+Successful Autotask submissions must record a visible `job.autotask.submitted`
+activity.
 
 Raw audio must not be stored by default. If audio retention is ever added, it
 must be explicit, configurable, documented, access-controlled, and auditable.
@@ -335,6 +339,12 @@ Duration** row under the start/end time controls so full-browser start and end
 fields stay aligned.
 Ticket-note mode hides this duration because start and stop times are not used
 for Autotask ticket notes.
+Time-entry duration validation must enforce the work-location minimum:
+Remote work requires at least 15 rounded minutes, and On-Site work requires at
+least 1 rounded hour. Apply the same server-side rule to active end-work,
+Review saves, Review submission/retry, submitted-entry edits, and direct
+Work in Progress Autotask submission. Ticket notes are exempt because they do
+not use start/stop time fields.
 
 Jobs do not span multiple work dates. Review forms must use one local job date
 with start and end times, and must reject edits where the end time is not after
@@ -429,6 +439,14 @@ super admin must mark cached app health degraded for that semantic operation
 type. The authenticated top-bar degraded icon must remain visible until the same
 operation type succeeds again; unrelated successful Autotask requests must not
 clear a different active failure.
+Live Autotask REST calls must also pass through the shared provider request
+wrapper so `AUTOTASK_MAX_CONCURRENT_REQUESTS`, defaulting to 2 and validated
+from 1 through 3, can keep Job Logger below Autotask's three-thread threshold.
+PostgreSQL-backed deployments coordinate that limiter across app processes
+sharing the same database by using advisory locks; deployments that do not
+share a database are still independently capped by their own process-local
+limiter and should keep lower per-instance limits when they share the same
+Autotask tenant or API user.
 
 ## Speech-to-Text Requirements
 
@@ -1228,6 +1246,10 @@ In production:
   top-bar degraded-health Help link, Diagnostics health banner, and optional
   best-effort Pushover notification loop; page rendering must not run a fresh
   Autotask contactability probe.
+- Live Autotask HTTP calls are capped by `AUTOTASK_MAX_CONCURRENT_REQUESTS`,
+  defaulting to 2. Keep all direct REST traffic inside
+  `job_logger/services/autotask.py` so this process-local and PostgreSQL
+  advisory-lock limiter is always applied.
 - The `/debug` page provides a Diagnostics-admin **Log out web users** action
   that invalidates all managed web-user sessions without ending the config
   super-admin session. Managed Admin users are included in that invalidation

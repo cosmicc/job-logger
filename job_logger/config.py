@@ -69,6 +69,15 @@ def _get_positive_integer(environment_variable_name: str, default_value: int) ->
     return value
 
 
+def _get_bounded_integer(environment_variable_name: str, default_value: int, *, minimum: int, maximum: int) -> int:
+    """Return an integer constrained to an inclusive safe range."""
+
+    value = _get_integer(environment_variable_name, default_value)
+    if value < minimum or value > maximum:
+        raise ValueError(f"{environment_variable_name} must be between {minimum} and {maximum}.")
+    return value
+
+
 def _get_float(environment_variable_name: str, default_value: float) -> float:
     """Return a float setting with a clear fallback for empty variables."""
 
@@ -413,6 +422,12 @@ class Settings:
     # AUTOTASK_TIME_ENTRY_TYPE defaults to ticket time entry type 2.
     autotask_time_entry_type: int
 
+    # AUTOTASK_MAX_CONCURRENT_REQUESTS caps live REST calls below Autotask's thread threshold.
+    autotask_max_concurrent_requests: int
+
+    # AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS bounds waits for a limiter slot.
+    autotask_request_slot_timeout_seconds: float
+
     # AUTOTASK_STATUS_* values map local review statuses to tenant picklist IDs.
     autotask_status_in_progress_id: int | None
     autotask_status_waiting_customer_id: int | None
@@ -645,6 +660,13 @@ def load_settings() -> Settings:
         autotask_secret=os.getenv("AUTOTASK_SECRET") or None,
         autotask_api_integration_code=os.getenv("AUTOTASK_API_INTEGRATION_CODE") or None,
         autotask_time_entry_type=_get_integer("AUTOTASK_TIME_ENTRY_TYPE", 2),
+        autotask_max_concurrent_requests=_get_bounded_integer(
+            "AUTOTASK_MAX_CONCURRENT_REQUESTS",
+            2,
+            minimum=1,
+            maximum=3,
+        ),
+        autotask_request_slot_timeout_seconds=_get_positive_float("AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS", 30.0),
         autotask_status_in_progress_id=_get_optional_integer("AUTOTASK_STATUS_IN_PROGRESS_ID"),
         autotask_status_waiting_customer_id=_get_optional_integer("AUTOTASK_STATUS_WAITING_CUSTOMER_ID"),
         autotask_status_waiting_parts_id=_get_optional_integer("AUTOTASK_STATUS_WAITING_PARTS_ID"),

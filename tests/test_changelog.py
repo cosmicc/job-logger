@@ -19,9 +19,9 @@ from tests.conftest import extract_csrf_token
 CURRENT_RELEASE_DATE = "07.08.2026"
 CURRENT_DETAILED_HEADING = (
     f"## 1.2.4 - {CURRENT_RELEASE_DATE} - "
-    "Review activity cleanup, password reset, and version polish"
+    "Review activity cleanup, work minimums, password reset, Autotask throttling, and version polish"
 )
-CURRENT_WEB_TITLE = "Review activity cleanup, password reset, and version polish"
+CURRENT_WEB_TITLE = "Review activity cleanup, work minimums, password reset, and version polish"
 CURRENT_WEB_HEADING = f"## 1.2.4 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
 V123_WEB_TITLE = "Help navigation, AI Help, AI Cleanup, and changelog display"
 V123_RELEASE_DATE = "07.05.2026"
@@ -205,25 +205,22 @@ def test_changelog_parser_reads_current_release() -> None:
                 "without revealing whether an email address is on an account."
             ),
             "The login page now shows the app version in small text under the sign-in card, with DEV added for development builds.",
+            (
+                "Full browsers now show the app version under the Job Logger title in the header, with DEV "
+                "added for development builds."
+            ),
+            "Successful Autotask submissions now appear as their own job activity in Review.",
+            "Remote time entries now require at least 15 minutes, and On-Site time entries now require at least 1 hour.",
             "Review activity now skips automatic summary-note saves so the timeline only shows meaningful job actions.",
             (
                 "The password reset page now shows verification status and waits for human verification "
                 "to finish before sending a reset request."
             ),
-            (
-                "Full browsers now show the app version under the Job Logger title in the header, with DEV "
-                "added for development builds."
-            ),
+            "Older automatic review-save activity rows are hidden from the Review activity timeline.",
             (
                 "Human verification on the password reset page now loads Cloudflare's standard verification "
                 "script first and retries before showing a load failure."
             ),
-            (
-                "The password reset page now starts Cloudflare verification directly instead of waiting for "
-                "automatic widget loading."
-            ),
-            "The login page version number now sits close under the sign-in card instead of being pushed down the page.",
-            "The full-browser header version number now sits a little lower under the Job Logger title.",
         ),
     )
 
@@ -271,8 +268,17 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert PREVIOUS_WEB_TITLE in response.text
     assert V120_WEB_TITLE in response.text
     assert (
+        "Successful Autotask submissions now appear as their own job activity in Review."
+    ) in response.text
+    assert (
+        "Remote time entries now require at least 15 minutes, and On-Site time entries now require at least 1 hour."
+    ) in response.text
+    assert (
         "Review activity now skips automatic summary-note saves so the timeline only shows "
         "meaningful job actions."
+    ) in response.text
+    assert (
+        "Older automatic review-save activity rows are hidden from the Review activity timeline."
     ) in response.text
     assert (
         "When enabled by the app administrator, the login page can send a secure password reset email "
@@ -287,13 +293,11 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "script first and retries before showing a load failure."
     ) in response.text
     assert (
-        "The password reset page now starts Cloudflare verification directly instead of waiting for "
-        "automatic widget loading."
-    ) in response.text
-    assert "The login page version number now sits close under the sign-in card instead of being pushed down the page." in response.text
-    assert "The full-browser header version number now sits a little lower under the Job Logger title." in response.text
-    assert (
         "The login page now shows the app version in small text under the sign-in card, "
+        "with DEV added for development builds."
+    ) in response.text
+    assert (
+        "Full browsers now show the app version under the Job Logger title in the header, "
         "with DEV added for development builds."
     ) in response.text
     assert "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help." in response.text

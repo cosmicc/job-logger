@@ -64,6 +64,15 @@ Do not put direct Autotask HTTP calls in routes, templates, or browser
 JavaScript. Routes should call the provider/service interface and return safe
 data to the browser.
 
+All live Autotask REST calls must pass through
+`LiveAutotaskProvider._api_request()`. That wrapper enforces
+`AUTOTASK_MAX_CONCURRENT_REQUESTS`, which defaults to `2` and is validated from
+`1` through `3` to stay below Autotask's three-thread threshold. The limiter is
+process-local and, when PostgreSQL is available, also uses advisory locks so app
+processes sharing the same database coordinate the cap. Separate deployments
+that use different databases but share one Autotask tenant or API user must use
+lower per-instance caps because they cannot coordinate through the database.
+
 Current provider responsibilities:
 
 - Validate live Autotask configuration.
@@ -312,6 +321,11 @@ Current cache policy:
 - Other short-lived Autotask lookup data: 15 minutes unless documented
   otherwise.
 
+Caching reduces repeated reads, but it is not the thread-threshold control.
+Keep the shared request limiter in place for every live request, including
+cache misses, diagnostics, ticket history lookups, submissions, updates, and
+deletes.
+
 Company cache must be treated carefully:
 
 - Positive company results may be cached because company names rarely change.
@@ -364,6 +378,12 @@ Required local fields before time-entry submission:
 - Summary notes.
 - Work location mode, which defaults to Remote.
 - Append to resolution.
+
+Time entries must also meet the selected work-location minimum before any
+Autotask create or update leaves the app: Remote requires at least 15 rounded
+minutes, and On-Site requires at least 1 rounded hour. Keep this validation in
+the workflow service so direct Work in Progress submission, Review
+accept/retry, and submitted-entry **Submit changes** share the same rule.
 
 Required local fields before ticket-note submission:
 

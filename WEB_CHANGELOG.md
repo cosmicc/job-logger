@@ -2,25 +2,25 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## 1.2.4 - 07.08.2026 - Review activity cleanup, password reset, and version polish
+## 1.2.4 - 07.08.2026 - Review activity cleanup, work minimums, password reset, and version polish
 
 ### Added
 
 - When enabled by the app administrator, the login page can send a secure password reset email without revealing whether an email address is on an account.
 - The login page now shows the app version in small text under the sign-in card, with DEV added for development builds.
+- Full browsers now show the app version under the Job Logger title in the header, with DEV added for development builds.
+- Successful Autotask submissions now appear as their own job activity in Review.
 
 ### Changed
 
+- Remote time entries now require at least 15 minutes, and On-Site time entries now require at least 1 hour.
 - Review activity now skips automatic summary-note saves so the timeline only shows meaningful job actions.
 - The password reset page now shows verification status and waits for human verification to finish before sending a reset request.
-- Full browsers now show the app version under the Job Logger title in the header, with DEV added for development builds.
 
 ### Fixed
 
+- Older automatic review-save activity rows are hidden from the Review activity timeline.
 - Human verification on the password reset page now loads Cloudflare's standard verification script first and retries before showing a load failure.
-- The password reset page now starts Cloudflare verification directly instead of waiting for automatic widget loading.
-- The login page version number now sits close under the sign-in card instead of being pushed down the page.
-- The full-browser header version number now sits a little lower under the Job Logger title.
 
 ## 1.2.3 - 07.05.2026 - Help navigation, AI Help, AI Cleanup, and changelog display
 

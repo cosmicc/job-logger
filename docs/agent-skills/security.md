@@ -358,10 +358,11 @@ Audit-worthy actions include:
 - Direct Work in Progress Autotask submission decision and outcome.
 - Browser audio description recording events.
 - Audio transcription.
-- Manual review save.
+- Review decisions and submitted-entry updates.
 - AI summary cleanup requests.
 - Accept/retry.
 - Autotask submission attempts and outcomes.
+- Successful Autotask submission activity.
 - Debug Autotask API tests.
 - Full backup downloads, automatic backup creation, and full restores.
 - Delete time entry, delete note, or other destructive cleanup.
@@ -370,7 +371,9 @@ Do not include secrets, raw headers, raw audio, or excessive user text in audit
 details.
 Browser summary-note autosaves through `/jobs/{job_id}/description/text`
 intentionally do not create `job.description.browser_text_saved` activity
-events.
+events. Review autosaves intentionally do not create `job.review.saved`
+activity events. Legacy copies of both low-value event types stay hidden from
+the Review audit timeline without being deleted from the database.
 
 ## AI Summary Cleanup
 

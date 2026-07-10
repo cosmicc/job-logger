@@ -19,7 +19,7 @@ from job_logger.services import system_health
 from job_logger.services.ai_cleanup import AiCleanupResult
 from job_logger.services.autotask import AutotaskSubmissionResult
 from job_logger.services.jobs import get_active_job
-from job_logger.time_utils import format_local_time, local_date_for
+from job_logger.time_utils import format_local_time, local_date_for, round_start_for_technician
 from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token, login_as_super_admin
 
@@ -226,6 +226,15 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         assert len(attempts) == 1
         assert attempts[0].succeeded is True
 
+        submitted_event = database_session.scalar(
+            select(AuditEvent).where(
+                AuditEvent.job_id == active_job_id,
+                AuditEvent.action == "job.autotask.submitted",
+            )
+        )
+        assert submitted_event is not None
+        assert submitted_event.details["external_id"] == f"mock-time-entry-{active_job_id}"
+
 
 def test_work_in_progress_can_submit_directly_to_autotask(authenticated_client: TestClient) -> None:
     """The opt-in workflow should submit from Work in Progress without review acceptance."""
@@ -245,6 +254,9 @@ def test_work_in_progress_can_submit_directly_to_autotask(authenticated_client: 
         active_job = get_active_job(database_session)
         assert active_job is not None
         active_job_id = active_job.id
+        active_job.rounded_start_utc = round_start_for_technician(datetime.now(UTC) - timedelta(hours=1))
+        active_job.local_work_date = local_date_for(active_job.rounded_start_utc)
+        database_session.commit()
 
     active_page_response = authenticated_client.get("/home")
     assert "Submit to Autotask" in active_page_response.text
@@ -313,11 +325,133 @@ def test_work_in_progress_can_submit_directly_to_autotask(authenticated_client: 
         assert direct_submit_event is not None
         assert direct_submit_event.details["succeeded"] is True
 
+        submitted_event = database_session.scalar(
+            select(AuditEvent).where(
+                AuditEvent.job_id == active_job_id,
+                AuditEvent.action == "job.autotask.submitted",
+            )
+        )
+        assert submitted_event is not None
+        assert submitted_event.details["entry_type"] == "time_entry"
+
     review_page_response = authenticated_client.get(f"/review/{active_job_id}")
     assert review_page_response.status_code == 200
     assert f'action="/review/{active_job_id}/edit-entry"' in review_page_response.text
     assert f'action="/review/{active_job_id}/delete-entry"' in review_page_response.text
     assert f'formaction="/review/{active_job_id}/accept"' not in review_page_response.text
+
+
+def test_on_site_active_work_requires_one_hour_before_end(authenticated_client: TestClient) -> None:
+    """On-Site time entries cannot be ended while the rounded duration is under one hour."""
+
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Acme Services",
+            "autotask_company_id": "1001",
+            "work_location": "on_site",
+            "summary_notes": "Tried to end too soon.",
+        },
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
+        assert active_job.status == JobStatus.ACTIVE
+        assert active_job.raw_end_utc is None
+        assert active_job.rounded_end_utc is None
+        assert active_job.work_location == WorkLocation.REMOTE
+
+
+def test_review_rejects_on_site_time_entry_shorter_than_one_hour(authenticated_client: TestClient) -> None:
+    """Review validation blocks On-Site time entries shorter than one hour."""
+
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    save_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
+    select_ticket_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0001"},
+    )
+    assert select_ticket_response.status_code == 200
+    description_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/description/text",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": "Prepared review notes."},
+    )
+    assert description_response.status_code == 200
+    end_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/end",
+        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    review_page_response = authenticated_client.get(f"/review/{active_job_id}")
+    review_csrf_token = extract_csrf_token(review_page_response.text)
+
+    accept_response = authenticated_client.post(
+        f"/review/{active_job_id}/accept",
+        data={
+            "csrf_token": review_csrf_token,
+            "ticket_status": "complete",
+            "job_date": "2026-06-16",
+            "start_time": "08:00",
+            "end_time": "08:15",
+            "summary_notes": "On-Site. Replaced the switch.",
+        },
+        follow_redirects=False,
+    )
+    assert accept_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        reviewed_job = database_session.get(Job, active_job_id)
+        assert reviewed_job is not None
+        assert reviewed_job.status == JobStatus.READY_FOR_REVIEW
+        assert reviewed_job.autotask_external_id is None
+        assert database_session.query(SubmissionAttempt).filter_by(job_id=active_job_id).count() == 0
+        submitted_event = database_session.scalar(
+            select(AuditEvent).where(
+                AuditEvent.job_id == active_job_id,
+                AuditEvent.action == "job.autotask.submitted",
+            )
+        )
+        assert submitted_event is None
 
 
 def test_ticket_note_can_be_submitted_from_review_without_time_fields(authenticated_client: TestClient) -> None:
@@ -2480,7 +2614,7 @@ def test_review_summary_prefix_is_editable_and_updates_work_location(authenticat
             "ticket_status": "follow_up",
             "job_date": "2026-06-16",
             "start_time": "08:00",
-            "end_time": "08:15",
+            "end_time": "09:00",
             "summary_notes": "On-Site. replaced the access point onsite.",
         },
     )
@@ -3201,7 +3335,26 @@ def test_browser_description_save_skips_activity_timeline(authenticated_client: 
     with database.SessionLocal() as database_session:
         active_job = database_session.get(Job, active_job_id)
         assert active_job is not None
-        assert active_job.summary_notes == "Autosaved browser notes"
+        active_job_date = local_date_for(active_job.rounded_start_utc).isoformat()
+        active_job_start = format_local_time(active_job.rounded_start_utc)
+
+    review_autosave_response = authenticated_client.post(
+        f"/review/{active_job_id}/save",
+        headers={"Accept": "application/json"},
+        data={
+            "csrf_token": csrf_token,
+            "ticket_status": "in_progress",
+            "job_date": active_job_date,
+            "start_time": active_job_start,
+            "summary_notes": "Autosaved review notes",
+        },
+    )
+    assert review_autosave_response.status_code == 200
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
+        assert active_job.summary_notes == "Autosaved review notes"
         browser_save_events = list(
             database_session.scalars(
                 select(AuditEvent).where(
@@ -3211,6 +3364,15 @@ def test_browser_description_save_skips_activity_timeline(authenticated_client: 
             )
         )
         assert browser_save_events == []
+        review_save_events = list(
+            database_session.scalars(
+                select(AuditEvent).where(
+                    AuditEvent.job_id == active_job_id,
+                    AuditEvent.action == "job.review.saved",
+                )
+            )
+        )
+        assert review_save_events == []
         database_session.add(
             AuditEvent(
                 job_id=active_job_id,
@@ -3219,12 +3381,21 @@ def test_browser_description_save_skips_activity_timeline(authenticated_client: 
                 details={"text_length": len("legacy autosave")},
             )
         )
+        database_session.add(
+            AuditEvent(
+                job_id=active_job_id,
+                actor="tech",
+                action="job.review.saved",
+                details={"legacy": True},
+            )
+        )
         database_session.commit()
 
     review_response = authenticated_client.get(f"/review/{active_job_id}")
     assert review_response.status_code == 200
     assert "job.started" in review_response.text
     assert "job.description.browser_text_saved" not in review_response.text
+    assert "job.review.saved" not in review_response.text
     assert '<span class="audit-count">1 event</span>' in review_response.text
 
 

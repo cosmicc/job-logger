@@ -873,6 +873,15 @@ tests or isolated development.
 - `AUTOTASK_SECRET`
 - `AUTOTASK_API_INTEGRATION_CODE`
 
+Job Logger limits concurrent live Autotask REST calls so browser lookups,
+diagnostics, and submissions do not push the tenant past Autotask's thread
+threshold. `AUTOTASK_MAX_CONCURRENT_REQUESTS` defaults to `2` and must be `1`,
+`2`, or `3`. Keep the default unless you know no other Job Logger instance or
+Autotask integration is sharing the same tenant/API user. Requests wait up to
+`AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS`, defaulting to `30`, for a slot.
+PostgreSQL-backed deployments also coordinate this limiter across app processes
+that share the same database.
+
 Do not set a global `AUTOTASK_RESOURCE_ID`. Each managed web user has a required
 Autotask resource ID on `/users`; Job Logger uses that user-specific resource ID
 for service-call lookup and for `TimeEntries.resourceID` when that user
@@ -1146,7 +1155,8 @@ when the logged-in managed web user owns the job.
 The selected job's audit timeline is collapsed by default and can be expanded
 from the review detail when troubleshooting or checking history. Automatic
 summary-note autosaves are not shown there; the timeline focuses on explicit
-job workflow, transcription, review, submission, and cleanup actions.
+job workflow, transcription, review decisions, submission, and cleanup actions.
+Successful Autotask submissions appear as their own job activity.
 
 The mobile Work in Progress card stores a work-location mode of `Remote` or
 `On-Site` for time entries, defaulting to `Remote`. This mode does not appear
@@ -1371,6 +1381,9 @@ controls and a 15-minute dropdown that opens around the currently selected
 time; the server still rounds, validates, and saves those active-job edits.
 Work in Progress and Review detail show that rounded duration as centered labels
 like `15 Minutes`, `1 Hour`, or `1.25 Hours`.
+Time entries also enforce work-location minimums: Remote work must be at least
+15 rounded minutes, and On-Site work must be at least 1 rounded hour. Ticket
+notes do not use start and end times, so these minimums do not apply to notes.
 Review detail shows the active Work in Progress rounded stop preview when an
 active job is selected, but review save ignores that displayed end time until
 the user actually ends the job. Ended review edits must explicitly choose a

@@ -122,6 +122,22 @@ def test_cloudflare_block_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.cloudflare_auto_block_failed_login_attempts == 7
 
 
+def test_autotask_thread_limit_settings_load_from_environment(monkeypatch) -> None:
+    """Autotask concurrency settings should stay bounded by the API threshold."""
+
+    monkeypatch.setenv("AUTOTASK_MAX_CONCURRENT_REQUESTS", "3")
+    monkeypatch.setenv("AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS", "12.5")
+
+    loaded_settings = load_settings()
+
+    assert loaded_settings.autotask_max_concurrent_requests == 3
+    assert loaded_settings.autotask_request_slot_timeout_seconds == 12.5
+
+    monkeypatch.setenv("AUTOTASK_MAX_CONCURRENT_REQUESTS", "4")
+    with pytest.raises(ValueError, match="AUTOTASK_MAX_CONCURRENT_REQUESTS"):
+        load_settings()
+
+
 def test_password_reset_settings_load_from_environment(monkeypatch) -> None:
     """Password reset, SMTP, and Turnstile settings should stay environment-backed."""
 
