@@ -1,9 +1,9 @@
 # Job Logger User Manual
 
 This manual explains the Job Logger screens and workflows available to a normal
-managed web user. It covers signing in, recording work, submitting Autotask
-time entries or ticket notes, reviewing completed work, changing your own
-settings, and understanding common messages.
+managed web user. It covers signing in, resetting your password, recording work,
+submitting Autotask time entries or ticket notes, reviewing completed work,
+changing your own settings, and understanding common messages.
 
 ## What Job Logger Does
 
@@ -39,6 +39,13 @@ correct password. Contact your app administrator if that happens.
 If there are too many failed sign-in attempts, Job Logger may temporarily block
 more attempts from that location. Wait for the lockout time to pass or contact
 your app administrator.
+
+If your organization enables password reset, the sign-in page shows **Forgot
+password?**. Enter your account email address and complete the verification
+prompt. Job Logger always shows the same confirmation message, even when no
+enabled account matches that email address. If your email matches exactly one
+enabled account, you will receive a reset link that works once and expires after
+24 hours. After you set the new password, sign in again with that password.
 
 ## Device Sign-In
 
@@ -126,6 +133,8 @@ Time entries use rounded start and end times in 15-minute increments. You can
 adjust the visible times with the time controls. **Work Duration** shows the
 rounded duration that will be used for the time entry. Ticket notes hide these
 time fields because ticket notes do not use start and end time.
+Remote time entries must be at least 15 minutes. On-Site time entries must be
+at least 1 hour.
 
 **Client name**
 
@@ -346,6 +355,22 @@ Your account cannot sign in. Contact your app administrator.
 
 Sign-in is temporarily blocked for that location. Wait and try again later, or
 contact your app administrator.
+
+**If an enabled Job Logger account exists for that email address, a password reset email has been sent**
+
+Check your email for the reset link. If no message arrives, confirm you entered
+the email address connected to your account and contact your app administrator.
+
+**Human verification is not complete yet**
+
+Wait for the verification prompt to finish, then try again. If the verification
+area stays blank, reload the page, check browser content blockers, or try
+another browser or device.
+
+**This password reset link is invalid or expired**
+
+Request a new reset link from the sign-in page. Reset links can be used only
+once and expire after 24 hours.
 
 **This browser does not support secure audio recording**
 

@@ -25,7 +25,10 @@
         <div class="desktop-header-left">
           <a class="brand" href="/home" aria-label="Job Logger home">
             <img class="brand-icon" src="/static/icons/job-logger-logo-transparent.png?v={{ static_asset_version }}" alt="" width="34" height="34" aria-hidden="true">
-            <span>Job Logger</span>
+            <span class="brand-text-stack">
+              <span class="brand-title">Job Logger</span>
+              <span class="desktop-brand-version">v{{ app_version }}{% if dev_build %}-DEV{% endif %}</span>
+            </span>
           </a>
         </div>
         {% if app_health_degraded %}

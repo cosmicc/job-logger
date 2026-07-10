@@ -21,7 +21,8 @@ choices for security decisions. The server remains authoritative.
 ## Authentication And Sessions
 
 Authentication routes live in `job_logger/routes/auth.py`. Managed-user
-passkey routes live in `job_logger/routes/passkeys.py`.
+password reset routes live in `job_logger/routes/password_reset.py`.
+Managed-user passkey routes live in `job_logger/routes/passkeys.py`.
 
 `APP_USERNAME` and `APP_PASSWORD` authenticate only the config super admin. That
 account can manage `/users`, view all review jobs, use diagnostics, and run
@@ -41,6 +42,45 @@ by the config super admin are temporary. On the next managed-user sign-in,
 `job_logger/services/session_control.py` must allow only `GET /config`,
 `POST /config/password`, and logout until `/config/password` successfully
 changes the password and clears `web_users.password_must_change`.
+
+Self-service password reset is optional and hidden unless
+`PASSWORD_RESET_ENABLED=true`. `/forgot-password` and `/reset-password/{token}`
+must stay behind Cloudflare Access when Access is configured, and every form
+must validate CSRF. Reset requests must never reveal account existence. For a
+valid submitted email and Turnstile result, show the same generic browser
+message whether zero, one, duplicate, or disabled accounts exist. Send email and
+create a token only when exactly one enabled `WebUser` row matches the submitted
+email address. Store only an HMAC-SHA256 token hash keyed by `APP_SECRET_KEY`;
+never store, log, audit, or display the raw token or full reset URL. Reset links
+must be unique per request, expire after `PASSWORD_RESET_TOKEN_TTL_HOURS`
+defaulting to 24, work once, clear `web_users.password_must_change` through the
+normal password helper, and invalidate existing managed-user sessions on
+success. Reset throttles are independent of Turnstile: per IP 5 requests per 15
+minutes, per submitted email 3 per hour, and per matched account 1 email per 15
+minutes. Store email throttle keys and audit email identifiers as HMAC hashes,
+not raw submitted addresses. `TURNSTILE_ENABLED=false` is allowed only when
+`DEV_BUILD=true` and the app is not production.
+Password reset mail delivery is selected by `MAIL_MODE`. `smtp` uses the
+existing SMTP transport and `smtp2go` uses SMTP2GO's HTTPS API with
+`MAIL_SMTP2GO_API_KEY`. Never log or persist SMTP passwords, SMTP2GO API keys,
+or full reset URLs.
+When Turnstile is enabled, the static forgot-password browser page must load
+Cloudflare's standard `api.js` script, avoid the implicit `cf-turnstile`
+auto-render class, and render the widget through the local password reset
+script after the Cloudflare API is available. The local script may retry the
+explicit `api.js?render=explicit` URL if the standard API script fails before
+rendering. Do not call `turnstile.ready()` from a deferred script. Keep the
+submit button disabled until a non-empty Turnstile token is returned, and show
+a visible verification status. That browser guard is usability only;
+server-side Turnstile verification remains mandatory. Server-side Siteverify
+handling must also reject responses whose returned `action` is not
+`password_reset` or whose returned hostname does not match
+`APP_PUBLIC_BASE_URL`. The forgot-password page may post CSRF-protected
+same-origin Turnstile browser lifecycle diagnostics for app logging. Keep those
+events strictly sanitized: event names, script host/path metadata, callback
+state, render state, token length, request IP, and user agent are acceptable;
+raw tokens, emails, reset URLs, cookies, secrets, site keys, and API keys are
+not.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`.
 `job_logger/session_timeout.py` enforces the server-side timestamp check, and
@@ -162,6 +202,10 @@ Application setup in `job_logger/main.py` configures:
 - Security headers and Content Security Policy.
 
 Production must not use default secrets or missing passwords.
+When password reset is enabled, production must also have an absolute HTTPS
+`APP_PUBLIC_BASE_URL`, configured SMTP mail, and Turnstile site/secret keys. The
+Content Security Policy may add only `https://challenges.cloudflare.com` for
+Turnstile `script-src` and `frame-src` while keeping `frame-ancestors 'none'`.
 
 Successful and failed local app login attempts are recorded as sanitized
 database rows in `login_attempts`. The `/debug` login windows and generated
@@ -255,6 +299,8 @@ Never commit or print:
 - Database passwords.
 - Cloudflare tunnel tokens.
 - Cloudflare Access JWTs.
+- SMTP passwords.
+- Turnstile secrets.
 - Pushover user keys or app tokens.
 - Raw authentication headers.
 - Raw audio.
@@ -310,18 +356,24 @@ Audit-worthy actions include:
 - Rounded start adjustment.
 - Job end.
 - Direct Work in Progress Autotask submission decision and outcome.
-- Description text save.
+- Browser audio description recording events.
 - Audio transcription.
-- Manual review save.
+- Review decisions and submitted-entry updates.
 - AI summary cleanup requests.
 - Accept/retry.
 - Autotask submission attempts and outcomes.
+- Successful Autotask submission activity.
 - Debug Autotask API tests.
 - Full backup downloads, automatic backup creation, and full restores.
 - Delete time entry, delete note, or other destructive cleanup.
 
 Do not include secrets, raw headers, raw audio, or excessive user text in audit
 details.
+Browser summary-note autosaves through `/jobs/{job_id}/description/text`
+intentionally do not create `job.description.browser_text_saved` activity
+events. Review autosaves intentionally do not create `job.review.saved`
+activity events. Legacy copies of both low-value event types stay hidden from
+the Review audit timeline without being deleted from the database.
 
 ## AI Summary Cleanup
 

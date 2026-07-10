@@ -30,7 +30,7 @@ from job_logger.security import (
     validate_csrf_token,
 )
 from job_logger.services.ai_cleanup import AiCleanupContext, AiCleanupError, cleanup_summary_text
-from job_logger.services.audit import record_audit_event
+from job_logger.services.audit import record_audit_event, record_job_submitted_to_autotask_event
 from job_logger.services.autotask import (
     AutotaskServiceCallOption,
     AutotaskSubmissionError,
@@ -1454,6 +1454,8 @@ async def end_work(
                     "succeeded": job.autotask_error is None,
                 },
             )
+            if job.autotask_error is None:
+                record_job_submitted_to_autotask_event(database_session, actor=actor, job=job, request=request)
         database_session.commit()
         if submit_from_work_in_progress:
             if job.autotask_error:
@@ -1481,7 +1483,7 @@ async def save_browser_description(
 ) -> JSONResponse:
     """Save text returned by typing or browser speech recognition during an active job."""
 
-    actor = require_authenticated_username(request)
+    require_authenticated_username(request)
     validate_csrf_header(request)
     payload = await request.json()
     description_text = str(payload.get("summary_notes", "")) or str(payload.get("description_text", ""))
@@ -1491,14 +1493,6 @@ async def save_browser_description(
         existing_job = get_job_or_raise(database_session, job_id)
         ensure_job_owned_by_web_user(existing_job, web_user.id)
         job = update_description_text(database_session, job_id, description_text)
-        record_audit_event(
-            database_session,
-            actor=actor,
-            action="job.description.browser_text_saved",
-            job_id=job.id,
-            request=request,
-            details={"text_length": len(description_text)},
-        )
         database_session.commit()
     except (HTTPException, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()

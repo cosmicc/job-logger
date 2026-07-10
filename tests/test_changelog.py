@@ -16,13 +16,15 @@ from job_logger.services.changelog import (
 from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
-CURRENT_RELEASE_DATE = "07.05.2026"
+CURRENT_RELEASE_DATE = "07.10.2026"
 CURRENT_DETAILED_HEADING = (
-    f"## 1.2.3 - {CURRENT_RELEASE_DATE} - "
-    "Help navigation, AI Help and cleanup, changelog display, and Portainer env guidance"
+    f"## 1.2.4 - {CURRENT_RELEASE_DATE} - "
+    "Review activity cleanup, work minimums, password reset, Autotask throttling, and version polish"
 )
-CURRENT_WEB_TITLE = "Help navigation, AI Help, AI Cleanup, and changelog display"
-CURRENT_WEB_HEADING = f"## 1.2.3 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+CURRENT_WEB_TITLE = "Review activity cleanup, work minimums, password reset, and version polish"
+CURRENT_WEB_HEADING = f"## 1.2.4 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+V123_WEB_TITLE = "Help navigation, AI Help, AI Cleanup, and changelog display"
+V123_RELEASE_DATE = "07.05.2026"
 V122_WEB_TITLE = "App icon, user manual, ticket history, and Config workflow"
 V122_RELEASE_DATE = "07.03.2026"
 PREVIOUS_WEB_TITLE = "Work in Progress, Review, and outage-page polish"
@@ -31,6 +33,7 @@ V120_RELEASE_DATE = "07.02.2026"
 RELEASE_HEADING_PATTERN = re.compile(r"^## \d+\.\d+\.\d+ - (?:\d{2}\.\d{2}\.\d{4} - .+|.+)")
 DETAILED_RELEASE_HEADINGS = (
     CURRENT_DETAILED_HEADING,
+    "## 1.2.3 - 07.05.2026 - Help navigation, AI Help and cleanup, changelog display, and Portainer env guidance",
     "## 1.2.2 - 07.03.2026 - Health alerts, app icon, user manual, and Swarm storage",
     "## 1.2.1 - 07.03.2026 - Work in Progress, Review, and outage-page polish",
     "## 1.2.0 - 07.02.2026 - Ticket note mode, ticket history, Work in Progress layout, navigation, and web-edge errors",
@@ -47,6 +50,7 @@ DETAILED_RELEASE_HEADINGS = (
 )
 WEB_RELEASE_HEADINGS = (
     CURRENT_WEB_HEADING,
+    f"## 1.2.3 - {V123_RELEASE_DATE} - {V123_WEB_TITLE}",
     f"## 1.2.2 - {V122_RELEASE_DATE} - {V122_WEB_TITLE}",
     f"## 1.2.1 - {V122_RELEASE_DATE} - {PREVIOUS_WEB_TITLE}",
     f"## 1.2.0 - {V120_RELEASE_DATE} - {V120_WEB_TITLE}",
@@ -61,12 +65,59 @@ WEB_RELEASE_HEADINGS = (
     "## 1.0.1 - 06.20.2026 - Mobile shell navigation and close behavior",
     "## 1.0.0 - 06.16.2026 - Initial release",
 )
+CHANGELOG_SECTION_HEADINGS = ("### Added", "### Changed", "### Fixed")
+
+
+def _changelog_sections_by_version(changelog_text: str) -> dict[str, list[tuple[str, int]]]:
+    """Return level-three section headings and bullet counts grouped by version."""
+
+    sections_by_version: dict[str, list[tuple[str, int]]] = {}
+    current_version = ""
+    current_section_index = -1
+    for line in changelog_text.splitlines():
+        if line.startswith("## "):
+            heading_text = line[3:].strip()
+            current_version = heading_text.partition(" - ")[0]
+            sections_by_version[current_version] = []
+            current_section_index = -1
+            continue
+
+        if current_version and line.startswith("### "):
+            sections_by_version[current_version].append((line, 0))
+            current_section_index = len(sections_by_version[current_version]) - 1
+            continue
+
+        if current_version and current_section_index >= 0 and line.startswith("- "):
+            section_name, bullet_count = sections_by_version[current_version][current_section_index]
+            sections_by_version[current_version][current_section_index] = (section_name, bullet_count + 1)
+    return sections_by_version
+
+
+def _assert_changelog_sections_are_non_empty(
+    changelog_text: str,
+    expected_headings: tuple[str, ...],
+) -> None:
+    """Assert each release uses ordered, non-empty Added/Changed/Fixed sections."""
+
+    sections_by_version = _changelog_sections_by_version(changelog_text)
+    expected_versions = {heading[3:].partition(" - ")[0] for heading in expected_headings}
+    section_order = {section_heading: index for index, section_heading in enumerate(CHANGELOG_SECTION_HEADINGS)}
+
+    assert set(sections_by_version) == expected_versions
+    for version, section_data in sections_by_version.items():
+        assert section_data, version
+        seen_order: list[int] = []
+        for section_heading, bullet_count in section_data:
+            assert section_heading in CHANGELOG_SECTION_HEADINGS
+            assert bullet_count > 0, f"{version} {section_heading} has no bullets"
+            seen_order.append(section_order[section_heading])
+        assert seen_order == sorted(seen_order), version
 
 
 def test_app_version_matches_current_changelog_version() -> None:
     """The source-controlled version should match the current changelog entry."""
 
-    assert APP_VERSION == "1.2.3"
+    assert APP_VERSION == "1.2.4"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -95,6 +146,8 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     assert "Diagnostics" not in web_changelog_text
     assert "debug page" not in web_changelog_text
     assert "super admin" not in web_changelog_text.lower()
+    _assert_changelog_sections_are_non_empty(changelog_text, DETAILED_RELEASE_HEADINGS)
+    _assert_changelog_sections_are_non_empty(web_changelog_text, WEB_RELEASE_HEADINGS)
 
 
 def test_web_changelog_is_available_to_runtime_artifacts() -> None:
@@ -126,6 +179,10 @@ def test_user_manual_stays_end_user_focused() -> None:
         assert expected_section in manual_text
 
     assert "Submit from Work in Progress" in manual_text
+    assert "Forgot" in manual_text
+    assert "reset link" in manual_text
+    assert "Human verification is not complete yet" in manual_text
+    assert "This password reset link is invalid or expired" in manual_text
     assert "Diagnostics" not in manual_text
     assert "/debug" not in manual_text
     assert "debug page" not in manual_text.lower()
@@ -139,38 +196,31 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="1.2.3",
+        version="1.2.4",
         release_date=CURRENT_RELEASE_DATE,
         title=CURRENT_WEB_TITLE,
         changes=(
-            "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help.",
-            "Help now sits beside Log out in the header, while the main route buttons stay grouped together.",
-            "On phones, Work and Review now stay on the left, while Help, Config, any optional admin shortcut, and Log out sit on the right.",
-            "Phone header icons are larger inside the same compact navigation buttons.",
-            "Phone header icons are now even larger and use the same size inside every nav button.",
-            "The Help page now opens the version changelog in an overlay with an X close button.",
-            "On phones, the current version and version changelog button now share one row.",
-            "The Help page now starts with Ask AI for help, then shows Operational Status, with Current version as the last card.",
-            "The Help page cards now have a little more space between them.",
-            "Ask AI for help now uses a one-line question field that submits when Enter is pressed.",
-            "The Help page can answer one Job Logger support question at a time when the app administrator configures Gemini AI Help instructions.",
-            "Gemini AI Cleanup now uses the same Gemini endpoint setup as Ask AI for help.",
-            "Ask AI for help now keeps broad/simple answers concise and avoids showing unfinished trailing fragments.",
             (
-                "Ask AI for help now explains what users can ask, clears the old question "
-                "when users start another one, and shows a general app operational-status card."
+                "When enabled by the app administrator, the login page can send a secure password reset email "
+                "without revealing whether an email address is on an account."
             ),
+            "The login page now shows the app version in small text under the sign-in card, with DEV added for development builds.",
             (
-                "The degraded app-health alert now opens Operational Status on the Help page "
-                "and uses yellow or red to show severity; Operational Status shows green when "
-                "the app is healthy."
+                "Full browsers now show the app version under the Job Logger title in the header, with DEV "
+                "added for development builds."
             ),
+            "Successful Autotask submissions now appear as their own job activity in Review.",
+            "Remote time entries now require at least 15 minutes, and On-Site time entries now require at least 1 hour.",
+            "Review activity now skips automatic summary-note saves so the timeline only shows meaningful job actions.",
             (
-                "New managed users and users whose password was reset now have to change that "
-                "temporary password before using the app; phones still show the device sign-in "
-                "setup prompt after the password is changed."
+                "The password reset page now shows verification status and waits for human verification "
+                "to finish before sending a reset request."
             ),
-            "Help now labels released version dates as Released: MM.DD.YYYY and shows previous changelog entries as full-width cards without timeline dots.",
+            "Older automatic review-save activity rows are hidden from the Review activity timeline.",
+            (
+                "Human verification on the password reset page now loads Cloudflare's standard verification "
+                "script first and retries before showing a load failure."
+            ),
         ),
     )
 
@@ -192,6 +242,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
+    assert ">1.2.4<" in response.text
     assert ">1.2.3<" in response.text
     assert ">1.2.2<" in response.text
     assert ">1.2.1<" in response.text
@@ -206,14 +257,49 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert ">1.0.2<" in response.text
     assert ">1.0.1<" in response.text
     assert ">1.0.0<" in response.text
+    assert "[1.2.4]" not in response.text
     assert "[1.2.3]" not in response.text
     assert "[1.2.2]" not in response.text
     assert "[1.2.1]" not in response.text
     assert "[1.2.0]" not in response.text
     assert CURRENT_WEB_TITLE in response.text
+    assert V123_WEB_TITLE in response.text
     assert V122_WEB_TITLE in response.text
     assert PREVIOUS_WEB_TITLE in response.text
     assert V120_WEB_TITLE in response.text
+    assert (
+        "Successful Autotask submissions now appear as their own job activity in Review."
+    ) in response.text
+    assert (
+        "Remote time entries now require at least 15 minutes, and On-Site time entries now require at least 1 hour."
+    ) in response.text
+    assert (
+        "Review activity now skips automatic summary-note saves so the timeline only shows "
+        "meaningful job actions."
+    ) in response.text
+    assert (
+        "Older automatic review-save activity rows are hidden from the Review activity timeline."
+    ) in response.text
+    assert (
+        "When enabled by the app administrator, the login page can send a secure password reset email "
+        "without revealing whether an email address is on an account."
+    ) in response.text
+    assert (
+        "The password reset page now shows verification status and waits for human verification "
+        "to finish before sending a reset request."
+    ) in response.text
+    assert (
+        "Human verification on the password reset page now loads Cloudflare&#39;s standard verification "
+        "script first and retries before showing a load failure."
+    ) in response.text
+    assert (
+        "The login page now shows the app version in small text under the sign-in card, "
+        "with DEV added for development builds."
+    ) in response.text
+    assert (
+        "Full browsers now show the app version under the Job Logger title in the header, "
+        "with DEV added for development builds."
+    ) in response.text
     assert "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help." in response.text
     assert "Help now sits beside Log out in the header, while the main route buttons stay grouped together." in response.text
     assert (
@@ -470,7 +556,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
-    v123_index = response.text.index(CURRENT_WEB_TITLE)
+    v124_index = response.text.index(CURRENT_WEB_TITLE)
+    v123_index = response.text.index(V123_WEB_TITLE)
     v122_index = response.text.index(V122_WEB_TITLE)
     v121_index = response.text.index(PREVIOUS_WEB_TITLE)
     v120_index = response.text.index(V120_WEB_TITLE)
@@ -484,6 +571,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     v102_index = response.text.index("Autotask workflow and desktop layout updates")
     v101_index = response.text.index("Mobile shell navigation and close behavior")
     v100_index = response.text.index("Initial release")
+    assert v124_index < v123_index
     assert v123_index < v122_index
     assert v122_index < v121_index
     assert v121_index < v120_index
@@ -498,7 +586,10 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert v102_index < v101_index
     assert v101_index < v100_index
     assert f'<h2 id="current-version-heading">{CURRENT_WEB_TITLE}</h2>' in response.text
+    assert '<span class="release-version">1.2.4</span>' in response.text
     assert '<span class="release-version">1.2.3</span>' in response.text
+    assert '<span class="release-date">07.10.2026</span>' in response.text
+    assert '<span class="release-date">07.05.2026</span>' in response.text
     assert '<span class="release-version">1.2.2</span>' in response.text
     assert '<span class="release-version">1.2.1</span>' in response.text
     assert '<span class="release-date">07.03.2026</span>' in response.text

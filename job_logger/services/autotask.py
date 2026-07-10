@@ -4,15 +4,21 @@ from __future__ import annotations
 
 import re
 import time
+import zlib
+from collections.abc import Iterator
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from threading import RLock
+from threading import BoundedSemaphore, RLock
 from typing import Any
 
 import httpx
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
+from job_logger import database
 from job_logger.config import Settings, settings
 from job_logger.enums import EntryType, TicketStatus, WorkLocation
 from job_logger.models import Job
@@ -94,6 +100,134 @@ AUTOTASK_MAX_PAGINATED_PAGES = 100
 # AUTOTASK_SAFE_ERROR_TEXT_LIMIT bounds remote error excerpts kept in UI/audit
 # summaries so diagnostics stay actionable without storing full remote payloads.
 AUTOTASK_SAFE_ERROR_TEXT_LIMIT = 240
+
+# AUTOTASK_ADVISORY_LOCK_NAME namespaces PostgreSQL advisory locks used to
+# coordinate Autotask request slots across app processes that share a database.
+AUTOTASK_ADVISORY_LOCK_NAME = "job_logger.autotask.request_slots"
+
+# AUTOTASK_ADVISORY_LOCK_POLL_SECONDS keeps waiters responsive without busy looping.
+AUTOTASK_ADVISORY_LOCK_POLL_SECONDS = 0.1
+
+_POSTGRES_TRY_ADVISORY_LOCK_SQL = text("SELECT pg_try_advisory_lock(:namespace, :slot_number)")
+_POSTGRES_ADVISORY_UNLOCK_SQL = text("SELECT pg_advisory_unlock(:namespace, :slot_number)")
+
+
+_AUTOTASK_PROCESS_LIMITER_LOCK = RLock()
+_AUTOTASK_PROCESS_LIMITERS: dict[int, BoundedSemaphore] = {}
+
+
+def _autotask_process_limiter(slot_count: int) -> BoundedSemaphore:
+    """Return a process-local limiter sized for the configured request cap."""
+
+    with _AUTOTASK_PROCESS_LIMITER_LOCK:
+        limiter = _AUTOTASK_PROCESS_LIMITERS.get(slot_count)
+        if limiter is None:
+            limiter = BoundedSemaphore(slot_count)
+            _AUTOTASK_PROCESS_LIMITERS[slot_count] = limiter
+        return limiter
+
+
+def _signed_32_bit(value: int) -> int:
+    """Return a PostgreSQL advisory-lock key segment in signed 32-bit range."""
+
+    return value if value < 2**31 else value - 2**32
+
+
+def _autotask_advisory_lock_namespace(application_settings: Settings) -> int:
+    """Return a stable tenant-specific namespace for PostgreSQL advisory locks."""
+
+    cache_namespace = (application_settings.autotask_base_url or "").strip().rstrip("/")
+    lock_name = f"{AUTOTASK_ADVISORY_LOCK_NAME}:{cache_namespace}"
+    return _signed_32_bit(zlib.crc32(lock_name.encode("utf-8")))
+
+
+def _postgres_limiter_available() -> bool:
+    """Return whether PostgreSQL advisory locks can coordinate request slots."""
+
+    try:
+        return database.engine.dialect.name == "postgresql"
+    except Exception:
+        return False
+
+
+def _acquire_postgres_autotask_slot(
+    connection: Any,
+    *,
+    namespace: int,
+    slot_count: int,
+    timeout_seconds: float,
+) -> int:
+    """Acquire one PostgreSQL advisory-lock slot before a live Autotask call."""
+
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        for slot_number in range(slot_count):
+            acquired = connection.execute(
+                _POSTGRES_TRY_ADVISORY_LOCK_SQL,
+                {"namespace": namespace, "slot_number": slot_number},
+            ).scalar()
+            if acquired:
+                return slot_number
+
+        remaining_seconds = deadline - time.monotonic()
+        if remaining_seconds <= 0:
+            raise AutotaskSubmissionError("Timed out waiting for an Autotask API request slot. Try again in a moment.")
+        time.sleep(min(AUTOTASK_ADVISORY_LOCK_POLL_SECONDS, remaining_seconds))
+
+
+@contextmanager
+def _postgres_autotask_request_slot(application_settings: Settings, slot_count: int) -> Iterator[None]:
+    """Coordinate Autotask concurrency across PostgreSQL-backed app processes."""
+
+    if not _postgres_limiter_available():
+        yield
+        return
+
+    connection = None
+    acquired_slot: int | None = None
+    namespace = _autotask_advisory_lock_namespace(application_settings)
+    try:
+        connection = database.engine.connect()
+        acquired_slot = _acquire_postgres_autotask_slot(
+            connection,
+            namespace=namespace,
+            slot_count=slot_count,
+            timeout_seconds=application_settings.autotask_request_slot_timeout_seconds,
+        )
+    except SQLAlchemyError:
+        if connection is not None:
+            connection.close()
+        yield
+        return
+    except Exception:
+        if connection is not None:
+            connection.close()
+        raise
+
+    try:
+        yield
+    finally:
+        if connection is not None:
+            if acquired_slot is not None:
+                try:
+                    connection.execute(
+                        _POSTGRES_ADVISORY_UNLOCK_SQL,
+                        {"namespace": namespace, "slot_number": acquired_slot},
+                    )
+                except SQLAlchemyError:
+                    # If unlock fails, invalidate the pooled connection so a
+                    # session-level advisory lock cannot leak to later work.
+                    connection.invalidate()
+            connection.close()
+
+
+@contextmanager
+def _autotask_request_slot(application_settings: Settings) -> Iterator[None]:
+    """Limit concurrent live Autotask REST calls below the tenant thread cap."""
+
+    slot_count = max(1, min(application_settings.autotask_max_concurrent_requests, 3))
+    with _autotask_process_limiter(slot_count), _postgres_autotask_request_slot(application_settings, slot_count):
+        yield
 
 
 @dataclass(frozen=True)
@@ -1366,8 +1500,9 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Run one Autotask request and update cached health from transport state."""
 
         try:
-            request_method = getattr(client, method.lower())
-            response = request_method(endpoint_path, **kwargs)
+            with _autotask_request_slot(self.application_settings):
+                request_method = getattr(client, method.lower())
+                response = request_method(endpoint_path, **kwargs)
         except httpx.HTTPError:
             record_autotask_api_failure(
                 f"{action_description} could not reach the Autotask API.",

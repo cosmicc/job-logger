@@ -122,6 +122,129 @@ def test_cloudflare_block_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.cloudflare_auto_block_failed_login_attempts == 7
 
 
+def test_autotask_thread_limit_settings_load_from_environment(monkeypatch) -> None:
+    """Autotask concurrency settings should stay bounded by the API threshold."""
+
+    monkeypatch.setenv("AUTOTASK_MAX_CONCURRENT_REQUESTS", "3")
+    monkeypatch.setenv("AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS", "12.5")
+
+    loaded_settings = load_settings()
+
+    assert loaded_settings.autotask_max_concurrent_requests == 3
+    assert loaded_settings.autotask_request_slot_timeout_seconds == 12.5
+
+    monkeypatch.setenv("AUTOTASK_MAX_CONCURRENT_REQUESTS", "4")
+    with pytest.raises(ValueError, match="AUTOTASK_MAX_CONCURRENT_REQUESTS"):
+        load_settings()
+
+
+def test_password_reset_settings_load_from_environment(monkeypatch) -> None:
+    """Password reset, SMTP, and Turnstile settings should stay environment-backed."""
+
+    monkeypatch.setenv("PASSWORD_RESET_ENABLED", "true")
+    monkeypatch.setenv("PASSWORD_RESET_TOKEN_TTL_HOURS", "12")
+    monkeypatch.setenv("APP_PUBLIC_BASE_URL", "https://logger.example.test/")
+    monkeypatch.setenv("MAIL_ENABLED", "true")
+    monkeypatch.setenv("MAIL_FROM_EMAIL", "support@example.test")
+    monkeypatch.setenv("MAIL_FROM_NAME", "Job Logger Support")
+    monkeypatch.setenv("MAIL_MODE", "smtp")
+    monkeypatch.setenv("MAIL_SMTP_HOST", "smtp.example.test")
+    monkeypatch.setenv("MAIL_SMTP_PORT", "465")
+    monkeypatch.setenv("MAIL_SMTP_USERNAME", "smtp-user")
+    monkeypatch.setenv("MAIL_SMTP_PASSWORD", "smtp-password")
+    monkeypatch.setenv("MAIL_SMTP_STARTTLS", "false")
+    monkeypatch.setenv("MAIL_SMTP_SSL", "true")
+    monkeypatch.setenv("MAIL_SMTP_TIMEOUT_SECONDS", "7.5")
+    monkeypatch.setenv("MAIL_SMTP2GO_API_KEY", "api-test-key")
+    monkeypatch.setenv("TURNSTILE_ENABLED", "true")
+    monkeypatch.setenv("TURNSTILE_SITE_KEY", "site-key")
+    monkeypatch.setenv("TURNSTILE_SECRET_KEY", "secret-key")
+    monkeypatch.setenv("TURNSTILE_VERIFY_URL", "https://turnstile.example.test/siteverify")
+    monkeypatch.setenv("TURNSTILE_TIMEOUT_SECONDS", "4.5")
+
+    loaded_settings = load_settings()
+
+    assert loaded_settings.password_reset_enabled is True
+    assert loaded_settings.password_reset_token_ttl_hours == 12
+    assert loaded_settings.password_reset_token_ttl_seconds == 43200
+    assert loaded_settings.app_public_base_url == "https://logger.example.test"
+    assert loaded_settings.password_reset_mail_configured is True
+    assert loaded_settings.mail_enabled is True
+    assert loaded_settings.mail_from_email == "support@example.test"
+    assert loaded_settings.mail_from_name == "Job Logger Support"
+    assert loaded_settings.mail_mode == "smtp"
+    assert loaded_settings.mail_smtp_host == "smtp.example.test"
+    assert loaded_settings.mail_smtp_port == 465
+    assert loaded_settings.mail_smtp_username == "smtp-user"
+    assert loaded_settings.mail_smtp_password == "smtp-password"
+    assert loaded_settings.mail_smtp_starttls is False
+    assert loaded_settings.mail_smtp_ssl is True
+    assert loaded_settings.mail_smtp_timeout_seconds == 7.5
+    assert loaded_settings.mail_smtp2go_api_key == "api-test-key"
+    assert loaded_settings.turnstile_enabled is True
+    assert loaded_settings.turnstile_site_key == "site-key"
+    assert loaded_settings.turnstile_secret_key == "secret-key"
+    assert loaded_settings.turnstile_verify_url == "https://turnstile.example.test/siteverify"
+    assert loaded_settings.turnstile_timeout_seconds == 4.5
+
+
+def test_password_reset_runtime_validation_requires_mail_public_url_and_turnstile() -> None:
+    """Password reset should fail closed unless all security dependencies are configured."""
+
+    safe_reset_settings = replace(
+        settings,
+        password_reset_enabled=True,
+        app_public_base_url="https://logger.example.test",
+        mail_enabled=True,
+        mail_from_email="support@example.test",
+        mail_smtp_host="smtp.example.test",
+        mail_smtp_starttls=True,
+        mail_smtp_ssl=False,
+        turnstile_enabled=True,
+        turnstile_site_key="site-key",
+        turnstile_secret_key="secret-key",
+    )
+
+    validate_runtime_settings(safe_reset_settings)
+
+    with pytest.raises(RuntimeError, match="APP_PUBLIC_BASE_URL"):
+        validate_runtime_settings(replace(safe_reset_settings, app_public_base_url=""))
+
+    with pytest.raises(RuntimeError, match="MAIL_ENABLED"):
+        validate_runtime_settings(replace(safe_reset_settings, mail_enabled=False))
+
+    with pytest.raises(RuntimeError, match="TURNSTILE_SITE_KEY"):
+        validate_runtime_settings(replace(safe_reset_settings, turnstile_site_key=""))
+
+    with pytest.raises(RuntimeError, match="TURNSTILE_ENABLED=false"):
+        validate_runtime_settings(replace(safe_reset_settings, turnstile_enabled=False, dev_build=False))
+
+    validate_runtime_settings(replace(safe_reset_settings, turnstile_enabled=False, dev_build=True))
+
+    with pytest.raises(RuntimeError, match="MAIL_SMTP_SSL"):
+        validate_runtime_settings(replace(safe_reset_settings, mail_smtp_ssl=True, mail_smtp_starttls=True))
+
+    smtp2go_settings = replace(
+        safe_reset_settings,
+        mail_mode="smtp2go",
+        mail_smtp_host="",
+        mail_smtp2go_api_key="api-test-key",
+    )
+    validate_runtime_settings(smtp2go_settings)
+
+    with pytest.raises(RuntimeError, match="MAIL_SMTP2GO_API_KEY"):
+        validate_runtime_settings(replace(smtp2go_settings, mail_smtp2go_api_key=None))
+
+
+def test_invalid_mail_mode_fails_fast(monkeypatch) -> None:
+    """Mail delivery mode should stay restricted to known implementations."""
+
+    monkeypatch.setenv("MAIL_MODE", "sendmail")
+
+    with pytest.raises(ValueError, match="MAIL_MODE"):
+        load_settings()
+
+
 def test_database_pool_settings_load_from_environment(monkeypatch) -> None:
     """Database connection tuning should stay environment-backed."""
 

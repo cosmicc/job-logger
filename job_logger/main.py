@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request, Response
 from fastapi.exception_handlers import http_exception_handler
@@ -17,7 +18,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from job_logger.config import Settings, settings
 from job_logger.logging_config import configure_logging
-from job_logger.routes import auth, changelog, configuration, debug, health, help, mobile, passkeys, pwa, review, users
+from job_logger.routes import auth, changelog, configuration, debug, health, help, mobile, passkeys, password_reset, pwa, review, users
 from job_logger.security import current_username
 from job_logger.services.app_health_monitor import app_health_notification_scheduler
 from job_logger.services.backups import automatic_backup_scheduler
@@ -90,11 +91,52 @@ def _database_uses_unsafe_password(database_url: str) -> bool:
     return f":{DEVELOPMENT_DATABASE_PASSWORD}@" in database_url or f":{PLACEHOLDER_SECRET_PREFIX}" in database_url.lower()
 
 
+def _validate_password_reset_settings(application_settings: Settings) -> None:
+    """Fail fast when password reset is enabled without safe dependencies."""
+
+    if not application_settings.password_reset_enabled:
+        return
+
+    if not application_settings.app_public_base_url:
+        raise RuntimeError("APP_PUBLIC_BASE_URL is required when PASSWORD_RESET_ENABLED=true.")
+
+    parsed_public_url = urlparse(application_settings.app_public_base_url)
+    if not parsed_public_url.scheme or not parsed_public_url.netloc:
+        raise RuntimeError("APP_PUBLIC_BASE_URL must be an absolute URL when PASSWORD_RESET_ENABLED=true.")
+
+    if application_settings.is_production and parsed_public_url.scheme != "https":
+        raise RuntimeError("APP_PUBLIC_BASE_URL must use HTTPS in production when PASSWORD_RESET_ENABLED=true.")
+
+    if not application_settings.password_reset_mail_configured:
+        raise RuntimeError(
+            "MAIL_ENABLED, MAIL_FROM_EMAIL, and either SMTP settings or MAIL_SMTP2GO_API_KEY "
+            "are required when PASSWORD_RESET_ENABLED=true."
+        )
+
+    if (
+        application_settings.mail_mode == "smtp"
+        and application_settings.mail_smtp_ssl
+        and application_settings.mail_smtp_starttls
+    ):
+        raise RuntimeError("MAIL_SMTP_SSL and MAIL_SMTP_STARTTLS cannot both be true.")
+
+    if not application_settings.turnstile_enabled and not (
+        application_settings.dev_build and not application_settings.is_production
+    ):
+        raise RuntimeError("TURNSTILE_ENABLED=false is allowed only for explicit DEV_BUILD=true development/testing password reset.")
+
+    if application_settings.turnstile_enabled and (
+        not application_settings.turnstile_site_key or not application_settings.turnstile_secret_key
+    ):
+        raise RuntimeError("TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are required when PASSWORD_RESET_ENABLED=true.")
+
+
 def validate_runtime_settings(application_settings: Settings) -> None:
     """Fail fast when production settings would expose the app unsafely."""
 
     uses_development_app_password = application_settings.app_password == DEVELOPMENT_APP_PASSWORD
     uses_development_secret = application_settings.app_secret_key == DEVELOPMENT_SECRET_KEY
+    _validate_password_reset_settings(application_settings)
     if not application_settings.is_production:
         return
 
@@ -136,9 +178,14 @@ def _apply_security_headers(response: Response, application_settings: Settings) 
     response.headers["Permissions-Policy"] = "camera=(), geolocation=(), microphone=(self)"
     if application_settings.is_production:
         response.headers["Strict-Transport-Security"] = HSTS_HEADER_VALUE
+    script_sources = "'self'"
+    frame_sources = ""
+    if application_settings.password_reset_enabled and application_settings.turnstile_enabled:
+        script_sources = "'self' https://challenges.cloudflare.com"
+        frame_sources = "frame-src https://challenges.cloudflare.com; "
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self'; "
+        f"script-src {script_sources}; "
         "worker-src 'self'; "
         "style-src 'self'; "
         "img-src 'self' data:; "
@@ -146,6 +193,7 @@ def _apply_security_headers(response: Response, application_settings: Settings) 
         "connect-src 'self'; "
         "object-src 'none'; "
         "base-uri 'self'; "
+        f"{frame_sources}"
         "frame-ancestors 'none'; "
         "form-action 'self'"
     )
@@ -341,6 +389,7 @@ def create_app(
     fastapi_app.include_router(health.router)
     fastapi_app.include_router(pwa.router)
     fastapi_app.include_router(auth.router)
+    fastapi_app.include_router(password_reset.router)
     fastapi_app.include_router(passkeys.router)
     fastapi_app.include_router(mobile.router)
     fastapi_app.include_router(configuration.router)

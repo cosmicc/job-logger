@@ -32,6 +32,7 @@ DEFAULT_GEMINI_HELP_MODEL = "gemini-3.5-flash"
 DEFAULT_GEMINI_HELP_API_BASE = "https://generativelanguage.googleapis.com/v1beta/openai"
 
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR"}
+VALID_MAIL_MODES = {"smtp", "smtp2go"}
 
 
 def _get_boolean(environment_variable_name: str, default_value: bool) -> bool:
@@ -65,6 +66,15 @@ def _get_positive_integer(environment_variable_name: str, default_value: int) ->
     value = _get_integer(environment_variable_name, default_value)
     if value <= 0:
         raise ValueError(f"{environment_variable_name} must be greater than zero.")
+    return value
+
+
+def _get_bounded_integer(environment_variable_name: str, default_value: int, *, minimum: int, maximum: int) -> int:
+    """Return an integer constrained to an inclusive safe range."""
+
+    value = _get_integer(environment_variable_name, default_value)
+    if value < minimum or value > maximum:
+        raise ValueError(f"{environment_variable_name} must be between {minimum} and {maximum}.")
     return value
 
 
@@ -123,6 +133,15 @@ def _get_ai_cleanup_provider() -> str:
         return "lm_studio"
 
     return normalized_provider or "gemini"
+
+
+def _get_mail_mode() -> str:
+    """Return the validated mail delivery mode."""
+
+    mail_mode = os.getenv("MAIL_MODE", "smtp").strip().lower().replace("-", "_") or "smtp"
+    if mail_mode not in VALID_MAIL_MODES:
+        raise ValueError("MAIL_MODE must be smtp or smtp2go.")
+    return mail_mode
 
 
 @dataclass(frozen=True)
@@ -209,6 +228,44 @@ class Settings:
 
     # LOGIN_LOCAL_LOCKOUT_MINUTES is the app-enforced lockout after the threshold.
     login_local_lockout_minutes: int
+
+    # PASSWORD_RESET_ENABLED gates self-service managed-user password resets.
+    password_reset_enabled: bool
+
+    # PASSWORD_RESET_TOKEN_TTL_HOURS controls how long emailed reset links work.
+    password_reset_token_ttl_hours: float
+
+    # APP_PUBLIC_BASE_URL is the absolute HTTPS origin used in password-reset email links.
+    app_public_base_url: str
+
+    # MAIL_ENABLED gates mail delivery for password-reset email.
+    mail_enabled: bool
+
+    # MAIL_FROM_* controls the sender identity shown on password-reset email.
+    mail_from_email: str
+    mail_from_name: str
+
+    # MAIL_MODE selects the delivery backend: smtp or smtp2go.
+    mail_mode: str
+
+    # MAIL_SMTP_* settings configure the generic SMTP transport.
+    mail_smtp_host: str
+    mail_smtp_port: int
+    mail_smtp_username: str | None
+    mail_smtp_password: str | None
+    mail_smtp_starttls: bool
+    mail_smtp_ssl: bool
+    mail_smtp_timeout_seconds: float
+
+    # MAIL_SMTP2GO_API_KEY authenticates SMTP2GO API email delivery.
+    mail_smtp2go_api_key: str | None
+
+    # TURNSTILE_* settings configure Cloudflare Turnstile verification for reset requests.
+    turnstile_enabled: bool
+    turnstile_site_key: str
+    turnstile_secret_key: str
+    turnstile_verify_url: str
+    turnstile_timeout_seconds: float
 
     # PUSHOVER_ENABLED gates best-effort admin health notifications.
     pushover_enabled: bool
@@ -365,6 +422,12 @@ class Settings:
     # AUTOTASK_TIME_ENTRY_TYPE defaults to ticket time entry type 2.
     autotask_time_entry_type: int
 
+    # AUTOTASK_MAX_CONCURRENT_REQUESTS caps live REST calls below Autotask's thread threshold.
+    autotask_max_concurrent_requests: int
+
+    # AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS bounds waits for a limiter slot.
+    autotask_request_slot_timeout_seconds: float
+
     # AUTOTASK_STATUS_* values map local review statuses to tenant picklist IDs.
     autotask_status_in_progress_id: int | None
     autotask_status_waiting_customer_id: int | None
@@ -409,6 +472,22 @@ class Settings:
         """Return the configured session timeout as whole seconds."""
 
         return max(int(self.session_timeout_hours * 60 * 60), 1)
+
+    @property
+    def password_reset_token_ttl_seconds(self) -> int:
+        """Return the password-reset token lifetime as whole seconds."""
+
+        return max(int(self.password_reset_token_ttl_hours * 60 * 60), 1)
+
+    @property
+    def password_reset_mail_configured(self) -> bool:
+        """Return whether the selected mail mode can send reset mail."""
+
+        if not self.mail_enabled or not self.mail_from_email:
+            return False
+        if self.mail_mode == "smtp2go":
+            return bool(self.mail_smtp2go_api_key)
+        return bool(self.mail_smtp_host and self.mail_smtp_port > 0)
 
     @property
     def pushover_configured(self) -> bool:
@@ -475,6 +554,29 @@ def load_settings() -> Settings:
             5,
         ),
         login_local_lockout_minutes=_get_positive_integer("LOGIN_LOCAL_LOCKOUT_MINUTES", 15),
+        password_reset_enabled=_get_boolean("PASSWORD_RESET_ENABLED", False),
+        password_reset_token_ttl_hours=_get_positive_float("PASSWORD_RESET_TOKEN_TTL_HOURS", 24.0),
+        app_public_base_url=(os.getenv("APP_PUBLIC_BASE_URL") or "").strip().rstrip("/"),
+        mail_enabled=_get_boolean("MAIL_ENABLED", False),
+        mail_from_email=(os.getenv("MAIL_FROM_EMAIL", "joblogger@example.com").strip() or "joblogger@example.com"),
+        mail_from_name=(os.getenv("MAIL_FROM_NAME", "Job Logger").strip() or "Job Logger"),
+        mail_mode=_get_mail_mode(),
+        mail_smtp_host=(os.getenv("MAIL_SMTP_HOST") or "").strip(),
+        mail_smtp_port=_get_positive_integer("MAIL_SMTP_PORT", 587),
+        mail_smtp_username=(os.getenv("MAIL_SMTP_USERNAME") or "").strip() or None,
+        mail_smtp_password=(os.getenv("MAIL_SMTP_PASSWORD") or "").strip() or None,
+        mail_smtp_starttls=_get_boolean("MAIL_SMTP_STARTTLS", True),
+        mail_smtp_ssl=_get_boolean("MAIL_SMTP_SSL", False),
+        mail_smtp_timeout_seconds=_get_positive_float("MAIL_SMTP_TIMEOUT_SECONDS", 10.0),
+        mail_smtp2go_api_key=(os.getenv("MAIL_SMTP2GO_API_KEY") or "").strip() or None,
+        turnstile_enabled=_get_boolean("TURNSTILE_ENABLED", True),
+        turnstile_site_key=(os.getenv("TURNSTILE_SITE_KEY") or "").strip(),
+        turnstile_secret_key=(os.getenv("TURNSTILE_SECRET_KEY") or "").strip(),
+        turnstile_verify_url=(
+            os.getenv("TURNSTILE_VERIFY_URL", "https://challenges.cloudflare.com/turnstile/v0/siteverify").strip()
+            or "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+        ),
+        turnstile_timeout_seconds=_get_positive_float("TURNSTILE_TIMEOUT_SECONDS", 10.0),
         pushover_enabled=_get_boolean("PUSHOVER_ENABLED", False),
         pushover_user_key=(os.getenv("PUSHOVER_USER_KEY") or "").strip() or None,
         pushover_app_key=(os.getenv("PUSHOVER_APP_KEY") or "").strip() or None,
@@ -558,6 +660,13 @@ def load_settings() -> Settings:
         autotask_secret=os.getenv("AUTOTASK_SECRET") or None,
         autotask_api_integration_code=os.getenv("AUTOTASK_API_INTEGRATION_CODE") or None,
         autotask_time_entry_type=_get_integer("AUTOTASK_TIME_ENTRY_TYPE", 2),
+        autotask_max_concurrent_requests=_get_bounded_integer(
+            "AUTOTASK_MAX_CONCURRENT_REQUESTS",
+            2,
+            minimum=1,
+            maximum=3,
+        ),
+        autotask_request_slot_timeout_seconds=_get_positive_float("AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS", 30.0),
         autotask_status_in_progress_id=_get_optional_integer("AUTOTASK_STATUS_IN_PROGRESS_ID"),
         autotask_status_waiting_customer_id=_get_optional_integer("AUTOTASK_STATUS_WAITING_CUSTOMER_ID"),
         autotask_status_waiting_parts_id=_get_optional_integer("AUTOTASK_STATUS_WAITING_PARTS_ID"),

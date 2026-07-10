@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import Request
 from sqlalchemy.orm import Session
 
-from job_logger.models import AuditEvent
+from job_logger.models import AuditEvent, Job
 from job_logger.security import sanitize_for_audit
 from job_logger.services.login_failures import enforcement_client_ip_from_request
 
@@ -55,3 +55,27 @@ def record_audit_event(
     )
     database_session.add(audit_event)
     return audit_event
+
+
+def record_job_submitted_to_autotask_event(
+    database_session: Session,
+    *,
+    actor: str,
+    job: Job,
+    request: Request | None = None,
+) -> AuditEvent:
+    """Record a user-visible activity when Job Logger submits a job to Autotask."""
+
+    return record_audit_event(
+        database_session,
+        actor=actor,
+        action="job.autotask.submitted",
+        job_id=job.id,
+        request=request,
+        details={
+            "status": job.status.value,
+            "autotask_provider": job.autotask_provider,
+            "external_id": job.autotask_external_id,
+            "entry_type": job.entry_type.value,
+        },
+    )

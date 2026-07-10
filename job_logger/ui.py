@@ -85,6 +85,7 @@ def template_context(
         "theme_color": THEME_META_COLORS[current_theme],
         "flash_messages": pop_flash_messages(request),
         "ai_cleanup_enabled": application_settings.ai_cleanup_enabled,
+        "password_reset_enabled": application_settings.password_reset_enabled,
         "dev_build": application_settings.dev_build,
         "app_version": APP_VERSION,
         "static_asset_version": static_asset_version(),

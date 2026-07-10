@@ -23,6 +23,11 @@
           </svg>
           Sign in
         </button>
+        {% if password_reset_enabled %}
+          <p class="login-help-row">
+            <a href="/forgot-password">Forgot password?</a>
+          </p>
+        {% endif %}
       </form>
       <div class="passkey-login-panel" data-passkey-login-panel>
         <button class="secondary-button full-width" type="button" data-passkey-login-button>
@@ -36,6 +41,7 @@
         <p class="muted-text passkey-status" data-passkey-login-status aria-live="polite"></p>
       </div>
     </div>
+    <p class="login-version-label">v{{ app_version }}{% if dev_build %}-DEV{% endif %}</p>
   </section>
   <script src="/static/passkeys.js?v={{ static_asset_version }}" defer></script>
 {% endblock %}
