@@ -47,19 +47,21 @@ Self-service password reset is optional and hidden unless
 `PASSWORD_RESET_ENABLED=true`. `/forgot-password` and `/reset-password/{token}`
 must stay behind Cloudflare Access when Access is configured, and every form
 must validate CSRF. Reset requests must never reveal account existence. For a
-valid submitted email and Turnstile result, show the same generic browser
-message whether zero, one, duplicate, or disabled accounts exist. Send email and
-create a token only when exactly one enabled `WebUser` row matches the submitted
-email address. Store only an HMAC-SHA256 token hash keyed by `APP_SECRET_KEY`;
-never store, log, audit, or display the raw token or full reset URL. Reset links
-must be unique per request, expire after `PASSWORD_RESET_TOKEN_TTL_HOURS`
-defaulting to 24, work once, clear `web_users.password_must_change` through the
-normal password helper, and invalidate existing managed-user sessions on
-success. Reset throttles are independent of Turnstile: per IP 5 requests per 15
-minutes, per submitted email 3 per hour, and per matched account 1 email per 15
-minutes. Store email throttle keys and audit email identifiers as HMAC hashes,
-not raw submitted addresses. `TURNSTILE_ENABLED=false` is allowed only when
-`DEV_BUILD=true` and the app is not production.
+valid submitted email and, when enabled, Turnstile result, show the same
+generic browser message whether zero, one, duplicate, or disabled accounts
+exist. Send email and create a token only when exactly one enabled `WebUser`
+row matches the submitted email address. Store only an HMAC-SHA256 token hash
+keyed by `APP_SECRET_KEY`; never store, log, audit, or display the raw token or
+full reset URL. Reset links must be unique per request, expire after
+`PASSWORD_RESET_TOKEN_TTL_HOURS` defaulting to 24, work once, clear
+`web_users.password_must_change` through the normal password helper, and
+invalidate existing managed-user sessions on success. Reset throttles are
+independent of Turnstile: per IP 5 requests per 15 minutes, per submitted email
+3 per hour, and per matched account 1 email per 15 minutes. Store email
+throttle keys and audit email identifiers as HMAC hashes, not raw submitted
+addresses. `TURNSTILE_ENABLED=false` is allowed in development and production,
+but the flow must still use CSRF, Cloudflare Access when configured, rate
+limits, generic non-enumerating responses, and HMAC-stored token hashes.
 Password reset mail delivery is selected by `MAIL_MODE`. `smtp` uses the
 existing SMTP transport and `smtp2go` uses SMTP2GO's HTTPS API with
 `MAIL_SMTP2GO_API_KEY`. Never log or persist SMTP passwords, SMTP2GO API keys,
@@ -203,9 +205,10 @@ Application setup in `job_logger/main.py` configures:
 
 Production must not use default secrets or missing passwords.
 When password reset is enabled, production must also have an absolute HTTPS
-`APP_PUBLIC_BASE_URL`, configured SMTP mail, and Turnstile site/secret keys. The
-Content Security Policy may add only `https://challenges.cloudflare.com` for
-Turnstile `script-src` and `frame-src` while keeping `frame-ancestors 'none'`.
+`APP_PUBLIC_BASE_URL` and configured SMTP mail. Turnstile site/secret keys are
+required only when `TURNSTILE_ENABLED=true`. The Content Security Policy may
+add only `https://challenges.cloudflare.com` for Turnstile `script-src` and
+`frame-src` while keeping `frame-ancestors 'none'`.
 
 Successful and failed local app login attempts are recorded as sanitized
 database rows in `login_attempts`. The `/debug` login windows and generated

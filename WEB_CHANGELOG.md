@@ -15,12 +15,13 @@ Short release notes shown on the authenticated `/changelog` page.
 
 - Remote time entries now require at least 15 minutes, and On-Site time entries now require at least 1 hour.
 - Review activity now skips automatic summary-note saves so the timeline only shows meaningful job actions.
-- The password reset page now shows verification status and waits for human verification to finish before sending a reset request.
+- When human verification is enabled, the password reset page now shows verification status and waits for it to finish before sending a reset request.
+- Password reset can now work when the app administrator turns off the human-verification box.
 
 ### Fixed
 
 - Older automatic review-save activity rows are hidden from the Review activity timeline.
-- Human verification on the password reset page now loads Cloudflare's standard verification script first and retries before showing a load failure.
+- Human verification on the password reset page now loads Cloudflare's standard verification script first and retries before showing a load failure when that verification is enabled.
 
 ## 1.2.3 - 07.05.2026 - Help navigation, AI Help, AI Cleanup, and changelog display
 

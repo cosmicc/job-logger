@@ -120,15 +120,13 @@ def _validate_password_reset_settings(application_settings: Settings) -> None:
     ):
         raise RuntimeError("MAIL_SMTP_SSL and MAIL_SMTP_STARTTLS cannot both be true.")
 
-    if not application_settings.turnstile_enabled and not (
-        application_settings.dev_build and not application_settings.is_production
-    ):
-        raise RuntimeError("TURNSTILE_ENABLED=false is allowed only for explicit DEV_BUILD=true development/testing password reset.")
-
     if application_settings.turnstile_enabled and (
         not application_settings.turnstile_site_key or not application_settings.turnstile_secret_key
     ):
-        raise RuntimeError("TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are required when PASSWORD_RESET_ENABLED=true.")
+        raise RuntimeError(
+            "TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are required when "
+            "PASSWORD_RESET_ENABLED=true and TURNSTILE_ENABLED=true."
+        )
 
 
 def validate_runtime_settings(application_settings: Settings) -> None:

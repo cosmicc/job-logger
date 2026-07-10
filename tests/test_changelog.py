@@ -213,13 +213,14 @@ def test_changelog_parser_reads_current_release() -> None:
             "Remote time entries now require at least 15 minutes, and On-Site time entries now require at least 1 hour.",
             "Review activity now skips automatic summary-note saves so the timeline only shows meaningful job actions.",
             (
-                "The password reset page now shows verification status and waits for human verification "
-                "to finish before sending a reset request."
+                "When human verification is enabled, the password reset page now shows verification status and "
+                "waits for it to finish before sending a reset request."
             ),
+            "Password reset can now work when the app administrator turns off the human-verification box.",
             "Older automatic review-save activity rows are hidden from the Review activity timeline.",
             (
                 "Human verification on the password reset page now loads Cloudflare's standard verification "
-                "script first and retries before showing a load failure."
+                "script first and retries before showing a load failure when that verification is enabled."
             ),
         ),
     )
@@ -285,12 +286,15 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "without revealing whether an email address is on an account."
     ) in response.text
     assert (
-        "The password reset page now shows verification status and waits for human verification "
-        "to finish before sending a reset request."
+        "When human verification is enabled, the password reset page now shows verification status "
+        "and waits for it to finish before sending a reset request."
+    ) in response.text
+    assert (
+        "Password reset can now work when the app administrator turns off the human-verification box."
     ) in response.text
     assert (
         "Human verification on the password reset page now loads Cloudflare&#39;s standard verification "
-        "script first and retries before showing a load failure."
+        "script first and retries before showing a load failure when that verification is enabled."
     ) in response.text
     assert (
         "The login page now shows the app version in small text under the sign-in card, "

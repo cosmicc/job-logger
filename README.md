@@ -20,7 +20,8 @@ messages.
 - Alembic manages database migrations.
 - Cloudflare Tunnel publishes the app without opening an inbound firewall port.
 - Cloudflare Access can protect the public hostname before the app login page.
-- Optional self-service password reset uses Cloudflare Turnstile and SMTP mail.
+- Optional self-service password reset uses SMTP mail and can use Cloudflare
+  Turnstile human verification.
 - Configurable providers support mock or live speech-to-text and Autotask modes.
 
 Cloudflare documents Tunnel as an outbound `cloudflared` connector and Access as
@@ -555,12 +556,13 @@ button.
 
 Self-service password reset is disabled by default. When
 `PASSWORD_RESET_ENABLED=true`, configure `APP_PUBLIC_BASE_URL`, mail delivery
-settings, and Cloudflare Turnstile keys first. Production startup fails closed
-if those dependencies are missing. Reset requests are non-enumerating, send
-email only when exactly one enabled managed user has the submitted email
-address, store only HMAC token hashes, expire links after 24 hours by default,
-invalidate old managed-user sessions after a successful reset, and keep reset
-routes behind Cloudflare Access.
+settings, and optional Cloudflare Turnstile settings first. Production startup
+fails closed if the public URL or mail dependencies are missing, and it also
+requires Turnstile keys when `TURNSTILE_ENABLED=true`. Reset requests are
+non-enumerating, send email only when exactly one enabled managed user has the
+submitted email address, store only HMAC token hashes, expire links after 24
+hours by default, invalidate old managed-user sessions after a successful
+reset, and keep reset routes behind Cloudflare Access when configured.
 
 Password reset settings:
 
@@ -573,7 +575,9 @@ Password reset settings:
   `MAIL_SMTP_SSL`, and `MAIL_SMTP_TIMEOUT_SECONDS`. `MAIL_MODE=smtp2go` sends
   through SMTP2GO's API using `MAIL_SMTP2GO_API_KEY`.
 - `TURNSTILE_ENABLED`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`,
-  `TURNSTILE_VERIFY_URL`, and `TURNSTILE_TIMEOUT_SECONDS`
+  `TURNSTILE_VERIFY_URL`, and `TURNSTILE_TIMEOUT_SECONDS`. Set
+  `TURNSTILE_ENABLED=false` to run password reset without the human-verification
+  widget.
 
 Set these passkey variables for production when needed:
 

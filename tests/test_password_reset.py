@@ -40,7 +40,7 @@ def _reset_settings(**overrides):
         "turnstile_enabled": False,
         "turnstile_site_key": "",
         "turnstile_secret_key": "",
-        "dev_build": True,
+        "dev_build": False,
     }
     base_overrides.update(overrides)
     return replace(settings, **base_overrides)

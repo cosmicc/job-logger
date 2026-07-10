@@ -120,6 +120,27 @@ def test_turnstile_validation_logs_safe_debug_metadata(monkeypatch, caplog) -> N
     assert "secret-key" not in caplog.text
 
 
+def test_turnstile_validation_allows_disabled_turnstile_without_dev_build(monkeypatch, caplog) -> None:
+    """Disabled Turnstile should bypass Siteverify in any explicit deployment mode."""
+
+    _FakeAsyncClient.calls = []
+    monkeypatch.setattr(turnstile_service.httpx, "AsyncClient", _FakeAsyncClient)
+
+    with caplog.at_level(logging.INFO, logger="job_logger.services.turnstile"):
+        result = _run_validation(
+            response_token="",
+            turnstile_enabled=False,
+            turnstile_secret_key="",
+            dev_build=False,
+            app_environment="production",
+        )
+
+    assert result.success is True
+    assert result.error_codes == ()
+    assert _FakeAsyncClient.calls == []
+    assert "TURNSTILE_ENABLED=false" in caplog.text
+
+
 def test_turnstile_validation_rejects_action_mismatch(monkeypatch) -> None:
     """Successful Siteverify responses must still match the reset action."""
 

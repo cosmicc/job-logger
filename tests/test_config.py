@@ -188,8 +188,8 @@ def test_password_reset_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.turnstile_timeout_seconds == 4.5
 
 
-def test_password_reset_runtime_validation_requires_mail_public_url_and_turnstile() -> None:
-    """Password reset should fail closed unless all security dependencies are configured."""
+def test_password_reset_runtime_validation_requires_mail_public_url_and_enabled_turnstile_keys() -> None:
+    """Password reset should allow disabled Turnstile while validating enabled Turnstile."""
 
     safe_reset_settings = replace(
         settings,
@@ -216,10 +216,21 @@ def test_password_reset_runtime_validation_requires_mail_public_url_and_turnstil
     with pytest.raises(RuntimeError, match="TURNSTILE_SITE_KEY"):
         validate_runtime_settings(replace(safe_reset_settings, turnstile_site_key=""))
 
-    with pytest.raises(RuntimeError, match="TURNSTILE_ENABLED=false"):
-        validate_runtime_settings(replace(safe_reset_settings, turnstile_enabled=False, dev_build=False))
-
-    validate_runtime_settings(replace(safe_reset_settings, turnstile_enabled=False, dev_build=True))
+    validate_runtime_settings(
+        replace(
+            safe_reset_settings,
+            app_environment="production",
+            turnstile_enabled=False,
+            turnstile_site_key="",
+            turnstile_secret_key="",
+            dev_build=False,
+            app_secret_key="production-secret-key-with-enough-length",
+            app_password="production-password",
+            database_url="postgresql+psycopg://job_logger:production-password@db/job_logger",
+            session_cookie_secure=True,
+            autotask_provider="autotask",
+        )
+    )
 
     with pytest.raises(RuntimeError, match="MAIL_SMTP_SSL"):
         validate_runtime_settings(replace(safe_reset_settings, mail_smtp_ssl=True, mail_smtp_starttls=True))
