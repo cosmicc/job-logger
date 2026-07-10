@@ -42,10 +42,11 @@ your app administrator.
 
 If your organization enables password reset, the sign-in page shows **Forgot
 password?**. Enter your account email address and complete the verification
-prompt. Job Logger always shows the same confirmation message, even when no
-enabled account matches that email address. If your email matches exactly one
-enabled account, you will receive a reset link that works once and expires after
-24 hours. After you set the new password, sign in again with that password.
+prompt if one appears. Job Logger always shows the same confirmation message,
+even when no enabled account matches that email address. If your email matches
+exactly one enabled account, you will receive a reset link that works once and
+expires after 24 hours. After you set the new password, sign in again with that
+password.
 
 ## Device Sign-In
 
@@ -363,9 +364,9 @@ the email address connected to your account and contact your app administrator.
 
 **Human verification is not complete yet**
 
-Wait for the verification prompt to finish, then try again. If the verification
-area stays blank, reload the page, check browser content blockers, or try
-another browser or device.
+When the password reset page shows a verification prompt, wait for it to finish,
+then try again. If the verification area stays blank, reload the page, check
+browser content blockers, or try another browser or device.
 
 **This password reset link is invalid or expired**
 

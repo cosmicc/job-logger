@@ -51,11 +51,8 @@ async def verify_turnstile_response(
     """Verify a browser Turnstile response token with Cloudflare Siteverify."""
 
     if not application_settings.turnstile_enabled:
-        if application_settings.dev_build and not application_settings.is_production:
-            LOGGER.debug("Turnstile verification bypassed for explicit non-production dev build")
-            return TurnstileVerificationResult(success=True)
-        LOGGER.warning("Turnstile verification bypass refused outside explicit dev build")
-        return TurnstileVerificationResult(success=False, error_codes=("turnstile-disabled",))
+        LOGGER.info("Turnstile verification bypassed because TURNSTILE_ENABLED=false")
+        return TurnstileVerificationResult(success=True)
 
     if not response_token or not application_settings.turnstile_secret_key:
         LOGGER.info(

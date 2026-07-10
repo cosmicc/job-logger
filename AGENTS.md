@@ -81,8 +81,10 @@ and invalidate the user's existing signed sessions after success. Reset requests
 must verify Cloudflare Turnstile server-side when enabled, use independent
 IP/email/account throttles, and audit only safe metadata such as email hashes,
 user IDs, usernames, reset row IDs, provider names, delivery results, and
-rate-limit scopes. `TURNSTILE_ENABLED=false` is allowed for password reset only
-when `DEV_BUILD=true` and the app is not production.
+rate-limit scopes. `TURNSTILE_ENABLED=false` is allowed for password reset in
+development and production; when Turnstile is disabled, the reset flow must
+still use CSRF, Cloudflare Access when configured, rate limits, generic
+non-enumerating responses, and HMAC-stored token hashes.
 Password reset mail delivery is selected by `MAIL_MODE`. `smtp` preserves the
 existing SMTP transport and requires SMTP host/port settings when reset mail is
 enabled. `smtp2go` sends through SMTP2GO's HTTPS API and requires
@@ -925,8 +927,8 @@ The application is a FastAPI project under `job_logger/`.
   here as environment-backed values. `DEV_BUILD=true` marks a dev runtime by
   turning the authenticated Help button yellow, adding `-DEV` to the
   full-browser header version label, showing `DEV` on `/help`, suppressing
-  Pushover health notifications, and allowing Turnstile bypass only for
-  password reset in non-production dev/testing.
+  Pushover health notifications, and keeping development/test deployments
+  visually distinct from production.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.
 - `job_logger/models.py` defines persistent tables for managed web users,
   managed-user session invalidation cutoffs, per-user preferences, password

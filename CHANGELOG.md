@@ -40,7 +40,9 @@ All notable changes to Job Logger are documented in this file.
   end-work, Review save/submit/retry, submitted-entry edits, and direct
   Work in Progress Autotask submission.
 - Changed production startup validation so enabling password reset requires an
-  absolute public base URL, configured SMTP mail, and Turnstile site/secret keys.
+  absolute public base URL and configured SMTP mail. Turnstile site/secret keys
+  are required only when `TURNSTILE_ENABLED=true`, and
+  `TURNSTILE_ENABLED=false` no longer requires `DEV_BUILD=true`.
 - Changed the login page to show **Forgot password?** only when self-service
   password reset is enabled.
 - Changed the login page to show a small app version label directly under the
@@ -73,6 +75,10 @@ All notable changes to Job Logger are documented in this file.
 - Tightened password reset Turnstile server validation by rejecting oversized
   tokens before Siteverify and requiring Cloudflare's returned action and
   hostname to match the forgot-password flow and configured public URL.
+- Fixed password reset request handling so deployments with
+  `TURNSTILE_ENABLED=false` bypass Turnstile verification without requiring a
+  development build while still using CSRF, throttles, generic reset responses,
+  and HMAC-stored reset-token hashes.
 - Added sanitized forgot-password Turnstile browser and Siteverify logging,
   including debug-level lifecycle metadata and warning-level browser failure
   events without logging raw tokens, emails, reset URLs, site keys, or secrets.
