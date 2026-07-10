@@ -2,7 +2,7 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## 1.2.4 - 07.08.2026 - Review activity cleanup, work minimums, password reset, and version polish
+## 1.2.4 - 07.10.2026 - Review activity cleanup, work minimums, password reset, and version polish
 
 ### Added
 

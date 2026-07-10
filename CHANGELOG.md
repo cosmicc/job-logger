@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## 1.2.4 - 07.08.2026 - Review activity cleanup, work minimums, password reset, Autotask throttling, and version polish
+## 1.2.4 - 07.10.2026 - Review activity cleanup, work minimums, password reset, Autotask throttling, and version polish
 
 ### Added
 

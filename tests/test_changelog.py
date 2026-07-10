@@ -16,7 +16,7 @@ from job_logger.services.changelog import (
 from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
-CURRENT_RELEASE_DATE = "07.08.2026"
+CURRENT_RELEASE_DATE = "07.10.2026"
 CURRENT_DETAILED_HEADING = (
     f"## 1.2.4 - {CURRENT_RELEASE_DATE} - "
     "Review activity cleanup, work minimums, password reset, Autotask throttling, and version polish"
@@ -588,7 +588,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert f'<h2 id="current-version-heading">{CURRENT_WEB_TITLE}</h2>' in response.text
     assert '<span class="release-version">1.2.4</span>' in response.text
     assert '<span class="release-version">1.2.3</span>' in response.text
-    assert '<span class="release-date">07.08.2026</span>' in response.text
+    assert '<span class="release-date">07.10.2026</span>' in response.text
     assert '<span class="release-date">07.05.2026</span>' in response.text
     assert '<span class="release-version">1.2.2</span>' in response.text
     assert '<span class="release-version">1.2.1</span>' in response.text
