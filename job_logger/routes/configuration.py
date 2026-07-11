@@ -17,6 +17,7 @@ from job_logger.security import (
     current_user_kind,
     current_web_user_id,
     logout_session,
+    public_device_session_enabled,
     require_authenticated_username,
     validate_csrf_header,
     validate_csrf_token,
@@ -101,6 +102,7 @@ def config_page(request: Request, database_session: Session = Depends(get_databa
             submit_from_work_in_progress=submit_from_work_in_progress,
             passkey_credentials=list_passkey_credentials_for_user(database_session, current_web_user.id),
             password_change_required=password_change_required,
+            public_device_session=public_device_session_enabled(request.session),
         ),
     )
 

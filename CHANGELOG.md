@@ -2,6 +2,59 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## 1.3.0 - Admin contact, user management, review totals, and public-device sessions
+
+### Added
+
+- Added `ADMIN_CONTACT_EMAIL` as a Docker, Swarm, and `.env.example` setting
+  for a safe end-user support contact address.
+- Added a default-on **Send welcome email** option to the Add user form. The
+  email includes the Job Logger link from `APP_PUBLIC_BASE_URL`, username,
+  temporary-password instructions, mobile install steps, Device sign-in
+  guidance, and the configured admin contact email when available.
+- Added `/users` row actions that let the config super admin send a managed
+  user a password reset email or resend the welcome email without exposing
+  internal Autotask resource or role IDs in the user list.
+- Added Work and Review today-hours summaries for time-entry work, plus Review
+  day-hours and week-hours columns calculated per job owner and local job date.
+- Added 10-row newest-first Review job-list pagination.
+- Added a default-off **This is a public device** login option for password and
+  Device sign-in sessions. Public-device sessions expire after 15 minutes of
+  inactivity and cannot start new Device sign-in setup.
+
+### Changed
+
+- Advanced the source-controlled dev runtime version to `v1.3.0`, including
+  the Python package metadata and PWA service worker cache version.
+- Changed disabled managed-user password-login, stale-session, Work page, and
+  Device sign-in messages to show the configured admin contact email after the
+  app has verified the account is disabled.
+- Changed AI Help answers to append `If you need further help, contact
+  <admin email>` below the answer, separated by a blank line, when
+  `ADMIN_CONTACT_EMAIL` is configured.
+- Changed account email delivery so password-reset and welcome emails share the
+  same SMTP or SMTP2GO transport, provider result handling, and redacted error
+  reporting.
+- Changed the `/users` list to hide internal Autotask resource ID and role ID
+  values while keeping email, role label, login status, Device sign-in status,
+  Admin status, and account actions visible.
+- Changed Home service-call options to hide tickets already marked Follow up in
+  Job Logger, matching the existing Complete ticket filtering.
+- Changed admin-sent password reset links so they remain valid even when the
+  public self-service forgot-password flow is disabled.
+
+### Fixed
+
+- Fixed disabled-account login guidance so users can see who to contact instead
+  of a generic administrator reference when a support address is configured.
+- Fixed new-user welcome handling so account creation still succeeds and shows
+  the super admin a warning when the welcome email is skipped or cannot be sent.
+- Fixed hours-worked displays so zero-minute totals render as `0 Hours` instead
+  of disappearing.
+- Fixed public-device sessions so they suppress the mobile Device sign-in setup
+  prompt and reject new passkey registration attempts while signed in on a
+  public device.
+
 ## 1.2.4 - 07.10.2026 - Review activity cleanup, work minimums, password reset, Autotask throttling, and version polish
 
 ### Added

@@ -78,9 +78,9 @@ Destructive red controls must stay red on hover, using a brighter red instead
 of falling back to a neutral dark hover.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 the Help button in yellow, while the full-browser header version label under
-the Job Logger title appends `-DEV`, such as `v1.2.4-DEV`. Keep a small but
+the Job Logger title appends `-DEV`, such as `v1.3.0-DEV`. Keep a small but
 visible gap between the title and header version label. The `/help` page shows
-the current version with `DEV`, such as `v1.2.4 DEV`. Keep the Help icon
+the current version with `DEV`, such as `v1.3.0 DEV`. Keep the Help icon
 compact so it does not crowd the mobile navigation icons.
 When cached app health is degraded, every authenticated user sees an exclamation
 status button in the top bar that links to `/help#operational-status`. Use
@@ -294,11 +294,13 @@ mode.
 The `/home/service-calls` endpoint is only for drawing already-verified
 candidate cards in the browser. Before returning or accepting service-call
 options, route code must filter out tickets that already have a local Job Logger
-job for the current managed web user with ticket status Complete; this local
-filter applies even when that job has not been submitted to Autotask yet.
+job for the current managed web user with ticket status Complete or Follow up;
+this local filter applies even when that job has not been submitted to Autotask
+yet.
 `POST /jobs/start/service-call` must still re-read the provider list for the
-submitted local service-call date, apply the same local Complete filter, and
-verify the submitted service-call ticket association ID before creating a job.
+submitted local service-call date, apply the same local Complete/Follow up
+filter, and verify the submitted service-call ticket association ID before
+creating a job.
 Starting from a service call stores verified ticket/client metadata and defaults
 the local editable ticket status to In progress without patching Autotask ticket
 status. Mobile forms that navigate or redirect, including start, service-call
@@ -513,6 +515,12 @@ The review page is `/review`, implemented by `job_logger/routes/review.py`,
 Review supports:
 
 - Selecting jobs from the review list.
+- Listing jobs newest-first with 10 rows per page. A selected job URL may choose
+  the page containing that job so the selected row stays visible.
+- Showing time-entry hours worked today near the top of Review, including
+  `0 Hours` when no time-entry work exists for today.
+- Showing per-row day-hours and week-hours totals by job owner and local job
+  date/week. Ticket notes never contribute to these hour totals.
 - Managed web users see and mutate only their own jobs. The config super admin
   can see all jobs in read-only mode.
 - Super-admin review is the only place that shows job ownership for each row

@@ -261,9 +261,10 @@ The browser must submit only `service_call_ticket_id`, `service_call_date`, and
 CSRF to `POST /jobs/start/service-call`. The route re-reads the provider's
 server-verified list for the selected local date and current managed web user's
 resource, filters out tickets that already have a local Job Logger job for that
-user with ticket status Complete, and only then creates a job. Apply the same
-local Complete filter to `/home/service-calls` responses; this is local workflow
-state and should not be pushed into the provider query. Never accept ticket
+user with ticket status Complete or Follow up, and only then creates a job.
+Apply the same local Complete/Follow up filter to `/home/service-calls`
+responses; this is local workflow state and should not be pushed into the
+provider query. Never accept ticket
 number, ticket title, ticket description, client name, company ID, or
 work-location values from hidden fields for this path. Starting from a service
 call stores verified local job metadata and defaults local ticket status to

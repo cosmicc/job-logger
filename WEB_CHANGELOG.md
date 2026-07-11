@@ -2,6 +2,31 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## 1.3.0 - Admin contact, user management, review totals, and public-device sessions
+
+### Added
+
+- The app can now show the configured admin contact email when a disabled account tries to sign in.
+- New web users can now receive a welcome email with the app link, username, temporary-password instructions, and phone install steps.
+- Administrators can now send a password reset email or resend the welcome email from each user row.
+- Work and Review now show total time-entry hours worked today, and Review rows show day and week totals.
+- The login page now has a public-device option that signs the user out after 15 minutes of inactivity.
+
+### Changed
+
+- Ask AI for help now adds a support contact line under the answer when the app administrator configures an admin contact email.
+- The Add user form now has a checked-by-default welcome email option that admins can turn off for that user.
+- The user list no longer shows internal Autotask resource ID or role ID values.
+- Review now shows 10 jobs per page, ordered newest to oldest.
+- Home now hides service calls when the matching local ticket is marked Follow up.
+
+### Fixed
+
+- Disabled-account sign-in messages now point users to the configured contact email instead of a generic administrator message.
+- New user creation now continues even if the optional welcome email is not sent, and the admin sees a warning.
+- Public-device sessions no longer show Device sign-in setup prompts or allow new Device sign-in setup.
+- Password reset emails sent from user management now work even when self-service password reset is turned off.
+
 ## 1.2.4 - 07.10.2026 - Review activity cleanup, work minimums, password reset, and version polish
 
 ### Added

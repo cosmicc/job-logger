@@ -31,8 +31,6 @@
                   <th scope="col">User</th>
                   <th scope="col">Username</th>
                   <th scope="col">Email</th>
-                  <th scope="col">Resource ID</th>
-                  <th scope="col">Role ID</th>
                   <th scope="col">Last login</th>
                   <th scope="col">Device</th>
                   <th scope="col">Admin</th>
@@ -55,16 +53,6 @@
                         <span class="user-email-cell" title="{{ row.user.email }}">{{ row.user.email }}</span>
                       {% else %}
                         <span class="muted-text">Not saved</span>
-                      {% endif %}
-                    </td>
-                    <td data-label="Resource ID">
-                      <span class="mono-value">{{ row.user.autotask_resource_id }}</span>
-                    </td>
-                    <td data-label="Default role">
-                      {% if row.user.autotask_default_service_desk_role_id %}
-                        <span class="mono-value user-default-role-value">{{ row.user.autotask_default_service_desk_role_id }}</span>
-                      {% else %}
-                        <span class="muted-text">Not set</span>
                       {% endif %}
                     </td>
                     <td data-label="Last login">
@@ -184,6 +172,65 @@
                             </button>
                           </form>
                         {% endif %}
+                        {% if row.user.disabled %}
+                          <button
+                            class="secondary-button user-action-icon-button"
+                            type="button"
+                            title="Enable user before sending password reset email"
+                            aria-label="Password reset email unavailable for disabled {{ row.user.full_name }}"
+                            disabled
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M15 7a4 4 0 1 0-4 4"></path>
+                              <path d="M10 11 4 17v3h3l6-6"></path>
+                              <path d="M18 13v7"></path>
+                              <path d="M15 16h6"></path>
+                            </svg>
+                          </button>
+                          <button
+                            class="secondary-button user-action-icon-button"
+                            type="button"
+                            title="Enable user before sending welcome email"
+                            aria-label="Welcome email unavailable for disabled {{ row.user.full_name }}"
+                            disabled
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M4 4h16v16H4z"></path>
+                              <path d="m4 7 8 6 8-6"></path>
+                            </svg>
+                          </button>
+                        {% else %}
+                          <form method="post" action="/users/{{ row.user.id }}/password-reset-email">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button
+                              class="secondary-button user-action-icon-button"
+                              type="submit"
+                              title="Send password reset email"
+                              aria-label="Send password reset email to {{ row.user.full_name }}"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M15 7a4 4 0 1 0-4 4"></path>
+                                <path d="M10 11 4 17v3h3l6-6"></path>
+                                <path d="M18 13v7"></path>
+                                <path d="M15 16h6"></path>
+                              </svg>
+                            </button>
+                          </form>
+                          <form method="post" action="/users/{{ row.user.id }}/welcome-email">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button
+                              class="secondary-button user-action-icon-button"
+                              type="submit"
+                              title="Send welcome email"
+                              aria-label="Send welcome email to {{ row.user.full_name }}"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M4 4h16v16H4z"></path>
+                                <path d="m4 7 8 6 8-6"></path>
+                              </svg>
+                            </button>
+                          </form>
+                        {% endif %}
                       </div>
                     </td>
                   </tr>
@@ -194,7 +241,7 @@
                     data-user-id="{{ row.user.id }}"
                     hidden
                   >
-                    <td colspan="11">
+                    <td colspan="9">
                       <form
                         id="user-update-{{ row.user.id }}"
                         method="post"
@@ -412,6 +459,10 @@
             <label class="checkbox-label">
               <input name="is_admin" type="checkbox" value="1">
               <span>Admin (Debug access)</span>
+            </label>
+            <label class="checkbox-label user-welcome-email-toggle">
+              <input name="send_welcome_email" type="checkbox" value="1" checked>
+              <span>Send welcome email</span>
             </label>
             <button class="primary-button" type="submit">
               <svg viewBox="0 0 24 24" aria-hidden="true">

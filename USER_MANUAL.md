@@ -23,6 +23,15 @@ pages also work from a full browser.
 Open the Job Logger URL provided by your organization. Sign in with your
 username and password.
 
+If you are signing in on a shared or public device, check **This is a public
+device** before signing in. Job Logger signs out public-device sessions after
+15 minutes of inactivity and does not offer Device sign-in setup during that
+session.
+
+Your administrator may send a Job Logger welcome email with the app link, your
+username, mobile install steps, and support contact. The welcome email does not
+include your temporary password.
+
 If your account is new or your administrator reset your password, Job Logger
 will ask you to choose a new password before you can use the rest of the app.
 
@@ -34,7 +43,8 @@ Your password must have:
 - At least one symbol.
 
 If your account is disabled, the sign-in page will tell you after you enter the
-correct password. Contact your app administrator if that happens.
+correct password. It may also show the contact email your organization
+configured for support.
 
 If there are too many failed sign-in attempts, Job Logger may temporarily block
 more attempts from that location. Wait for the lockout time to pass or contact
@@ -64,6 +74,8 @@ To set it up:
 
 On phones, Job Logger may also show a one-time Work page prompt to set up
 device sign-in when your account does not have one yet.
+Device sign-in setup is unavailable while you are signed in using the public
+device option.
 
 After setup, the login page still shows username/password first. Use the
 **Device sign-in** button when you want to sign in with the saved device
@@ -96,6 +108,9 @@ submission fails.
 The Work page is where you start and finish work. It may show scheduled service
 calls for your Autotask resource, and it also lets you start a blank work
 record.
+
+The Work page shows the total time-entry hours worked today. Ticket notes do
+not add to this total because they do not record start and end times.
 
 Select **Start Work** to create a Work in Progress card. Job Logger supports up
 to two active work records at the same time.
@@ -230,7 +245,8 @@ actions instead.
 
 ## Review Page
 
-The Review page lists your completed, failed, and submitted records.
+The Review page lists your completed, failed, and submitted records, newest
+first, with 10 records per page.
 
 Use Review to:
 
@@ -244,6 +260,10 @@ Review shows the selected client and ticket identity as read-only once they
 have been chosen. If an active record was opened in Review before any client was
 selected, Review may let you choose the first verified client and then select a
 ticket.
+
+Review also shows your total time-entry hours worked today. Each review row
+shows day and week hour totals for that job's owner and work date. Ticket notes
+do not add to these totals because they do not record time.
 
 ## Review Fields
 
@@ -344,13 +364,16 @@ yellow, you are using a development or testing instance rather than the
 production instance.
 
 If AI Help is enabled, you can ask one Job Logger support question at a time in
-the **Ask AI for help** card and read the answer on the Help page.
+the **Ask AI for help** card and read the answer on the Help page. When your
+organization configures a support contact email, that contact line appears
+under the AI answer.
 
 ## Common Messages And What To Do
 
 **Account disabled**
 
-Your account cannot sign in. Contact your app administrator.
+Your account cannot sign in. Use the contact email shown in the message, or
+contact your app administrator if no email is shown.
 
 **Too many failed attempts**
 

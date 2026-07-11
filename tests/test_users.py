@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import re
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -11,7 +11,9 @@ from sqlalchemy import delete, select
 
 from job_logger import database
 from job_logger.enums import JobStatus, TranscriptionStatus, WorkLocation
-from job_logger.models import AuditEvent, Job, WebAuthnCredential, WebUser
+from job_logger.models import AuditEvent, Job, PasswordResetToken, WebAuthnCredential, WebUser
+from job_logger.routes import users as users_routes
+from job_logger.services.mail import MailDeliveryResult
 from job_logger.services.users import WebUserError, hash_password, suggested_username_from_full_name
 from job_logger.ui import static_asset_version
 from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as, login_as_super_admin, login_as_web_user
@@ -149,12 +151,14 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert users_page.status_code == 200
     assert '<table class="users-table">' in users_page.text
     assert "<th scope=\"col\">Email</th>" in users_page.text
-    assert "<th scope=\"col\">Role ID</th>" in users_page.text
+    assert "<th scope=\"col\">Resource ID</th>" not in users_page.text
+    assert "<th scope=\"col\">Role ID</th>" not in users_page.text
     assert "<th scope=\"col\">Last login</th>" in users_page.text
     assert "<th scope=\"col\">Device</th>" in users_page.text
     assert "<th scope=\"col\">Admin</th>" in users_page.text
     assert 'data-label="Email"' in users_page.text
-    assert 'data-label="Default role"' in users_page.text
+    assert 'data-label="Resource ID"' not in users_page.text
+    assert 'data-label="Default role"' not in users_page.text
     assert 'data-label="Last login"' in users_page.text
     assert 'data-label="Device sign-in"' in users_page.text
     assert 'data-label="Admin"' in users_page.text
@@ -167,14 +171,11 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert "No device sign-in" in users_page.text
     assert "Never" in users_page.text
     assert "tech@example.test" in users_page.text
-    assert re.search(
-        r'<td data-label="Default role">\s*<span class="mono-value user-default-role-value">8</span>\s*</td>',
-        users_page.text,
-    )
-    assert 'class="mono-value user-default-role-value">Role 8<' not in users_page.text
     assert 'data-user-edit-toggle' in users_page.text
     assert 'data-user-edit-panel' in users_page.text
     assert 'title="Edit user"' in users_page.text
+    assert 'title="Send password reset email"' in users_page.text
+    assert 'title="Send welcome email"' in users_page.text
     assert 'title="Refresh Autotask resource"' not in users_page.text
     assert "/refresh-resource" not in users_page.text
     assert 'title="Disable user"' in users_page.text
@@ -185,18 +186,214 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert 'name="autotask_resource_email"' in users_page.text
     assert 'name="autotask_default_service_desk_role_id"' in users_page.text
     assert 'name="is_admin"' in users_page.text
+    assert 'name="send_welcome_email" type="checkbox" value="1" checked' in users_page.text
     assert 'data-autotask-role-url="/users/autotask-resource-roles"' in users_page.text
     assert 'data-role-select' in users_page.text
 
     stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
     assert ".users-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);" in stylesheet
-    assert ".users-table {\n  width: 100%;\n  min-width: 1040px;" in stylesheet
+    assert ".users-table {\n  width: 100%;\n  min-width: 960px;" in stylesheet
     assert "white-space: nowrap;" in stylesheet
     assert ".add-user-panel {\n  position: static;" in stylesheet
     assert 'data-resource-results hidden' in users_page.text
     assert f"/static/users.js?v={static_asset_version()}" in users_page.text
     assert "The config super admin is intentionally not listed here." in users_page.text
-    assert 'colspan="11"' in users_page.text
+    assert 'colspan="9"' in users_page.text
+
+
+def test_add_user_sends_welcome_email_when_requested(
+    super_admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    """The checked add-user option should send and audit the welcome email."""
+
+    super_admin_client.app.state.application_settings = replace(
+        super_admin_client.app.state.application_settings,
+        app_public_base_url="https://logger.example.test",
+        admin_contact_email="admin@example.test",
+    )
+    sent_messages: list[dict[str, object]] = []
+
+    def fake_send_welcome_email(**kwargs) -> MailDeliveryResult:
+        sent_messages.append(kwargs)
+        return MailDeliveryResult(succeeded=True, provider="smtp")
+
+    monkeypatch.setattr(users_routes, "send_welcome_email", fake_send_welcome_email)
+
+    users_page = super_admin_client.get("/users")
+    csrf_token = extract_csrf_token(users_page.text)
+    create_response = super_admin_client.post(
+        "/users",
+        data={
+            "csrf_token": csrf_token,
+            "full_name": "Invite Technician",
+            "username": "invite-tech",
+            "password": "Invite-tech-password1!",
+            "autotask_resource_id": "42",
+            "autotask_default_service_desk_role_id": "",
+            "autotask_resource_email": "invite.tech@example.test",
+            "send_welcome_email": "1",
+        },
+        follow_redirects=False,
+    )
+
+    assert create_response.status_code == 303
+    assert len(sent_messages) == 1
+    assert sent_messages[0]["recipient_email"] == "invite.tech@example.test"
+    assert sent_messages[0]["full_name"] == "Invite Technician"
+    assert sent_messages[0]["username"] == "invite-tech"
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "invite-tech"))
+        assert user is not None
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "user.web.welcome_email_sent")
+        )
+        assert audit_event is not None
+        assert audit_event.details["web_user_id"] == user.id
+        assert audit_event.details["username"] == "invite-tech"
+        assert audit_event.details["email_saved"] is True
+        assert audit_event.details["provider"] == "smtp"
+        assert audit_event.details["safe_error"] is None
+
+    result_page = super_admin_client.get("/users")
+    assert "Welcome email sent." in result_page.text
+
+
+def test_add_user_skips_welcome_email_when_option_is_unchecked(
+    super_admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    """Unchecked add-user submissions should create the user without sending welcome mail."""
+
+    def fake_send_welcome_email(**kwargs) -> MailDeliveryResult:
+        raise AssertionError("Welcome email should not be sent when the checkbox is unchecked.")
+
+    monkeypatch.setattr(users_routes, "send_welcome_email", fake_send_welcome_email)
+
+    users_page = super_admin_client.get("/users")
+    csrf_token = extract_csrf_token(users_page.text)
+    create_response = super_admin_client.post(
+        "/users",
+        data={
+            "csrf_token": csrf_token,
+            "full_name": "No Invite Technician",
+            "username": "no-invite-tech",
+            "password": "No-invite-password1!",
+            "autotask_resource_id": "42",
+            "autotask_default_service_desk_role_id": "",
+            "autotask_resource_email": "no.invite@example.test",
+        },
+        follow_redirects=False,
+    )
+
+    assert create_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "no-invite-tech"))
+        assert user is not None
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "user.web.welcome_email_sent")
+        )
+        assert audit_event is None
+
+
+def test_super_admin_sends_user_password_reset_email(
+    super_admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    """The Users row action should send a reset link without enabling public self-service reset."""
+
+    super_admin_client.app.state.application_settings = replace(
+        super_admin_client.app.state.application_settings,
+        app_public_base_url="https://logger.example.test",
+        mail_enabled=True,
+        mail_from_email="joblogger@example.test",
+        mail_mode="smtp",
+        mail_smtp_host="smtp.example.test",
+    )
+    sent_messages: list[dict[str, object]] = []
+
+    def fake_send_password_reset_email(**kwargs) -> MailDeliveryResult:
+        sent_messages.append(kwargs)
+        return MailDeliveryResult(succeeded=True, provider="smtp")
+
+    monkeypatch.setattr(users_routes, "send_password_reset_email", fake_send_password_reset_email)
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user.email = "tech@example.test"
+        user_id = user.id
+        database_session.commit()
+
+    users_page = super_admin_client.get("/users")
+    csrf_token = extract_csrf_token(users_page.text)
+    response = super_admin_client.post(
+        f"/users/{user_id}/password-reset-email",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert len(sent_messages) == 1
+    assert sent_messages[0]["recipient_email"] == "tech@example.test"
+    assert str(sent_messages[0]["reset_url"]).startswith("https://logger.example.test/reset-password/")
+    with database.SessionLocal() as database_session:
+        reset_token = database_session.scalar(select(PasswordResetToken).where(PasswordResetToken.web_user_id == user_id))
+        assert reset_token is not None
+        assert reset_token.sent_to_email == "tech@example.test"
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "user.web.password_reset_email_sent")
+        )
+        assert audit_event is not None
+        assert audit_event.details["web_user_id"] == user_id
+        assert audit_event.details["reset_row_id"] == reset_token.id
+
+    result_page = super_admin_client.get("/users")
+    assert "Password reset email sent." in result_page.text
+
+
+def test_super_admin_resends_welcome_email_from_user_row(
+    super_admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    """The Users row action should resend the stored welcome email to enabled users."""
+
+    super_admin_client.app.state.application_settings = replace(
+        super_admin_client.app.state.application_settings,
+        app_public_base_url="https://logger.example.test",
+        admin_contact_email="admin@example.test",
+    )
+    sent_messages: list[dict[str, object]] = []
+
+    def fake_send_welcome_email(**kwargs) -> MailDeliveryResult:
+        sent_messages.append(kwargs)
+        return MailDeliveryResult(succeeded=True, provider="smtp")
+
+    monkeypatch.setattr(users_routes, "send_welcome_email", fake_send_welcome_email)
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user.email = "tech@example.test"
+        user_id = user.id
+        database_session.commit()
+
+    users_page = super_admin_client.get("/users")
+    csrf_token = extract_csrf_token(users_page.text)
+    response = super_admin_client.post(
+        f"/users/{user_id}/welcome-email",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert len(sent_messages) == 1
+    assert sent_messages[0]["recipient_email"] == "tech@example.test"
+    assert sent_messages[0]["username"] == "tech"
+    with database.SessionLocal() as database_session:
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "user.web.welcome_email_sent")
+        )
+        assert audit_event is not None
+        assert audit_event.details["web_user_id"] == user_id
 
 
 def test_successful_managed_user_login_updates_last_login(client: TestClient) -> None:
@@ -265,6 +462,10 @@ def test_users_page_disables_unused_user(super_admin_client: TestClient) -> None
 def test_deleted_user_session_is_cleared_and_login_shows_disabled(client: TestClient) -> None:
     """A disabled-by-delete web user should be signed out and blocked on login."""
 
+    client.app.state.application_settings = replace(
+        client.app.state.application_settings,
+        admin_contact_email="admin@example.test",
+    )
     login_as_web_user(client)
     assert client.get("/home").status_code == 200
     with database.SessionLocal() as database_session:
@@ -291,7 +492,7 @@ def test_deleted_user_session_is_cleared_and_login_shows_disabled(client: TestCl
     assert old_session_response.headers["location"] == "/login"
 
     login_page = client.get("/login")
-    assert "This user account is disabled. Contact the administrator." in login_page.text
+    assert "Your account is disabled, please contact admin@example.test" in login_page.text
     csrf_token = extract_csrf_token(login_page.text)
     invalid_password_response = client.post(
         "/login",
@@ -312,7 +513,7 @@ def test_deleted_user_session_is_cleared_and_login_shows_disabled(client: TestCl
     assert disabled_login_response.headers["location"] == "/login"
 
     disabled_login_page = client.get("/login")
-    assert "This user account is disabled. Contact the administrator." in disabled_login_page.text
+    assert "Your account is disabled, please contact admin@example.test" in disabled_login_page.text
     with database.SessionLocal() as database_session:
         user = database_session.get(WebUser, user_id)
         assert user is not None

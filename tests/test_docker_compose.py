@@ -42,6 +42,19 @@ def test_compose_exposes_dev_build_setting() -> None:
     assert "DEV_BUILD: ${DEV_BUILD:-false}" in compose_text
 
 
+def test_compose_and_swarm_expose_admin_contact_email() -> None:
+    """Docker deployments should pass the configured support contact email."""
+
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+    swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+
+    for deployment_text in (compose_text, swarm_text):
+        assert "ADMIN_CONTACT_EMAIL: ${ADMIN_CONTACT_EMAIL:-}" in deployment_text
+
+    assert "ADMIN_CONTACT_EMAIL=admin@example.com" in env_example_text
+
+
 def test_compose_exposes_cloudflare_block_settings() -> None:
     """Docker Compose should pass app-managed Cloudflare block settings into the app."""
 

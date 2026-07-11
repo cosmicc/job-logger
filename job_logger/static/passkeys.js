@@ -111,6 +111,11 @@
     return Boolean(window.PublicKeyCredential && navigator.credentials);
   }
 
+  function publicDeviceLoginSelected() {
+    const checkbox = document.querySelector("[data-public-device-login]");
+    return Boolean(checkbox && checkbox.checked);
+  }
+
   function initializePasskeyRegistration(button) {
     const panel = button.closest("[data-passkey-register-panel]") || document;
     const statusElement = panel.querySelector("[data-passkey-register-status]");
@@ -171,7 +176,10 @@
 
         const verificationPayload = await postJSON(
           "/login/passkey/verify",
-          credentialToJSON(credential),
+          {
+            ...credentialToJSON(credential),
+            public_device: publicDeviceLoginSelected(),
+          },
         );
         window.location.href = verificationPayload.redirect_url || "/home";
       } catch (error) {

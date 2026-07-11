@@ -16,9 +16,13 @@ from job_logger import database
 from job_logger.config import settings
 from job_logger.models import AuditEvent, LoginAttempt, WebAuthnCredential, WebUser
 from job_logger.security import (
+    PUBLIC_DEVICE_IDLE_TIMEOUT_SECONDS,
     SESSION_AUTHENTICATED_AT_UTC_KEY,
+    SESSION_PUBLIC_DEVICE_KEY,
+    SESSION_PUBLIC_DEVICE_LAST_ACTIVITY_UTC_KEY,
     SESSION_USERNAME_KEY,
     authenticated_session_is_expired,
+    public_device_session_is_idle_expired,
 )
 from job_logger.version import APP_VERSION
 from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as, login_as_web_user
@@ -129,6 +133,39 @@ def test_session_timeout_uses_configured_hours() -> None:
     assert authenticated_session_is_expired(active_session, short_timeout_settings, now=current_time) is False
 
 
+def test_public_device_session_uses_short_idle_timeout() -> None:
+    """Public-device sessions should expire after 15 minutes of inactivity."""
+
+    current_time = datetime(2026, 6, 21, 14, 0, tzinfo=UTC)
+    active_public_session = {
+        SESSION_USERNAME_KEY: "tech",
+        SESSION_AUTHENTICATED_AT_UTC_KEY: (current_time - timedelta(hours=2)).isoformat(),
+        SESSION_PUBLIC_DEVICE_KEY: True,
+        SESSION_PUBLIC_DEVICE_LAST_ACTIVITY_UTC_KEY: (
+            current_time - timedelta(seconds=PUBLIC_DEVICE_IDLE_TIMEOUT_SECONDS - 1)
+        ).isoformat(),
+    }
+    expired_public_session = {
+        SESSION_USERNAME_KEY: "tech",
+        SESSION_AUTHENTICATED_AT_UTC_KEY: current_time.isoformat(),
+        SESSION_PUBLIC_DEVICE_KEY: True,
+        SESSION_PUBLIC_DEVICE_LAST_ACTIVITY_UTC_KEY: (
+            current_time - timedelta(seconds=PUBLIC_DEVICE_IDLE_TIMEOUT_SECONDS)
+        ).isoformat(),
+    }
+    private_session = {
+        SESSION_USERNAME_KEY: "tech",
+        SESSION_AUTHENTICATED_AT_UTC_KEY: current_time.isoformat(),
+        SESSION_PUBLIC_DEVICE_LAST_ACTIVITY_UTC_KEY: (
+            current_time - timedelta(seconds=PUBLIC_DEVICE_IDLE_TIMEOUT_SECONDS + 1)
+        ).isoformat(),
+    }
+
+    assert public_device_session_is_idle_expired(active_public_session, now=current_time) is False
+    assert public_device_session_is_idle_expired(expired_public_session, now=current_time) is True
+    assert public_device_session_is_idle_expired(private_session, now=current_time) is False
+
+
 def test_login_page_exposes_password_fallback_and_passkey_button(client: TestClient) -> None:
     """The login page should keep password login while offering passkey login."""
 
@@ -138,6 +175,9 @@ def test_login_page_exposes_password_fallback_and_passkey_button(client: TestCli
     assert 'action="/login"' in response.text
     assert "Use device sign-in" in response.text
     assert "data-passkey-login-button" in response.text
+    assert 'name="public_device" type="checkbox" value="1" data-public-device-login' in response.text
+    assert "This is a public device" in response.text
+    assert "Public device sessions expire after 15 minutes of inactivity" in response.text
     assert "/static/passkeys.js" in response.text
     assert "<h1>Sign in</h1>" not in response.text
     assert "Use the local app account configured for this deployment." not in response.text
@@ -249,6 +289,44 @@ def test_home_prompts_for_passkey_once_per_login_until_one_is_registered(client:
     assert "Set up faster sign-in" not in later_login_home_response.text
 
 
+def test_public_device_password_login_hides_passkey_setup(client: TestClient) -> None:
+    """Public-device password sessions should not offer new Device sign-in setup."""
+
+    login_response = client.get("/login")
+    csrf_token = extract_csrf_token(login_response.text)
+    sign_in_response = client.post(
+        "/login",
+        data={
+            "csrf_token": csrf_token,
+            "username": "tech",
+            "password": TEST_WEB_USER_PASSWORD,
+            "public_device": "1",
+        },
+        follow_redirects=False,
+    )
+    assert sign_in_response.status_code == 303
+    assert sign_in_response.headers["location"] == "/home"
+
+    home_response = client.get("/home")
+    assert home_response.status_code == 200
+    assert "Set up faster sign-in" not in home_response.text
+    assert "phone-only-passkey-home-prompt" not in home_response.text
+
+    config_response = client.get("/config")
+    assert config_response.status_code == 200
+    assert "Device sign-in setup is unavailable while signed in on a public device." in config_response.text
+    assert "data-passkey-register-button" not in config_response.text
+
+    csrf_token = extract_csrf_token(config_response.text)
+    setup_response = client.post(
+        "/config/passkeys/options",
+        headers={"X-CSRF-Token": csrf_token},
+        json={},
+    )
+    assert setup_response.status_code == 403
+    assert setup_response.json()["detail"] == "Device sign-in setup is unavailable on public devices."
+
+
 def test_passkey_login_creates_managed_user_session(client: TestClient, monkeypatch) -> None:
     """A verified passkey assertion should sign in the owning enabled web user."""
 
@@ -303,6 +381,50 @@ def test_passkey_login_creates_managed_user_session(client: TestClient, monkeypa
         assert "auth.passkey.login.succeeded" in actions
 
 
+def test_public_device_passkey_login_hides_passkey_setup(client: TestClient, monkeypatch) -> None:
+    """Public-device Device sign-in should create the same constrained session."""
+
+    _register_mock_passkey(client, monkeypatch)
+    client.cookies.clear()
+    login_response = client.get("/login")
+    csrf_token = extract_csrf_token(login_response.text)
+    options_response = client.post(
+        "/login/passkey/options",
+        headers={"X-CSRF-Token": csrf_token},
+        json={},
+    )
+    assert options_response.status_code == 200
+
+    monkeypatch.setattr(
+        "job_logger.services.passkeys.verify_authentication_response",
+        lambda **_: FakeVerifiedAuthentication(
+            credential_id=b"credential-one",
+            new_sign_count=12,
+            credential_device_type=SimpleNamespace(value="multi_device"),
+            credential_backed_up=True,
+        ),
+    )
+    credential_payload = _passkey_payload()
+    credential_payload["public_device"] = True
+    verify_response = client.post(
+        "/login/passkey/verify",
+        headers={"X-CSRF-Token": csrf_token},
+        json=credential_payload,
+    )
+
+    assert verify_response.status_code == 200
+    assert client.get("/home").status_code == 200
+    assert "Set up faster sign-in" not in client.get("/home").text
+    config_response = client.get("/config")
+    assert "Device sign-in setup is unavailable while signed in on a public device." in config_response.text
+    with database.SessionLocal() as database_session:
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "auth.passkey.login.succeeded")
+        )
+        assert audit_event is not None
+        assert audit_event.details["public_device"] is True
+
+
 def test_failed_passkey_login_keeps_password_fallback(client: TestClient, monkeypatch) -> None:
     """A failed passkey assertion should not block normal password login."""
 
@@ -336,6 +458,10 @@ def test_failed_passkey_login_keeps_password_fallback(client: TestClient, monkey
 def test_disabled_user_cannot_login_with_passkey(client: TestClient, monkeypatch) -> None:
     """Disabled managed users should be blocked even with an existing passkey."""
 
+    client.app.state.application_settings = replace(
+        client.app.state.application_settings,
+        admin_contact_email="admin@example.test",
+    )
     _register_mock_passkey(client, monkeypatch)
     with database.SessionLocal() as database_session:
         user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
@@ -354,4 +480,4 @@ def test_disabled_user_cannot_login_with_passkey(client: TestClient, monkeypatch
     )
 
     assert verify_response.status_code == 400
-    assert "disabled" in verify_response.json()["detail"].lower()
+    assert verify_response.json()["detail"] == "Your account is disabled, please contact admin@example.test"

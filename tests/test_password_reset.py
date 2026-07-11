@@ -14,10 +14,11 @@ from job_logger.config import settings
 from job_logger.main import create_app
 from job_logger.models import AuditEvent, PasswordResetToken, WebUser
 from job_logger.routes import password_reset as password_reset_routes
+from job_logger.routes import users as users_routes
 from job_logger.services.mail import MailDeliveryResult
 from job_logger.services.password_reset import PASSWORD_RESET_RATE_LIMIT_MESSAGE
 from job_logger.services.users import create_web_user, verify_web_user_password
-from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token
+from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as_super_admin
 
 
 def _reset_settings(**overrides):
@@ -229,6 +230,60 @@ def test_password_reset_link_changes_password_once_and_invalidates_sessions(clie
         audit_actions = [row.action for row in database_session.execute(select(AuditEvent)).scalars()]
         assert "auth.password_reset.completed" in audit_actions
         assert audit_actions.count("auth.password_reset.token_used") >= 1
+
+
+def test_admin_sent_password_reset_link_works_when_self_service_reset_is_disabled(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    """Admin-sent reset links should work even when `/forgot-password` is hidden."""
+
+    assert client is not None
+    user_id = _set_seed_user_email("tech@example.test")
+    sent_messages: list[dict[str, str]] = []
+
+    def fake_send_password_reset_email(**kwargs) -> MailDeliveryResult:
+        sent_messages.append(kwargs)
+        return MailDeliveryResult(succeeded=True)
+
+    monkeypatch.setattr(users_routes, "send_password_reset_email", fake_send_password_reset_email)
+    reset_settings = _reset_settings(password_reset_enabled=False)
+    with TestClient(create_app(reset_settings)) as reset_client:
+        login_as_super_admin(reset_client)
+        assert reset_client.get("/forgot-password").status_code == 404
+
+        users_page_response = reset_client.get("/users")
+        csrf_token = extract_csrf_token(users_page_response.text)
+        send_response = reset_client.post(
+            f"/users/{user_id}/password-reset-email",
+            data={"csrf_token": csrf_token},
+            follow_redirects=False,
+        )
+        assert send_response.status_code == 303
+        assert len(sent_messages) == 1
+        reset_path = urlsplit(sent_messages[0]["reset_url"]).path
+
+        reset_page = reset_client.get(reset_path)
+        assert reset_page.status_code == 200
+        assert "Set new password" in reset_page.text
+        reset_csrf = extract_csrf_token(reset_page.text)
+        complete_response = reset_client.post(
+            reset_path,
+            data={
+                "csrf_token": reset_csrf,
+                "new_password": "Admin-reset1!",
+                "confirm_password": "Admin-reset1!",
+            },
+            follow_redirects=False,
+        )
+        assert complete_response.status_code == 303
+        assert complete_response.headers["location"] == "/login"
+
+    with database.SessionLocal() as database_session:
+        user = database_session.get(WebUser, user_id)
+        assert user is not None
+        assert verify_web_user_password("Admin-reset1!", user.password_hash)
+        assert user.password_must_change is False
 
 
 def test_password_reset_requests_are_rate_limited_by_ip(client: TestClient) -> None:

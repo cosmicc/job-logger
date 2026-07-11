@@ -45,15 +45,27 @@ role ID selected from that resource's active Autotask `ResourceServiceDeskRoles`
 The `/users` page presents managed accounts in a table with visible stored email
 and default-role metadata, last successful managed-user login time, green/red
 Device sign-in passkey status icons, Admin status, and icon-only row actions
-for edit, enable/disable, and delete-as-disable. The full-browser user table
-should use the full panel width, compact fixed columns, and ellipsized long
-values so rows fit without wrapping into multiple lines. The add form may
-suggest usernames from full names, such as `jblow` for `Joe Blow`, and add/edit
-forms may query Autotask Resources and active service-desk roles for
-super-admin-only resource and role pickers. Add/edit forms also expose the
-default-off Admin checkbox that grants full Diagnostics access only. The role
-picker should show Autotask `Roles.name` labels when that metadata is readable
-while storing only the selected numeric `roleID` on the managed web-user row.
+for edit, enable/disable, delete-as-disable, send password reset email, and
+resend welcome email. The visible user list must not show internal Autotask
+resource ID or role ID values, though add/edit forms may still query and save
+those values for internal use. Password reset and welcome-email row actions must
+be disabled or blocked for disabled users. The full-browser user table should
+use the full panel width, compact fixed columns, and ellipsized long values so
+rows fit without wrapping into multiple lines. The add form may suggest
+usernames from full names, such as `jblow` for `Joe Blow`, and add/edit forms
+may query Autotask Resources and active service-desk roles for super-admin-only
+resource and role pickers. Add/edit forms also expose the default-off Admin
+checkbox that grants full Diagnostics access only. The role picker should show
+Autotask `Roles.name` labels when that metadata is readable while storing only
+the selected numeric `roleID` on the managed web-user row.
+The add form includes a default-on **Send welcome email** option. When checked,
+it sends the new user's stored email address a plain-text welcome email with the
+configured `APP_PUBLIC_BASE_URL`, username, temporary-password instructions,
+mobile install steps, Device sign-in guidance, and `ADMIN_CONTACT_EMAIL` when
+configured. The welcome email must never include the temporary password, and
+user creation must still succeed when welcome-email delivery is skipped or
+fails. Audit only safe outcome metadata such as user ID, username, provider,
+email-saved state, and bounded delivery errors.
 Store only salted password verifiers, never raw managed user passwords.
 Managed-user passwords must be at least 8 characters and include lowercase,
 uppercase, number, and symbol characters. Passwords created or reset by the
@@ -64,7 +76,11 @@ Disabled web users must be blocked from new logins and from using old signed
 sessions. Deleting a web user from `/users` disables the account, invalidates
 that user's signed sessions, preserves the row for audit/login-state clarity,
 and lets the login screen explain that the account is disabled after the
-correct password is submitted.
+correct password is submitted. `ADMIN_CONTACT_EMAIL` is an optional Docker/env
+setting shown in disabled-account login/session messages and under successful
+AI Help answers. When it is unset, disabled-account messaging must fall back to
+a generic app-administrator contact without exposing account existence before a
+password or passkey assertion verifies.
 Self-service password reset is controlled by `PASSWORD_RESET_ENABLED` and must
 stay hidden from the login page while disabled. When enabled, `/forgot-password`
 and `/reset-password/{token}` remain behind Cloudflare Access and use
@@ -85,6 +101,10 @@ rate-limit scopes. `TURNSTILE_ENABLED=false` is allowed for password reset in
 development and production; when Turnstile is disabled, the reset flow must
 still use CSRF, Cloudflare Access when configured, rate limits, generic
 non-enumerating responses, and HMAC-stored token hashes.
+The super-admin `/users` password-reset email row action may create and send a
+reset link even when `PASSWORD_RESET_ENABLED=false` hides public self-service
+reset requests. Token lookup and password-change completion must still validate
+the HMAC token, expiry, single-use state, CSRF, and password rules.
 Password reset mail delivery is selected by `MAIL_MODE`. `smtp` preserves the
 existing SMTP transport and requires SMTP host/port settings when reset mail is
 enabled. `smtp2go` sends through SMTP2GO's HTTPS API and requires
@@ -108,6 +128,13 @@ Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`,
 measured in hours. The configured value controls both the signed session cookie
 lifetime and the server-side authenticated-at timestamp check. Expired sessions
 must be cleared and forced through login again.
+The login page has a default-off **This is a public device** option for both
+password and Device sign-in. Public-device sessions must expire after 15
+minutes of inactivity, refresh the inactivity timestamp only after valid
+requests, suppress the post-login Home Device sign-in setup prompt, and reject
+new passkey registration while that session is active. Public-device mode must
+not weaken normal authentication, CSRF, disabled-user, or session-timeout
+checks.
 Diagnostics may also invalidate all managed web-user sessions with a
 CSRF-protected button. That action must not sign out the config super admin
 because the super admin is not a managed web user. A managed Admin user who
@@ -251,7 +278,10 @@ issue labels and summaries must be visible only to Diagnostics-authorized
 users. AI Help troubleshooting logs may include sanitized metadata such as trace
 ID, provider, model, HTTP status, error class, input and answer lengths, context
 source count, and timing, but must not log Gemini API keys, full questions,
-prompts, source context, provider request bodies, or answers.
+prompts, source context, provider request bodies, or answers. When
+`ADMIN_CONTACT_EMAIL` is configured, successful AI Help answers should append
+`If you need further help, contact <admin email>` under the answer with a blank
+line between the AI answer and the contact line.
 
 ## Core Workflow
 
@@ -567,7 +597,7 @@ must mark the Help navigation button in yellow so dev instances are visually
 distinct from production without adding a separate pill. Full-browser
 authenticated headers also show the version under the left-side Job Logger
 title, using `vX.Y.Z-DEV` for dev builds. The Help page itself must show the
-current version with `DEV`, such as `v1.2.4 DEV`.
+current version with `DEV`, such as `v1.3.0 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows compact route and status icons on the left,
@@ -618,9 +648,14 @@ successful Autotask submission, job summary notes or note description, ticket
 status, date, start time, end time, work location, and the translated
 speech-to-text description before acceptance. The review list must show each
 job's Remote or On-Site mode for time entries and Ticket note for note-mode
-entries. The summary textarea for time entries must show the complete Autotask
-summary that will be sent, including the leading `Remote. ` or `On-Site. `
-prefix. Saving review edits parses that prefix back into the stored
+entries, paginate newest-first at 10 jobs per page, and include day-hours and
+week-hours totals calculated from time-entry jobs for that job's owner, local
+job date, and local work week. Ticket notes do not contribute to hour totals.
+The Work page and Review page should also show time-entry hours worked today,
+including `0 Hours` when no time-entry work has been recorded. The summary
+textarea for time entries must show the complete Autotask summary that will be
+sent, including the leading `Remote. ` or `On-Site. ` prefix. Saving review
+edits parses that prefix back into the stored
 `work_location` field, and the review-detail work-location control must update
 that visible prefix, so the final payload can be corrected without exposing
 ticket or client identity to edits. Ticket-note mode keeps the Work type
@@ -928,7 +963,9 @@ The application is a FastAPI project under `job_logger/`.
   turning the authenticated Help button yellow, adding `-DEV` to the
   full-browser header version label, showing `DEV` on `/help`, suppressing
   Pushover health notifications, and keeping development/test deployments
-  visually distinct from production.
+  visually distinct from production. `ADMIN_CONTACT_EMAIL` configures the
+  end-user support contact shown in disabled-account messages, AI Help answer
+  footers, and managed-user welcome emails.
 - `job_logger/database.py` owns SQLAlchemy engine/session setup.
 - `job_logger/models.py` defines persistent tables for managed web users,
   managed-user session invalidation cutoffs, per-user preferences, password
@@ -1069,6 +1106,9 @@ The normal workflow is:
    The add form suggests a username from the full name, and add/edit forms can
    query Autotask Resources to select the matching resource ID and capture the
    returned email address.
+   The add form sends a welcome email by default when the stored email address,
+   `APP_PUBLIC_BASE_URL`, and mail delivery settings are configured, unless the
+   super admin unchecks that option.
    Delete actions always disable the selected account, sign out its existing
    sessions on the next request, and preserve the row so future login attempts
    can show the disabled-account message. The Users list also shows the last
@@ -1099,7 +1139,7 @@ The normal workflow is:
    and resource.
    The browser list and start route both filter out service calls for tickets
    that already have a local Job Logger time entry with ticket status Complete
-   for the current managed user.
+   or Follow up for the current managed user.
 6. User starts Job 1 or Job 2. Blank Start Work creates a local active job
    owned by that web user without first probing Autotask. At most two active
    jobs may exist at once per web user.

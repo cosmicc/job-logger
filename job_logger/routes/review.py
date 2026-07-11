@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -47,23 +48,29 @@ from job_logger.services.jobs import (
     expire_stale_ai_cleanup_revert_states,
     get_job_or_raise,
     is_job_locked_after_successful_submission,
+    list_jobs_for_hour_totals,
     list_review_jobs,
     purge_job,
     purge_submitted_job_after_failed_autotask_delete,
     revert_ai_cleanup_summary,
+    review_job_hour_totals,
     rounded_stop_for_active_job,
     store_ai_cleanup_revert_state,
     submit_job_to_autotask,
+    total_time_entry_minutes_for_local_date,
     update_submitted_job_autotask_entry,
     validate_review_fields,
     verify_autotask_client_selection,
 )
 from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
 from job_logger.time_utils import (
+    format_duration_minutes,
     format_local_date,
     format_local_display,
     format_local_time,
     format_rounded_duration_label,
+    local_date_for,
+    now_utc,
     to_local,
 )
 from job_logger.ui import template_context, templates
@@ -75,6 +82,41 @@ SESSION_DELETE_AUTOTASK_FAILED_EXTERNAL_ID_KEY = "delete_autotask_failed_externa
 BROWSER_TEXT_SAVED_AUDIT_ACTION = "job.description.browser_text_saved"
 REVIEW_SAVED_AUDIT_ACTION = "job.review.saved"
 HIDDEN_AUDIT_TIMELINE_ACTIONS = {BROWSER_TEXT_SAVED_AUDIT_ACTION, REVIEW_SAVED_AUDIT_ACTION}
+REVIEW_JOBS_PER_PAGE = 10
+
+
+@dataclass(frozen=True)
+class ReviewPagination:
+    """Template metadata for the paginated review job list."""
+
+    current_page: int
+    total_pages: int
+    total_jobs: int
+    per_page: int = REVIEW_JOBS_PER_PAGE
+
+    @property
+    def has_previous(self) -> bool:
+        """Return whether a previous review-list page exists."""
+
+        return self.current_page > 1
+
+    @property
+    def has_next(self) -> bool:
+        """Return whether a next review-list page exists."""
+
+        return self.current_page < self.total_pages
+
+    @property
+    def previous_page(self) -> int:
+        """Return the previous page number clamped to page one."""
+
+        return max(self.current_page - 1, 1)
+
+    @property
+    def next_page(self) -> int:
+        """Return the next page number clamped to the final page."""
+
+        return min(self.current_page + 1, self.total_pages)
 
 
 def _ticket_status_options() -> list[tuple[str, str]]:
@@ -96,15 +138,52 @@ def _current_enabled_web_user(request: Request, database_session: Session):
     return get_enabled_web_user_by_id_or_raise(database_session, web_user_id)
 
 
+def _parse_review_page_number(raw_page: str | None) -> int:
+    """Return a safe positive review-list page number."""
+
+    try:
+        page_number = int(raw_page or "1")
+    except ValueError:
+        return 1
+    return max(page_number, 1)
+
+
+def _review_page_for_jobs(
+    jobs: list[object],
+    *,
+    selected_job_id: str | None,
+    requested_page: int,
+) -> tuple[list[object], ReviewPagination]:
+    """Return one 10-row review page, keeping a selected job visible."""
+
+    total_jobs = len(jobs)
+    total_pages = max((total_jobs + REVIEW_JOBS_PER_PAGE - 1) // REVIEW_JOBS_PER_PAGE, 1)
+    current_page = min(max(requested_page, 1), total_pages)
+    if selected_job_id:
+        for index, job in enumerate(jobs):
+            if getattr(job, "id", None) == selected_job_id:
+                current_page = (index // REVIEW_JOBS_PER_PAGE) + 1
+                break
+
+    start_index = (current_page - 1) * REVIEW_JOBS_PER_PAGE
+    end_index = start_index + REVIEW_JOBS_PER_PAGE
+    return jobs[start_index:end_index], ReviewPagination(
+        current_page=current_page,
+        total_pages=total_pages,
+        total_jobs=total_jobs,
+    )
+
+
 def _selected_review_context(
     database_session: Session,
     selected_job_id: str | None,
     *,
     web_user_id: str | None = None,
+    jobs: list[object] | None = None,
 ) -> tuple[object | None, list[AuditEvent]]:
     """Return the selected job and its newest-first audit events."""
 
-    jobs = list_review_jobs(database_session, web_user_id=web_user_id)
+    jobs = jobs if jobs is not None else list_review_jobs(database_session, web_user_id=web_user_id)
     selected_job = None
     if selected_job_id:
         selected_job = get_job_or_raise(database_session, selected_job_id)
@@ -517,8 +596,25 @@ def _render_review(
             web_user_id=web_user_id,
         ):
             database_session.commit()
-        jobs = list_review_jobs(database_session, web_user_id=web_user_id)
-        selected_job, audit_events = _selected_review_context(database_session, selected_job_id, web_user_id=web_user_id)
+        current_time = now_utc()
+        all_jobs = list_review_jobs(database_session, web_user_id=web_user_id)
+        jobs, pagination = _review_page_for_jobs(
+            all_jobs,
+            selected_job_id=selected_job_id,
+            requested_page=_parse_review_page_number(request.query_params.get("page")),
+        )
+        selected_job, audit_events = _selected_review_context(
+            database_session,
+            selected_job_id,
+            web_user_id=web_user_id,
+            jobs=jobs,
+        )
+        today_total_minutes = total_time_entry_minutes_for_local_date(
+            list_jobs_for_hour_totals(database_session, web_user_id=web_user_id),
+            local_work_date=local_date_for(current_time),
+            current_time=current_time,
+        )
+        job_hour_totals = review_job_hour_totals(all_jobs, current_time=current_time)
     except JobWorkflowError:
         return RedirectResponse(url="/review", status_code=303)
     show_delete_failure_purge_prompt = _submitted_delete_failure_purge_available(request, selected_job)
@@ -530,7 +626,10 @@ def _render_review(
             request,
             database_session=database_session,
             jobs=jobs,
+            pagination=pagination,
             selected_job=selected_job,
+            today_work_hours_label=format_duration_minutes(today_total_minutes) or "0 Hours",
+            job_hour_totals=job_hour_totals,
             selected_job_submitted=(
                 is_job_locked_after_successful_submission(selected_job) if selected_job is not None else False
             ),

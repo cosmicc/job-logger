@@ -60,6 +60,7 @@ MINIMUM_TIME_ENTRY_DURATION_MINUTES = {
     WorkLocation.REMOTE: 15,
     WorkLocation.ON_SITE: 60,
 }
+UNASSIGNED_TOTALS_OWNER_ID = "__unassigned__"
 
 
 @dataclass(frozen=True)
@@ -108,6 +109,26 @@ class ReviewFields:
 
     # autotask_company_id is the selected Autotask company/account ID.
     autotask_company_id: int | None
+
+
+@dataclass(frozen=True)
+class JobHoursTotals:
+    """Rounded time-entry totals for one job row."""
+
+    day_minutes: int
+    week_minutes: int
+
+    @property
+    def day_label(self) -> str:
+        """Return the display label for this job's local-day total."""
+
+        return format_duration_minutes(self.day_minutes) or "0 Hours"
+
+    @property
+    def week_label(self) -> str:
+        """Return the display label for this job's local-week total."""
+
+        return format_duration_minutes(self.week_minutes) or "0 Hours"
 
 
 def _normalize_optional_text(text_value: str | None, *, max_length: int) -> str | None:
@@ -487,6 +508,107 @@ def list_review_jobs(database_session: Session, web_user_id: str | None = None) 
     return list(database_session.execute(statement).scalars())
 
 
+def _job_totals_owner_id(job: Job) -> str:
+    """Return the grouping key used for per-owner hour totals."""
+
+    return job.web_user_id or UNASSIGNED_TOTALS_OWNER_ID
+
+
+def job_local_date_for_totals(job: Job) -> date | None:
+    """Return the local work date used for hour totals."""
+
+    if job.local_work_date is not None:
+        return job.local_work_date
+    if job.rounded_start_utc is None:
+        return None
+    return local_date_for(job.rounded_start_utc)
+
+
+def local_week_start(local_work_date: date) -> date:
+    """Return the Monday date for a local work week."""
+
+    return local_work_date - timedelta(days=local_work_date.weekday())
+
+
+def job_time_entry_duration_minutes(job: Job, *, current_time: datetime | None = None) -> int:
+    """Return rounded minutes contributed by one time-entry job."""
+
+    if job.entry_type == EntryType.TICKET_NOTE or job.rounded_start_utc is None:
+        return 0
+
+    rounded_end_utc = (
+        job.rounded_end_utc or rounded_stop_for_active_job(job, timestamp=current_time)
+        if job.status == JobStatus.ACTIVE
+        else job.rounded_end_utc
+    )
+
+    if rounded_end_utc is None:
+        return 0
+
+    return max(rounded_duration_minutes(job.rounded_start_utc, rounded_end_utc), 0)
+
+
+def list_jobs_for_hour_totals(database_session: Session, web_user_id: str | None = None) -> list[Job]:
+    """Return jobs that may contribute to displayed hour totals."""
+
+    statement = select(Job).where(Job.entry_type != EntryType.TICKET_NOTE)
+    if web_user_id is not None:
+        statement = statement.where(Job.web_user_id == web_user_id)
+    return list(database_session.execute(statement).scalars())
+
+
+def total_time_entry_minutes_for_local_date(
+    jobs: list[Job],
+    *,
+    local_work_date: date,
+    owner_id: str | None = None,
+    current_time: datetime | None = None,
+) -> int:
+    """Return time-entry minutes for one local date and optional owner."""
+
+    total_minutes = 0
+    for job in jobs:
+        if owner_id is not None and _job_totals_owner_id(job) != owner_id:
+            continue
+        if job_local_date_for_totals(job) != local_work_date:
+            continue
+        total_minutes += job_time_entry_duration_minutes(job, current_time=current_time)
+    return total_minutes
+
+
+def review_job_hour_totals(
+    jobs: list[Job],
+    *,
+    current_time: datetime | None = None,
+) -> dict[str, JobHoursTotals]:
+    """Return per-row local day/week totals keyed by job ID."""
+
+    day_totals: dict[tuple[str, date], int] = {}
+    week_totals: dict[tuple[str, date], int] = {}
+    for job in jobs:
+        local_work_date = job_local_date_for_totals(job)
+        if local_work_date is None:
+            continue
+        owner_id = _job_totals_owner_id(job)
+        duration_minutes = job_time_entry_duration_minutes(job, current_time=current_time)
+        day_totals[(owner_id, local_work_date)] = day_totals.get((owner_id, local_work_date), 0) + duration_minutes
+        week_start = local_week_start(local_work_date)
+        week_totals[(owner_id, week_start)] = week_totals.get((owner_id, week_start), 0) + duration_minutes
+
+    row_totals: dict[str, JobHoursTotals] = {}
+    for job in jobs:
+        local_work_date = job_local_date_for_totals(job)
+        if local_work_date is None:
+            row_totals[job.id] = JobHoursTotals(day_minutes=0, week_minutes=0)
+            continue
+        owner_id = _job_totals_owner_id(job)
+        row_totals[job.id] = JobHoursTotals(
+            day_minutes=day_totals.get((owner_id, local_work_date), 0),
+            week_minutes=week_totals.get((owner_id, local_week_start(local_work_date)), 0),
+        )
+    return row_totals
+
+
 def completed_ticket_numbers_for_web_user(
     database_session: Session,
     *,
@@ -507,6 +629,36 @@ def completed_ticket_numbers_for_web_user(
         select(Job.ticket_number).where(
             Job.web_user_id == web_user_id,
             Job.ticket_status == TicketStatus.COMPLETE,
+            Job.ticket_number.in_(normalized_ticket_numbers),
+        )
+    ).scalars()
+    return {
+        ticket_number.strip().upper()
+        for ticket_number in rows
+        if ticket_number and ticket_number.strip()
+    }
+
+
+def hidden_service_call_ticket_numbers_for_web_user(
+    database_session: Session,
+    *,
+    web_user_id: str,
+    ticket_numbers: set[str],
+) -> set[str]:
+    """Return local ticket numbers that should be hidden from Home service calls."""
+
+    normalized_ticket_numbers = {
+        ticket_number.strip().upper()
+        for ticket_number in ticket_numbers
+        if ticket_number and ticket_number.strip()
+    }
+    if not normalized_ticket_numbers:
+        return set()
+
+    rows = database_session.execute(
+        select(Job.ticket_number).where(
+            Job.web_user_id == web_user_id,
+            Job.ticket_status.in_({TicketStatus.COMPLETE, TicketStatus.FOLLOW_UP}),
             Job.ticket_number.in_(normalized_ticket_numbers),
         )
     ).scalars()
