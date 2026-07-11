@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## 1.3.0 - Admin contact, user management, review totals, and public-device sessions
+## 1.3.0 - 07.11.2026 - Admin contact, user management, review totals, and public-device sessions
 
 ### Added
 
