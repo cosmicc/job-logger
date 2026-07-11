@@ -45,7 +45,6 @@ from job_logger.services.jobs import (
     apply_manual_summary_to_job,
     apply_selected_ticket_from_lookup,
     apply_transcription_result_to_job,
-    completed_ticket_numbers_for_web_user,
     delete_active_job,
     end_job,
     ensure_job_can_record_description,
@@ -53,7 +52,9 @@ from job_logger.services.jobs import (
     expire_ai_cleanup_revert_state,
     expire_stale_ai_cleanup_revert_states,
     get_job_or_raise,
+    hidden_service_call_ticket_numbers_for_web_user,
     list_active_jobs_for_web_user,
+    list_jobs_for_hour_totals,
     mark_job_transcription_failed,
     revert_ai_cleanup_summary,
     rounded_stop_for_active_job,
@@ -62,6 +63,8 @@ from job_logger.services.jobs import (
     start_job,
     store_ai_cleanup_revert_state,
     submit_job_to_autotask,
+    total_time_entry_minutes_for_local_date,
+    total_time_entry_minutes_for_local_week,
     transcribe_active_job_audio,
     update_active_job_ticket_number,
     update_description_text,
@@ -73,9 +76,18 @@ from job_logger.services.preferences import (
     get_submit_from_work_in_progress_for_session,
     preference_principal_from_session,
 )
+from job_logger.services.support_contact import application_settings_from_request, disabled_account_message
 from job_logger.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
 from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
-from job_logger.time_utils import format_local_compact_time_range, format_local_time, format_rounded_duration_label, format_utc_iso, local_date_for, now_utc
+from job_logger.time_utils import (
+    format_duration_minutes,
+    format_local_compact_time_range,
+    format_local_time,
+    format_rounded_duration_label,
+    format_utc_iso,
+    local_date_for,
+    now_utc,
+)
 from job_logger.ui import template_context, templates
 
 router = APIRouter(tags=["mobile"])
@@ -243,15 +255,15 @@ def _load_service_calls_for_mobile_start(
         return [], str(exc)
 
 
-def _filter_completed_local_service_calls(
+def _filter_hidden_local_service_calls(
     database_session: Session,
     *,
     web_user_id: str,
     service_call_options: list[AutotaskServiceCallOption],
 ) -> list[AutotaskServiceCallOption]:
-    """Hide service calls that already have a local Complete time entry."""
+    """Hide service calls that already have a local Complete or Follow up job."""
 
-    completed_ticket_numbers = completed_ticket_numbers_for_web_user(
+    hidden_ticket_numbers = hidden_service_call_ticket_numbers_for_web_user(
         database_session,
         web_user_id=web_user_id,
         ticket_numbers={
@@ -259,13 +271,13 @@ def _filter_completed_local_service_calls(
             for service_call_option in service_call_options
         },
     )
-    if not completed_ticket_numbers:
+    if not hidden_ticket_numbers:
         return service_call_options
 
     return [
         service_call_option
         for service_call_option in service_call_options
-        if service_call_option.ticket_number.strip().upper() not in completed_ticket_numbers
+        if service_call_option.ticket_number.strip().upper() not in hidden_ticket_numbers
     ]
 
 
@@ -670,7 +682,11 @@ def home_page(
     except (HTTPException, WebUserError):
         if not is_super_admin_session(request.session):
             logout_session(request)
-            add_flash_message(request, "This user account is disabled.", "error")
+            add_flash_message(
+                request,
+                disabled_account_message(application_settings_from_request(request)),
+                "error",
+            )
             return RedirectResponse(url="/login", status_code=303)
         return templates.TemplateResponse(
             request,
@@ -693,11 +709,24 @@ def home_page(
         web_user_id=web_user.id,
     ):
         database_session.commit()
+    current_time = now_utc()
     active_jobs = list_active_jobs_for_web_user(database_session, web_user.id)
     active_rounded_stop_times = {
-        active_job.id: active_job.rounded_end_utc or rounded_stop_for_active_job(active_job)
+        active_job.id: active_job.rounded_end_utc or rounded_stop_for_active_job(active_job, timestamp=current_time)
         for active_job in active_jobs
     }
+    hour_total_jobs = list_jobs_for_hour_totals(database_session, web_user.id)
+    current_local_date = local_date_for(current_time)
+    today_total_minutes = total_time_entry_minutes_for_local_date(
+        hour_total_jobs,
+        local_work_date=current_local_date,
+        current_time=current_time,
+    )
+    week_total_minutes = total_time_entry_minutes_for_local_week(
+        hour_total_jobs,
+        local_work_date=current_local_date,
+        current_time=current_time,
+    )
     principal = preference_principal_from_session(request.session)
     submit_from_work_in_progress_enabled = get_submit_from_work_in_progress_for_principal(
         database_session,
@@ -719,6 +748,8 @@ def home_page(
             ticket_status_options=_ticket_status_options(),
             submit_from_work_in_progress_enabled=submit_from_work_in_progress_enabled,
             show_passkey_setup_prompt=show_passkey_setup_prompt,
+            today_work_hours_label=format_duration_minutes(today_total_minutes) or "0 Hours",
+            week_work_hours_label=format_duration_minutes(week_total_minutes) or "0 Hours",
             can_start_jobs=True,
             start_block_reason=None,
         ),
@@ -763,7 +794,7 @@ def home_service_call_options(
             {**service_call_date_context, "detail": service_call_error, "service_calls": []},
             status_code=400,
         )
-    service_call_options = _filter_completed_local_service_calls(
+    service_call_options = _filter_hidden_local_service_calls(
         database_session,
         web_user_id=web_user.id,
         service_call_options=service_call_options,
@@ -912,7 +943,7 @@ async def start_work_from_service_call(
             resource_id=web_user.autotask_resource_id,
             local_service_date=selected_service_call_date,
         )
-        service_call_options = _filter_completed_local_service_calls(
+        service_call_options = _filter_hidden_local_service_calls(
             database_session,
             web_user_id=web_user.id,
             service_call_options=service_call_options,

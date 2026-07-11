@@ -1628,7 +1628,7 @@ def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_
     assert response.status_code == 200
     assert response.text.count("header-help-link-dev") == 2
     assert "dev-build-pill" not in response.text
-    assert ">v1.2.4 DEV<" not in response.text
+    assert f">v{APP_VERSION} DEV<" not in response.text
     assert f'<span class="desktop-brand-version">v{APP_VERSION}-DEV</span>' in response.text
     assert 'aria-label="Help development build"' in response.text
     assert response.text.index('class="mobile-nav-actions mobile-nav-right"') < response.text.index('data-mobile-help-link')
@@ -1953,6 +1953,51 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".work-panel[data-active-job-card]" in desktop_stylesheet
     assert ".work-panel[data-active-job-card] > .detail-heading-row" in desktop_stylesheet
     assert "grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);" in desktop_stylesheet
+    assert "gap: 10px 28px;" in desktop_stylesheet
+    assert (
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) > .service-call-start-panel {\n"
+        "    grid-column: 2;\n"
+        "    grid-row: 1 / span 5;\n"
+        "    align-self: start;\n"
+        "    align-content: start;\n"
+        "    margin-top: 0;\n"
+        "    padding-top: 0;\n"
+        "    border-top: 0;\n"
+        "    gap: 8px;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header {\n"
+        "    align-content: start;\n"
+        "    gap: 2px;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header h3 {\n"
+        "    line-height: 1;\n"
+        "    transform: translateY(-10px);\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-date-nav {\n"
+        "    height: 32px;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-date-button {\n"
+        "    height: 32px;\n"
+        "    min-height: 32px;\n"
+        "    padding: 4px 10px;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) [data-service-call-empty] {\n"
+        "    justify-self: stretch;\n"
+        "    margin: 0;\n"
+        "    padding: 12px 14px;\n"
+        "    text-align: center;\n"
+        "  }"
+    ) in desktop_stylesheet
     assert "grid-template-columns: minmax(0, 1fr) minmax(360px, 0.78fr);" in desktop_stylesheet
     assert ".work-panel[data-active-job-card] .job-date-card .date-input-shell" in desktop_stylesheet
     assert "width: min(100%, 270px);" in desktop_stylesheet
@@ -1966,6 +2011,9 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".edit-panel .review-action-row button" in desktop_stylesheet
     assert ".active-jobs-stack > .work-panel:not([data-active-job-card])" not in phone_stylesheet
     assert ".work-panel[data-active-job-card]" not in phone_stylesheet
+    assert ".service-call-panel-header {\n    gap: 4px;" not in phone_stylesheet
+    assert "translateY(-10px)" not in phone_stylesheet
+    assert "[data-service-call-empty]" not in phone_stylesheet
     assert ".work-panel[data-active-job-card] .job-date-card .date-input-shell" not in phone_stylesheet
     assert ".work-panel[data-active-job-card] > .description-box > .note-title-field:not(.is-hidden)" not in phone_stylesheet
     assert ".work-panel[data-active-job-card] > .description-box > .note-title-field.is-hidden + label" not in phone_stylesheet
@@ -3916,32 +3964,54 @@ def test_mobile_service_call_start_rejects_unlisted_selection(authenticated_clie
         assert get_active_job(database_session) is None
 
 
-def test_completed_local_ticket_filters_service_call_options(authenticated_client: TestClient) -> None:
-    """A local Complete time entry should hide its matching service-call ticket."""
+def test_complete_and_follow_up_local_tickets_filter_service_call_options(
+    authenticated_client: TestClient,
+) -> None:
+    """Local Complete and Follow up time entries should hide matching service-call tickets."""
 
     completed_at_utc = datetime(2026, 6, 20, 13, 0, tzinfo=UTC)
     with database.SessionLocal() as database_session:
         user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
         assert user is not None
-        database_session.add(
-            Job(
-                status=JobStatus.READY_FOR_REVIEW,
-                web_user_id=user.id,
-                ticket_number="T20260616.0001",
-                ticket_title="Completed service call ticket",
-                ticket_status=TicketStatus.COMPLETE,
-                client_name="Scheduled Service Client",
-                summary_notes="Completed locally in review.",
-                description_text="Completed locally in review.",
-                raw_start_utc=completed_at_utc,
-                raw_end_utc=completed_at_utc + timedelta(minutes=30),
-                rounded_start_utc=completed_at_utc,
-                rounded_end_utc=completed_at_utc + timedelta(minutes=30),
-                local_work_date=local_date_for(completed_at_utc),
-                work_location=WorkLocation.REMOTE,
-                transcription_status=TranscriptionStatus.NOT_REQUESTED,
-                idempotency_key="completed-service-call-filter-test",
-            )
+        database_session.add_all(
+            [
+                Job(
+                    status=JobStatus.READY_FOR_REVIEW,
+                    web_user_id=user.id,
+                    ticket_number="T20260616.0001",
+                    ticket_title="Completed service call ticket",
+                    ticket_status=TicketStatus.COMPLETE,
+                    client_name="Scheduled Service Client",
+                    summary_notes="Completed locally in review.",
+                    description_text="Completed locally in review.",
+                    raw_start_utc=completed_at_utc,
+                    raw_end_utc=completed_at_utc + timedelta(minutes=30),
+                    rounded_start_utc=completed_at_utc,
+                    rounded_end_utc=completed_at_utc + timedelta(minutes=30),
+                    local_work_date=local_date_for(completed_at_utc),
+                    work_location=WorkLocation.REMOTE,
+                    transcription_status=TranscriptionStatus.NOT_REQUESTED,
+                    idempotency_key="completed-service-call-filter-test",
+                ),
+                Job(
+                    status=JobStatus.READY_FOR_REVIEW,
+                    web_user_id=user.id,
+                    ticket_number="T20260616.0002",
+                    ticket_title="Follow up service call ticket",
+                    ticket_status=TicketStatus.FOLLOW_UP,
+                    client_name="Scheduled Service Client",
+                    summary_notes="Follow up already scheduled locally.",
+                    description_text="Follow up already scheduled locally.",
+                    raw_start_utc=completed_at_utc + timedelta(hours=1),
+                    raw_end_utc=completed_at_utc + timedelta(hours=1, minutes=30),
+                    rounded_start_utc=completed_at_utc + timedelta(hours=1),
+                    rounded_end_utc=completed_at_utc + timedelta(hours=1, minutes=30),
+                    local_work_date=local_date_for(completed_at_utc),
+                    work_location=WorkLocation.REMOTE,
+                    transcription_status=TranscriptionStatus.NOT_REQUESTED,
+                    idempotency_key="follow-up-service-call-filter-test",
+                ),
+            ]
         )
         database_session.commit()
 
@@ -3954,7 +4024,7 @@ def test_completed_local_ticket_filters_service_call_options(authenticated_clien
         service_call["service_call_ticket_id"]
         for service_call in service_calls_response.json()["service_calls"]
     ]
-    assert service_call_ids == [6102]
+    assert service_call_ids == []
 
     filtered_start_response = authenticated_client.post(
         "/jobs/start/service-call",
@@ -3966,6 +4036,115 @@ def test_completed_local_ticket_filters_service_call_options(authenticated_clien
     with database.SessionLocal() as database_session:
         active_jobs = list(database_session.scalars(select(Job).where(Job.status == JobStatus.ACTIVE)))
         assert active_jobs == []
+
+    filtered_follow_up_start_response = authenticated_client.post(
+        "/jobs/start/service-call",
+        data={"csrf_token": csrf_token, "service_call_ticket_id": "6102", "service_call_date": "2026-06-20"},
+        follow_redirects=False,
+    )
+
+    assert filtered_follow_up_start_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        active_jobs = list(database_session.scalars(select(Job).where(Job.status == JobStatus.ACTIVE)))
+        assert active_jobs == []
+
+
+def test_review_job_list_paginates_newest_first_with_hour_totals(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Review should show 10 newest jobs per page with day/week time-entry totals."""
+
+    current_time = datetime(2026, 6, 25, 16, 0, tzinfo=UTC)
+    monkeypatch.setattr("job_logger.routes.review.now_utc", lambda: current_time)
+    monkeypatch.setattr("job_logger.routes.mobile.now_utc", lambda: current_time)
+    local_work_day = local_date_for(current_time)
+    created_ticket_numbers: list[str] = []
+    oldest_job_id = ""
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        seeded_jobs: list[Job] = []
+        for index in range(12):
+            ticket_number = f"T20260625.{index + 1:04d}"
+            created_ticket_numbers.append(ticket_number)
+            start_time = current_time - timedelta(hours=3, minutes=index)
+            is_ticket_note = index == 1
+            job = Job(
+                status=JobStatus.READY_FOR_REVIEW,
+                web_user_id=user.id,
+                ticket_number=ticket_number,
+                ticket_title=f"Review Ticket {index + 1:02d}",
+                ticket_status=TicketStatus.IN_PROGRESS,
+                client_name="Review Client",
+                summary_notes=f"Review notes {index + 1}",
+                description_text=f"Review notes {index + 1}",
+                raw_start_utc=start_time,
+                raw_end_utc=start_time + timedelta(minutes=120 if is_ticket_note else 30),
+                rounded_start_utc=start_time,
+                rounded_end_utc=start_time + timedelta(minutes=120 if is_ticket_note else 30),
+                local_work_date=local_work_day,
+                work_location=WorkLocation.REMOTE,
+                entry_type=EntryType.TICKET_NOTE if is_ticket_note else EntryType.TIME_ENTRY,
+                note_title=f"Note title {index + 1}" if is_ticket_note else None,
+                transcription_status=TranscriptionStatus.NOT_REQUESTED,
+                idempotency_key=f"review-pagination-total-test-{index}",
+                created_at_utc=current_time - timedelta(minutes=index),
+            )
+            seeded_jobs.append(job)
+        database_session.add_all(seeded_jobs)
+        database_session.commit()
+        oldest_job_id = seeded_jobs[-1].id
+
+    first_page_response = authenticated_client.get("/review")
+    first_page_html = first_page_response.text
+
+    assert first_page_response.status_code == 200
+    assert first_page_html.count("data-review-url=") == 10
+    assert 'class="review-hours-summary-row" aria-label="Time-entry hours worked"' in first_page_html
+    assert 'aria-label="Hours worked this week"' in first_page_html
+    assert "Day hours" in first_page_html
+    assert "Week hours" in first_page_html
+    assert "Page 1 of 2" in first_page_html
+    assert "5.5 Hours" in first_page_html
+    assert "7.5 Hours" not in first_page_html
+    assert created_ticket_numbers[0] in first_page_html
+    assert created_ticket_numbers[9] in first_page_html
+    assert created_ticket_numbers[10] not in first_page_html
+    assert first_page_html.index(created_ticket_numbers[0]) < first_page_html.index(created_ticket_numbers[9])
+
+    second_page_response = authenticated_client.get("/review?page=2")
+    second_page_html = second_page_response.text
+
+    assert second_page_response.status_code == 200
+    assert second_page_html.count("data-review-url=") == 2
+    assert "Page 2 of 2" in second_page_html
+    assert created_ticket_numbers[10] in second_page_html
+    assert created_ticket_numbers[11] in second_page_html
+    assert created_ticket_numbers[9] not in second_page_html
+
+    selected_oldest_response = authenticated_client.get(f"/review/{oldest_job_id}")
+    assert selected_oldest_response.status_code == 200
+    assert "Page 2 of 2" in selected_oldest_response.text
+    assert f'data-review-url="/review/{oldest_job_id}"' in selected_oldest_response.text
+
+    home_response = authenticated_client.get("/home")
+    assert home_response.status_code == 200
+    assert 'class="work-hours-compact" aria-label="Time-entry hours worked"' in home_response.text
+    assert "<strong>5.5 Hours</strong>" in home_response.text
+    assert "work-hours-summary" not in home_response.text
+    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
+    assert (
+        ".work-hours-compact {\n"
+        "  display: flex;\n"
+        "  flex-wrap: wrap;\n"
+        "  align-items: center;\n"
+        "  justify-content: center;\n"
+        "  width: fit-content;\n"
+        "  max-width: calc(100% - 4px);"
+    ) in stylesheet
+    assert "  padding: 5px 10px;\n  border: 1px solid var(--border);" in stylesheet
+    assert "  background: var(--surface-strong);" in stylesheet
 
 
 def test_mobile_service_call_date_labels(authenticated_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

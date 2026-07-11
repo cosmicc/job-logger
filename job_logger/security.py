@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hmac
 import secrets
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -24,10 +24,13 @@ SESSION_CSRF_TOKEN_KEY = "csrf_token"
 SESSION_FLASH_KEY = "flash_messages"
 SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY = "show_passkey_setup_prompt"
 SESSION_PASSWORD_CHANGE_REQUIRED_KEY = "password_change_required"
+SESSION_PUBLIC_DEVICE_KEY = "public_device"
+SESSION_PUBLIC_DEVICE_LAST_ACTIVITY_UTC_KEY = "public_device_last_activity_utc"
 SUPER_ADMIN_SESSION_KIND = "super_admin"
 WEB_USER_SESSION_KIND = "web_user"
 PASSWORD_AUTH_METHOD = "password"
 PASSKEY_AUTH_METHOD = "passkey"
+PUBLIC_DEVICE_IDLE_TIMEOUT_SECONDS = 15 * 60
 
 # Sensitive audit keys are redacted before being written to logs or JSON snapshots.
 SENSITIVE_KEY_FRAGMENTS = ("password", "secret", "token", "key", "authorization", "cookie")
@@ -49,15 +52,30 @@ def authenticate_username(username: str, application_settings: Settings = settin
     return hmac.compare_digest(application_settings.app_username, username)
 
 
-def login_session(request: Request, username: str) -> None:
+def _utc_iso_now() -> str:
+    """Return the current UTC timestamp as an ISO string for session storage."""
+
+    return datetime.now(UTC).isoformat()
+
+
+def _stamp_public_device_session(request: Request, *, public_device: bool) -> None:
+    """Mark the current session as public-device constrained when requested."""
+
+    if public_device:
+        request.session[SESSION_PUBLIC_DEVICE_KEY] = True
+        request.session[SESSION_PUBLIC_DEVICE_LAST_ACTIVITY_UTC_KEY] = _utc_iso_now()
+
+
+def login_session(request: Request, username: str, *, public_device: bool = False) -> None:
     """Create an authenticated super-admin session."""
 
     request.session.clear()
     request.session[SESSION_USERNAME_KEY] = username
     request.session[SESSION_USER_KIND_KEY] = SUPER_ADMIN_SESSION_KIND
-    request.session[SESSION_AUTHENTICATED_AT_UTC_KEY] = datetime.now(UTC).isoformat()
+    request.session[SESSION_AUTHENTICATED_AT_UTC_KEY] = _utc_iso_now()
     request.session[SESSION_AUTH_METHOD_KEY] = PASSWORD_AUTH_METHOD
     request.session[SESSION_CSRF_TOKEN_KEY] = secrets.token_urlsafe(32)
+    _stamp_public_device_session(request, public_device=public_device)
 
 
 def login_web_user_session(
@@ -67,6 +85,7 @@ def login_web_user_session(
     web_user_id: str,
     authentication_method: str = PASSWORD_AUTH_METHOD,
     password_change_required: bool = False,
+    public_device: bool = False,
 ) -> None:
     """Create an authenticated managed web-user session."""
 
@@ -74,12 +93,13 @@ def login_web_user_session(
     request.session[SESSION_USERNAME_KEY] = username
     request.session[SESSION_USER_KIND_KEY] = WEB_USER_SESSION_KIND
     request.session[SESSION_WEB_USER_ID_KEY] = web_user_id
-    request.session[SESSION_AUTHENTICATED_AT_UTC_KEY] = datetime.now(UTC).isoformat()
+    request.session[SESSION_AUTHENTICATED_AT_UTC_KEY] = _utc_iso_now()
     request.session[SESSION_AUTH_METHOD_KEY] = authentication_method
-    request.session[SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY] = True
+    request.session[SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY] = not public_device
     if password_change_required:
         request.session[SESSION_PASSWORD_CHANGE_REQUIRED_KEY] = True
     request.session[SESSION_CSRF_TOKEN_KEY] = secrets.token_urlsafe(32)
+    _stamp_public_device_session(request, public_device=public_device)
 
 
 def logout_session(request: Request) -> None:
@@ -136,6 +156,12 @@ def current_authentication_method_from_session(session: Mapping[str, Any]) -> st
     return None
 
 
+def public_device_session_enabled(session: Mapping[str, Any]) -> bool:
+    """Return whether this login chose public-device protections."""
+
+    return bool(session.get(SESSION_PUBLIC_DEVICE_KEY))
+
+
 def authenticated_at_utc_from_session(session: Mapping[str, Any]) -> datetime | None:
     """Return the UTC login timestamp stored in an authenticated session."""
 
@@ -152,6 +178,48 @@ def authenticated_at_utc_from_session(session: Mapping[str, Any]) -> datetime | 
         return authenticated_at.replace(tzinfo=UTC)
 
     return authenticated_at.astimezone(UTC)
+
+
+def public_device_last_activity_utc_from_session(session: Mapping[str, Any]) -> datetime | None:
+    """Return the UTC last-activity timestamp for a public-device session."""
+
+    raw_last_activity = session.get(SESSION_PUBLIC_DEVICE_LAST_ACTIVITY_UTC_KEY)
+    if not isinstance(raw_last_activity, str) or not raw_last_activity:
+        return None
+
+    try:
+        last_activity = datetime.fromisoformat(raw_last_activity.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+    if last_activity.tzinfo is None:
+        return last_activity.replace(tzinfo=UTC)
+    return last_activity.astimezone(UTC)
+
+
+def public_device_session_is_idle_expired(
+    session: Mapping[str, Any],
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Return whether public-device inactivity exceeded the 15-minute limit."""
+
+    if current_username_from_session(session) is None or not public_device_session_enabled(session):
+        return False
+
+    last_activity = public_device_last_activity_utc_from_session(session)
+    if last_activity is None:
+        return True
+
+    current_time = now or datetime.now(UTC)
+    return (current_time.astimezone(UTC) - last_activity).total_seconds() >= PUBLIC_DEVICE_IDLE_TIMEOUT_SECONDS
+
+
+def update_public_device_session_activity(session: MutableMapping[str, Any]) -> None:
+    """Refresh the public-device last-activity timestamp after a valid request."""
+
+    if current_username_from_session(session) is not None and public_device_session_enabled(session):
+        session[SESSION_PUBLIC_DEVICE_LAST_ACTIVITY_UTC_KEY] = _utc_iso_now()
 
 
 def authenticated_session_is_expired(
@@ -179,7 +247,17 @@ def expire_authenticated_session_if_needed(
 ) -> bool:
     """Clear expired authenticated session state and leave a login-page notice."""
 
+    if public_device_session_is_idle_expired(request.session):
+        request.session.clear()
+        add_flash_message(
+            request,
+            "Public device session expired after 15 minutes of inactivity. Sign in again.",
+            "error",
+        )
+        return True
+
     if not authenticated_session_is_expired(request.session, application_settings):
+        update_public_device_session_activity(request.session)
         return False
 
     request.session.clear()
@@ -250,7 +328,12 @@ def session_has_debug_access(session: Mapping[str, Any], database_session: Sessi
         return False
 
     web_user = database_session.get(WebUser, web_user_id)
-    return bool(web_user is not None and not web_user.disabled and web_user.is_admin)
+    return bool(
+        web_user is not None
+        and not web_user.disabled
+        and web_user.archived_at_utc is None
+        and web_user.is_admin
+    )
 
 
 def require_debug_access(request: Request, database_session: Session) -> str:

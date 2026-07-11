@@ -34,6 +34,29 @@ captured from Autotask Resource lookup, optional default service-desk role ID
 selected from that resource's active Autotask roles, last successful login time,
 Admin Diagnostics access, and disabled state.
 Disabled web users must be blocked from new logins and from old signed sessions.
+Deleted web users with no jobs are fully removed. Deleted web users with linked
+jobs are archived, hidden from `/users`, blocked from every login path, signed
+out through the session invalidation cutoff, stripped of passkeys, reset tokens,
+account reset throttles, and preferences, and restored automatically when a new
+managed user is added with the same Autotask resource ID.
+The `/users` add form has a default-on **Send welcome email** option for new
+managed users. Send it only to the stored managed-user email address, use
+`APP_PUBLIC_BASE_URL` for the app link, include the username, temporary-password
+change instruction, mobile install steps, Device sign-in guidance, and
+`ADMIN_CONTACT_EMAIL` when configured, call the app **Autotask Job Logger**, and
+never include the temporary password.
+Welcome email delivery must be non-blocking for user creation. Audit only safe
+metadata such as user ID, username, provider, whether an email was saved, and
+bounded delivery errors.
+The `/users` list must not expose internal Autotask resource ID or role ID
+values, but add/edit forms may still save them for server-side Autotask use.
+Row actions may send a password reset email or resend the welcome email for an
+enabled managed user only. Disabled users must be blocked from those email
+actions. The user-list Enabled/Disabled status pill is a CSRF-protected state
+toggle. Disabling through that pill must invalidate that user's existing signed
+sessions, and enabling through the pill must preserve the account row without
+resetting passwords, passkeys, roles, email, or job history. Admin-sent reset
+links may be created even when public self-service password reset is disabled.
 Managed-user passwords must be at least 8 characters and include lowercase,
 uppercase, number, and symbol characters. Enforce that rule server-side before
 hashing; browser validation is only a usability aid. Passwords created or reset
@@ -42,6 +65,11 @@ by the config super admin are temporary. On the next managed-user sign-in,
 `job_logger/services/session_control.py` must allow only `GET /config`,
 `POST /config/password`, and logout until `/config/password` successfully
 changes the password and clears `web_users.password_must_change`.
+`ADMIN_CONTACT_EMAIL` is an optional Docker/env support contact. Show it only
+after the app has verified a disabled account through the correct password,
+passkey assertion, or existing signed session state. Invalid usernames and
+wrong passwords must keep the generic invalid-credentials message so login does
+not reveal account existence.
 
 Self-service password reset is optional and hidden unless
 `PASSWORD_RESET_ENABLED=true`. `/forgot-password` and `/reset-password/{token}`
@@ -62,10 +90,14 @@ throttle keys and audit email identifiers as HMAC hashes, not raw submitted
 addresses. `TURNSTILE_ENABLED=false` is allowed in development and production,
 but the flow must still use CSRF, Cloudflare Access when configured, rate
 limits, generic non-enumerating responses, and HMAC-stored token hashes.
+Reset-token pages and completion must keep accepting valid admin-sent reset
+tokens even when `PASSWORD_RESET_ENABLED=false` hides `/forgot-password`.
+Do not bypass HMAC lookup, expiry, single-use, CSRF, password rules, or session
+invalidation for those admin-created links.
 Password reset mail delivery is selected by `MAIL_MODE`. `smtp` uses the
 existing SMTP transport and `smtp2go` uses SMTP2GO's HTTPS API with
 `MAIL_SMTP2GO_API_KEY`. Never log or persist SMTP passwords, SMTP2GO API keys,
-or full reset URLs.
+full reset URLs, or welcome-email provider secrets.
 When Turnstile is enabled, the static forgot-password browser page must load
 Cloudflare's standard `api.js` script, avoid the implicit `cf-turnstile`
 auto-render class, and render the widget through the local password reset
@@ -97,6 +129,14 @@ the `web_users` row. `job_logger/services/session_control.py` owns that cutoff
 logic. Disabling one user or using the Diagnostics **Log out web users** action
 must clear old managed-user cookies on the next request without signing out the
 config super admin.
+The login page's **This is a public device** checkbox is default-off, appears
+below the forgot-password link, and keeps its explanatory copy in a hover/title
+hint. While checked, the Device sign-in button must be visibly greyed out,
+disabled, and unclickable; unchecking it must restore the normal Device sign-in
+button state. When selected for password sign-in, the session gets a 15-minute
+inactivity timeout, suppresses the Home Device sign-in setup prompt, and must
+reject new passkey registration while keeping normal authentication, CSRF,
+disabled-user, and configured session-timeout enforcement intact.
 
 Managed web-user passkeys are optional login credentials. The config super
 admin must not register or use passkeys. Passkey registration is available only
@@ -107,8 +147,8 @@ username/password form usable.
 User-facing controls should call this feature **Device sign-in** even though the
 technical implementation remains WebAuthn/passkeys. The `/home` device sign-in
 setup card is only a one-time phone-sized post-login prompt for managed users
-without a passkey; `/config` must always keep the device sign-in setup action
-available.
+without a passkey; `/config` must keep device sign-in setup available except
+while the current login session is marked as a public-device session.
 The super-admin `/users` table may show only passkey setup status, such as a
 green/red icon or safe count. It must not expose credential IDs, public keys,
 transports, AAGUIDs, user agents, or other authenticator metadata.
@@ -190,10 +230,16 @@ The `/config` page should keep its cards ordered as **Appearance**,
 **Password**, **Device sign-in**, then **Workflow** so routine password and
 passkey controls appear before the optional direct-submit workflow preference.
 
-Deleting a managed web user from `/users` must disable the account, invalidate
-that user's existing signed sessions, and preserve the row. Keeping the row lets
-the login screen explain that the account is disabled after the correct
-password is submitted instead of treating the username as unknown.
+Disabling a managed web user from `/users` must invalidate that user's existing
+signed sessions and preserve the row. Keeping a disabled row lets the login
+screen explain that the account is disabled after the correct password is
+submitted instead of treating the username as unknown. Deleting a managed web
+user is different: users with no jobs are fully removed, while users with linked
+jobs are archived and hidden. Archived users must look unknown to password
+login, forgot-password email lookup, and the `/users` list, and they must be
+blocked if an old signed session or passkey credential appears. When
+`ADMIN_CONTACT_EMAIL` is configured, disabled-account explanations should
+include the configured email address.
 
 Application setup in `job_logger/main.py` configures:
 
@@ -242,11 +288,12 @@ also used in the Cloudflare rule note. The successful-login table may use a
 yellow account-kind chip for config
 super-admin rows so they are easy to distinguish from managed web users, and
 may show `Password` or `Passkey` method pills for the already-sanitized
-authentication method. Login failure, Cloudflare blocked-IP, and Autotask
-submission-attempt diagnostics must stay paginated at 10 rows per page. Wide
-Diagnostics tables should stay horizontally scrollable on phone layouts instead
-of compressing columns, especially when they include per-row backup or
-Cloudflare actions. `LOG_LEVEL` controls stdout/stderr and optional `LOG_DIR`
+authentication method. Successful-login, login-failure, and Autotask
+submission-attempt diagnostics must stay paginated at 7 rows per page without
+vertical table scrollbars. Cloudflare blocked-IP diagnostics stay paginated at
+10 rows per page. Wide Diagnostics tables should stay horizontally scrollable on
+phone layouts instead of compressing columns, especially when they include
+per-row backup or Cloudflare actions. `LOG_LEVEL` controls stdout/stderr and optional `LOG_DIR`
 file-log verbosity and must be limited to `DEBUG`, `INFO`, `WARNING`, or
 `ERROR`. `/debug` may also show
 disk usage for app-visible storage paths such as `/` and
@@ -347,7 +394,7 @@ Important actions must record audit events through `job_logger/services/audit.py
 Audit-worthy actions include:
 
 - Authentication-sensitive events.
-- Managed web-user add, edit, enable, disable, and delete-as-disable actions.
+- Managed web-user add, edit, enable, disable, delete, archive, and restore actions.
 - Per-user configuration updates.
 - Managed web-user password changes.
 - Managed web-user passkey registration, deletion, and login success/failure.

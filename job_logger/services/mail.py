@@ -7,6 +7,7 @@ import smtplib
 from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import formataddr
+from urllib.parse import urlparse
 
 import httpx
 
@@ -15,13 +16,14 @@ from job_logger.logging_config import redact_sensitive_text
 
 LOGGER = logging.getLogger(__name__)
 MAX_SAFE_MAIL_ERROR_LENGTH = 500
-PASSWORD_RESET_SUBJECT = "Reset your Job Logger password"
+PASSWORD_RESET_SUBJECT = "Reset your Autotask Job Logger password"
+WELCOME_EMAIL_SUBJECT = "Welcome to Autotask Job Logger"
 SMTP2GO_EMAIL_SEND_URL = "https://api.smtp2go.com/v3/email/send"
 
 
 @dataclass(frozen=True)
 class MailDeliveryResult:
-    """Safe outcome returned after attempting password-reset mail delivery."""
+    """Safe outcome returned after attempting app-generated mail delivery."""
 
     succeeded: bool
     provider: str = "smtp"
@@ -45,10 +47,78 @@ def _password_reset_body(*, reset_url: str, application_settings: Settings) -> s
     """Return the plain-text password-reset email body."""
 
     return (
-        "A password reset was requested for your Job Logger account.\n\n"
+        "A password reset was requested for your Autotask Job Logger account.\n\n"
         f"Reset your password using this link:\n{reset_url}\n\n"
         f"This link is valid for {int(application_settings.password_reset_token_ttl_hours)} hours and can be used only once.\n\n"
         "If you did not request this reset, you can ignore this email."
+    )
+
+
+def _first_name_from_full_name(*, full_name: str, fallback_username: str) -> str:
+    """Return the first display-name token for a welcome greeting."""
+
+    stripped_name = full_name.strip()
+    if stripped_name:
+        return stripped_name.split()[0]
+    stripped_username = fallback_username.strip()
+    return stripped_username or "there"
+
+
+def _welcome_contact_line(admin_contact_email: str) -> str:
+    """Return the final welcome-email support line."""
+
+    stripped_email = admin_contact_email.strip()
+    if stripped_email:
+        return f"If you need help, contact {stripped_email}."
+    return "If you need help, contact your app administrator."
+
+
+def build_welcome_email_body(
+    *,
+    full_name: str,
+    username: str,
+    app_url: str,
+    admin_contact_email: str,
+) -> str:
+    """Return the plain-text welcome email body for a new managed web user."""
+
+    first_name = _first_name_from_full_name(full_name=full_name, fallback_username=username)
+    return (
+        f"{first_name},\n\n"
+        "You have been invited to use the Autotask Job Logger for recording Autotask time entries, "
+        "sending & reviewing Autotask ticket notes, and submitting approved work to Autotask.\n\n"
+        "Open Autotask Job Logger here:\n"
+        f"{app_url}\n\n"
+        "Sign in with your username:\n"
+        f"{username.strip()}\n\n"
+        "Use the temporary password provided by your administrator. After you sign in, "
+        "Autotask Job Logger will ask you to create a new password before continuing.\n\n"
+        "Autotask Job Logger can be used from a web browser on a computer or installed on your mobile device. "
+        'After you log in, you can set up "Device sign-in", which will allow you to log in to the app '
+        "quickly with your mobile device unlock, such as a fingerprint, without needing to type in your "
+        "username and password each time.\n\n"
+        "To install Autotask Job Logger on your phone:\n\n"
+        "iPhone or iPad:\n"
+        "1. Open the Autotask Job Logger link in Safari.\n"
+        "2. Tap the Share button.\n"
+        "3. Tap Add to Home Screen.\n"
+        "4. Tap Add.\n\n"
+        "Android:\n"
+        "1. Open the Autotask Job Logger link in Chrome.\n"
+        "2. Tap the browser menu.\n"
+        "3. Tap Add to Home screen or Install app.\n"
+        "4. Follow the prompt to add it.\n\n"
+        f"{_welcome_contact_line(admin_contact_email)}"
+    )
+
+
+def _mail_not_configured_result(application_settings: Settings) -> MailDeliveryResult:
+    """Return a consistent failure when the selected mail transport is incomplete."""
+
+    return MailDeliveryResult(
+        succeeded=False,
+        provider=application_settings.mail_mode,
+        safe_error=f"{application_settings.mail_mode} mail is not configured.",
     )
 
 
@@ -92,40 +162,104 @@ def send_password_reset_email(
 ) -> MailDeliveryResult:
     """Send a managed-user password reset link by the configured mail mode."""
 
-    if not application_settings.password_reset_mail_configured:
-        return MailDeliveryResult(
-            succeeded=False,
-            provider=application_settings.mail_mode,
-            safe_error=f"{application_settings.mail_mode} mail is not configured.",
-        )
+    if not application_settings.mail_delivery_configured:
+        return _mail_not_configured_result(application_settings)
 
-    if application_settings.mail_mode == "smtp2go":
-        return _send_password_reset_email_smtp2go(
-            recipient_email=recipient_email,
-            reset_url=reset_url,
-            application_settings=application_settings,
-        )
-
-    return _send_password_reset_email_smtp(
+    return _send_account_email(
         recipient_email=recipient_email,
-        reset_url=reset_url,
+        subject=PASSWORD_RESET_SUBJECT,
+        body=_password_reset_body(reset_url=reset_url, application_settings=application_settings),
         application_settings=application_settings,
+        log_context="Password reset email",
     )
 
 
-def _send_password_reset_email_smtp(
+def send_welcome_email(
     *,
     recipient_email: str,
-    reset_url: str,
-    application_settings: Settings,
+    full_name: str,
+    username: str,
+    application_settings: Settings = settings,
 ) -> MailDeliveryResult:
-    """Send a managed-user password reset link by SMTP."""
+    """Send the new-user welcome email by the configured mail mode."""
+
+    safe_recipient_email = recipient_email.strip()
+    if not safe_recipient_email:
+        return MailDeliveryResult(
+            succeeded=False,
+            provider=application_settings.mail_mode,
+            safe_error="A user email address is required to send a welcome email.",
+        )
+
+    app_url = application_settings.app_public_base_url.strip().rstrip("/")
+    parsed_app_url = urlparse(app_url)
+    if parsed_app_url.scheme not in {"http", "https"} or not parsed_app_url.netloc:
+        return MailDeliveryResult(
+            succeeded=False,
+            provider=application_settings.mail_mode,
+            safe_error="APP_PUBLIC_BASE_URL must be an absolute http or https URL to send a welcome email.",
+        )
+
+    if not application_settings.mail_delivery_configured:
+        return _mail_not_configured_result(application_settings)
+
+    return _send_account_email(
+        recipient_email=safe_recipient_email,
+        subject=WELCOME_EMAIL_SUBJECT,
+        body=build_welcome_email_body(
+            full_name=full_name,
+            username=username,
+            app_url=app_url,
+            admin_contact_email=application_settings.admin_contact_email,
+        ),
+        application_settings=application_settings,
+        log_context="Welcome email",
+    )
+
+
+def _send_account_email(
+    *,
+    recipient_email: str,
+    subject: str,
+    body: str,
+    application_settings: Settings,
+    log_context: str,
+) -> MailDeliveryResult:
+    """Send one account email through the configured provider."""
+
+    if application_settings.mail_mode == "smtp2go":
+        return _send_account_email_smtp2go(
+            recipient_email=recipient_email,
+            subject=subject,
+            body=body,
+            application_settings=application_settings,
+            log_context=log_context,
+        )
+
+    return _send_account_email_smtp(
+        recipient_email=recipient_email,
+        subject=subject,
+        body=body,
+        application_settings=application_settings,
+        log_context=log_context,
+    )
+
+
+def _send_account_email_smtp(
+    *,
+    recipient_email: str,
+    subject: str,
+    body: str,
+    application_settings: Settings,
+    log_context: str,
+) -> MailDeliveryResult:
+    """Send an app-generated account email by SMTP."""
 
     message = EmailMessage()
-    message["Subject"] = PASSWORD_RESET_SUBJECT
+    message["Subject"] = subject
     message["From"] = _sender_address(application_settings)
     message["To"] = recipient_email
-    message.set_content(_password_reset_body(reset_url=reset_url, application_settings=application_settings))
+    message.set_content(body)
 
     try:
         if application_settings.mail_smtp_ssl:
@@ -146,19 +280,21 @@ def _send_password_reset_email_smtp(
                 _send_message(smtp_client, message, application_settings)
     except (OSError, smtplib.SMTPException) as exc:
         safe_error = _safe_mail_error(exc)
-        LOGGER.warning("Password reset email delivery failed: %s", safe_error)
-        return MailDeliveryResult(succeeded=False, safe_error=safe_error)
+        LOGGER.warning("%s delivery failed: %s", log_context, safe_error)
+        return MailDeliveryResult(succeeded=False, provider="smtp", safe_error=safe_error)
 
-    return MailDeliveryResult(succeeded=True)
+    return MailDeliveryResult(succeeded=True, provider="smtp")
 
 
-def _send_password_reset_email_smtp2go(
+def _send_account_email_smtp2go(
     *,
     recipient_email: str,
-    reset_url: str,
+    subject: str,
+    body: str,
     application_settings: Settings,
+    log_context: str,
 ) -> MailDeliveryResult:
-    """Send a managed-user password reset link through SMTP2GO's JSON API."""
+    """Send an app-generated account email through SMTP2GO's JSON API."""
 
     headers = {
         "Accept": "application/json",
@@ -168,8 +304,8 @@ def _send_password_reset_email_smtp2go(
     payload = {
         "sender": _sender_address(application_settings),
         "to": [recipient_email],
-        "subject": PASSWORD_RESET_SUBJECT,
-        "text_body": _password_reset_body(reset_url=reset_url, application_settings=application_settings),
+        "subject": subject,
+        "text_body": body,
     }
     try:
         with httpx.Client(timeout=application_settings.mail_smtp_timeout_seconds) as http_client:
@@ -178,11 +314,11 @@ def _send_password_reset_email_smtp2go(
             response_payload = response.json()
     except httpx.HTTPStatusError as exc:
         safe_error = _smtp2go_response_error(exc.response)
-        LOGGER.warning("Password reset email delivery failed: %s", safe_error)
+        LOGGER.warning("%s delivery failed: %s", log_context, safe_error)
         return MailDeliveryResult(succeeded=False, provider="smtp2go", safe_error=safe_error)
     except (httpx.HTTPError, ValueError) as exc:
         safe_error = _safe_mail_error(exc)
-        LOGGER.warning("Password reset email delivery failed: %s", safe_error)
+        LOGGER.warning("%s delivery failed: %s", log_context, safe_error)
         return MailDeliveryResult(succeeded=False, provider="smtp2go", safe_error=safe_error)
 
     response_data = response_payload.get("data", {}) if isinstance(response_payload, dict) else {}
@@ -192,7 +328,7 @@ def _send_password_reset_email_smtp2go(
         safe_error = redact_sensitive_text(f"SMTP2GO delivery was not accepted: {response_payload}")[
             :MAX_SAFE_MAIL_ERROR_LENGTH
         ]
-        LOGGER.warning("Password reset email delivery failed: %s", safe_error)
+        LOGGER.warning("%s delivery failed: %s", log_context, safe_error)
         return MailDeliveryResult(succeeded=False, provider="smtp2go", safe_error=safe_error)
 
     return MailDeliveryResult(succeeded=True, provider="smtp2go")

@@ -19,6 +19,7 @@ from job_logger.services.help_assistant import (
     HelpAssistantError,
     answer_help_question,
 )
+from job_logger.services.support_contact import append_help_contact_footer
 from job_logger.ui import template_context, templates
 from job_logger.version import APP_VERSION
 
@@ -165,9 +166,10 @@ async def ask_help_question(request: Request) -> JSONResponse:
         len(result.answer_text),
     )
 
+    answer_text = append_help_contact_footer(result.answer_text, application_settings)
     return JSONResponse(
         {
-            "answer": result.answer_text,
+            "answer": answer_text,
             "model": result.model,
             "context_source_count": result.context_source_count,
         }

@@ -238,7 +238,7 @@
   .active-jobs-stack > .work-panel:not([data-active-job-card]) {
     display: grid;
     grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);
-    gap: 18px 28px;
+    gap: 10px 28px;
     align-items: start;
   }
 
@@ -270,13 +270,51 @@
   .active-jobs-stack > .work-panel:not([data-active-job-card]) > .service-call-start-panel {
     grid-column: 2;
     grid-row: 1 / span 5;
-    align-self: stretch;
+    align-self: start;
+    align-content: start;
     margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+    gap: 8px;
+  }
+
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header {
+    align-content: start;
+    gap: 2px;
+  }
+
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header h3 {
+    line-height: 1;
+    transform: translateY(-10px);
+  }
+
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-date-nav {
+    height: 32px;
+  }
+
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-date-step-button {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    min-height: 32px;
+  }
+
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-date-button {
+    height: 32px;
+    min-height: 32px;
+    padding: 4px 10px;
   }
 
   .active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-start-list {
     justify-self: stretch;
     max-width: none;
+  }
+
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) [data-service-call-empty] {
+    justify-self: stretch;
+    margin: 0;
+    padding: 12px 14px;
+    text-align: center;
   }
 
   .work-panel[data-active-job-card] {

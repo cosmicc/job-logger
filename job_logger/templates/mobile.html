@@ -103,6 +103,19 @@
       </section>
     {% endif %}
 
+    {% if today_work_hours_label or week_work_hours_label %}
+      <div class="work-hours-compact" aria-label="Time-entry hours worked">
+        <span class="work-hours-compact-item">
+          <span class="metric-label">Today</span>
+          <strong>{{ today_work_hours_label }}</strong>
+        </span>
+        <span class="work-hours-compact-item">
+          <span class="metric-label">Week</span>
+          <strong>{{ week_work_hours_label }}</strong>
+        </span>
+      </div>
+    {% endif %}
+
     <section class="active-jobs-stack">
       {% if active_jobs %}
         {% for active_job in active_jobs %}

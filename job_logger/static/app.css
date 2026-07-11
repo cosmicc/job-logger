@@ -544,6 +544,56 @@ svg {
   color: var(--danger);
 }
 
+.flash-email-success {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.flash-email-error {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.user-email-result-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  align-items: start;
+  justify-items: center;
+  padding: clamp(86px, 14vh, 150px) 16px 16px;
+  background: rgba(15, 23, 42, 0.18);
+}
+
+.user-email-result-card {
+  width: min(420px, 100%);
+  padding: 15px 17px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 750;
+  text-align: center;
+}
+
+.user-email-result-card-success {
+  border-color: var(--success);
+}
+
+.user-email-result-card-error {
+  border-color: var(--danger);
+}
+
+.user-email-result-card p {
+  margin: 0;
+}
+
+.user-email-result-card p + p {
+  margin-top: 8px;
+}
+
 .login-shell,
 .mobile-shell,
 .review-shell,
@@ -637,6 +687,15 @@ svg {
   text-decoration: underline;
 }
 
+.public-device-login-option {
+  min-height: 28px;
+  align-self: center;
+  margin-top: -2px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
 .turnstile-field {
   display: flex;
   justify-content: center;
@@ -684,6 +743,16 @@ svg {
   gap: 10px;
   padding-top: 18px;
   border-top: 1px solid var(--border);
+}
+
+.passkey-login-panel .secondary-button:disabled,
+.passkey-login-panel .secondary-button.passkey-login-public-disabled {
+  border-color: var(--border);
+  background: var(--surface-muted);
+  box-shadow: none;
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .passkey-status {
@@ -2803,6 +2872,82 @@ td a {
   outline-offset: -2px;
 }
 
+.review-hours-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.review-hours-summary {
+  display: grid;
+  gap: 3px;
+  min-width: 160px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.review-hours-summary strong {
+  margin: 0;
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.work-hours-compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: calc(100% - 4px);
+  gap: 4px 12px;
+  margin: 0 auto 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  box-shadow: 0 6px 14px rgba(3, 7, 18, 0.12);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.work-hours-compact-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.work-hours-compact strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.review-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.review-pagination-status {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.disabled-button {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .edit-panel {
   padding: 20px;
 }
@@ -2938,7 +3083,7 @@ td a {
 
 .users-table {
   width: 100%;
-  min-width: 1040px;
+  min-width: 960px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -2967,22 +3112,22 @@ td a {
 
 .users-table th:nth-child(1),
 .users-table td:nth-child(1) {
-  width: 15%;
+  width: 17%;
 }
 
 .users-table th:nth-child(2),
 .users-table td:nth-child(2) {
-  width: 10%;
+  width: 12%;
 }
 
 .users-table th:nth-child(3),
 .users-table td:nth-child(3) {
-  width: 15%;
+  width: 18%;
 }
 
 .users-table th:nth-child(4),
 .users-table td:nth-child(4) {
-  width: 8%;
+  width: 13%;
 }
 
 .users-table th:nth-child(5),
@@ -2992,32 +3137,22 @@ td a {
 
 .users-table th:nth-child(6),
 .users-table td:nth-child(6) {
-  width: 12%;
+  width: 7%;
 }
 
 .users-table th:nth-child(7),
 .users-table td:nth-child(7) {
-  width: 6%;
+  width: 8%;
 }
 
 .users-table th:nth-child(8),
 .users-table td:nth-child(8) {
-  width: 6%;
+  width: 5%;
 }
 
 .users-table th:nth-child(9),
 .users-table td:nth-child(9) {
-  width: 7%;
-}
-
-.users-table th:nth-child(10),
-.users-table td:nth-child(10) {
-  width: 5%;
-}
-
-.users-table th:nth-child(11),
-.users-table td:nth-child(11) {
-  width: 9%;
+  width: 13%;
 }
 
 .user-display-row:hover,
@@ -3071,6 +3206,21 @@ td a {
 .user-status-chip {
   min-width: 72px;
   justify-content: center;
+}
+
+.user-status-toggle-form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.user-status-toggle {
+  appearance: none;
+  cursor: pointer;
+}
+
+.user-status-toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .user-status-enabled {
@@ -3237,6 +3387,7 @@ td a {
 
 .add-user-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -4327,10 +4478,14 @@ td a {
 }
 
 .login-attempt-window {
-  max-height: 430px;
-  overflow: auto;
+  overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+
+.diagnostics-seven-row-window {
+  min-height: 360px;
+  max-height: none;
 }
 
 .login-attempt-table {
@@ -5446,37 +5601,52 @@ td a {
 
   .review-table th:nth-child(1),
   .review-table td:nth-child(1) {
-    width: 14%;
+    width: 12%;
   }
 
   .review-table th:nth-child(2),
   .review-table td:nth-child(2) {
-    width: 17%;
+    width: 16%;
   }
 
   .review-table th:nth-child(3),
   .review-table td:nth-child(3) {
-    width: 13%;
+    width: 11%;
   }
 
   .review-table th:nth-child(4),
   .review-table td:nth-child(4) {
-    width: 18%;
+    width: 13%;
   }
 
   .review-table th:nth-child(5),
   .review-table td:nth-child(5) {
-    width: 13%;
+    width: 11%;
   }
 
   .review-table th:nth-child(6),
   .review-table td:nth-child(6) {
-    width: 12%;
+    width: 10%;
   }
 
   .review-table th:nth-child(7),
   .review-table td:nth-child(7) {
-    width: 13%;
+    width: 9%;
+  }
+
+  .review-table th:nth-child(8),
+  .review-table td:nth-child(8) {
+    width: 9%;
+  }
+
+  .review-table th:nth-child(9),
+  .review-table td:nth-child(9) {
+    width: 9%;
+  }
+
+  .review-table th:nth-child(10),
+  .review-table td:nth-child(10) {
+    width: 10%;
   }
 
   .review-table .status-chip {

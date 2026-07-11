@@ -497,6 +497,48 @@
     });
   }
 
+  function initializeEmailActionOverlay() {
+    const flashMessages = Array.from(document.querySelectorAll(".flash-email-success, .flash-email-error"));
+    if (flashMessages.length === 0) {
+      return;
+    }
+
+    const overlayElement = document.createElement("div");
+    const hasError = flashMessages.some((messageElement) => messageElement.classList.contains("flash-email-error"));
+    overlayElement.className = "user-email-result-overlay";
+    overlayElement.setAttribute("role", hasError ? "alert" : "status");
+    overlayElement.setAttribute("aria-live", hasError ? "assertive" : "polite");
+
+    const cardElement = document.createElement("div");
+    cardElement.className = hasError
+      ? "user-email-result-card user-email-result-card-error"
+      : "user-email-result-card user-email-result-card-success";
+
+    flashMessages.forEach((messageElement) => {
+      const messageLine = document.createElement("p");
+      messageLine.textContent = messageElement.textContent.trim();
+      cardElement.appendChild(messageLine);
+      const messageParent = messageElement.parentElement;
+      messageElement.remove();
+      if (messageParent && messageParent.children.length === 0) {
+        messageParent.remove();
+      }
+    });
+
+    overlayElement.appendChild(cardElement);
+    document.body.appendChild(overlayElement);
+
+    let closeTimer = window.setTimeout(closeOverlay, 5000);
+    function closeOverlay() {
+      window.clearTimeout(closeTimer);
+      overlayElement.remove();
+      document.removeEventListener("click", closeOverlay);
+    }
+
+    overlayElement.addEventListener("click", closeOverlay);
+    document.addEventListener("click", closeOverlay);
+  }
+
   function initializeForms() {
     document.querySelectorAll("[data-user-create-form], [data-user-edit-form]").forEach((form) => {
       initializeUsernameSuggestion(form);
@@ -507,4 +549,5 @@
   initializeForms();
   initializeEditControls();
   initializeConfirmations();
+  initializeEmailActionOverlay();
 }());

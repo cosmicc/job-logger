@@ -207,6 +207,7 @@ def find_unique_enabled_web_user_by_email(
             select(WebUser)
             .where(
                 WebUser.disabled.is_(False),
+                WebUser.archived_at_utc.is_(None),
                 func.lower(WebUser.email) == normalized_email,
             )
             .limit(2)
@@ -276,7 +277,11 @@ def lookup_password_reset_token(
     if expires_at_utc is None or expires_at_utc <= now_utc():
         return PasswordResetTokenLookup(status="expired", reset_token=reset_token)
 
-    if reset_token.web_user is None or reset_token.web_user.disabled:
+    if (
+        reset_token.web_user is None
+        or reset_token.web_user.disabled
+        or reset_token.web_user.archived_at_utc is not None
+    ):
         return PasswordResetTokenLookup(status="invalid", reset_token=reset_token)
 
     return PasswordResetTokenLookup(status="valid", reset_token=reset_token)
@@ -291,7 +296,11 @@ def complete_password_reset(
 ) -> WebUser:
     """Apply a valid reset token, update the password, and invalidate sessions."""
 
-    if reset_token.web_user is None or reset_token.web_user.disabled:
+    if (
+        reset_token.web_user is None
+        or reset_token.web_user.disabled
+        or reset_token.web_user.archived_at_utc is not None
+    ):
         raise WebUserError("This password reset link is invalid or expired.")
 
     web_user = reset_token.web_user

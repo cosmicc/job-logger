@@ -202,6 +202,9 @@ class Settings:
     # It must be provided through a secret environment file or secret store.
     app_password: str | None
 
+    # ADMIN_CONTACT_EMAIL is the safe support contact shown to end users.
+    admin_contact_email: str
+
     # APP_SESSION_COOKIE_SECURE should be true when served through HTTPS/Cloudflare.
     session_cookie_secure: bool
 
@@ -235,13 +238,13 @@ class Settings:
     # PASSWORD_RESET_TOKEN_TTL_HOURS controls how long emailed reset links work.
     password_reset_token_ttl_hours: float
 
-    # APP_PUBLIC_BASE_URL is the absolute HTTPS origin used in password-reset email links.
+    # APP_PUBLIC_BASE_URL is the absolute HTTPS origin used in app-generated email links.
     app_public_base_url: str
 
-    # MAIL_ENABLED gates mail delivery for password-reset email.
+    # MAIL_ENABLED gates app-generated account email delivery.
     mail_enabled: bool
 
-    # MAIL_FROM_* controls the sender identity shown on password-reset email.
+    # MAIL_FROM_* controls the sender identity shown on app-generated email.
     mail_from_email: str
     mail_from_name: str
 
@@ -480,14 +483,20 @@ class Settings:
         return max(int(self.password_reset_token_ttl_hours * 60 * 60), 1)
 
     @property
-    def password_reset_mail_configured(self) -> bool:
-        """Return whether the selected mail mode can send reset mail."""
+    def mail_delivery_configured(self) -> bool:
+        """Return whether the selected mail mode can send app-generated email."""
 
         if not self.mail_enabled or not self.mail_from_email:
             return False
         if self.mail_mode == "smtp2go":
             return bool(self.mail_smtp2go_api_key)
         return bool(self.mail_smtp_host and self.mail_smtp_port > 0)
+
+    @property
+    def password_reset_mail_configured(self) -> bool:
+        """Return whether the selected mail mode can send reset mail."""
+
+        return self.mail_delivery_configured
 
     @property
     def pushover_configured(self) -> bool:
@@ -542,6 +551,7 @@ def load_settings() -> Settings:
         log_dir=(os.getenv("LOG_DIR") or "").strip() or None,
         app_username=os.getenv("APP_USERNAME", "admin"),
         app_password=os.getenv("APP_PASSWORD") or None,
+        admin_contact_email=(os.getenv("ADMIN_CONTACT_EMAIL") or "").strip(),
         session_cookie_secure=_get_boolean("APP_SESSION_COOKIE_SECURE", False),
         session_timeout_hours=_get_positive_float("APP_SESSION_TIMEOUT_HOURS", 12.0),
         cloudflare_access_required=_get_boolean("CLOUDFLARE_ACCESS_REQUIRED", False),

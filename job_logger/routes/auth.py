@@ -26,6 +26,7 @@ from job_logger.services.login_protection import (
     record_failed_login_attempt_and_maybe_block,
     record_local_login_lockout,
 )
+from job_logger.services.support_contact import application_settings_from_request, disabled_account_message
 from job_logger.services.users import authenticate_web_user_with_status, mark_web_user_login_succeeded
 from job_logger.ui import template_context, templates
 
@@ -55,6 +56,7 @@ async def login(
 
     submitted_username = str(form_data.get("username", "")).strip()
     submitted_password = str(form_data.get("password", ""))
+    public_device = "public_device" in form_data
     lockout_state = current_login_lockout(
         database_session,
         request,
@@ -79,7 +81,7 @@ async def login(
 
     if authenticate_username(submitted_username) and verify_password(submitted_password):
         reset_login_failure_counter(database_session, request, submitted_username=submitted_username)
-        login_session(request, submitted_username)
+        login_session(request, submitted_username, public_device=public_device)
         log_successful_login_attempt(
             database_session,
             request,
@@ -92,7 +94,7 @@ async def login(
             actor=submitted_username,
             action="auth.login.succeeded",
             request=request,
-            details={"username": submitted_username, "user_kind": "super_admin"},
+            details={"username": submitted_username, "user_kind": "super_admin", "public_device": public_device},
         )
         database_session.commit()
         add_flash_message(request, "Signed in.", "success")
@@ -113,6 +115,7 @@ async def login(
             username=web_user.username,
             web_user_id=web_user.id,
             password_change_required=password_change_required,
+            public_device=public_device,
         )
         log_successful_login_attempt(
             database_session,
@@ -132,6 +135,7 @@ async def login(
                 "user_kind": "web_user",
                 "web_user_id": web_user.id,
                 "temporary_credential_change_required": password_change_required,
+                "public_device": public_device,
             },
         )
         database_session.commit()
@@ -163,7 +167,8 @@ async def login(
             reason="account_disabled",
         )
         database_session.commit()
-        add_flash_message(request, "This user account is disabled. Contact the administrator.", "error")
+        application_settings = application_settings_from_request(request)
+        add_flash_message(request, disabled_account_message(application_settings), "error")
         return RedirectResponse(url="/login", status_code=303)
 
     record_audit_event(

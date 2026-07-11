@@ -53,8 +53,10 @@ def test_authenticated_help_page_renders_version_and_changelog(
     assert ">Operational Status<" in response.text
     assert ">Operational<" in response.text
     assert "All monitored app checks are fully operational." in response.text
-    assert ">v1.2.4<" in response.text
-    assert '<p class="help-version-release-date">Released: 07.10.2026</p>' in response.text
+    assert ">v1.3.0<" in response.text
+    assert '<p class="help-version-release-date">Released: 07.11.2026</p>' in response.text
+    assert "Released: 07.11.2026" in response.text
+    assert "Released: 07.10.2026" in response.text
     assert 'href="/changelog"' in response.text
     assert "data-help-changelog-open" in response.text
     assert "data-help-changelog-overlay" in response.text
@@ -86,8 +88,8 @@ def test_help_page_shows_released_current_version_date(
         "load_changelog_entries",
         lambda: [
             ChangelogEntry(
-                version="1.2.4",
-                release_date="07.10.2026",
+                version="1.3.0",
+                release_date="07.11.2026",
                 title="Released test version",
                 changes=("Released-current test note.",),
             ),
@@ -103,8 +105,8 @@ def test_help_page_shows_released_current_version_date(
     response = authenticated_client.get("/help")
 
     assert response.status_code == 200
-    assert '<p class="help-version-release-date">Released: 07.10.2026</p>' in response.text
-    assert '<span class="release-date">Released: 07.10.2026</span>' in response.text
+    assert '<p class="help-version-release-date">Released: 07.11.2026</p>' in response.text
+    assert '<span class="release-date">Released: 07.11.2026</span>' in response.text
     assert '<span class="release-date">Released: 07.03.2026</span>' in response.text
 
 
@@ -359,6 +361,43 @@ def test_help_question_returns_single_answer(
     }
 
 
+def test_help_question_appends_admin_contact_email(
+    authenticated_client: TestClient,
+    monkeypatch,
+) -> None:
+    """Configured Help answers should include the admin contact footer."""
+
+    authenticated_client.app.state.application_settings = replace(
+        settings,
+        ai_help_enabled=True,
+        ai_help_provider="gemini",
+        gemini_api_key="test-gemini-key",
+        ai_help_instructions="Answer Job Logger support questions for end users.",
+        admin_contact_email="admin@example.test",
+    )
+
+    def fake_answer_help_question(*, question, application_settings, trace_id="-"):
+        assert question == "How do I start work?"
+        return HelpAssistantResult(
+            answer_text="Tap Start Work.",
+            model=application_settings.gemini_model,
+            context_source_count=1,
+        )
+
+    monkeypatch.setattr(help_routes, "answer_help_question", fake_answer_help_question)
+    page_response = authenticated_client.get("/help")
+    csrf_token = extract_csrf_token(page_response.text)
+
+    response = authenticated_client.post(
+        "/help/ask",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"question": "How do I start work?"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == "Tap Start Work.\n\nIf you need further help, contact admin@example.test"
+
+
 def test_help_page_marks_dev_build(authenticated_client: TestClient) -> None:
     """The Help page should show DEV beside the current version for dev builds."""
 
@@ -367,4 +406,4 @@ def test_help_page_marks_dev_build(authenticated_client: TestClient) -> None:
     response = authenticated_client.get("/help")
 
     assert response.status_code == 200
-    assert ">v1.2.4 DEV<" in response.text
+    assert ">v1.3.0 DEV<" in response.text

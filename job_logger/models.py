@@ -98,6 +98,14 @@ class WebUser(Base):
         comment="Whether this user is blocked from logging in.",
     )
 
+    # archived_at_utc hides a deleted account that still owns jobs. The row is
+    # preserved so re-adding the same Autotask resource ID can restore ownership.
+    archived_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="UTC timestamp when this user was hidden while preserving linked job history.",
+    )
+
     # is_admin grants this managed user full Diagnostics access only. It does
     # not grant config-super-admin-only user management or broader review scope.
     is_admin: Mapped[bool] = mapped_column(
@@ -163,6 +171,7 @@ class WebUser(Base):
 
     __table_args__ = (
         Index("ix_web_users_disabled", "disabled"),
+        Index("ix_web_users_archived_at", "archived_at_utc"),
     )
 
 

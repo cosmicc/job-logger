@@ -17,6 +17,7 @@ from job_logger.security import (
     current_web_user_id,
     login_web_user_session,
     logout_session,
+    public_device_session_enabled,
     require_authenticated_username,
     validate_csrf_header,
     validate_csrf_token,
@@ -36,9 +37,11 @@ from job_logger.services.passkeys import (
     finish_passkey_authentication,
     finish_passkey_registration,
 )
+from job_logger.services.support_contact import application_settings_from_request, disabled_account_message
 from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise, mark_web_user_login_succeeded
 
 router = APIRouter(tags=["passkeys"])
+PUBLIC_DEVICE_PASSKEY_SETUP_MESSAGE = "Device sign-in setup is unavailable on public devices."
 
 
 async def _json_payload(request: Request) -> dict[str, Any]:
@@ -66,6 +69,13 @@ def _current_passkey_web_user(request: Request, database_session: Session):
         raise
 
 
+def _reject_public_device_passkey_setup(request: Request) -> None:
+    """Prevent registering new passkeys from public-device sessions."""
+
+    if public_device_session_enabled(request.session):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PUBLIC_DEVICE_PASSKEY_SETUP_MESSAGE)
+
+
 @router.post("/config/passkeys/options")
 async def passkey_registration_options(
     request: Request,
@@ -75,6 +85,7 @@ async def passkey_registration_options(
 
     validate_csrf_header(request)
     try:
+        _reject_public_device_passkey_setup(request)
         web_user = _current_passkey_web_user(request, database_session)
         options = begin_passkey_registration(database_session, request, web_user)
     except WebUserError as exc:
@@ -97,6 +108,7 @@ async def passkey_registration_verify(
     actor = "unknown"
     try:
         actor = require_authenticated_username(request)
+        _reject_public_device_passkey_setup(request)
         web_user = _current_passkey_web_user(request, database_session)
         credential_payload = await _json_payload(request)
         credential = finish_passkey_registration(database_session, request, web_user, credential_payload)
@@ -221,6 +233,7 @@ async def passkey_login_verify(
         credential_payload = await _json_payload(request)
         authentication = finish_passkey_authentication(database_session, request, credential_payload)
         web_user = authentication.web_user
+        public_device = bool(credential_payload.get("public_device"))
         reset_login_failure_counter(database_session, request, submitted_username="passkey")
         reset_login_failure_counter(database_session, request, submitted_username=web_user.username)
         password_change_required = bool(web_user.password_must_change)
@@ -231,6 +244,7 @@ async def passkey_login_verify(
             web_user_id=web_user.id,
             authentication_method=PASSKEY_AUTH_METHOD,
             password_change_required=password_change_required,
+            public_device=public_device,
         )
         log_successful_login_attempt(
             database_session,
@@ -250,6 +264,7 @@ async def passkey_login_verify(
                 "web_user_id": web_user.id,
                 "credential_row_id": authentication.credential.id,
                 "temporary_credential_change_required": password_change_required,
+                "public_device": public_device,
             },
         )
         database_session.commit()
@@ -261,12 +276,16 @@ async def passkey_login_verify(
         )
     except (HTTPException, PasskeyError) as exc:
         database_session.rollback()
+        error_detail = str(getattr(exc, "detail", exc))
+        response_detail = error_detail
+        if error_detail == "This user account is disabled.":
+            response_detail = disabled_account_message(application_settings_from_request(request))
         record_audit_event(
             database_session,
             actor="passkey",
             action="auth.passkey.login.failed",
             request=request,
-            details={"error": str(getattr(exc, "detail", exc))},
+            details={"error": error_detail},
         )
         record_failed_login_attempt_and_maybe_block(
             database_session,
@@ -278,6 +297,6 @@ async def passkey_login_verify(
         database_session.commit()
         status_code = exc.status_code if isinstance(exc, HTTPException) else status.HTTP_400_BAD_REQUEST
         return JSONResponse(
-            {"detail": str(getattr(exc, "detail", exc)), "fallback": "password"},
+            {"detail": response_detail, "fallback": "password"},
             status_code=status_code,
         )

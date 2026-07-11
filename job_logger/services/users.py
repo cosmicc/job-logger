@@ -9,11 +9,19 @@ import re
 import secrets
 from dataclasses import dataclass
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from job_logger.config import Settings, settings
-from job_logger.models import Job, WebUser, utc_now
+from job_logger.models import (
+    Job,
+    PasswordResetRequestCounter,
+    PasswordResetToken,
+    UserPreference,
+    WebAuthnCredential,
+    WebUser,
+    utc_now,
+)
 from job_logger.services.session_control import invalidate_web_user_sessions
 
 PASSWORD_HASH_ALGORITHM = "pbkdf2_sha256"
@@ -42,24 +50,28 @@ class WebUserError(RuntimeError):
 class WebUserCreateResult:
     """Result returned after creating a managed web user."""
 
-    # user is the created managed account.
+    # user is the created or restored managed account.
     user: WebUser
 
     # claimed_unowned_job_count records legacy jobs assigned to the first user.
     claimed_unowned_job_count: int
+
+    # restored_archived_user is true when an archived hidden row was reused.
+    restored_archived_user: bool = False
 
 
 @dataclass(frozen=True)
 class WebUserDeleteResult:
     """Result returned after a delete request."""
 
-    # deleted is retained for callers that distinguish legacy hard deletes.
-    # Current delete requests disable users so future login attempts can show a
-    # disabled-account message instead of looking like unknown usernames.
+    # deleted is true when a no-history account was fully removed.
     deleted: bool
 
     # disabled is true when the account row was preserved and blocked.
     disabled: bool
+
+    # archived is true when a job-owning account was hidden but preserved.
+    archived: bool
 
     # related_job_count records how much work history remains linked.
     related_job_count: int
@@ -249,7 +261,13 @@ def verify_web_user_password(password: str, password_hash: str) -> bool:
 def list_web_users(database_session: Session) -> list[WebUser]:
     """Return managed web users ordered for the admin list."""
 
-    return list(database_session.execute(select(WebUser).order_by(WebUser.full_name, WebUser.username)).scalars())
+    return list(
+        database_session.execute(
+            select(WebUser)
+            .where(WebUser.archived_at_utc.is_(None))
+            .order_by(WebUser.full_name, WebUser.username)
+        ).scalars()
+    )
 
 
 def get_web_user_by_id(database_session: Session, user_id: str | None) -> WebUser | None:
@@ -264,7 +282,7 @@ def get_web_user_by_id_or_raise(database_session: Session, user_id: str | None) 
     """Return one managed web user or raise a safe validation error."""
 
     user = get_web_user_by_id(database_session, user_id)
-    if user is None:
+    if user is None or user.archived_at_utc is not None:
         raise WebUserError("User was not found.")
     return user
 
@@ -273,7 +291,7 @@ def get_enabled_web_user_by_id_or_raise(database_session: Session, user_id: str 
     """Return an enabled managed web user or raise a safe validation error."""
 
     user = get_web_user_by_id_or_raise(database_session, user_id)
-    if user.disabled:
+    if user.disabled or user.archived_at_utc is not None:
         raise WebUserError("This user account is disabled.")
     return user
 
@@ -284,7 +302,12 @@ def find_web_user_by_username(database_session: Session, username: str) -> WebUs
     normalized_username = username_normalized(username)
     if not normalized_username:
         return None
-    return database_session.scalar(select(WebUser).where(WebUser.username_normalized == normalized_username))
+    return database_session.scalar(
+        select(WebUser).where(
+            WebUser.username_normalized == normalized_username,
+            WebUser.archived_at_utc.is_(None),
+        )
+    )
 
 
 def authenticate_web_user(database_session: Session, username: str, password: str) -> WebUser | None:
@@ -333,15 +356,89 @@ def _ensure_username_is_available(
 
 
 def _managed_user_count(database_session: Session) -> int:
-    """Return the number of existing managed web users."""
+    """Return the number of visible managed web users."""
 
-    return int(database_session.scalar(select(func.count(WebUser.id))) or 0)
+    return int(
+        database_session.scalar(
+            select(func.count(WebUser.id)).where(WebUser.archived_at_utc.is_(None))
+        )
+        or 0
+    )
 
 
 def _job_count_for_user(database_session: Session, user: WebUser) -> int:
     """Return how many jobs reference a managed web user."""
 
     return int(database_session.scalar(select(func.count(Job.id)).where(Job.web_user_id == user.id)) or 0)
+
+
+def _find_archived_web_user_by_resource_id(
+    database_session: Session,
+    *,
+    autotask_resource_id: int,
+) -> WebUser | None:
+    """Return the most recently archived user for one Autotask resource ID."""
+
+    return database_session.scalar(
+        select(WebUser)
+        .where(
+            WebUser.archived_at_utc.is_not(None),
+            WebUser.autotask_resource_id == autotask_resource_id,
+        )
+        .order_by(WebUser.archived_at_utc.desc(), WebUser.updated_at_utc.desc())
+        .limit(1)
+    )
+
+
+def _preference_key_for_user(user: WebUser) -> str:
+    """Return the user-preference principal key for a managed user."""
+
+    return f"web_user:{user.id}"
+
+
+def _clear_web_user_auth_artifacts(database_session: Session, user: WebUser) -> None:
+    """Remove credentials and reset state that must not survive hidden deletion."""
+
+    database_session.execute(delete(WebAuthnCredential).where(WebAuthnCredential.web_user_id == user.id))
+    database_session.execute(delete(PasswordResetToken).where(PasswordResetToken.web_user_id == user.id))
+    database_session.execute(
+        delete(PasswordResetRequestCounter).where(
+            PasswordResetRequestCounter.scope == "account",
+            PasswordResetRequestCounter.scope_key == user.id,
+        )
+    )
+    database_session.execute(
+        delete(UserPreference).where(UserPreference.principal_key == _preference_key_for_user(user))
+    )
+
+
+def _archived_username_for_user(database_session: Session, user: WebUser) -> str:
+    """Return a unique internal tombstone username for an archived user."""
+
+    candidate = f"archived-{user.id}"
+    while True:
+        existing_user = database_session.scalar(
+            select(WebUser).where(
+                WebUser.username_normalized == username_normalized(candidate),
+                WebUser.id != user.id,
+            )
+        )
+        if existing_user is None:
+            return candidate
+        candidate = f"archived-{user.id[:24]}-{secrets.token_hex(6)}"
+
+
+def _claim_unowned_jobs_if_first_visible_user(database_session: Session, user: WebUser) -> int:
+    """Assign legacy unowned jobs when this is the first visible managed user."""
+
+    if _managed_user_count(database_session) != 1:
+        return 0
+    return int(
+        database_session.execute(
+            update(Job).where(Job.web_user_id.is_(None)).values(web_user_id=user.id)
+        ).rowcount
+        or 0
+    )
 
 
 def create_web_user(
@@ -357,20 +454,57 @@ def create_web_user(
     is_admin: bool = False,
     password_must_change: bool = True,
 ) -> WebUserCreateResult:
-    """Create a managed user and assign legacy jobs when this is the first one."""
+    """Create a managed user or restore a hidden row for the same resource ID."""
 
     was_first_managed_user = _managed_user_count(database_session) == 0
     normalized_full_name = normalize_full_name(full_name)
     normalized_username = normalize_username(username)
+    normalized_resource_id = normalize_autotask_resource_id(autotask_resource_id)
+    normalized_role_id = normalize_optional_autotask_role_id(autotask_default_service_desk_role_id)
+    normalized_email = normalize_optional_email(email)
+
+    archived_user = _find_archived_web_user_by_resource_id(
+        database_session,
+        autotask_resource_id=normalized_resource_id,
+    )
+    if archived_user is not None:
+        _ensure_username_is_available(database_session, normalized_username, existing_user_id=archived_user.id)
+        _clear_web_user_auth_artifacts(database_session, archived_user)
+        archived_user.full_name = normalized_full_name
+        archived_user.username = normalized_username
+        archived_user.username_normalized = username_normalized(normalized_username)
+        archived_user.password_hash = hash_password(password or "")
+        archived_user.autotask_resource_id = normalized_resource_id
+        archived_user.autotask_default_service_desk_role_id = normalized_role_id
+        archived_user.email = normalized_email
+        archived_user.disabled = disabled
+        archived_user.is_admin = is_admin
+        archived_user.password_must_change = password_must_change
+        archived_user.archived_at_utc = None
+        archived_user.last_login_at_utc = None
+        invalidate_web_user_sessions(archived_user)
+        database_session.add(archived_user)
+        database_session.flush()
+        claimed_unowned_job_count = (
+            _claim_unowned_jobs_if_first_visible_user(database_session, archived_user)
+            if was_first_managed_user
+            else 0
+        )
+        return WebUserCreateResult(
+            user=archived_user,
+            claimed_unowned_job_count=claimed_unowned_job_count,
+            restored_archived_user=True,
+        )
+
     _ensure_username_is_available(database_session, normalized_username)
     user = WebUser(
         full_name=normalized_full_name,
         username=normalized_username,
         username_normalized=username_normalized(normalized_username),
         password_hash=hash_password(password or ""),
-        autotask_resource_id=normalize_autotask_resource_id(autotask_resource_id),
-        autotask_default_service_desk_role_id=normalize_optional_autotask_role_id(autotask_default_service_desk_role_id),
-        email=normalize_optional_email(email),
+        autotask_resource_id=normalized_resource_id,
+        autotask_default_service_desk_role_id=normalized_role_id,
+        email=normalized_email,
         disabled=disabled,
         is_admin=is_admin,
         password_must_change=password_must_change,
@@ -378,14 +512,11 @@ def create_web_user(
     database_session.add(user)
     database_session.flush()
 
-    claimed_unowned_job_count = 0
-    if was_first_managed_user:
-        claimed_unowned_job_count = int(
-            database_session.execute(
-                update(Job).where(Job.web_user_id.is_(None)).values(web_user_id=user.id)
-            ).rowcount
-            or 0
-        )
+    claimed_unowned_job_count = (
+        _claim_unowned_jobs_if_first_visible_user(database_session, user)
+        if was_first_managed_user
+        else 0
+    )
 
     return WebUserCreateResult(user=user, claimed_unowned_job_count=claimed_unowned_job_count)
 
@@ -425,6 +556,16 @@ def update_web_user(
     return user
 
 
+def set_web_user_disabled(user: WebUser, *, disabled: bool) -> WebUser:
+    """Set managed-user disabled state and expire signed sessions when needed."""
+
+    was_disabled = user.disabled
+    user.disabled = disabled
+    if disabled and not was_disabled:
+        invalidate_web_user_sessions(user)
+    return user
+
+
 def change_web_user_password(
     database_session: Session,
     user: WebUser,
@@ -443,9 +584,33 @@ def change_web_user_password(
 
 
 def delete_or_disable_web_user(database_session: Session, user: WebUser) -> WebUserDeleteResult:
-    """Disable a managed user and invalidate any existing signed sessions."""
+    """Delete users with no jobs, or hide users whose job history must remain."""
 
     related_job_count = _job_count_for_user(database_session, user)
-    user.disabled = True
+    _clear_web_user_auth_artifacts(database_session, user)
     invalidate_web_user_sessions(user)
-    return WebUserDeleteResult(deleted=False, disabled=True, related_job_count=related_job_count)
+
+    if related_job_count == 0:
+        database_session.delete(user)
+        database_session.flush()
+        return WebUserDeleteResult(
+            deleted=True,
+            disabled=False,
+            archived=False,
+            related_job_count=0,
+        )
+
+    user.disabled = True
+    user.is_admin = False
+    user.password_must_change = True
+    user.archived_at_utc = utc_now()
+    user.username = _archived_username_for_user(database_session, user)
+    user.username_normalized = username_normalized(user.username)
+    database_session.add(user)
+    database_session.flush()
+    return WebUserDeleteResult(
+        deleted=False,
+        disabled=True,
+        archived=True,
+        related_job_count=related_job_count,
+    )

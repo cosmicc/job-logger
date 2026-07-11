@@ -378,7 +378,6 @@ def reset_password_page(
 ) -> Response:
     """Render a password-reset form for a valid link."""
 
-    _require_password_reset_enabled(request)
     lookup = lookup_password_reset_token(
         database_session,
         raw_token,
@@ -412,7 +411,6 @@ async def complete_reset_password(
 ) -> Response:
     """Replace the managed-user password when the reset link is valid."""
 
-    _require_password_reset_enabled(request)
     application_settings = _application_settings(request)
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))

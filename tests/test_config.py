@@ -104,6 +104,16 @@ def test_dev_build_flag_uses_strict_boolean_environment_value(monkeypatch) -> No
     assert load_settings().dev_build is False
 
 
+def test_admin_contact_email_loads_from_environment(monkeypatch) -> None:
+    """The configured support contact should stay environment-backed."""
+
+    monkeypatch.setenv("ADMIN_CONTACT_EMAIL", " admin@example.test ")
+
+    loaded_settings = load_settings()
+
+    assert loaded_settings.admin_contact_email == "admin@example.test"
+
+
 def test_cloudflare_block_settings_load_from_environment(monkeypatch) -> None:
     """Cloudflare block settings should stay environment-only and validated."""
 
@@ -168,6 +178,7 @@ def test_password_reset_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.password_reset_token_ttl_hours == 12
     assert loaded_settings.password_reset_token_ttl_seconds == 43200
     assert loaded_settings.app_public_base_url == "https://logger.example.test"
+    assert loaded_settings.mail_delivery_configured is True
     assert loaded_settings.password_reset_mail_configured is True
     assert loaded_settings.mail_enabled is True
     assert loaded_settings.mail_from_email == "support@example.test"

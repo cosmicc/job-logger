@@ -2,6 +2,84 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## 1.3.0 - 07.11.2026 - Admin contact, user management, review totals, and public-device sessions
+
+### Added
+
+- Added `ADMIN_CONTACT_EMAIL` as a Docker, Swarm, and `.env.example` setting
+  for a safe end-user support contact address.
+- Added a default-on **Send welcome email** option to the Add user form. The
+  email includes the Job Logger link from `APP_PUBLIC_BASE_URL`, username,
+  temporary-password instructions, mobile install steps, Device sign-in
+  guidance, and the configured admin contact email when available.
+- Added `/users` row actions that let the config super admin send a managed
+  user a password reset email or resend the welcome email without exposing
+  internal Autotask resource or role IDs in the user list.
+- Added a clickable Enabled/Disabled status pill to `/users` so the config
+  super admin can disable or re-enable a managed user directly from the list.
+- Added `/users` row delete actions for managed web users, including disabled
+  rows.
+- Added centered compact boxed Work today/week hour summaries, same-sized Review
+  today/week total cards, and Review day-hours and week-hours columns
+  calculated per job owner and local job date.
+- Added 10-row newest-first Review job-list pagination.
+- Added a default-off **This is a public device** login option for password
+  sessions. Public-device sessions expire after 15 minutes of inactivity,
+  disable the Device sign-in button while checked, and cannot start new Device
+  sign-in setup.
+- Added temporary success/failure overlays for `/users` password-reset email
+  and welcome-email row actions.
+
+### Changed
+
+- Advanced the source-controlled dev runtime version to `v1.3.0`, including
+  the Python package metadata and PWA service worker cache version.
+- Changed disabled managed-user password-login, stale-session, Work page, and
+  Device sign-in messages to show the configured admin contact email after the
+  app has verified the account is disabled.
+- Changed AI Help answers to append `If you need further help, contact
+  <admin email>` below the answer, separated by a blank line, when
+  `ADMIN_CONTACT_EMAIL` is configured.
+- Changed account email delivery so password-reset and welcome emails share the
+  same SMTP or SMTP2GO transport, provider result handling, and redacted error
+  reporting.
+- Changed the `/users` list to hide internal Autotask resource ID and role ID
+  values while keeping email, role label, login status, Device sign-in status,
+  Admin status, and account actions visible.
+- Changed managed-user deletion so accounts with no jobs are fully removed,
+  while accounts with linked jobs are hidden, signed out, stripped of passkeys,
+  reset tokens, and preferences, and restored automatically when a new user is
+  added with the same Autotask resource ID.
+- Changed Home service-call options to hide tickets already marked Follow up in
+  Job Logger, matching the existing Complete ticket filtering.
+- Changed admin-sent password reset links so they remain valid even when the
+  public self-service forgot-password flow is disabled.
+- Changed Diagnostics successful-login, failed-login, and Autotask
+  submission-attempt lists to show 7 rows per page without a vertical table
+  scrollbar.
+- Changed the public-device login checkbox to appear below **Forgot password?**
+  and moved its description into hover/title text.
+- Changed the Device sign-in button so selecting **This is a public device**
+  greys it out and prevents clicks until the checkbox is cleared.
+- Changed password-reset and welcome emails to refer to the app as **Autotask
+  Job Logger**, including the updated welcome-email invite sentence.
+
+### Fixed
+
+- Fixed disabled-account login guidance so users can see who to contact instead
+  of a generic administrator reference when a support address is configured.
+- Fixed new-user welcome handling so account creation still succeeds and shows
+  the super admin a warning when the welcome email is skipped or cannot be sent.
+- Fixed hours-worked displays so zero-minute totals render as `0 Hours` instead
+  of disappearing.
+- Fixed public-device sessions so they suppress the mobile Device sign-in setup
+  prompt and reject new passkey registration attempts while signed in on a
+  public device.
+- Fixed full-browser Home start-work Service calls spacing by removing the
+  divider line, raising the Service calls title above the date selector,
+  tightening the date/list area, and centering the no-service-calls message
+  without changing the phone layout.
+
 ## 1.2.4 - 07.10.2026 - Review activity cleanup, work minimums, password reset, Autotask throttling, and version polish
 
 ### Added

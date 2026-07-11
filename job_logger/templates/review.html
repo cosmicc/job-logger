@@ -17,6 +17,18 @@
         <h1>Work Review</h1>
         <p class="muted-text">Edit recorded work, accept reviewed jobs, and submit approved time to Autotask.</p>
       </div>
+      {% if today_work_hours_label or week_work_hours_label %}
+        <div class="review-hours-summary-row" aria-label="Time-entry hours worked">
+          <div class="review-hours-summary" aria-label="Hours worked today">
+            <span class="metric-label">Today</span>
+            <strong>{{ today_work_hours_label }}</strong>
+          </div>
+          <div class="review-hours-summary" aria-label="Hours worked this week">
+            <span class="metric-label">Week</span>
+            <strong>{{ week_work_hours_label }}</strong>
+          </div>
+        </div>
+      {% endif %}
     </div>
 
     <div class="review-layout">
@@ -33,10 +45,13 @@
                 <th>Date</th>
                 <th>Start</th>
                 <th>End</th>
+                <th>Day hours</th>
+                <th>Week hours</th>
               </tr>
             </thead>
             <tbody>
               {% for job in jobs %}
+                {% set row_hour_totals = job_hour_totals.get(job.id) if job_hour_totals is defined else none %}
                 <tr
                   class="review-table-row {% if selected_job and selected_job.id == job.id %}selected-row{% endif %}"
                   data-review-url="/review/{{ job.id }}"
@@ -78,15 +93,34 @@
                   <td>{{ job.rounded_start_utc|local_date }}</td>
                   <td>{{ job.rounded_start_utc|local_time }}</td>
                   <td>{% if job.status.value != "active" %}{{ job.rounded_end_utc|local_time }}{% endif %}</td>
+                  <td>{{ row_hour_totals.day_label if row_hour_totals else "0 Hours" }}</td>
+                  <td>{{ row_hour_totals.week_label if row_hour_totals else "0 Hours" }}</td>
                 </tr>
               {% else %}
                 <tr>
-                  <td colspan="{% if show_job_owner %}8{% else %}7{% endif %}">No jobs are available for review.</td>
+                  <td colspan="{% if show_job_owner %}10{% else %}9{% endif %}">No jobs are available for review.</td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
+        {% if pagination and pagination.total_jobs > pagination.per_page %}
+          <nav class="review-pagination" aria-label="Review job pages">
+            {% if pagination.has_previous %}
+              <a class="secondary-button" href="/review?page={{ pagination.previous_page }}">Previous</a>
+            {% else %}
+              <span class="secondary-button disabled-button" aria-disabled="true">Previous</span>
+            {% endif %}
+            <span class="review-pagination-status">
+              Page {{ pagination.current_page }} of {{ pagination.total_pages }}
+            </span>
+            {% if pagination.has_next %}
+              <a class="secondary-button" href="/review?page={{ pagination.next_page }}">Next</a>
+            {% else %}
+              <span class="secondary-button disabled-button" aria-disabled="true">Next</span>
+            {% endif %}
+          </nav>
+        {% endif %}
       </section>
 
       <section class="edit-panel" aria-label="Work detail editor">

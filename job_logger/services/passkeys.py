@@ -382,7 +382,7 @@ def finish_passkey_authentication(
     if credential is None:
         raise PasskeyError("Passkey login failed. Use your password instead.")
 
-    if credential.web_user.disabled:
+    if credential.web_user.disabled or credential.web_user.archived_at_utc is not None:
         raise PasskeyError("This user account is disabled.")
 
     try:

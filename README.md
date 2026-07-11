@@ -97,8 +97,12 @@ Autotask REST API references used by this app:
    captured from Autotask Resource lookup, last successful login time, and a
    green or red Device sign-in key icon showing whether the account has any
    registered passkeys. The table also shows whether a managed user has Admin
-   access to Diagnostics. The disable action signs out that user's existing
-   sessions on their next request and blocks future login. The
+   access to Diagnostics, but it does not display internal Autotask resource ID
+   or role ID values. Row actions can send a password reset email, resend the
+   welcome email, edit, enable/disable, or delete an account. Delete fully
+   removes users that have no jobs. Users with linked jobs are hidden, signed
+   out, and restored with their job history when a new user is added with the
+   same Autotask resource ID. The
    add-user form suggests a username from the name, such as `jblow` for
    `Joe Blow`, and add/edit forms can search Autotask Resources so you can
    select the matching `Last, First` resource and fill its ID. The same form can
@@ -208,9 +212,9 @@ container can come up with one `docker compose up -d --build` command. Remove
    because the optional Access header gate is disabled. Secure session cookies
    are still required in production.
 6. Set `APP_PUBLIC_BASE_URL` to the same public HTTPS origin before enabling
-   self-service password reset, because reset emails use that value for absolute
-   links. Keep `/forgot-password` and `/reset-password/...` behind the same
-   Cloudflare Access application as the login page.
+   account emails, because password reset and welcome emails use that value for
+   absolute links. Keep `/forgot-password` and `/reset-password/...` behind the
+   same Cloudflare Access application as the login page.
 7. Set `WEBAUTHN_ORIGIN` to the public HTTPS origin that phones see in the
    browser, such as `https://logger.example.com`, before using passkeys through
    Cloudflare Tunnel. Use this setting whenever the app needs the
@@ -306,8 +310,8 @@ Use `docker-swarm.yml` for Swarm. It is image-based, does not build locally,
 and expects PostgreSQL to run outside the stack:
 
 ```bash
-export JOB_LOGGER_APP_IMAGE=registry.example.com/job-logger-app:1.2.4
-export JOB_LOGGER_NGINX_IMAGE=registry.example.com/job-logger-nginx:1.2.4
+export JOB_LOGGER_APP_IMAGE=registry.example.com/job-logger-app:1.3.0
+export JOB_LOGGER_NGINX_IMAGE=registry.example.com/job-logger-nginx:1.3.0
 export JOB_LOGGER_BUNDLED_EDGE_REPLICAS=1
 export JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger
 export DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
@@ -534,7 +538,15 @@ must sign in again.
 The config super admin can also use Diagnostics to log out all managed web
 users without ending the current super-admin session. Disabled managed web-user
 accounts are signed out on their next request and, after the correct password is
-submitted, the login screen says the account is disabled.
+submitted, the login screen says the account is disabled. Set
+`ADMIN_CONTACT_EMAIL` to show a contact address in disabled-account messages.
+The Add user page can also send a checked-by-default welcome email when the new
+user has a stored email address and account email delivery is configured. The
+welcome email calls the app Autotask Job Logger and includes the app link,
+username, temporary-password instructions, mobile install steps, and support
+contact, but not the temporary password.
+The per-user password reset email action can send a reset link from the Users
+page even when the public **Forgot password?** self-service flow is disabled.
 
 The config super-admin account still signs in with `APP_USERNAME` and
 `APP_PASSWORD` only. Managed web users can sign in with their username/password
@@ -553,12 +565,19 @@ Device sign-in is intentionally a fallback-friendly option. If the browser does
 not support passkeys, the device cancels, or signature verification fails, the
 normal username/password login form remains available above the Device sign-in
 button.
+The login page also has a default-off **This is a public device** checkbox for
+password sign-in. When selected, Job Logger signs the user out after 15 minutes
+of inactivity and hides new Device sign-in setup prompts for that session. The
+checkbox appears below **Forgot password?**, keeps its extra description in a
+hover hint, and disables the Device sign-in button until it is unchecked.
 
 Self-service password reset is disabled by default. When
 `PASSWORD_RESET_ENABLED=true`, configure `APP_PUBLIC_BASE_URL`, mail delivery
-settings, and optional Cloudflare Turnstile settings first. Production startup
-fails closed if the public URL or mail dependencies are missing, and it also
-requires Turnstile keys when `TURNSTILE_ENABLED=true`. Reset requests are
+settings, and optional Cloudflare Turnstile settings first. The same public URL
+and mail delivery settings are used for optional new-user welcome emails.
+Production startup fails closed if the public URL or mail dependencies are
+missing for enabled password reset, and it also requires Turnstile keys when
+`TURNSTILE_ENABLED=true`. Reset requests are
 non-enumerating, send email only when exactly one enabled managed user has the
 submitted email address, store only HMAC token hashes, expire links after 24
 hours by default, invalidate old managed-user sessions after a successful
@@ -593,7 +612,7 @@ Set these passkey variables for production when needed:
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.2.4`. Version history starts at `v1.0.0`.
+currently `v1.3.0`. Version history starts at `v1.0.0`.
 
 Authenticated pages show a Help button in the shared header. `/help` starts
 with **Ask AI for help**, shows **Operational Status**, then shows the current
@@ -617,7 +636,7 @@ changelog views use the same authenticated session, dark/light theme variables,
 and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the authenticated Help button is yellow
 on desktop and phone layouts, and `/help` shows the current version with `DEV`,
-such as `v1.2.4 DEV`.
+such as `v1.3.0 DEV`.
 
 ## Provider Modes
 
@@ -1054,9 +1073,10 @@ On-Site cards use stronger distinct accent colors and badges so scheduled call
 type is easy to scan without wasting mobile screen space.
 Service-call options are filtered by local Job Logger history for the current
 managed user: if that user already has a job for the same ticket number with the
-editable local ticket status set to `Complete`, the service call is hidden even
-when that time entry has not yet been submitted to Autotask. The start endpoint
-applies the same filter before accepting a submitted service-call ID.
+editable local ticket status set to `Complete` or `Follow up`, the service call
+is hidden even when that time entry has not yet been submitted to Autotask. The
+start endpoint applies the same filter before accepting a submitted service-call
+ID.
 Tapping a service call starts an active job with the server-verified ticket
 number, ticket title, bounded ticket description, client name, company ID, and
 detected work-location mode. It defaults the local editable ticket status to
@@ -1227,8 +1247,10 @@ red critical banner while any monitored
 app-health issue is active.
 
 The same `/debug` page also shows compact, paginated successful-login,
-failed-login, Cloudflare blocked-IP, and Autotask submission-attempt windows,
-with 10 rows per page. Successful and failed local app login attempts are
+failed-login, Cloudflare blocked-IP, and Autotask submission-attempt windows.
+Successful-login, failed-login, and Autotask submission-attempt lists show 7
+rows per page without vertical table scrollbars, while Cloudflare blocked IPs
+show 10 rows per page. Successful and failed local app login attempts are
 stored as sanitized `login_attempts` database rows. The Diagnostics tables and
 downloads include timestamp, client IP, proxy header details, username, user
 agent, request path, host/proxy metadata, account kind, authentication method,
@@ -1385,6 +1407,11 @@ controls and a 15-minute dropdown that opens around the currently selected
 time; the server still rounds, validates, and saves those active-job edits.
 Work in Progress and Review detail show that rounded duration as centered labels
 like `15 Minutes`, `1 Hour`, or `1.25 Hours`.
+Work shows centered compact boxed total time-entry hours worked today and this
+week.
+Review shows today and week total cards, lists jobs newest-first, 10 rows per
+page, and includes day-hours and week-hours columns for each job owner/date.
+Ticket notes do not add to hour totals because they do not record time.
 Time entries also enforce work-location minimums: Remote work must be at least
 15 rounded minutes, and On-Site work must be at least 1 rounded hour. Ticket
 notes do not use start and end times, so these minimums do not apply to notes.

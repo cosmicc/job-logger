@@ -20,6 +20,7 @@ from job_logger.security import (
     current_web_user_id_from_session,
     logout_session,
 )
+from job_logger.services.support_contact import application_settings_from_request, disabled_account_message
 from job_logger.time_utils import ensure_utc, now_utc
 
 PASSWORD_CHANGE_ALLOWED_REQUESTS = {
@@ -75,11 +76,16 @@ def expire_invalid_web_user_session_if_needed(
 
     web_user_id = current_web_user_id_from_session(request.session)
     web_user = database_session.get(WebUser, web_user_id) if web_user_id else None
-    if web_user is None or web_user.disabled:
+    if web_user is None:
+        logout_session(request)
+        add_flash_message(request, "Session expired. Sign in again.", "error")
+        return True
+
+    if web_user.disabled or web_user.archived_at_utc is not None:
         logout_session(request)
         add_flash_message(
             request,
-            "This user account is disabled. Contact the administrator.",
+            disabled_account_message(application_settings_from_request(request)),
             "error",
         )
         return True
@@ -124,7 +130,7 @@ def enforce_required_password_change_if_needed(
 
     web_user_id = current_web_user_id_from_session(request.session)
     web_user = database_session.get(WebUser, web_user_id) if web_user_id else None
-    if web_user is None or web_user.disabled:
+    if web_user is None or web_user.disabled or web_user.archived_at_utc is not None:
         return None
 
     password_change_required = bool(

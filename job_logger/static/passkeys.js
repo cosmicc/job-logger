@@ -111,6 +111,43 @@
     return Boolean(window.PublicKeyCredential && navigator.credentials);
   }
 
+  function publicDeviceLoginSelected() {
+    const checkbox = document.querySelector("[data-public-device-login]");
+    return Boolean(checkbox && checkbox.checked);
+  }
+
+  function initializePublicDeviceLoginToggle(button) {
+    const checkbox = document.querySelector("[data-public-device-login]");
+    if (!checkbox) {
+      return () => {};
+    }
+
+    const normalTitle = button.getAttribute("title") || "";
+    const publicDeviceTitle = "Device sign-in is unavailable when public-device mode is selected.";
+    function updateButtonState() {
+      if (button.dataset.passkeyLoginBusy === "true") {
+        return;
+      }
+
+      const publicDeviceSelected = checkbox.checked;
+      button.disabled = publicDeviceSelected;
+      button.classList.toggle("passkey-login-public-disabled", publicDeviceSelected);
+      if (publicDeviceSelected) {
+        button.setAttribute("title", publicDeviceTitle);
+        return;
+      }
+      if (normalTitle) {
+        button.setAttribute("title", normalTitle);
+      } else {
+        button.removeAttribute("title");
+      }
+    }
+
+    checkbox.addEventListener("change", updateButtonState);
+    updateButtonState();
+    return updateButtonState;
+  }
+
   function initializePasskeyRegistration(button) {
     const panel = button.closest("[data-passkey-register-panel]") || document;
     const statusElement = panel.querySelector("[data-passkey-register-status]");
@@ -151,6 +188,7 @@
   function initializePasskeyLogin(button) {
     const panel = button.closest("[data-passkey-login-panel]") || document;
     const statusElement = panel.querySelector("[data-passkey-login-status]");
+    const updatePublicDeviceButtonState = initializePublicDeviceLoginToggle(button);
 
     if (!browserSupportsPasskeys()) {
       button.hidden = true;
@@ -158,6 +196,12 @@
     }
 
     button.addEventListener("click", async () => {
+      if (publicDeviceLoginSelected()) {
+        updatePublicDeviceButtonState();
+        return;
+      }
+
+      button.dataset.passkeyLoginBusy = "true";
       button.disabled = true;
       setStatus(statusElement, "Waiting for device unlock...", false);
       try {
@@ -171,12 +215,16 @@
 
         const verificationPayload = await postJSON(
           "/login/passkey/verify",
-          credentialToJSON(credential),
+          {
+            ...credentialToJSON(credential),
+            public_device: publicDeviceLoginSelected(),
+          },
         );
         window.location.href = verificationPayload.redirect_url || "/home";
       } catch (error) {
         setStatus(statusElement, `${error.message || "Device sign-in failed."} Use username and password.`, true);
-        button.disabled = false;
+        delete button.dataset.passkeyLoginBusy;
+        updatePublicDeviceButtonState();
       }
     });
   }
