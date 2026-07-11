@@ -745,6 +745,16 @@ svg {
   border-top: 1px solid var(--border);
 }
 
+.passkey-login-panel .secondary-button:disabled,
+.passkey-login-panel .secondary-button.passkey-login-public-disabled {
+  border-color: var(--border);
+  background: var(--surface-muted);
+  box-shadow: none;
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .passkey-status {
   min-height: 0;
   margin: 0;
@@ -2890,12 +2900,20 @@ td a {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: 6px 14px;
-  margin: -4px 2px 4px;
+  justify-content: center;
+  width: fit-content;
+  max-width: calc(100% - 4px);
+  gap: 4px 12px;
+  margin: 0 auto 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  box-shadow: 0 6px 14px rgba(3, 7, 18, 0.12);
   color: var(--muted);
   font-size: 12px;
   font-weight: 750;
+  line-height: 1.2;
 }
 
 .work-hours-compact-item {

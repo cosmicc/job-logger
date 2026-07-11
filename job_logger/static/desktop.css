@@ -272,6 +272,13 @@
     grid-row: 1 / span 5;
     align-self: stretch;
     margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+    gap: 8px;
+  }
+
+  .active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header {
+    gap: 4px;
   }
 
   .active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-start-list {

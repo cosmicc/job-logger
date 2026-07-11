@@ -135,9 +135,11 @@ Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`,
 measured in hours. The configured value controls both the signed session cookie
 lifetime and the server-side authenticated-at timestamp check. Expired sessions
 must be cleared and forced through login again.
-The login page has a default-off **This is a public device** option for both
-password and Device sign-in. It appears below the forgot-password link and keeps
-the explanatory copy in a hover/title hint instead of a persistent text block.
+The login page has a default-off **This is a public device** option for password
+sign-in. It appears below the forgot-password link and keeps the explanatory
+copy in a hover/title hint instead of a persistent text block. While checked,
+the Device sign-in button must be visibly greyed out, disabled, and unclickable;
+unchecking it must restore the normal Device sign-in button state.
 Public-device sessions must expire after 15 minutes of inactivity, refresh the
 inactivity timestamp only after valid requests, suppress the post-login Home
 Device sign-in setup prompt, and reject new passkey registration while that
@@ -547,7 +549,10 @@ rendering should use desktop-only CSS from `desktop.css` for a wider,
 scan-friendly layout. Keep full-browser layout changes out of `phone.css` so
 the installed mobile phone experience remains unchanged unless explicitly
 requested. Do not use route names to select the mobile or desktop page version;
-presentation must follow client/browser and media behavior.
+presentation must follow client/browser and media behavior. Full-browser
+start-work panels should keep the **Service calls** heading and date selector
+tight to the top of the service-call list without a divider line above the
+section; phone spacing should remain governed by the shared/mobile CSS.
 When two active jobs are present, their Work in Progress cards should use
 distinct slot shading so they are easier to tell apart. On full-browser Work in
 Progress cards, the End Work/Delete row belongs directly under the
@@ -662,9 +667,9 @@ week-hours totals calculated from time-entry jobs for that job's owner, local
 job date, and local work week. Ticket notes do not contribute to hour totals.
 The Work page and Review page should also show time-entry hours worked today
 and this week, including `0 Hours` when no time-entry work has been recorded.
-Home should show those values as a compact, discreet summary rather than a full
-metric card. Review should show Today and Week as same-sized metric cards near
-the top of the page. The summary
+Home should show those values as a centered, compact, discreet boxed summary
+rather than full metric cards. Review should show Today and Week as same-sized
+metric cards near the top of the page. The summary
 textarea for time entries must show the complete Autotask summary that will be
 sent, including the leading `Remote. ` or `On-Site. ` prefix. Saving review
 edits parses that prefix back into the stored

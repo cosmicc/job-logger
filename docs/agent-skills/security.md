@@ -127,11 +127,13 @@ logic. Disabling one user or using the Diagnostics **Log out web users** action
 must clear old managed-user cookies on the next request without signing out the
 config super admin.
 The login page's **This is a public device** checkbox is default-off, appears
-below the forgot-password link, keeps its explanatory copy in a hover/title hint,
-and applies to password and Device sign-in. When selected, the session gets a
-15-minute inactivity timeout, suppresses the Home Device sign-in setup prompt,
-and must reject new passkey registration while keeping normal authentication,
-CSRF, disabled-user, and configured session-timeout enforcement intact.
+below the forgot-password link, and keeps its explanatory copy in a hover/title
+hint. While checked, the Device sign-in button must be visibly greyed out,
+disabled, and unclickable; unchecking it must restore the normal Device sign-in
+button state. When selected for password sign-in, the session gets a 15-minute
+inactivity timeout, suppresses the Home Device sign-in setup prompt, and must
+reject new passkey registration while keeping normal authentication, CSRF,
+disabled-user, and configured session-timeout enforcement intact.
 
 Managed web-user passkeys are optional login credentials. The config super
 admin must not register or use passkeys. Passkey registration is available only

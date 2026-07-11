@@ -1953,6 +1953,22 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".work-panel[data-active-job-card]" in desktop_stylesheet
     assert ".work-panel[data-active-job-card] > .detail-heading-row" in desktop_stylesheet
     assert "grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);" in desktop_stylesheet
+    assert (
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) > .service-call-start-panel {\n"
+        "    grid-column: 2;\n"
+        "    grid-row: 1 / span 5;\n"
+        "    align-self: stretch;\n"
+        "    margin-top: 0;\n"
+        "    padding-top: 0;\n"
+        "    border-top: 0;\n"
+        "    gap: 8px;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header {\n"
+        "    gap: 4px;\n"
+        "  }"
+    ) in desktop_stylesheet
     assert "grid-template-columns: minmax(0, 1fr) minmax(360px, 0.78fr);" in desktop_stylesheet
     assert ".work-panel[data-active-job-card] .job-date-card .date-input-shell" in desktop_stylesheet
     assert "width: min(100%, 270px);" in desktop_stylesheet
@@ -1966,6 +1982,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".edit-panel .review-action-row button" in desktop_stylesheet
     assert ".active-jobs-stack > .work-panel:not([data-active-job-card])" not in phone_stylesheet
     assert ".work-panel[data-active-job-card]" not in phone_stylesheet
+    assert ".service-call-panel-header {\n    gap: 4px;" not in phone_stylesheet
     assert ".work-panel[data-active-job-card] .job-date-card .date-input-shell" not in phone_stylesheet
     assert ".work-panel[data-active-job-card] > .description-box > .note-title-field:not(.is-hidden)" not in phone_stylesheet
     assert ".work-panel[data-active-job-card] > .description-box > .note-title-field.is-hidden + label" not in phone_stylesheet
@@ -4085,6 +4102,18 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
     assert 'class="work-hours-compact" aria-label="Time-entry hours worked"' in home_response.text
     assert "<strong>5.5 Hours</strong>" in home_response.text
     assert "work-hours-summary" not in home_response.text
+    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
+    assert (
+        ".work-hours-compact {\n"
+        "  display: flex;\n"
+        "  flex-wrap: wrap;\n"
+        "  align-items: center;\n"
+        "  justify-content: center;\n"
+        "  width: fit-content;\n"
+        "  max-width: calc(100% - 4px);"
+    ) in stylesheet
+    assert "  padding: 5px 10px;\n  border: 1px solid var(--border);" in stylesheet
+    assert "  background: var(--surface-strong);" in stylesheet
 
 
 def test_mobile_service_call_date_labels(authenticated_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

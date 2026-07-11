@@ -519,6 +519,8 @@ Review supports:
   the page containing that job so the selected row stays visible.
 - Showing time-entry hours worked today and this week near the top of Review,
   including `0 Hours` when no time-entry work exists for those periods.
+- Showing Today and Week time-entry hours as a compact boxed summary near the
+  top of Work without turning it into full metric cards.
 - Showing per-row day-hours and week-hours totals by job owner and local job
   date/week. Ticket notes never contribute to these hour totals.
 - Managed web users see and mutate only their own jobs. The config super admin

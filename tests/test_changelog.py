@@ -213,14 +213,17 @@ def test_changelog_parser_reads_current_release() -> None:
             "Administrators can now send a password reset email or resend the welcome email from each user row.",
             "Administrators can now delete web users from each user row.",
             (
-                "Work now shows compact total time-entry hours for today and this week, "
+                "Work now shows centered compact boxed total time-entry hours for today and this week, "
                 "and Review now shows Today and Week total cards."
             ),
             (
                 "Administrators now see a temporary success or failure overlay after sending a password reset "
                 "email or welcome email from the user list."
             ),
-            "The login page now has a public-device option that signs the user out after 15 minutes of inactivity.",
+            (
+                "The login page now has a public-device option for password sign-in that signs the user out "
+                "after 15 minutes of inactivity."
+            ),
             (
                 "Ask AI for help now adds a support contact line under the answer when the app administrator "
                 "configures an admin contact email."
@@ -240,6 +243,10 @@ def test_changelog_parser_reads_current_release() -> None:
                 "The public-device checkbox now appears below **Forgot password?** and keeps its extra "
                 "description in hover text."
             ),
+            (
+                "The Device sign-in button now greys out and cannot be clicked while **This is a public "
+                "device** is checked."
+            ),
             "Password reset and welcome emails now refer to the app as Autotask Job Logger.",
             (
                 "Disabled-account sign-in messages now point users to the configured contact email instead of "
@@ -251,6 +258,10 @@ def test_changelog_parser_reads_current_release() -> None:
             ),
             "Public-device sessions no longer show Device sign-in setup prompts or allow new Device sign-in setup.",
             "Password reset emails sent from user management now work even when self-service password reset is turned off.",
+            (
+                "Full-browser Home now shows the Service calls title and date selector closer together "
+                "without the extra divider line."
+            ),
         ),
     )
 

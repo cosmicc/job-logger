@@ -10,9 +10,9 @@ Short release notes shown on the authenticated `/changelog` page.
 - New web users can now receive a welcome email with the app link, username, temporary-password instructions, and phone install steps.
 - Administrators can now send a password reset email or resend the welcome email from each user row.
 - Administrators can now delete web users from each user row.
-- Work now shows compact total time-entry hours for today and this week, and Review now shows Today and Week total cards.
+- Work now shows centered compact boxed total time-entry hours for today and this week, and Review now shows Today and Week total cards.
 - Administrators now see a temporary success or failure overlay after sending a password reset email or welcome email from the user list.
-- The login page now has a public-device option that signs the user out after 15 minutes of inactivity.
+- The login page now has a public-device option for password sign-in that signs the user out after 15 minutes of inactivity.
 
 ### Changed
 
@@ -23,6 +23,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Review now shows 10 jobs per page, ordered newest to oldest.
 - Home now hides service calls when the matching local ticket is marked Follow up.
 - The public-device checkbox now appears below **Forgot password?** and keeps its extra description in hover text.
+- The Device sign-in button now greys out and cannot be clicked while **This is a public device** is checked.
 - Password reset and welcome emails now refer to the app as Autotask Job Logger.
 
 ### Fixed
@@ -31,6 +32,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - New user creation now continues even if the optional welcome email is not sent, and the admin sees a warning.
 - Public-device sessions no longer show Device sign-in setup prompts or allow new Device sign-in setup.
 - Password reset emails sent from user management now work even when self-service password reset is turned off.
+- Full-browser Home now shows the Service calls title and date selector closer together without the extra divider line.
 
 ## 1.2.4 - 07.10.2026 - Review activity cleanup, work minimums, password reset, and version polish
 

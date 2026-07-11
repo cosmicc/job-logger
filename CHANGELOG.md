@@ -17,13 +17,14 @@ All notable changes to Job Logger are documented in this file.
   internal Autotask resource or role IDs in the user list.
 - Added `/users` row delete actions for managed web users, including disabled
   rows.
-- Added compact Work today/week hour summaries, same-sized Review today/week
-  total cards, and Review day-hours and week-hours columns calculated per job
-  owner and local job date.
+- Added centered compact boxed Work today/week hour summaries, same-sized Review
+  today/week total cards, and Review day-hours and week-hours columns
+  calculated per job owner and local job date.
 - Added 10-row newest-first Review job-list pagination.
-- Added a default-off **This is a public device** login option for password and
-  Device sign-in sessions. Public-device sessions expire after 15 minutes of
-  inactivity and cannot start new Device sign-in setup.
+- Added a default-off **This is a public device** login option for password
+  sessions. Public-device sessions expire after 15 minutes of inactivity,
+  disable the Device sign-in button while checked, and cannot start new Device
+  sign-in setup.
 - Added temporary success/failure overlays for `/users` password-reset email
   and welcome-email row actions.
 
@@ -56,6 +57,8 @@ All notable changes to Job Logger are documented in this file.
   scrollbar.
 - Changed the public-device login checkbox to appear below **Forgot password?**
   and moved its description into hover/title text.
+- Changed the Device sign-in button so selecting **This is a public device**
+  greys it out and prevents clicks until the checkbox is cleared.
 - Changed password-reset and welcome emails to refer to the app as **Autotask
   Job Logger**, including the updated welcome-email invite sentence.
 
@@ -70,6 +73,9 @@ All notable changes to Job Logger are documented in this file.
 - Fixed public-device sessions so they suppress the mobile Device sign-in setup
   prompt and reject new passkey registration attempts while signed in on a
   public device.
+- Fixed full-browser Home start-work Service calls spacing by removing the
+  divider line and tightening the Service calls title/date area without changing
+  the phone layout.
 
 ## 1.2.4 - 07.10.2026 - Review activity cleanup, work minimums, password reset, Autotask throttling, and version polish
 

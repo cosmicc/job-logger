@@ -193,6 +193,16 @@ def test_login_page_exposes_password_fallback_and_passkey_button(client: TestCli
     assert '<header class="app-header' not in response.text
     assert 'aria-label="Job Logger home"' not in response.text
 
+    repository_root = Path(__file__).resolve().parents[1]
+    passkeys_script = (repository_root / "job_logger" / "static" / "passkeys.js").read_text(encoding="utf-8")
+    stylesheet = (repository_root / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
+    assert "function initializePublicDeviceLoginToggle(button)" in passkeys_script
+    assert 'checkbox.addEventListener("change", updateButtonState);' in passkeys_script
+    assert "button.disabled = publicDeviceSelected;" in passkeys_script
+    assert "passkey-login-public-disabled" in passkeys_script
+    assert "Device sign-in is unavailable when public-device mode is selected." in passkeys_script
+    assert ".passkey-login-panel .secondary-button:disabled,\n.passkey-login-panel .secondary-button.passkey-login-public-disabled" in stylesheet
+
 
 def test_login_page_marks_dev_build_version(client: TestClient) -> None:
     """DEV_BUILD should append DEV to the tiny login-page version label."""

@@ -109,8 +109,9 @@ The Work page is where you start and finish work. It may show scheduled service
 calls for your Autotask resource, and it also lets you start a blank work
 record.
 
-The Work page shows the total time-entry hours worked today. Ticket notes do
-not add to this total because they do not record start and end times.
+The Work page shows a compact Today and Week box with your total time-entry
+hours. Ticket notes do not add to these totals because they do not record start
+and end times.
 
 Select **Start Work** to create a Work in Progress card. Job Logger supports up
 to two active work records at the same time.
@@ -261,9 +262,9 @@ have been chosen. If an active record was opened in Review before any client was
 selected, Review may let you choose the first verified client and then select a
 ticket.
 
-Review also shows your total time-entry hours worked today. Each review row
-shows day and week hour totals for that job's owner and work date. Ticket notes
-do not add to these totals because they do not record time.
+Review also shows your total time-entry hours worked today and this week. Each
+review row shows day and week hour totals for that job's owner and work date.
+Ticket notes do not add to these totals because they do not record time.
 
 ## Review Fields
 
