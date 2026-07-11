@@ -99,9 +99,10 @@ Autotask REST API references used by this app:
    registered passkeys. The table also shows whether a managed user has Admin
    access to Diagnostics, but it does not display internal Autotask resource ID
    or role ID values. Row actions can send a password reset email, resend the
-   welcome email, edit, enable/disable, or disable-delete an account. The
-   disable action signs out that user's existing sessions on their next request
-   and blocks future login. The
+   welcome email, edit, enable/disable, or delete an account. Delete fully
+   removes users that have no jobs. Users with linked jobs are hidden, signed
+   out, and restored with their job history when a new user is added with the
+   same Autotask resource ID. The
    add-user form suggests a username from the name, such as `jblow` for
    `Joe Blow`, and add/edit forms can search Autotask Resources so you can
    select the matching `Last, First` resource and fill its ID. The same form can

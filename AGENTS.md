@@ -45,19 +45,25 @@ role ID selected from that resource's active Autotask `ResourceServiceDeskRoles`
 The `/users` page presents managed accounts in a table with visible stored email
 and default-role metadata, last successful managed-user login time, green/red
 Device sign-in passkey status icons, Admin status, and icon-only row actions
-for edit, enable/disable, delete-as-disable, send password reset email, and
-resend welcome email. The visible user list must not show internal Autotask
-resource ID or role ID values, though add/edit forms may still query and save
-those values for internal use. Password reset and welcome-email row actions must
-be disabled or blocked for disabled users. The full-browser user table should
-use the full panel width, compact fixed columns, and ellipsized long values so
-rows fit without wrapping into multiple lines. The add form may suggest
-usernames from full names, such as `jblow` for `Joe Blow`, and add/edit forms
-may query Autotask Resources and active service-desk roles for super-admin-only
-resource and role pickers. Add/edit forms also expose the default-off Admin
-checkbox that grants full Diagnostics access only. The role picker should show
-Autotask `Roles.name` labels when that metadata is readable while storing only
-the selected numeric `roleID` on the managed web-user row.
+for edit, enable/disable, delete, send password reset email, and resend welcome
+email. The visible user list must not show internal Autotask resource ID or role
+ID values, and it must never show archived/hidden deleted users, though add/edit
+forms may still query and save those values for internal use. Password reset and
+welcome-email row actions must be disabled or blocked for disabled users. The
+delete row action fully removes a user that has no linked jobs. If the user has
+linked jobs, delete archives and hides the account, invalidates sessions, removes
+passkeys, reset tokens, and preferences, keeps linked jobs attached to the same
+hidden row, and restores that row automatically when a new user is added with
+the same Autotask resource ID, even if the name or username is different. The
+full-browser user table should use the full panel width, compact fixed columns,
+and ellipsized long values so rows fit without wrapping into multiple lines.
+The add form may suggest usernames from full names, such as `jblow` for
+`Joe Blow`, and add/edit forms may query Autotask Resources and active
+service-desk roles for super-admin-only resource and role pickers. Add/edit
+forms also expose the default-off Admin checkbox that grants full Diagnostics
+access only. The role picker should show Autotask `Roles.name` labels when that
+metadata is readable while storing only the selected numeric `roleID` on the
+managed web-user row.
 The add form includes a default-on **Send welcome email** option. When checked,
 it sends the new user's stored email address a plain-text welcome email with the
 configured `APP_PUBLIC_BASE_URL`, username, temporary-password instructions,
@@ -1010,9 +1016,9 @@ The application is a FastAPI project under `job_logger/`.
   deleting existing submitted Autotask records, ticket lookup for a selected
   job, and explicit local **Delete time entry** / **Delete note** cleanup.
 - `job_logger/routes/users.py` handles the super-admin managed web-user page,
-  including add/edit/enable/disable/delete-as-disable behavior, Autotask
+  including add/edit/enable/disable/delete/archive/restore behavior, Autotask
   Resource lookup, active service-desk role lookup, and session invalidation
-  when accounts are disabled.
+  when accounts are disabled or archived.
 - `job_logger/routes/configuration.py` handles authenticated managed-web-user
   configuration such as immediate light/dark theme selection and explicit
   managed-user password changes.
@@ -1049,9 +1055,10 @@ The application is a FastAPI project under `job_logger/`.
   time entry submission, existing-entry updates, and existing-entry deletes.
 - `job_logger/services/users.py` owns managed web-user validation, optional
   Autotask Resource email and default-role storage, password hashing and
-  changes, first-user legacy job claiming, and delete-as-disable rules.
+  changes, first-user legacy job claiming, and delete/archive/restore rules.
 - `job_logger/services/session_control.py` owns server-side managed web-user
-  session invalidation cutoffs used by diagnostics and user disable actions.
+  session invalidation cutoffs used by diagnostics, user disable, and user
+  archive actions.
 - `job_logger/services/preferences.py` owns per-authenticated-user
   configuration validation and persistence.
 - `job_logger/services/passkeys.py` owns WebAuthn relying-party/origin
@@ -1102,20 +1109,22 @@ The normal workflow is:
    app login.
 2. The config super admin opens `/users` to create and edit managed web users.
    The page lists users in a desktop table and mobile card layout with icon-only
-   row actions for edit, enable/disable, and delete-as-disable.
+   row actions for edit, enable/disable, delete, password reset email, and
+   welcome email.
    The add form suggests a username from the full name, and add/edit forms can
    query Autotask Resources to select the matching resource ID and capture the
    returned email address.
    The add form sends a welcome email by default when the stored email address,
    `APP_PUBLIC_BASE_URL`, and mail delivery settings are configured, unless the
    super admin unchecks that option.
-   Delete actions always disable the selected account, sign out its existing
-   sessions on the next request, and preserve the row so future login attempts
-   can show the disabled-account message. The Users list also shows the last
-   successful managed-user login time, stamped after password or passkey login,
-   or `Never`, plus a green/red key icon for whether Device sign-in passkeys are
-   registered. The first managed web user claims any existing unowned jobs from
-   earlier single-user installs.
+   Delete actions fully remove users that have no jobs. Users with linked jobs
+   are hidden and signed out, their passkeys, reset tokens, and preferences are
+   removed, and their jobs remain attached to the hidden row so adding another
+   user with the same Autotask resource ID restores that history. The Users list
+   also shows the last successful managed-user login time, stamped after
+   password or passkey login, or `Never`, plus a green/red key icon for whether
+   Device sign-in passkeys are registered. The first visible managed web user
+   claims any existing unowned jobs from earlier single-user installs.
 3. A managed web user may open `/config` to choose dark or light theme for
    their own login, enable the default-off **Submit from Work in Progress**
    option, change their password, and add or delete passkeys. If the account is

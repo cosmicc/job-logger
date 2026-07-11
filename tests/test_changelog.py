@@ -211,6 +211,7 @@ def test_changelog_parser_reads_current_release() -> None:
                 "temporary-password instructions, and phone install steps."
             ),
             "Administrators can now send a password reset email or resend the welcome email from each user row.",
+            "Administrators can now delete web users from each user row.",
             (
                 "Work and Review now show total time-entry hours worked today, "
                 "and Review rows show day and week totals."
@@ -225,6 +226,10 @@ def test_changelog_parser_reads_current_release() -> None:
                 "for that user."
             ),
             "The user list no longer shows internal Autotask resource ID or role ID values.",
+            (
+                "Deleting a user now fully removes users with no jobs, while users with jobs are hidden and "
+                "restored when the same Autotask resource ID is added again."
+            ),
             "Review now shows 10 jobs per page, ordered newest to oldest.",
             "Home now hides service calls when the matching local ticket is marked Follow up.",
             (

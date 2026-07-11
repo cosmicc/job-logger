@@ -15,6 +15,8 @@ All notable changes to Job Logger are documented in this file.
 - Added `/users` row actions that let the config super admin send a managed
   user a password reset email or resend the welcome email without exposing
   internal Autotask resource or role IDs in the user list.
+- Added `/users` row delete actions for managed web users, including disabled
+  rows.
 - Added Work and Review today-hours summaries for time-entry work, plus Review
   day-hours and week-hours columns calculated per job owner and local job date.
 - Added 10-row newest-first Review job-list pagination.
@@ -38,6 +40,10 @@ All notable changes to Job Logger are documented in this file.
 - Changed the `/users` list to hide internal Autotask resource ID and role ID
   values while keeping email, role label, login status, Device sign-in status,
   Admin status, and account actions visible.
+- Changed managed-user deletion so accounts with no jobs are fully removed,
+  while accounts with linked jobs are hidden, signed out, stripped of passkeys,
+  reset tokens, and preferences, and restored automatically when a new user is
+  added with the same Autotask resource ID.
 - Changed Home service-call options to hide tickets already marked Follow up in
   Job Logger, matching the existing Complete ticket filtering.
 - Changed admin-sent password reset links so they remain valid even when the

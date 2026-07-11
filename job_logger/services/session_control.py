@@ -76,7 +76,12 @@ def expire_invalid_web_user_session_if_needed(
 
     web_user_id = current_web_user_id_from_session(request.session)
     web_user = database_session.get(WebUser, web_user_id) if web_user_id else None
-    if web_user is None or web_user.disabled:
+    if web_user is None:
+        logout_session(request)
+        add_flash_message(request, "Session expired. Sign in again.", "error")
+        return True
+
+    if web_user.disabled or web_user.archived_at_utc is not None:
         logout_session(request)
         add_flash_message(
             request,
@@ -125,7 +130,7 @@ def enforce_required_password_change_if_needed(
 
     web_user_id = current_web_user_id_from_session(request.session)
     web_user = database_session.get(WebUser, web_user_id) if web_user_id else None
-    if web_user is None or web_user.disabled:
+    if web_user is None or web_user.disabled or web_user.archived_at_utc is not None:
         return None
 
     password_change_required = bool(

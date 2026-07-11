@@ -79,6 +79,9 @@ _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
         # v1.2.3 added temporary-password enforcement for newly created or
         # reset accounts. Older backups should not unexpectedly force changes.
         "password_must_change": False,
+        # v1.3.0 added hidden account archival for deleted users that still
+        # own jobs. Older backups restore all managed users as visible.
+        "archived_at_utc": None,
     },
     "user_preferences": {
         # v1.1.0 added this preference as default-off. Older full backups should

@@ -328,7 +328,12 @@ def session_has_debug_access(session: Mapping[str, Any], database_session: Sessi
         return False
 
     web_user = database_session.get(WebUser, web_user_id)
-    return bool(web_user is not None and not web_user.disabled and web_user.is_admin)
+    return bool(
+        web_user is not None
+        and not web_user.disabled
+        and web_user.archived_at_utc is None
+        and web_user.is_admin
+    )
 
 
 def require_debug_access(request: Request, database_session: Session) -> str:

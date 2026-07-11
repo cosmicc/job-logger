@@ -9,6 +9,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - The app can now show the configured admin contact email when a disabled account tries to sign in.
 - New web users can now receive a welcome email with the app link, username, temporary-password instructions, and phone install steps.
 - Administrators can now send a password reset email or resend the welcome email from each user row.
+- Administrators can now delete web users from each user row.
 - Work and Review now show total time-entry hours worked today, and Review rows show day and week totals.
 - The login page now has a public-device option that signs the user out after 15 minutes of inactivity.
 
@@ -17,6 +18,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Ask AI for help now adds a support contact line under the answer when the app administrator configures an admin contact email.
 - The Add user form now has a checked-by-default welcome email option that admins can turn off for that user.
 - The user list no longer shows internal Autotask resource ID or role ID values.
+- Deleting a user now fully removes users with no jobs, while users with jobs are hidden and restored when the same Autotask resource ID is added again.
 - Review now shows 10 jobs per page, ordered newest to oldest.
 - Home now hides service calls when the matching local ticket is marked Follow up.
 

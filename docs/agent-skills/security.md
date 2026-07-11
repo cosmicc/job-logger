@@ -34,6 +34,11 @@ captured from Autotask Resource lookup, optional default service-desk role ID
 selected from that resource's active Autotask roles, last successful login time,
 Admin Diagnostics access, and disabled state.
 Disabled web users must be blocked from new logins and from old signed sessions.
+Deleted web users with no jobs are fully removed. Deleted web users with linked
+jobs are archived, hidden from `/users`, blocked from every login path, signed
+out through the session invalidation cutoff, stripped of passkeys, reset tokens,
+account reset throttles, and preferences, and restored automatically when a new
+managed user is added with the same Autotask resource ID.
 The `/users` add form has a default-on **Send welcome email** option for new
 managed users. Send it only to the stored managed-user email address, use
 `APP_PUBLIC_BASE_URL` for the app link, include the username, temporary-password
@@ -218,11 +223,15 @@ The `/config` page should keep its cards ordered as **Appearance**,
 **Password**, **Device sign-in**, then **Workflow** so routine password and
 passkey controls appear before the optional direct-submit workflow preference.
 
-Deleting a managed web user from `/users` must disable the account, invalidate
-that user's existing signed sessions, and preserve the row. Keeping the row lets
-the login screen explain that the account is disabled after the correct
-password is submitted instead of treating the username as unknown. When
-`ADMIN_CONTACT_EMAIL` is configured, that disabled-account explanation should
+Disabling a managed web user from `/users` must invalidate that user's existing
+signed sessions and preserve the row. Keeping a disabled row lets the login
+screen explain that the account is disabled after the correct password is
+submitted instead of treating the username as unknown. Deleting a managed web
+user is different: users with no jobs are fully removed, while users with linked
+jobs are archived and hidden. Archived users must look unknown to password
+login, forgot-password email lookup, and the `/users` list, and they must be
+blocked if an old signed session or passkey credential appears. When
+`ADMIN_CONTACT_EMAIL` is configured, disabled-account explanations should
 include the configured email address.
 
 Application setup in `job_logger/main.py` configures:
@@ -377,7 +386,7 @@ Important actions must record audit events through `job_logger/services/audit.py
 Audit-worthy actions include:
 
 - Authentication-sensitive events.
-- Managed web-user add, edit, enable, disable, and delete-as-disable actions.
+- Managed web-user add, edit, enable, disable, delete, archive, and restore actions.
 - Per-user configuration updates.
 - Managed web-user password changes.
 - Managed web-user passkey registration, deletion, and login success/failure.

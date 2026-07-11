@@ -362,7 +362,7 @@ async def add_user(
         record_audit_event(
             database_session,
             actor=actor,
-            action="user.web.created",
+            action="user.web.restored" if result.restored_archived_user else "user.web.created",
             request=request,
             details={
                 "web_user_id": result.user.id,
@@ -373,14 +373,16 @@ async def add_user(
                 "autotask_default_service_desk_role_id": result.user.autotask_default_service_desk_role_id,
                 "email_saved": result.user.email is not None,
                 "claimed_unowned_job_count": result.claimed_unowned_job_count,
+                "restored_archived_user": result.restored_archived_user,
             },
         )
         database_session.commit()
-        created_message = (
-            f"User created. Assigned {result.claimed_unowned_job_count} existing jobs to this first web user."
-            if result.claimed_unowned_job_count
-            else "User created."
-        )
+        if result.restored_archived_user:
+            created_message = "User restored from hidden history for this Autotask resource ID."
+        elif result.claimed_unowned_job_count:
+            created_message = f"User created. Assigned {result.claimed_unowned_job_count} existing jobs to this first web user."
+        else:
+            created_message = "User created."
         if welcome_email_requested:
             await _deliver_welcome_email_for_user(
                 database_session,
@@ -506,7 +508,7 @@ async def delete_user(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> RedirectResponse:
-    """Disable a managed user and force any active session to log in again."""
+    """Delete a managed user or hide it when linked jobs must be preserved."""
 
     try:
         actor = require_super_admin(request)
@@ -517,29 +519,27 @@ async def delete_user(
         record_audit_event(
             database_session,
             actor=actor,
-            action="user.web.deleted" if result.deleted else "user.web.disabled",
+            action="user.web.deleted" if result.deleted else "user.web.archived",
             request=request,
             details={
                 "web_user_id": user_id,
                 "username": username,
                 "deleted": result.deleted,
                 "disabled": result.disabled,
+                "archived": result.archived,
                 "related_job_count": result.related_job_count,
             },
         )
         database_session.commit()
         if result.deleted:
             add_flash_message(request, "User deleted.", "success")
-        elif result.related_job_count:
-            add_flash_message(
-                request,
-                f"User disabled and signed out. {result.related_job_count} linked jobs were preserved.",
-                "success",
-            )
         else:
             add_flash_message(
                 request,
-                "User disabled and signed out.",
+                (
+                    "User deleted and hidden. "
+                    f"{result.related_job_count} linked jobs were preserved for this Autotask resource ID."
+                ),
                 "success",
             )
     except (HTTPException, WebUserError) as exc:

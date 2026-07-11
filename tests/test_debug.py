@@ -2302,6 +2302,55 @@ def test_debug_restore_defaults_missing_web_user_password_change_column(
         assert restored_user.password_must_change is False
 
 
+def test_debug_restore_defaults_missing_web_user_archive_column(
+    super_admin_client: TestClient,
+) -> None:
+    """Restore backups that predate hidden web-user archival metadata."""
+
+    archived_at_utc = datetime(2026, 7, 10, 13, 30, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user.archived_at_utc = archived_at_utc
+        database_session.commit()
+
+    debug_page_response = super_admin_client.get("/debug")
+    csrf_token = extract_csrf_token(debug_page_response.text)
+    backup_response = super_admin_client.post(
+        "/debug/backup",
+        data={"csrf_token": csrf_token},
+    )
+    payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
+    for row in payload["tables"]["web_users"]:
+        row.pop("archived_at_utc", None)
+    payload["schema"]["web_users"].remove("archived_at_utc")
+    legacy_backup_content = gzip.compress(
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8"),
+        mtime=0,
+    )
+
+    restore_page_response = super_admin_client.get("/debug")
+    restore_csrf_token = extract_csrf_token(restore_page_response.text)
+    restore_response = super_admin_client.post(
+        "/debug/restore",
+        data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
+        files={
+            "backup_file": (
+                "job-logger-pre-web-user-archive-full-backup.json.gz",
+                legacy_backup_content,
+                "application/gzip",
+            )
+        },
+        follow_redirects=False,
+    )
+
+    assert restore_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        restored_user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert restored_user is not None
+        assert restored_user.archived_at_utc is None
+
+
 def test_debug_restore_defaults_missing_ai_cleanup_revert_columns(
     super_admin_client: TestClient,
 ) -> None:
