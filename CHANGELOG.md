@@ -76,8 +76,9 @@ All notable changes to Job Logger are documented in this file.
   prompt and reject new passkey registration attempts while signed in on a
   public device.
 - Fixed full-browser Home start-work Service calls spacing by removing the
-  divider line, tightening the Service calls title/date/list area, and centering
-  the no-service-calls message without changing the phone layout.
+  divider line, raising the Service calls title above the date selector,
+  tightening the date/list area, and centering the no-service-calls message
+  without changing the phone layout.
 
 ## 1.2.4 - 07.10.2026 - Review activity cleanup, work minimums, password reset, Autotask throttling, and version polish
 

@@ -285,6 +285,7 @@
 
   .active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header h3 {
     line-height: 1;
+    transform: translateY(-10px);
   }
 
   .active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-date-nav {

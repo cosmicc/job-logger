@@ -553,8 +553,9 @@ scan-friendly layout. Keep full-browser layout changes out of `phone.css` so
 the installed mobile phone experience remains unchanged unless explicitly
 requested. Do not use route names to select the mobile or desktop page version;
 presentation must follow client/browser and media behavior. Full-browser
-start-work panels should keep the **Service calls** heading, date selector, and
-service-call list tightly stacked without a divider line above the section.
+start-work panels should keep the **Service calls** heading visually raised
+above the date selector while the date selector and service-call list stay
+tightly stacked without a divider line above the section.
 When no service calls are available for a selected day, the full-browser
 empty-state message should be centered. Phone spacing should remain governed by
 the shared/mobile CSS.

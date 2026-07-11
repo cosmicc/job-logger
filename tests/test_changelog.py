@@ -260,8 +260,8 @@ def test_changelog_parser_reads_current_release() -> None:
             "Public-device sessions no longer show Device sign-in setup prompts or allow new Device sign-in setup.",
             "Password reset emails sent from user management now work even when self-service password reset is turned off.",
             (
-                "Full-browser Home now keeps the Service calls title, date selector, and empty-state message "
-                "tighter and cleaner."
+                "Full-browser Home now keeps the Service calls title raised above the date selector, "
+                "with the date and empty-state message tighter and cleaner."
             ),
         ),
     )

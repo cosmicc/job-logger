@@ -33,7 +33,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - New user creation now continues even if the optional welcome email is not sent, and the admin sees a warning.
 - Public-device sessions no longer show Device sign-in setup prompts or allow new Device sign-in setup.
 - Password reset emails sent from user management now work even when self-service password reset is turned off.
-- Full-browser Home now keeps the Service calls title, date selector, and empty-state message tighter and cleaner.
+- Full-browser Home now keeps the Service calls title raised above the date selector, with the date and empty-state message tighter and cleaner.
 
 ## 1.2.4 - 07.10.2026 - Review activity cleanup, work minimums, password reset, and version polish
 

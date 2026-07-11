@@ -1975,6 +1975,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert (
         ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header h3 {\n"
         "    line-height: 1;\n"
+        "    transform: translateY(-10px);\n"
         "  }"
     ) in desktop_stylesheet
     assert (
@@ -2011,6 +2012,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".active-jobs-stack > .work-panel:not([data-active-job-card])" not in phone_stylesheet
     assert ".work-panel[data-active-job-card]" not in phone_stylesheet
     assert ".service-call-panel-header {\n    gap: 4px;" not in phone_stylesheet
+    assert "translateY(-10px)" not in phone_stylesheet
     assert "[data-service-call-empty]" not in phone_stylesheet
     assert ".work-panel[data-active-job-card] .job-date-card .date-input-shell" not in phone_stylesheet
     assert ".work-panel[data-active-job-card] > .description-box > .note-title-field:not(.is-hidden)" not in phone_stylesheet
