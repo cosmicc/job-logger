@@ -3208,6 +3208,21 @@ td a {
   justify-content: center;
 }
 
+.user-status-toggle-form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.user-status-toggle {
+  appearance: none;
+  cursor: pointer;
+}
+
+.user-status-toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .user-status-enabled {
   border-color: rgba(52, 211, 153, 0.48);
   background: var(--success-soft);

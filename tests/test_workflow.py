@@ -1953,11 +1953,13 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".work-panel[data-active-job-card]" in desktop_stylesheet
     assert ".work-panel[data-active-job-card] > .detail-heading-row" in desktop_stylesheet
     assert "grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);" in desktop_stylesheet
+    assert "gap: 10px 28px;" in desktop_stylesheet
     assert (
         ".active-jobs-stack > .work-panel:not([data-active-job-card]) > .service-call-start-panel {\n"
         "    grid-column: 2;\n"
         "    grid-row: 1 / span 5;\n"
-        "    align-self: stretch;\n"
+        "    align-self: start;\n"
+        "    align-content: start;\n"
         "    margin-top: 0;\n"
         "    padding-top: 0;\n"
         "    border-top: 0;\n"
@@ -1966,7 +1968,33 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     ) in desktop_stylesheet
     assert (
         ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header {\n"
-        "    gap: 4px;\n"
+        "    align-content: start;\n"
+        "    gap: 2px;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header h3 {\n"
+        "    line-height: 1;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-date-nav {\n"
+        "    height: 32px;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-date-button {\n"
+        "    height: 32px;\n"
+        "    min-height: 32px;\n"
+        "    padding: 4px 10px;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) [data-service-call-empty] {\n"
+        "    justify-self: stretch;\n"
+        "    margin: 0;\n"
+        "    padding: 12px 14px;\n"
+        "    text-align: center;\n"
         "  }"
     ) in desktop_stylesheet
     assert "grid-template-columns: minmax(0, 1fr) minmax(360px, 0.78fr);" in desktop_stylesheet
@@ -1983,6 +2011,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".active-jobs-stack > .work-panel:not([data-active-job-card])" not in phone_stylesheet
     assert ".work-panel[data-active-job-card]" not in phone_stylesheet
     assert ".service-call-panel-header {\n    gap: 4px;" not in phone_stylesheet
+    assert "[data-service-call-empty]" not in phone_stylesheet
     assert ".work-panel[data-active-job-card] .job-date-card .date-input-shell" not in phone_stylesheet
     assert ".work-panel[data-active-job-card] > .description-box > .note-title-field:not(.is-hidden)" not in phone_stylesheet
     assert ".work-panel[data-active-job-card] > .description-box > .note-title-field.is-hidden + label" not in phone_stylesheet

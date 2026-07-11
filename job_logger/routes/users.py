@@ -27,6 +27,7 @@ from job_logger.services.users import (
     list_web_users,
     normalize_autotask_resource_id,
     normalize_optional_autotask_role_id,
+    set_web_user_disabled,
     update_web_user,
 )
 from job_logger.ui import template_context, templates
@@ -450,6 +451,49 @@ async def send_user_welcome_email(
             success_category="email-success",
             failure_category="email-error",
         )
+    except (HTTPException, WebUserError) as exc:
+        database_session.rollback()
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
+
+    return RedirectResponse(url="/users", status_code=303)
+
+
+def _target_disabled_from_form(form_values: dict[str, str]) -> bool:
+    """Return the requested disabled state from a status-toggle form."""
+
+    raw_disabled = form_values.get("disabled", "").strip()
+    if raw_disabled not in {"0", "1"}:
+        raise WebUserError("User status must be Enabled or Disabled.")
+    return raw_disabled == "1"
+
+
+@router.post("/{user_id}/status")
+async def update_user_status(
+    user_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Enable or disable one managed web user from the status pill."""
+
+    try:
+        actor = require_super_admin(request)
+        form_values = await _form_values(request)
+        user = get_web_user_by_id_or_raise(database_session, user_id)
+        target_disabled = _target_disabled_from_form(form_values)
+        set_web_user_disabled(user, disabled=target_disabled)
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="user.web.disabled" if target_disabled else "user.web.enabled",
+            request=request,
+            details={
+                "web_user_id": user.id,
+                "username": user.username,
+                "disabled": user.disabled,
+            },
+        )
+        database_session.commit()
+        add_flash_message(request, "User disabled." if target_disabled else "User enabled.", "success")
     except (HTTPException, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")

@@ -50,6 +50,9 @@ email. The visible user list must not show internal Autotask resource ID or role
 ID values, and it must never show archived/hidden deleted users, though add/edit
 forms may still query and save those values for internal use. Password reset and
 welcome-email row actions must be disabled or blocked for disabled users. The
+Enabled/Disabled status pill itself is a CSRF-protected toggle: clicking Enabled
+disables that user and signs out old sessions, and clicking Disabled re-enables
+that user.
 delete row action fully removes a user that has no linked jobs. If the user has
 linked jobs, delete archives and hides the account, invalidates sessions, removes
 passkeys, reset tokens, and preferences, keeps linked jobs attached to the same
@@ -550,9 +553,11 @@ scan-friendly layout. Keep full-browser layout changes out of `phone.css` so
 the installed mobile phone experience remains unchanged unless explicitly
 requested. Do not use route names to select the mobile or desktop page version;
 presentation must follow client/browser and media behavior. Full-browser
-start-work panels should keep the **Service calls** heading and date selector
-tight to the top of the service-call list without a divider line above the
-section; phone spacing should remain governed by the shared/mobile CSS.
+start-work panels should keep the **Service calls** heading, date selector, and
+service-call list tightly stacked without a divider line above the section.
+When no service calls are available for a selected day, the full-browser
+empty-state message should be centered. Phone spacing should remain governed by
+the shared/mobile CSS.
 When two active jobs are present, their Work in Progress cards should use
 distinct slot shading so they are easier to tell apart. On full-browser Work in
 Progress cards, the End Work/Delete row belongs directly under the
@@ -1120,8 +1125,8 @@ The normal workflow is:
    app login.
 2. The config super admin opens `/users` to create and edit managed web users.
    The page lists users in a desktop table and mobile card layout with icon-only
-   row actions for edit, enable/disable, delete, password reset email, and
-   welcome email.
+   row actions for edit, delete, password reset email, and welcome email. The
+   user status pill toggles that managed user between Enabled and Disabled.
    The add form suggests a username from the full name, and add/edit forms can
    query Autotask Resources to select the matching resource ID and capture the
    returned email address.

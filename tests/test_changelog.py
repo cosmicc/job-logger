@@ -211,6 +211,7 @@ def test_changelog_parser_reads_current_release() -> None:
                 "temporary-password instructions, and phone install steps."
             ),
             "Administrators can now send a password reset email or resend the welcome email from each user row.",
+            "Administrators can now click the Enabled or Disabled status pill to disable or re-enable that account.",
             "Administrators can now delete web users from each user row.",
             (
                 "Work now shows centered compact boxed total time-entry hours for today and this week, "
@@ -259,8 +260,8 @@ def test_changelog_parser_reads_current_release() -> None:
             "Public-device sessions no longer show Device sign-in setup prompts or allow new Device sign-in setup.",
             "Password reset emails sent from user management now work even when self-service password reset is turned off.",
             (
-                "Full-browser Home now shows the Service calls title and date selector closer together "
-                "without the extra divider line."
+                "Full-browser Home now keeps the Service calls title, date selector, and empty-state message "
+                "tighter and cleaner."
             ),
         ),
     )
@@ -317,6 +318,9 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert (
         "New web users can now receive a welcome email with the app link, username, "
         "temporary-password instructions, and phone install steps."
+    ) in response.text
+    assert (
+        "Administrators can now click the Enabled or Disabled status pill to disable or re-enable that account."
     ) in response.text
     assert (
         "Ask AI for help now adds a support contact line under the answer when the app administrator "

@@ -125,6 +125,7 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
         user.email = "tech@example.test"
         user.autotask_default_service_desk_role_id = 8
         user.is_admin = True
+        user_id = user.id
         database_session.add(
             WebAuthnCredential(
                 web_user_id=user.id,
@@ -178,6 +179,10 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert 'title="Send welcome email"' in users_page.text
     assert 'title="Refresh Autotask resource"' not in users_page.text
     assert "/refresh-resource" not in users_page.text
+    assert f'action="/users/{user_id}/status"' in users_page.text
+    assert 'name="disabled" value="1"' in users_page.text
+    assert 'class="status-chip user-status-chip user-status-toggle user-status-enabled"' in users_page.text
+    assert 'title="Disable user"' in users_page.text
     assert 'title="Delete user"' in users_page.text
     assert 'class="danger-outline-button user-action-icon-button"' in users_page.text
     assert 'class="secondary-link-button" href="/review"' not in users_page.text
@@ -206,6 +211,70 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert f"/static/users.js?v={static_asset_version()}" in users_page.text
     assert "The config super admin and hidden deleted users are intentionally not listed here." in users_page.text
     assert 'colspan="9"' in users_page.text
+
+
+def test_users_page_status_pill_toggles_enabled_state(super_admin_client: TestClient) -> None:
+    """The status pill should disable and re-enable a managed web user."""
+
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        user_id = user.id
+        assert user.disabled is False
+
+    users_page = super_admin_client.get("/users")
+    assert f'action="/users/{user_id}/status"' in users_page.text
+    assert 'title="Disable user"' in users_page.text
+    csrf_token = extract_csrf_token(users_page.text)
+    disable_response = super_admin_client.post(
+        f"/users/{user_id}/status",
+        data={"csrf_token": csrf_token, "disabled": "1"},
+        follow_redirects=False,
+    )
+
+    assert disable_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        user = database_session.get(WebUser, user_id)
+        assert user is not None
+        assert user.disabled is True
+        assert user.sessions_invalidated_at_utc is not None
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "user.web.disabled")
+        )
+        assert audit_event is not None
+        assert audit_event.details["web_user_id"] == user_id
+        assert audit_event.details["username"] == "tech"
+        assert audit_event.details["disabled"] is True
+
+    users_page = super_admin_client.get("/users")
+    assert "User disabled." in users_page.text
+    assert 'name="disabled" value="0"' in users_page.text
+    assert 'class="status-chip user-status-chip user-status-toggle user-status-disabled"' in users_page.text
+    assert 'title="Enable user"' in users_page.text
+    csrf_token = extract_csrf_token(users_page.text)
+    enable_response = super_admin_client.post(
+        f"/users/{user_id}/status",
+        data={"csrf_token": csrf_token, "disabled": "0"},
+        follow_redirects=False,
+    )
+
+    assert enable_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        user = database_session.get(WebUser, user_id)
+        assert user is not None
+        assert user.disabled is False
+        audit_event = database_session.scalar(
+            select(AuditEvent).where(AuditEvent.action == "user.web.enabled")
+        )
+        assert audit_event is not None
+        assert audit_event.details["web_user_id"] == user_id
+        assert audit_event.details["disabled"] is False
+
+    users_page = super_admin_client.get("/users")
+    assert "User enabled." in users_page.text
+    assert 'name="disabled" value="1"' in users_page.text
+    assert 'class="status-chip user-status-chip user-status-toggle user-status-enabled"' in users_page.text
+    assert 'title="Disable user"' in users_page.text
 
 
 def test_add_user_sends_welcome_email_when_requested(

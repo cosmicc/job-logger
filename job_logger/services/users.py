@@ -556,6 +556,16 @@ def update_web_user(
     return user
 
 
+def set_web_user_disabled(user: WebUser, *, disabled: bool) -> WebUser:
+    """Set managed-user disabled state and expire signed sessions when needed."""
+
+    was_disabled = user.disabled
+    user.disabled = disabled
+    if disabled and not was_disabled:
+        invalidate_web_user_sessions(user)
+    return user
+
+
 def change_web_user_password(
     database_session: Session,
     user: WebUser,

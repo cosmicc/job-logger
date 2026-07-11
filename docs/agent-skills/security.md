@@ -52,8 +52,11 @@ The `/users` list must not expose internal Autotask resource ID or role ID
 values, but add/edit forms may still save them for server-side Autotask use.
 Row actions may send a password reset email or resend the welcome email for an
 enabled managed user only. Disabled users must be blocked from those email
-actions. Admin-sent reset links may be created even when public self-service
-password reset is disabled.
+actions. The user-list Enabled/Disabled status pill is a CSRF-protected state
+toggle. Disabling through that pill must invalidate that user's existing signed
+sessions, and enabling through the pill must preserve the account row without
+resetting passwords, passkeys, roles, email, or job history. Admin-sent reset
+links may be created even when public self-service password reset is disabled.
 Managed-user passwords must be at least 8 characters and include lowercase,
 uppercase, number, and symbol characters. Enforce that rule server-side before
 hashing; browser validation is only a usability aid. Passwords created or reset

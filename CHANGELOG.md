@@ -15,6 +15,8 @@ All notable changes to Job Logger are documented in this file.
 - Added `/users` row actions that let the config super admin send a managed
   user a password reset email or resend the welcome email without exposing
   internal Autotask resource or role IDs in the user list.
+- Added a clickable Enabled/Disabled status pill to `/users` so the config
+  super admin can disable or re-enable a managed user directly from the list.
 - Added `/users` row delete actions for managed web users, including disabled
   rows.
 - Added centered compact boxed Work today/week hour summaries, same-sized Review
@@ -74,8 +76,8 @@ All notable changes to Job Logger are documented in this file.
   prompt and reject new passkey registration attempts while signed in on a
   public device.
 - Fixed full-browser Home start-work Service calls spacing by removing the
-  divider line and tightening the Service calls title/date area without changing
-  the phone layout.
+  divider line, tightening the Service calls title/date/list area, and centering
+  the no-service-calls message without changing the phone layout.
 
 ## 1.2.4 - 07.10.2026 - Review activity cleanup, work minimums, password reset, Autotask throttling, and version polish
 

@@ -521,6 +521,9 @@ Review supports:
   including `0 Hours` when no time-entry work exists for those periods.
 - Showing Today and Week time-entry hours as a compact boxed summary near the
   top of Work without turning it into full metric cards.
+- Keeping full-browser Work start panels compact, with Service calls title,
+  date picker, list, and empty-state message tightly arranged while phone
+  spacing stays controlled by shared/mobile CSS.
 - Showing per-row day-hours and week-hours totals by job owner and local job
   date/week. Ticket notes never contribute to these hour totals.
 - Managed web users see and mutate only their own jobs. The config super admin

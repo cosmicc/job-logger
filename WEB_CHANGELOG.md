@@ -9,6 +9,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - The app can now show the configured admin contact email when a disabled account tries to sign in.
 - New web users can now receive a welcome email with the app link, username, temporary-password instructions, and phone install steps.
 - Administrators can now send a password reset email or resend the welcome email from each user row.
+- Administrators can now click the Enabled or Disabled status pill to disable or re-enable that account.
 - Administrators can now delete web users from each user row.
 - Work now shows centered compact boxed total time-entry hours for today and this week, and Review now shows Today and Week total cards.
 - Administrators now see a temporary success or failure overlay after sending a password reset email or welcome email from the user list.
@@ -32,7 +33,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - New user creation now continues even if the optional welcome email is not sent, and the admin sees a warning.
 - Public-device sessions no longer show Device sign-in setup prompts or allow new Device sign-in setup.
 - Password reset emails sent from user management now work even when self-service password reset is turned off.
-- Full-browser Home now shows the Service calls title and date selector closer together without the extra divider line.
+- Full-browser Home now keeps the Service calls title, date selector, and empty-state message tighter and cleaner.
 
 ## 1.2.4 - 07.10.2026 - Review activity cleanup, work minimums, password reset, and version polish
 

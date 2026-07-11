@@ -99,11 +99,22 @@
                       {% endif %}
                     </td>
                     <td data-label="Status">
-                      {% if row.user.disabled %}
-                        <span class="status-chip user-status-chip user-status-disabled">Disabled</span>
-                      {% else %}
-                        <span class="status-chip user-status-chip user-status-enabled">Enabled</span>
-                      {% endif %}
+                      <form
+                        class="user-status-toggle-form"
+                        method="post"
+                        action="/users/{{ row.user.id }}/status"
+                      >
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="disabled" value="{% if row.user.disabled %}0{% else %}1{% endif %}">
+                        <button
+                          class="status-chip user-status-chip user-status-toggle {% if row.user.disabled %}user-status-disabled{% else %}user-status-enabled{% endif %}"
+                          type="submit"
+                          title="{% if row.user.disabled %}Enable user{% else %}Disable user{% endif %}"
+                          aria-label="{% if row.user.disabled %}Enable{% else %}Disable{% endif %} {{ row.user.full_name }}"
+                        >
+                          {% if row.user.disabled %}Disabled{% else %}Enabled{% endif %}
+                        </button>
+                      </form>
                     </td>
                     <td data-label="Jobs">
                       <span class="user-job-pill">{{ row.job_count }}</span>
@@ -125,34 +136,6 @@
                             <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
                           </svg>
                         </button>
-                        {% if row.user.disabled %}
-                          <form method="post" action="/users/{{ row.user.id }}/update">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <input type="hidden" name="full_name" value="{{ row.user.full_name }}">
-                            <input type="hidden" name="username" value="{{ row.user.username }}">
-                            <input type="hidden" name="password" value="">
-                            <input type="hidden" name="autotask_resource_id" value="{{ row.user.autotask_resource_id }}">
-                            <input type="hidden" name="autotask_resource_email" value="{{ row.user.email or '' }}">
-                            {% if row.user.is_admin %}
-                              <input type="hidden" name="is_admin" value="1">
-                            {% endif %}
-                            <input
-                              type="hidden"
-                              name="autotask_default_service_desk_role_id"
-                              value="{{ row.user.autotask_default_service_desk_role_id or '' }}"
-                            >
-                            <button
-                              class="success-outline-button user-action-icon-button"
-                              type="submit"
-                              title="Enable user"
-                              aria-label="Enable {{ row.user.full_name }}"
-                            >
-                              <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M20 6 9 17l-5-5"></path>
-                              </svg>
-                            </button>
-                          </form>
-                        {% endif %}
                         <form
                           method="post"
                           action="/users/{{ row.user.id }}/delete"
