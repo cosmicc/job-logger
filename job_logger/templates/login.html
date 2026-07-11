@@ -6,6 +6,7 @@
   <section class="login-shell">
     <div class="login-panel">
       <form method="post" action="/login" class="stack-form">
+        {% set public_device_help = "Public device sessions expire after 15 minutes of inactivity and do not prompt for Device sign-in setup." %}
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label>
           <span>Username</span>
@@ -15,13 +16,6 @@
           <span>Password</span>
           <input name="password" type="password" autocomplete="current-password" required>
         </label>
-        <label class="checkbox-label public-device-login-option">
-          <input name="public_device" type="checkbox" value="1" data-public-device-login>
-          <span>This is a public device</span>
-        </label>
-        <p class="muted-text public-device-login-help">
-          Public device sessions expire after 15 minutes of inactivity and do not prompt for Device sign-in setup.
-        </p>
         <button class="primary-button full-width" type="submit">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
@@ -35,6 +29,17 @@
             <a href="/forgot-password">Forgot password?</a>
           </p>
         {% endif %}
+        <label class="checkbox-label public-device-login-option" title="{{ public_device_help }}">
+          <input
+            name="public_device"
+            type="checkbox"
+            value="1"
+            data-public-device-login
+            aria-label="This is a public device. {{ public_device_help }}"
+            title="{{ public_device_help }}"
+          >
+          <span title="{{ public_device_help }}">This is a public device</span>
+        </label>
       </form>
       <div class="passkey-login-panel" data-passkey-login-panel>
         <button class="secondary-button full-width" type="button" data-passkey-login-button>

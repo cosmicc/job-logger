@@ -542,8 +542,9 @@ submitted, the login screen says the account is disabled. Set
 `ADMIN_CONTACT_EMAIL` to show a contact address in disabled-account messages.
 The Add user page can also send a checked-by-default welcome email when the new
 user has a stored email address and account email delivery is configured. The
-welcome email includes the app link, username, temporary-password instructions,
-mobile install steps, and support contact, but not the temporary password.
+welcome email calls the app Autotask Job Logger and includes the app link,
+username, temporary-password instructions, mobile install steps, and support
+contact, but not the temporary password.
 The per-user password reset email action can send a reset link from the Users
 page even when the public **Forgot password?** self-service flow is disabled.
 
@@ -567,7 +568,8 @@ button.
 The login page also has a default-off **This is a public device** checkbox for
 password and Device sign-in. When selected, Job Logger signs the user out after
 15 minutes of inactivity and hides new Device sign-in setup prompts for that
-session.
+session. The checkbox appears below **Forgot password?** and keeps its extra
+description in a hover hint.
 
 Self-service password reset is disabled by default. When
 `PASSWORD_RESET_ENABLED=true`, configure `APP_PUBLIC_BASE_URL`, mail delivery
@@ -1245,8 +1247,10 @@ red critical banner while any monitored
 app-health issue is active.
 
 The same `/debug` page also shows compact, paginated successful-login,
-failed-login, Cloudflare blocked-IP, and Autotask submission-attempt windows,
-with 10 rows per page. Successful and failed local app login attempts are
+failed-login, Cloudflare blocked-IP, and Autotask submission-attempt windows.
+Successful-login, failed-login, and Autotask submission-attempt lists show 7
+rows per page without vertical table scrollbars, while Cloudflare blocked IPs
+show 10 rows per page. Successful and failed local app login attempts are
 stored as sanitized `login_attempts` database rows. The Diagnostics tables and
 downloads include timestamp, client IP, proxy header details, username, user
 agent, request path, host/proxy metadata, account kind, authentication method,
@@ -1403,10 +1407,10 @@ controls and a 15-minute dropdown that opens around the currently selected
 time; the server still rounds, validates, and saves those active-job edits.
 Work in Progress and Review detail show that rounded duration as centered labels
 like `15 Minutes`, `1 Hour`, or `1.25 Hours`.
-Work and Review also show total time-entry hours worked today. Review lists jobs
-newest-first, 10 rows per page, and includes day-hours and week-hours columns
-for each job owner/date. Ticket notes do not add to hour totals because they do
-not record time.
+Work shows compact total time-entry hours worked today and this week. Review
+shows today and week total cards, lists jobs newest-first, 10 rows per page, and
+includes day-hours and week-hours columns for each job owner/date. Ticket notes
+do not add to hour totals because they do not record time.
 Time entries also enforce work-location minimums: Remote work must be at least
 15 rounded minutes, and On-Site work must be at least 1 rounded hour. Ticket
 notes do not use start and end times, so these minimums do not apply to notes.

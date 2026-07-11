@@ -58,6 +58,7 @@ from job_logger.services.jobs import (
     store_ai_cleanup_revert_state,
     submit_job_to_autotask,
     total_time_entry_minutes_for_local_date,
+    total_time_entry_minutes_for_local_week,
     update_submitted_job_autotask_entry,
     validate_review_fields,
     verify_autotask_client_selection,
@@ -609,9 +610,16 @@ def _render_review(
             web_user_id=web_user_id,
             jobs=jobs,
         )
+        hour_total_jobs = list_jobs_for_hour_totals(database_session, web_user_id=web_user_id)
+        current_local_date = local_date_for(current_time)
         today_total_minutes = total_time_entry_minutes_for_local_date(
-            list_jobs_for_hour_totals(database_session, web_user_id=web_user_id),
-            local_work_date=local_date_for(current_time),
+            hour_total_jobs,
+            local_work_date=current_local_date,
+            current_time=current_time,
+        )
+        week_total_minutes = total_time_entry_minutes_for_local_week(
+            hour_total_jobs,
+            local_work_date=current_local_date,
             current_time=current_time,
         )
         job_hour_totals = review_job_hour_totals(all_jobs, current_time=current_time)
@@ -629,6 +637,7 @@ def _render_review(
             pagination=pagination,
             selected_job=selected_job,
             today_work_hours_label=format_duration_minutes(today_total_minutes) or "0 Hours",
+            week_work_hours_label=format_duration_minutes(week_total_minutes) or "0 Hours",
             job_hour_totals=job_hour_totals,
             selected_job_submitted=(
                 is_job_locked_after_successful_submission(selected_job) if selected_job is not None else False

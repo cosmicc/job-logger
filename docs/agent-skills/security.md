@@ -43,7 +43,8 @@ The `/users` add form has a default-on **Send welcome email** option for new
 managed users. Send it only to the stored managed-user email address, use
 `APP_PUBLIC_BASE_URL` for the app link, include the username, temporary-password
 change instruction, mobile install steps, Device sign-in guidance, and
-`ADMIN_CONTACT_EMAIL` when configured, and never include the temporary password.
+`ADMIN_CONTACT_EMAIL` when configured, call the app **Autotask Job Logger**, and
+never include the temporary password.
 Welcome email delivery must be non-blocking for user creation. Audit only safe
 metadata such as user ID, username, provider, whether an email was saved, and
 bounded delivery errors.
@@ -125,11 +126,12 @@ the `web_users` row. `job_logger/services/session_control.py` owns that cutoff
 logic. Disabling one user or using the Diagnostics **Log out web users** action
 must clear old managed-user cookies on the next request without signing out the
 config super admin.
-The login page's **This is a public device** checkbox is default-off and applies
-to password and Device sign-in. When selected, the session gets a 15-minute
-inactivity timeout, suppresses the Home Device sign-in setup prompt, and must
-reject new passkey registration while keeping normal authentication, CSRF,
-disabled-user, and configured session-timeout enforcement intact.
+The login page's **This is a public device** checkbox is default-off, appears
+below the forgot-password link, keeps its explanatory copy in a hover/title hint,
+and applies to password and Device sign-in. When selected, the session gets a
+15-minute inactivity timeout, suppresses the Home Device sign-in setup prompt,
+and must reject new passkey registration while keeping normal authentication,
+CSRF, disabled-user, and configured session-timeout enforcement intact.
 
 Managed web-user passkeys are optional login credentials. The config super
 admin must not register or use passkeys. Passkey registration is available only
@@ -281,11 +283,12 @@ also used in the Cloudflare rule note. The successful-login table may use a
 yellow account-kind chip for config
 super-admin rows so they are easy to distinguish from managed web users, and
 may show `Password` or `Passkey` method pills for the already-sanitized
-authentication method. Login failure, Cloudflare blocked-IP, and Autotask
-submission-attempt diagnostics must stay paginated at 10 rows per page. Wide
-Diagnostics tables should stay horizontally scrollable on phone layouts instead
-of compressing columns, especially when they include per-row backup or
-Cloudflare actions. `LOG_LEVEL` controls stdout/stderr and optional `LOG_DIR`
+authentication method. Successful-login, login-failure, and Autotask
+submission-attempt diagnostics must stay paginated at 7 rows per page without
+vertical table scrollbars. Cloudflare blocked-IP diagnostics stay paginated at
+10 rows per page. Wide Diagnostics tables should stay horizontally scrollable on
+phone layouts instead of compressing columns, especially when they include
+per-row backup or Cloudflare actions. `LOG_LEVEL` controls stdout/stderr and optional `LOG_DIR`
 file-log verbosity and must be limited to `DEBUG`, `INFO`, `WARNING`, or
 `ERROR`. `/debug` may also show
 disk usage for app-visible storage paths such as `/` and

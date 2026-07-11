@@ -17,12 +17,15 @@ All notable changes to Job Logger are documented in this file.
   internal Autotask resource or role IDs in the user list.
 - Added `/users` row delete actions for managed web users, including disabled
   rows.
-- Added Work and Review today-hours summaries for time-entry work, plus Review
-  day-hours and week-hours columns calculated per job owner and local job date.
+- Added compact Work today/week hour summaries, same-sized Review today/week
+  total cards, and Review day-hours and week-hours columns calculated per job
+  owner and local job date.
 - Added 10-row newest-first Review job-list pagination.
 - Added a default-off **This is a public device** login option for password and
   Device sign-in sessions. Public-device sessions expire after 15 minutes of
   inactivity and cannot start new Device sign-in setup.
+- Added temporary success/failure overlays for `/users` password-reset email
+  and welcome-email row actions.
 
 ### Changed
 
@@ -48,6 +51,13 @@ All notable changes to Job Logger are documented in this file.
   Job Logger, matching the existing Complete ticket filtering.
 - Changed admin-sent password reset links so they remain valid even when the
   public self-service forgot-password flow is disabled.
+- Changed Diagnostics successful-login, failed-login, and Autotask
+  submission-attempt lists to show 7 rows per page without a vertical table
+  scrollbar.
+- Changed the public-device login checkbox to appear below **Forgot password?**
+  and moved its description into hover/title text.
+- Changed password-reset and welcome emails to refer to the app as **Autotask
+  Job Logger**, including the updated welcome-email invite sentence.
 
 ### Fixed
 

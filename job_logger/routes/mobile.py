@@ -64,6 +64,7 @@ from job_logger.services.jobs import (
     store_ai_cleanup_revert_state,
     submit_job_to_autotask,
     total_time_entry_minutes_for_local_date,
+    total_time_entry_minutes_for_local_week,
     transcribe_active_job_audio,
     update_active_job_ticket_number,
     update_description_text,
@@ -714,9 +715,16 @@ def home_page(
         active_job.id: active_job.rounded_end_utc or rounded_stop_for_active_job(active_job, timestamp=current_time)
         for active_job in active_jobs
     }
+    hour_total_jobs = list_jobs_for_hour_totals(database_session, web_user.id)
+    current_local_date = local_date_for(current_time)
     today_total_minutes = total_time_entry_minutes_for_local_date(
-        list_jobs_for_hour_totals(database_session, web_user.id),
-        local_work_date=local_date_for(current_time),
+        hour_total_jobs,
+        local_work_date=current_local_date,
+        current_time=current_time,
+    )
+    week_total_minutes = total_time_entry_minutes_for_local_week(
+        hour_total_jobs,
+        local_work_date=current_local_date,
         current_time=current_time,
     )
     principal = preference_principal_from_session(request.session)
@@ -741,6 +749,7 @@ def home_page(
             submit_from_work_in_progress_enabled=submit_from_work_in_progress_enabled,
             show_passkey_setup_prompt=show_passkey_setup_prompt,
             today_work_hours_label=format_duration_minutes(today_total_minutes) or "0 Hours",
+            week_work_hours_label=format_duration_minutes(week_total_minutes) or "0 Hours",
             can_start_jobs=True,
             start_block_reason=None,
         ),

@@ -91,6 +91,7 @@ def test_password_reset_request_sends_only_for_one_enabled_matching_email(client
     with TestClient(create_app(_reset_settings())) as reset_client:
         login_response = reset_client.get("/login")
         assert "Forgot password?" in login_response.text
+        assert login_response.text.index("Forgot password?") < login_response.text.index("This is a public device")
 
         csrf_token = _forgot_password_csrf(reset_client)
         existing_response = reset_client.post(

@@ -226,8 +226,10 @@ async def _deliver_welcome_email_for_user(
     user: WebUser,
     success_message: str,
     failure_prefix: str,
+    success_category: str = "success",
+    failure_category: str = "error",
 ) -> MailDeliveryResult:
-    """Send and audit the optional welcome email after a user is created."""
+    """Send and audit a super-admin requested welcome email."""
 
     application_settings = application_settings_from_request(request)
     if user.disabled:
@@ -255,13 +257,13 @@ async def _deliver_welcome_email_for_user(
     )
     database_session.commit()
     if delivery_result.succeeded:
-        add_flash_message(request, success_message, "success")
+        add_flash_message(request, success_message, success_category)
     else:
         safe_error = delivery_result.safe_error or "Unknown mail delivery error."
         add_flash_message(
             request,
             f"{failure_prefix} {safe_error}",
-            "error",
+            failure_category,
         )
     return delivery_result
 
@@ -331,10 +333,10 @@ async def _send_password_reset_email_for_user(
     )
     database_session.commit()
     if delivery_result.succeeded:
-        add_flash_message(request, "Password reset email sent.", "success")
+        add_flash_message(request, "Password reset email sent.", "email-success")
     else:
         safe_error = delivery_result.safe_error or "Unknown mail delivery error."
-        add_flash_message(request, f"Password reset email was not sent: {safe_error}", "error")
+        add_flash_message(request, f"Password reset email was not sent: {safe_error}", "email-error")
 
 
 @router.post("")
@@ -445,6 +447,8 @@ async def send_user_welcome_email(
             user=user,
             success_message="Welcome email sent.",
             failure_prefix="Welcome email was not sent:",
+            success_category="email-success",
+            failure_category="email-error",
         )
     except (HTTPException, WebUserError) as exc:
         database_session.rollback()

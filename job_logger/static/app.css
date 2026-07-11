@@ -544,6 +544,56 @@ svg {
   color: var(--danger);
 }
 
+.flash-email-success {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.flash-email-error {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.user-email-result-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  align-items: start;
+  justify-items: center;
+  padding: clamp(86px, 14vh, 150px) 16px 16px;
+  background: rgba(15, 23, 42, 0.18);
+}
+
+.user-email-result-card {
+  width: min(420px, 100%);
+  padding: 15px 17px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 750;
+  text-align: center;
+}
+
+.user-email-result-card-success {
+  border-color: var(--success);
+}
+
+.user-email-result-card-error {
+  border-color: var(--danger);
+}
+
+.user-email-result-card p {
+  margin: 0;
+}
+
+.user-email-result-card p + p {
+  margin-top: 8px;
+}
+
 .login-shell,
 .mobile-shell,
 .review-shell,
@@ -639,13 +689,11 @@ svg {
 
 .public-device-login-option {
   min-height: 28px;
-  align-self: start;
-}
-
-.public-device-login-help {
-  margin: -8px 0 2px;
-  font-size: 12px;
-  line-height: 1.35;
+  align-self: center;
+  margin-top: -2px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
 }
 
 .turnstile-field {
@@ -2814,8 +2862,14 @@ td a {
   outline-offset: -2px;
 }
 
-.review-hours-summary,
-.work-hours-summary {
+.review-hours-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.review-hours-summary {
   display: grid;
   gap: 3px;
   min-width: 160px;
@@ -2825,23 +2879,35 @@ td a {
   background: var(--surface-muted);
 }
 
-.review-hours-summary strong,
-.work-hours-summary h2 {
+.review-hours-summary strong {
   margin: 0;
   color: var(--text);
   font-size: 24px;
   line-height: 1.1;
 }
 
-.work-hours-summary {
-  grid-template-columns: minmax(0, 1fr) auto;
+.work-hours-compact {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
+  gap: 6px 14px;
+  margin: -4px 2px 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
 }
 
-.work-hours-summary .muted-text {
-  margin: 0;
+.work-hours-compact-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.work-hours-compact strong {
+  color: var(--text);
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 850;
 }
 
 .review-pagination {
@@ -4379,10 +4445,14 @@ td a {
 }
 
 .login-attempt-window {
-  max-height: 430px;
-  overflow: auto;
+  overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+
+.diagnostics-seven-row-window {
+  min-height: 360px;
+  max-height: none;
 }
 
 .login-attempt-table {

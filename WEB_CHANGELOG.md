@@ -10,7 +10,8 @@ Short release notes shown on the authenticated `/changelog` page.
 - New web users can now receive a welcome email with the app link, username, temporary-password instructions, and phone install steps.
 - Administrators can now send a password reset email or resend the welcome email from each user row.
 - Administrators can now delete web users from each user row.
-- Work and Review now show total time-entry hours worked today, and Review rows show day and week totals.
+- Work now shows compact total time-entry hours for today and this week, and Review now shows Today and Week total cards.
+- Administrators now see a temporary success or failure overlay after sending a password reset email or welcome email from the user list.
 - The login page now has a public-device option that signs the user out after 15 minutes of inactivity.
 
 ### Changed
@@ -21,6 +22,8 @@ Short release notes shown on the authenticated `/changelog` page.
 - Deleting a user now fully removes users with no jobs, while users with jobs are hidden and restored when the same Autotask resource ID is added again.
 - Review now shows 10 jobs per page, ordered newest to oldest.
 - Home now hides service calls when the matching local ticket is marked Follow up.
+- The public-device checkbox now appears below **Forgot password?** and keeps its extra description in hover text.
+- Password reset and welcome emails now refer to the app as Autotask Job Logger.
 
 ### Fixed
 

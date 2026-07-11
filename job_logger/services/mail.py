@@ -16,8 +16,8 @@ from job_logger.logging_config import redact_sensitive_text
 
 LOGGER = logging.getLogger(__name__)
 MAX_SAFE_MAIL_ERROR_LENGTH = 500
-PASSWORD_RESET_SUBJECT = "Reset your Job Logger password"
-WELCOME_EMAIL_SUBJECT = "Welcome to Job Logger"
+PASSWORD_RESET_SUBJECT = "Reset your Autotask Job Logger password"
+WELCOME_EMAIL_SUBJECT = "Welcome to Autotask Job Logger"
 SMTP2GO_EMAIL_SEND_URL = "https://api.smtp2go.com/v3/email/send"
 
 
@@ -47,7 +47,7 @@ def _password_reset_body(*, reset_url: str, application_settings: Settings) -> s
     """Return the plain-text password-reset email body."""
 
     return (
-        "A password reset was requested for your Job Logger account.\n\n"
+        "A password reset was requested for your Autotask Job Logger account.\n\n"
         f"Reset your password using this link:\n{reset_url}\n\n"
         f"This link is valid for {int(application_settings.password_reset_token_ttl_hours)} hours and can be used only once.\n\n"
         "If you did not request this reset, you can ignore this email."
@@ -85,26 +85,26 @@ def build_welcome_email_body(
     first_name = _first_name_from_full_name(full_name=full_name, fallback_username=username)
     return (
         f"{first_name},\n\n"
-        "You have been invited to use Job Logger for recording Autotask time entries, "
-        "reviewing Autotask ticket notes, and submitting approved work to Autotask.\n\n"
-        "Open Job Logger here:\n"
+        "You have been invited to use the Autotask Job Logger for recording Autotask time entries, "
+        "sending & reviewing Autotask ticket notes, and submitting approved work to Autotask.\n\n"
+        "Open Autotask Job Logger here:\n"
         f"{app_url}\n\n"
         "Sign in with your username:\n"
         f"{username.strip()}\n\n"
         "Use the temporary password provided by your administrator. After you sign in, "
-        "Job Logger will ask you to create a new password before continuing.\n\n"
-        "Job Logger can be used from a web browser on a computer or installed on your mobile device. "
+        "Autotask Job Logger will ask you to create a new password before continuing.\n\n"
+        "Autotask Job Logger can be used from a web browser on a computer or installed on your mobile device. "
         'After you log in, you can set up "Device sign-in", which will allow you to log in to the app '
         "quickly with your mobile device unlock, such as a fingerprint, without needing to type in your "
         "username and password each time.\n\n"
-        "To install Job Logger on your phone:\n\n"
+        "To install Autotask Job Logger on your phone:\n\n"
         "iPhone or iPad:\n"
-        "1. Open the Job Logger link in Safari.\n"
+        "1. Open the Autotask Job Logger link in Safari.\n"
         "2. Tap the Share button.\n"
         "3. Tap Add to Home Screen.\n"
         "4. Tap Add.\n\n"
         "Android:\n"
-        "1. Open the Job Logger link in Chrome.\n"
+        "1. Open the Autotask Job Logger link in Chrome.\n"
         "2. Tap the browser menu.\n"
         "3. Tap Add to Home screen or Install app.\n"
         "4. Follow the prompt to add it.\n\n"

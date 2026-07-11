@@ -4009,6 +4009,7 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
 
     current_time = datetime(2026, 6, 25, 16, 0, tzinfo=UTC)
     monkeypatch.setattr("job_logger.routes.review.now_utc", lambda: current_time)
+    monkeypatch.setattr("job_logger.routes.mobile.now_utc", lambda: current_time)
     local_work_day = local_date_for(current_time)
     created_ticket_numbers: list[str] = []
     oldest_job_id = ""
@@ -4052,6 +4053,8 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
 
     assert first_page_response.status_code == 200
     assert first_page_html.count("data-review-url=") == 10
+    assert 'class="review-hours-summary-row" aria-label="Time-entry hours worked"' in first_page_html
+    assert 'aria-label="Hours worked this week"' in first_page_html
     assert "Day hours" in first_page_html
     assert "Week hours" in first_page_html
     assert "Page 1 of 2" in first_page_html
@@ -4076,6 +4079,12 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
     assert selected_oldest_response.status_code == 200
     assert "Page 2 of 2" in selected_oldest_response.text
     assert f'data-review-url="/review/{oldest_job_id}"' in selected_oldest_response.text
+
+    home_response = authenticated_client.get("/home")
+    assert home_response.status_code == 200
+    assert 'class="work-hours-compact" aria-label="Time-entry hours worked"' in home_response.text
+    assert "<strong>5.5 Hours</strong>" in home_response.text
+    assert "work-hours-summary" not in home_response.text
 
 
 def test_mobile_service_call_date_labels(authenticated_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

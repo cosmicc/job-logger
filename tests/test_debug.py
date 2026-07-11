@@ -1528,14 +1528,20 @@ def test_debug_login_pagination(super_admin_client: TestClient) -> None:
 
     debug_response = super_admin_client.get("/debug?success_page=2&failure_page=2")
     assert debug_response.status_code == 200
+    assert "12 retained, 7 per page" in debug_response.text
     assert "Page 2 of 2" in debug_response.text
     assert 'class="status-chip login-method-chip login-method-password">Password</span>' in debug_response.text
     assert 'class="status-chip login-method-chip login-method-passkey">Passkey</span>' in debug_response.text
+    assert "failure-4" in debug_response.text
     assert "failure-1" in debug_response.text
     assert "failure-0" in debug_response.text
+    assert "success-5" in debug_response.text
+    assert "success-4" in debug_response.text
     assert "success-1" in debug_response.text
     assert "success-0" in debug_response.text
+    assert "failure-5" not in debug_response.text
     assert "failure-11" not in debug_response.text
+    assert "success-6" not in debug_response.text
     assert "success-11" not in debug_response.text
     assert "Application Log" not in debug_response.text
 
@@ -1547,7 +1553,8 @@ def test_debug_login_pagination(super_admin_client: TestClient) -> None:
         Path(__file__).resolve().parents[1] / "job_logger" / "static" / "desktop.css"
     ).read_text(encoding="utf-8")
     assert ".login-attempt-window" in stylesheet
-    assert "max-height: 430px;" in stylesheet
+    assert "max-height: 430px;" not in stylesheet
+    assert ".diagnostics-seven-row-window {\n  min-height: 360px;\n  max-height: none;" in stylesheet
     assert ".debug-scroll-table-wrap" in stylesheet
     assert ".debug-submission-table {\n  width: 100%;\n  min-width: 920px;" in stylesheet
     assert ".automatic-backup-table {\n  width: 100%;\n  min-width: 920px;" in stylesheet
@@ -1632,7 +1639,7 @@ def test_debug_paginates_cloudflare_blocked_ips(super_admin_client: TestClient) 
 
 
 def test_debug_paginates_autotask_submission_attempts(super_admin_client: TestClient) -> None:
-    """Diagnostics should limit Autotask submission attempts to 10 rows per page."""
+    """Diagnostics should limit Autotask submission attempts to 7 rows per page."""
 
     job_id = _add_temporary_job()
     created_at = datetime(2026, 6, 21, 12, 0, tzinfo=UTC)
@@ -1655,14 +1662,18 @@ def test_debug_paginates_autotask_submission_attempts(super_admin_client: TestCl
 
     assert debug_response.status_code == 200
     assert "Autotask submission attempts" in debug_response.text
-    assert "12 retained, 10 per page" in debug_response.text
+    assert "12 retained, 7 per page" in debug_response.text
     assert "Page 2 of 2" in debug_response.text
+    assert "mock-entry-4" in debug_response.text
     assert "mock-entry-1" in debug_response.text
     assert "mock-entry-0" in debug_response.text
+    assert "mock-entry-5" not in debug_response.text
     assert "mock-entry-11" not in debug_response.text
     assert "mock-entry-10" not in debug_response.text
     assert "Show request snapshots for this page" in debug_response.text
+    assert "&#34;index&#34;: 4" in debug_response.text
     assert "&#34;index&#34;: 1" in debug_response.text
+    assert "&#34;index&#34;: 5" not in debug_response.text
     assert "&#34;index&#34;: 11" not in debug_response.text
 
 
@@ -1772,9 +1783,9 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert "Restore scope" in debug_response.text
     assert "Validated restores replace all Job Logger database tables with the backup contents." in debug_response.text
     assert "Restore confirmation" not in debug_response.text
-    assert '<div class="debug-scroll-table-wrap debug-submission-table-wrap">' in debug_response.text
+    assert '<div class="debug-scroll-table-wrap debug-submission-table-wrap diagnostics-seven-row-window">' in debug_response.text
     assert '<table class="debug-submission-table">' in debug_response.text
-    assert "1 retained, 10 per page" in debug_response.text
+    assert "1 retained, 7 per page" in debug_response.text
     assert "<th>User</th>" in debug_response.text
     assert "Test Technician" in debug_response.text
     assert attempt_id in debug_response.text

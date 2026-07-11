@@ -193,8 +193,15 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
     assert ".users-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);" in stylesheet
     assert ".users-table {\n  width: 100%;\n  min-width: 960px;" in stylesheet
+    assert ".user-email-result-overlay" in stylesheet
+    assert ".flash-email-success" in stylesheet
     assert "white-space: nowrap;" in stylesheet
     assert ".add-user-panel {\n  position: static;" in stylesheet
+    users_script = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "users.js").read_text(
+        encoding="utf-8"
+    )
+    assert "initializeEmailActionOverlay" in users_script
+    assert "window.setTimeout(closeOverlay, 5000)" in users_script
     assert 'data-resource-results hidden' in users_page.text
     assert f"/static/users.js?v={static_asset_version()}" in users_page.text
     assert "The config super admin and hidden deleted users are intentionally not listed here." in users_page.text
@@ -349,6 +356,7 @@ def test_super_admin_sends_user_password_reset_email(
 
     result_page = super_admin_client.get("/users")
     assert "Password reset email sent." in result_page.text
+    assert 'class="flash flash-email-success">Password reset email sent.</div>' in result_page.text
 
 
 def test_super_admin_resends_welcome_email_from_user_row(
@@ -394,6 +402,10 @@ def test_super_admin_resends_welcome_email_from_user_row(
         )
         assert audit_event is not None
         assert audit_event.details["web_user_id"] == user_id
+
+    result_page = super_admin_client.get("/users")
+    assert "Welcome email sent." in result_page.text
+    assert 'class="flash flash-email-success">Welcome email sent.</div>' in result_page.text
 
 
 def test_successful_managed_user_login_updates_last_login(client: TestClient) -> None:

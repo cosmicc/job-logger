@@ -175,9 +175,14 @@ def test_login_page_exposes_password_fallback_and_passkey_button(client: TestCli
     assert 'action="/login"' in response.text
     assert "Use device sign-in" in response.text
     assert "data-passkey-login-button" in response.text
-    assert 'name="public_device" type="checkbox" value="1" data-public-device-login' in response.text
+    assert 'name="public_device"' in response.text
+    assert 'type="checkbox"' in response.text
+    assert 'value="1"' in response.text
+    assert "data-public-device-login" in response.text
     assert "This is a public device" in response.text
     assert "Public device sessions expire after 15 minutes of inactivity" in response.text
+    assert "public-device-login-help" not in response.text
+    assert 'title="Public device sessions expire after 15 minutes of inactivity' in response.text
     assert "/static/passkeys.js" in response.text
     assert "<h1>Sign in</h1>" not in response.text
     assert "Use the local app account configured for this deployment." not in response.text

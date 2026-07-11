@@ -576,6 +576,28 @@ def total_time_entry_minutes_for_local_date(
     return total_minutes
 
 
+def total_time_entry_minutes_for_local_week(
+    jobs: list[Job],
+    *,
+    local_work_date: date,
+    owner_id: str | None = None,
+    current_time: datetime | None = None,
+) -> int:
+    """Return time-entry minutes for one local work week and optional owner."""
+
+    week_start = local_week_start(local_work_date)
+    week_end = week_start + timedelta(days=7)
+    total_minutes = 0
+    for job in jobs:
+        if owner_id is not None and _job_totals_owner_id(job) != owner_id:
+            continue
+        job_local_work_date = job_local_date_for_totals(job)
+        if job_local_work_date is None or not (week_start <= job_local_work_date < week_end):
+            continue
+        total_minutes += job_time_entry_duration_minutes(job, current_time=current_time)
+    return total_minutes
+
+
 def review_job_hour_totals(
     jobs: list[Job],
     *,

@@ -96,7 +96,8 @@ def test_smtp2go_password_reset_email_posts_standard_email_payload(monkeypatch) 
     assert request["headers"]["Content-Type"] == "application/json"
     assert request["json"]["sender"] == "Job Logger <joblogger@example.test>"
     assert request["json"]["to"] == ["tech@example.test"]
-    assert request["json"]["subject"] == "Reset your Job Logger password"
+    assert request["json"]["subject"] == "Reset your Autotask Job Logger password"
+    assert "Autotask Job Logger account" in request["json"]["text_body"]
     assert "https://logger.example.test/reset-password/token" in request["json"]["text_body"]
 
 
@@ -111,13 +112,17 @@ def test_welcome_email_body_uses_approved_copy_without_password() -> None:
     )
 
     assert body.startswith("First,\n\n")
-    assert "recording Autotask time entries" in body
+    assert (
+        "You have been invited to use the Autotask Job Logger for recording Autotask time entries, "
+        "sending & reviewing Autotask ticket notes, and submitting approved work to Autotask."
+    ) in body
     assert "recording Autotak time entries" not in body
-    assert "Open Job Logger here:\nhttps://logger.example.test" in body
+    assert "Open Autotask Job Logger here:\nhttps://logger.example.test" in body
     assert "Sign in with your username:\nfirst-tech" in body
     assert "Use the temporary password provided by your administrator." in body
     assert "Invite-tech-password1!" not in body
-    assert "Job Logger can be used from a web browser" in body
+    assert "Autotask Job Logger can be used from a web browser" in body
+    assert "To install Autotask Job Logger on your phone:" in body
     assert 'set up "Device sign-in"' in body
     assert "iPhone or iPad:" in body
     assert "Android:" in body
@@ -149,7 +154,7 @@ def test_smtp2go_welcome_email_posts_standard_email_payload(monkeypatch) -> None
     request = _FakeHttpClient.calls[0]
     assert request["json"]["sender"] == "Job Logger <joblogger@example.test>"
     assert request["json"]["to"] == ["tech@example.test"]
-    assert request["json"]["subject"] == "Welcome to Job Logger"
+    assert request["json"]["subject"] == "Welcome to Autotask Job Logger"
     assert "https://logger.example.test" in request["json"]["text_body"]
     assert "first-tech" in request["json"]["text_body"]
     assert "admin@example.test" in request["json"]["text_body"]

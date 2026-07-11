@@ -213,8 +213,12 @@ def test_changelog_parser_reads_current_release() -> None:
             "Administrators can now send a password reset email or resend the welcome email from each user row.",
             "Administrators can now delete web users from each user row.",
             (
-                "Work and Review now show total time-entry hours worked today, "
-                "and Review rows show day and week totals."
+                "Work now shows compact total time-entry hours for today and this week, "
+                "and Review now shows Today and Week total cards."
+            ),
+            (
+                "Administrators now see a temporary success or failure overlay after sending a password reset "
+                "email or welcome email from the user list."
             ),
             "The login page now has a public-device option that signs the user out after 15 minutes of inactivity.",
             (
@@ -232,6 +236,11 @@ def test_changelog_parser_reads_current_release() -> None:
             ),
             "Review now shows 10 jobs per page, ordered newest to oldest.",
             "Home now hides service calls when the matching local ticket is marked Follow up.",
+            (
+                "The public-device checkbox now appears below **Forgot password?** and keeps its extra "
+                "description in hover text."
+            ),
+            "Password reset and welcome emails now refer to the app as Autotask Job Logger.",
             (
                 "Disabled-account sign-in messages now point users to the configured contact email instead of "
                 "a generic administrator message."

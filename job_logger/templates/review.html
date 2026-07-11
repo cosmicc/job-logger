@@ -17,10 +17,16 @@
         <h1>Work Review</h1>
         <p class="muted-text">Edit recorded work, accept reviewed jobs, and submit approved time to Autotask.</p>
       </div>
-      {% if today_work_hours_label %}
-        <div class="review-hours-summary" aria-label="Hours worked today">
-          <span class="metric-label">Today</span>
-          <strong>{{ today_work_hours_label }}</strong>
+      {% if today_work_hours_label or week_work_hours_label %}
+        <div class="review-hours-summary-row" aria-label="Time-entry hours worked">
+          <div class="review-hours-summary" aria-label="Hours worked today">
+            <span class="metric-label">Today</span>
+            <strong>{{ today_work_hours_label }}</strong>
+          </div>
+          <div class="review-hours-summary" aria-label="Hours worked this week">
+            <span class="metric-label">Week</span>
+            <strong>{{ week_work_hours_label }}</strong>
+          </div>
         </div>
       {% endif %}
     </div>

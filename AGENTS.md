@@ -68,7 +68,8 @@ The add form includes a default-on **Send welcome email** option. When checked,
 it sends the new user's stored email address a plain-text welcome email with the
 configured `APP_PUBLIC_BASE_URL`, username, temporary-password instructions,
 mobile install steps, Device sign-in guidance, and `ADMIN_CONTACT_EMAIL` when
-configured. The welcome email must never include the temporary password, and
+configured. Account emails should call the app **Autotask Job Logger**. The
+welcome email must never include the temporary password, and
 user creation must still succeed when welcome-email delivery is skipped or
 fails. Audit only safe outcome metadata such as user ID, username, provider,
 email-saved state, and bounded delivery errors.
@@ -79,10 +80,10 @@ config super admin are temporary: the managed user must change that password on
 the next sign-in before using any page other than `/config/password` or logout.
 Changing the password from `/config` clears the temporary-password requirement.
 Disabled web users must be blocked from new logins and from using old signed
-sessions. Deleting a web user from `/users` disables the account, invalidates
-that user's signed sessions, preserves the row for audit/login-state clarity,
-and lets the login screen explain that the account is disabled after the
-correct password is submitted. `ADMIN_CONTACT_EMAIL` is an optional Docker/env
+sessions. Hidden archived web users must stay blocked from every login path and
+must not appear in `/users`; the login screen explains that the account is
+disabled only after the correct password is submitted. `ADMIN_CONTACT_EMAIL` is
+an optional Docker/env
 setting shown in disabled-account login/session messages and under successful
 AI Help answers. When it is unset, disabled-account messaging must fall back to
 a generic app-administrator contact without exposing account existence before a
@@ -135,12 +136,13 @@ measured in hours. The configured value controls both the signed session cookie
 lifetime and the server-side authenticated-at timestamp check. Expired sessions
 must be cleared and forced through login again.
 The login page has a default-off **This is a public device** option for both
-password and Device sign-in. Public-device sessions must expire after 15
-minutes of inactivity, refresh the inactivity timestamp only after valid
-requests, suppress the post-login Home Device sign-in setup prompt, and reject
-new passkey registration while that session is active. Public-device mode must
-not weaken normal authentication, CSRF, disabled-user, or session-timeout
-checks.
+password and Device sign-in. It appears below the forgot-password link and keeps
+the explanatory copy in a hover/title hint instead of a persistent text block.
+Public-device sessions must expire after 15 minutes of inactivity, refresh the
+inactivity timestamp only after valid requests, suppress the post-login Home
+Device sign-in setup prompt, and reject new passkey registration while that
+session is active. Public-device mode must not weaken normal authentication,
+CSRF, disabled-user, or session-timeout checks.
 Diagnostics may also invalidate all managed web-user sessions with a
 CSRF-protected button. That action must not sign out the config super admin
 because the super admin is not a managed web user. A managed Admin user who
@@ -220,9 +222,10 @@ password and Device sign-in verification must be blocked for
 may visually distinguish config
 super-admin account-kind chips from managed web-user chips, but must not expose
 extra sensitive metadata to do so. It may also show the safe successful-login
-authentication method as `Password` or `Passkey` status pills. Login failure,
-Cloudflare blocked-IP, and Autotask submission-attempt diagnostics must stay
-paginated at 10 rows per page.
+authentication method as `Password` or `Passkey` status pills. Successful-login,
+login-failure, and Autotask submission-attempt diagnostics must stay paginated
+at 7 rows per page without vertical table scrollbars. Cloudflare blocked-IP
+diagnostics stay paginated at 10 rows per page.
 
 Prefer secure defaults. Cookies must be HTTP-only, secure when served over HTTPS,
 and SameSite-protected. Forms and state-changing requests must use CSRF
@@ -657,8 +660,11 @@ job's Remote or On-Site mode for time entries and Ticket note for note-mode
 entries, paginate newest-first at 10 jobs per page, and include day-hours and
 week-hours totals calculated from time-entry jobs for that job's owner, local
 job date, and local work week. Ticket notes do not contribute to hour totals.
-The Work page and Review page should also show time-entry hours worked today,
-including `0 Hours` when no time-entry work has been recorded. The summary
+The Work page and Review page should also show time-entry hours worked today
+and this week, including `0 Hours` when no time-entry work has been recorded.
+Home should show those values as a compact, discreet summary rather than a full
+metric card. Review should show Today and Week as same-sized metric cards near
+the top of the page. The summary
 textarea for time entries must show the complete Autotask summary that will be
 sent, including the leading `Remote. ` or `On-Site. ` prefix. Saving review
 edits parses that prefix back into the stored
@@ -1116,7 +1122,8 @@ The normal workflow is:
    returned email address.
    The add form sends a welcome email by default when the stored email address,
    `APP_PUBLIC_BASE_URL`, and mail delivery settings are configured, unless the
-   super admin unchecks that option.
+   super admin unchecks that option. Account emails refer to the app as
+   **Autotask Job Logger**.
    Delete actions fully remove users that have no jobs. Users with linked jobs
    are hidden and signed out, their passkeys, reset tokens, and preferences are
    removed, and their jobs remain attached to the hidden row so adding another
