@@ -363,3 +363,8 @@ def test_github_workflow_publishes_branch_specific_swarm_images() -> None:
     assert "type=sha,prefix=sha-,format=long" in workflow_text
     assert "packages: write" in workflow_text
     assert "docker stack config -c docker-stack.yml" in workflow_text
+    assert "actions/checkout@v7" in workflow_text
+    assert "docker/setup-buildx-action@v4" in workflow_text
+    assert "docker/login-action@v4" in workflow_text
+    assert "docker/metadata-action@v6" in workflow_text
+    assert "docker/build-push-action@v7" in workflow_text

@@ -38,6 +38,8 @@ All notable changes to Job Logger are documented in this file.
   the stable `http://jldnginx` service endpoint across rolling tasks.
 - Fixed Docker interpolation of the Nginx health check so Compose and Swarm
   render the container-side PID lookup correctly.
+- Fixed the GHCR workflow to use the maintained Node.js 24 action generations
+  instead of action versions GitHub reports as Node.js 20 deprecated.
 
 ## 1.3.0 - 07.11.2026 - Admin contact, user management, review totals, and public-device sessions
 
