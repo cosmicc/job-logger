@@ -2,7 +2,7 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## 1.3.1 - 07.13.2026 - Password reset protection and recovery reliability
+## 1.3.1 - 07.13.2026 - Password reset protection, navigation, and recovery reliability
 
 ### Added
 
@@ -14,6 +14,7 @@ Short release notes shown on the authenticated `/changelog` page.
 
 ### Fixed
 
+- The top navigation now remains visible while scrolling on phones and full browsers.
 - Repeated unknown, disabled, or duplicate-email reset attempts can no longer continue without the same local protection used for invalid sign-in attempts.
 
 ## 1.3.0 - 07.11.2026 - Admin contact, user management, review totals, and public-device sessions

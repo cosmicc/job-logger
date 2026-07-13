@@ -310,7 +310,11 @@ bytes match exactly, and keep disk diagnostics read-only and limited to path,
 usage, and warning/critical metadata. Warning and critical health state must be
 based only on free space through `APP_HEALTH_DISK_WARNING_FREE_MB`, defaulting
 to 1000, and `APP_HEALTH_DISK_CRITICAL_FREE_MB`, defaulting to 250. Used
-percentage remains display-only. On full-browser Diagnostics, keep the
+percentage remains display-only. If a monitored path raises an operating-system
+error, including a stale network-filesystem handle, represent that path as a
+critical **Storage unavailable** health issue and omit fabricated usage values.
+Health observation must fail safely so ordinary authenticated workflows keep
+rendering while the mount is repaired. On full-browser Diagnostics, keep the
 disk-space card and managed-web-user session-controls card together on a
 same-height row above the database card; phone layouts should continue stacking
 those cards.

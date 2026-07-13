@@ -99,7 +99,8 @@ The signed-in header includes these main areas:
 
 On a phone, Work and Review sit on the left side of the top bar. Help, Config,
 any optional admin shortcut, and Log out sit on the right side. On a full
-browser, these controls use icon-and-text buttons.
+browser, these controls use icon-and-text buttons. The top bar remains visible
+while you scroll on either layout.
 
 If a red app-health icon appears in the header, Job Logger has detected that
 something needs attention. You can usually keep working unless the page shows a

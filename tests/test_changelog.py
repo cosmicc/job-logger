@@ -17,9 +17,10 @@ from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
 CURRENT_RELEASE_DATE = "07.13.2026"
-CURRENT_WEB_TITLE = "Password reset protection and recovery reliability"
+CURRENT_WEB_TITLE = "Password reset protection, navigation, and recovery reliability"
 CURRENT_DETAILED_HEADING = (
-    f"## 1.3.1 - {CURRENT_RELEASE_DATE} - Swarm deployment, disk health, and password-reset protection"
+    f"## 1.3.1 - {CURRENT_RELEASE_DATE} - Swarm deployment, storage health, navigation, and "
+    "password-reset protection"
 )
 CURRENT_WEB_HEADING = f"## 1.3.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
 V130_WEB_TITLE = "Admin contact, user management, review totals, and public-device sessions"
@@ -220,6 +221,7 @@ def test_changelog_parser_reads_current_release() -> None:
                 "A valid unique account match now clears the consecutive unmatched-email counter while "
                 "password-reset responses remain private and generic."
             ),
+            "The top navigation now remains visible while scrolling on phones and full browsers.",
             (
                 "Repeated unknown, disabled, or duplicate-email reset attempts can no longer continue without "
                 "the same local protection used for invalid sign-in attempts."

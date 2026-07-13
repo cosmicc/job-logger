@@ -442,6 +442,106 @@ def test_debug_disk_usage_serializer_ignores_used_percentage(tmp_path: Path, mon
     assert volume.status_label == "OK"
 
 
+def test_disk_health_marks_stale_backup_mount_unavailable_without_raising(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """A stale backup mount should degrade health instead of breaking requests."""
+
+    backup_directory = tmp_path / "backups"
+    backup_directory.mkdir()
+    application_settings = replace(
+        settings,
+        automatic_backup_dir=str(backup_directory),
+    )
+    original_exists = Path.exists
+
+    def stale_backup_path_exists(path: Path) -> bool:
+        if path == backup_directory:
+            raise OSError(116, "Stale file handle")
+        return original_exists(path)
+
+    monkeypatch.setattr(system_health, "settings", application_settings)
+    monkeypatch.setattr(Path, "exists", stale_backup_path_exists)
+
+    snapshot = system_health.collect_disk_usage_snapshot()
+
+    assert snapshot.severity == "critical"
+    assert snapshot.status_label == "Storage unavailable"
+    assert len(snapshot.volumes) == 2
+    backup_volume = next(volume for volume in snapshot.volumes if volume.label == "Backup directory")
+    assert backup_volume.available is False
+    assert backup_volume.status_label == "Unavailable"
+    assert backup_volume.configured_path == str(backup_directory)
+
+
+def test_review_stays_available_when_backup_storage_probe_fails(
+    super_admin_client: TestClient,
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """An authenticated workflow page should survive a stale backup mount."""
+
+    backup_directory = tmp_path / "backups"
+    backup_directory.mkdir()
+    application_settings = replace(
+        settings,
+        automatic_backup_dir=str(backup_directory),
+    )
+    original_exists = Path.exists
+
+    def stale_backup_path_exists(path: Path) -> bool:
+        if path == backup_directory:
+            raise OSError(116, "Stale file handle")
+        return original_exists(path)
+
+    monkeypatch.setattr(system_health, "settings", application_settings)
+    monkeypatch.setattr(Path, "exists", stale_backup_path_exists)
+
+    response = super_admin_client.get("/review")
+
+    assert response.status_code == 200
+    assert "Review" in response.text
+    assert 'health-alert-button-critical' in response.text
+
+
+def test_debug_page_explains_unavailable_storage_without_usage_meter(
+    super_admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    """Diagnostics should explain an unreadable path without fake usage data."""
+
+    unavailable_snapshot = system_health.DebugDiskUsageSnapshot(
+        severity="critical",
+        status_label="Storage unavailable",
+        warning_free_display="1000.0 MB",
+        critical_free_display="250.0 MB",
+        volumes=(
+            system_health.DebugDiskUsageVolume(
+                label="Backup directory",
+                configured_path="/data/backups",
+                measured_path="/data/backups",
+                total_display="Unavailable",
+                used_display="Unavailable",
+                free_display="Unavailable",
+                used_percent=0.0,
+                used_percent_display="Unavailable",
+                severity="critical",
+                status_label="Unavailable",
+                available=False,
+            ),
+        ),
+    )
+    monkeypatch.setattr(debug_routes, "_collect_disk_usage_snapshot", lambda: unavailable_snapshot)
+
+    response = super_admin_client.get("/debug")
+
+    assert response.status_code == 200
+    assert "Storage unavailable" in response.text
+    assert "Usage is temporarily unavailable." in response.text
+    assert 'class="disk-meter' not in response.text
+
+
 def test_debug_disk_usage_thresholds_use_strict_free_space_boundaries() -> None:
     """Warning and critical disk states should use configurable strict MB thresholds."""
 

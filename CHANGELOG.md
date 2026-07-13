@@ -2,7 +2,7 @@
 
 All notable changes to Job Logger are documented in this file.
 
-## 1.3.1 - 07.13.2026 - Swarm deployment, disk health, and password-reset protection
+## 1.3.1 - 07.13.2026 - Swarm deployment, storage health, navigation, and password-reset protection
 
 ### Added
 
@@ -36,6 +36,12 @@ All notable changes to Job Logger are documented in this file.
 
 ### Fixed
 
+- Fixed the authenticated top navigation so it remains visible while scrolling
+  to the bottom of any phone-sized or full-browser page.
+- Fixed stale or temporarily unreadable backup-storage mounts so disk-health
+  collection reports a critical **Storage unavailable** condition without
+  causing Internal Server Error responses on Review or other authenticated
+  pages.
 - Fixed unmatched forgot-password attempts so the abuse counter resets after
   a valid unique enabled-account match while browser responses remain generic.
 - Fixed the Swarm deployment contracts so Cloudflare Tunnel can use stable
