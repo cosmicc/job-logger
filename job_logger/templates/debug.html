@@ -48,20 +48,26 @@
                 <strong>{{ volume.label }}</strong>
                 <span class="status-chip disk-volume-status disk-volume-status-{{ volume.severity }}">{{ volume.status_label }}</span>
               </div>
-              <progress
-                class="disk-meter disk-meter-{{ volume.severity }}"
-                value="{{ volume.used_percent }}"
-                max="100"
-              >{{ volume.used_percent_display }}</progress>
+              {% if volume.available %}
+                <progress
+                  class="disk-meter disk-meter-{{ volume.severity }}"
+                  value="{{ volume.used_percent }}"
+                  max="100"
+                >{{ volume.used_percent_display }}</progress>
+              {% else %}
+                <p class="muted-text">Usage is temporarily unavailable. Job Logger remains available while the storage mount is restored.</p>
+              {% endif %}
               <dl class="disk-volume-stats">
-                <div>
-                  <dt>Used</dt>
-                  <dd>{{ volume.used_display }} / {{ volume.total_display }} ({{ volume.used_percent_display }})</dd>
-                </div>
-                <div>
-                  <dt>Free</dt>
-                  <dd>{{ volume.free_display }}</dd>
-                </div>
+                {% if volume.available %}
+                  <div>
+                    <dt>Used</dt>
+                    <dd>{{ volume.used_display }} / {{ volume.total_display }} ({{ volume.used_percent_display }})</dd>
+                  </div>
+                  <div>
+                    <dt>Free</dt>
+                    <dd>{{ volume.free_display }}</dd>
+                  </div>
+                {% endif %}
                 <div>
                   <dt>{% if volume.configured_paths|length > 1 %}Paths{% else %}Path{% endif %}</dt>
                   <dd>

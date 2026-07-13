@@ -527,6 +527,8 @@ and choose the platform's install action such as **Add to Home Screen** or
 **Install App**. After launching from that home-screen icon, the app uses
 standalone display mode, the managed web user's saved page theme, safe-area
 padding for phone status bars, and disabled page overscroll/bounce behavior.
+The authenticated top navigation remains visible while scrolling on both
+phone-sized and full-browser pages.
 
 The service worker is intentionally network-only. It supports standalone app
 launch behavior but does not cache authenticated pages, job data, Autotask
@@ -1323,6 +1325,11 @@ underlying storage. Disk alerts use free space only: warning below
 `APP_HEALTH_DISK_CRITICAL_FREE_MB`, defaulting to 250 MB. Used percentage stays
 visible for context but never triggers an alert. Monitor PostgreSQL storage
 separately unless it is also exposed to the app container.
+If a monitored mount such as the Swarm backup NFS path becomes temporarily
+unreadable, Diagnostics reports **Storage unavailable** as critical and omits
+unknown usage values. Normal pages remain usable while the mount is repaired;
+automatic backups keep retrying on their normal hourly schedule and cannot be
+relied on until storage recovers.
 
 Diagnostics includes a **Database** card with safe connectivity status, query
 latency, backend/driver, migration revision, and connection-pool counters. It

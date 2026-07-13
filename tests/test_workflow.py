@@ -1615,6 +1615,17 @@ def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(aut
     assert response.text.index('data-desktop-help-link') < response.text.index('class="logout-form desktop-logout-form"')
 
 
+def test_authenticated_header_stays_sticky_for_full_document_scroll() -> None:
+    """The shared header should not be constrained to the first viewport."""
+
+    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert "html,\nbody {\n  min-height: 100%;\n  overscroll-behavior: none;\n}" in stylesheet
+    assert ".app-header {\n  position: sticky;\n  top: 0;" in stylesheet
+
+
 def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_client: TestClient) -> None:
     """DEV_BUILD should mark both responsive Help controls without changing auth behavior."""
 

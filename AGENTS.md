@@ -631,7 +631,9 @@ desktop logout control. It shows compact route and status icons on the left,
 with Work and Review left-aligned for managed web users. Help, Config,
 optional Diagnostics, and logout are right-aligned in that order. The Work
 button links to `/home` and uses the same work-entry icon on phone and
-full-browser navigation. The config super admin sees Users and Review on the
+full-browser navigation. The shared authenticated top bar must remain visible
+at the top of the viewport while any phone or full-browser page scrolls through
+its complete document. The config super admin sees Users and Review on the
 left, with Help, Diagnostics, and logout on the right, and must not see the
 Config shortcut.
 The mobile logout button must post to `/logout` with the
@@ -1068,7 +1070,9 @@ The application is a FastAPI project under `job_logger/`.
   including disk usage, cached Autotask API health, database status, database
   latency, database connection-pool pressure, and active login-protection
   state used by Diagnostics, the authenticated top-bar degraded-health Help link,
-  and best-effort admin notifications.
+  and best-effort admin notifications. Storage-probe operating-system errors,
+  including stale network-filesystem handles, must become a critical health
+  issue without preventing ordinary authenticated pages from rendering.
 - `job_logger/services/app_health_monitor.py` runs the optional in-process
   app-health notification loop and suppresses repeated Pushover alerts until
   the active degraded issue set changes or restores.
@@ -1350,6 +1354,9 @@ In production:
   connection-pool pressure, active local login lockouts, and app-managed
   Cloudflare IP blocks. The `/debug` page should show a yellow or red
   app-health banner at the top when any monitored issue is active.
+  A temporarily unreadable monitored storage path must report a critical
+  **Storage unavailable** condition while normal app workflows remain usable;
+  health collection must not turn a stale backup mount into a page-level 500.
   Disk alerts must use free space only: warning below
   `APP_HEALTH_DISK_WARNING_FREE_MB`, defaulting to 1000, and critical below
   `APP_HEALTH_DISK_CRITICAL_FREE_MB`, defaulting to 250. Used percentage is

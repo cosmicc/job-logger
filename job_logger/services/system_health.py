@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -18,6 +19,8 @@ from job_logger.services.database_diagnostics import DebugDatabaseSnapshot, coll
 MEBIBYTE_BYTES = 1024 * 1024
 APP_HEALTH_SUMMARY_LIMIT = 240
 APP_HEALTH_SEVERITY_RANK = {"ok": 0, "warning": 1, "critical": 2}
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -39,6 +42,7 @@ class DebugDiskUsageVolume:
     free_bytes: int = 0
     configured_paths: tuple[str, ...] = ()
     measured_paths: tuple[str, ...] = ()
+    available: bool = True
 
 
 @dataclass(frozen=True)
@@ -117,6 +121,8 @@ class AppHealthSnapshot:
 
 
 _AUTOTASK_HEALTH_LOCK = RLock()
+_DISK_HEALTH_LOG_LOCK = RLock()
+_unavailable_disk_paths: set[str] = set()
 _cached_autotask_success_health = CachedAutotaskHealth(
     available=True,
     summary="No Autotask API failure has been recorded.",
@@ -200,6 +206,56 @@ def _existing_disk_probe_path(configured_path: str) -> Path:
     return Path("/")
 
 
+def _record_disk_probe_unavailable(label: str, configured_path: str) -> None:
+    """Log the first failed probe for a path without exposing raw OS details."""
+
+    with _DISK_HEALTH_LOG_LOCK:
+        if configured_path in _unavailable_disk_paths:
+            return
+        _unavailable_disk_paths.add(configured_path)
+
+    logger.warning(
+        "Monitored storage is unavailable label=%s path=%s; application requests will continue",
+        label,
+        configured_path,
+    )
+
+
+def _record_disk_probe_available(label: str, configured_path: str) -> None:
+    """Log recovery once after a monitored path becomes readable again."""
+
+    with _DISK_HEALTH_LOG_LOCK:
+        if configured_path not in _unavailable_disk_paths:
+            return
+        _unavailable_disk_paths.remove(configured_path)
+
+    logger.info(
+        "Monitored storage recovered label=%s path=%s",
+        label,
+        configured_path,
+    )
+
+
+def _unavailable_disk_usage_volume(label: str, configured_path: str) -> DebugDiskUsageVolume:
+    """Return display-safe critical metadata for an unreadable storage path."""
+
+    return DebugDiskUsageVolume(
+        label=label,
+        configured_path=configured_path,
+        measured_path=configured_path,
+        total_display="Unavailable",
+        used_display="Unavailable",
+        free_display="Unavailable",
+        used_percent=0.0,
+        used_percent_display="Unavailable",
+        severity="critical",
+        status_label="Unavailable",
+        configured_paths=(f"{label}: {configured_path}",),
+        measured_paths=(configured_path,),
+        available=False,
+    )
+
+
 def _disk_usage_severity(
     free_bytes: int,
     *,
@@ -219,8 +275,16 @@ def _disk_usage_severity(
 def _serialize_disk_usage_volume(label: str, configured_path: str) -> DebugDiskUsageVolume:
     """Return disk usage metadata for one configured diagnostics path."""
 
-    measured_path = _existing_disk_probe_path(configured_path)
-    usage = shutil.disk_usage(measured_path)
+    try:
+        measured_path = _existing_disk_probe_path(configured_path)
+        usage = shutil.disk_usage(measured_path)
+    except OSError:
+        # Storage health is observational. A stale NFS handle or temporarily
+        # unreadable mount must raise an alert without breaking app workflows.
+        _record_disk_probe_unavailable(label, configured_path)
+        return _unavailable_disk_usage_volume(label, configured_path)
+
+    _record_disk_probe_available(label, configured_path)
     used_percent = 0.0
     if usage.total > 0:
         used_percent = (usage.used / usage.total) * 100
@@ -242,6 +306,7 @@ def _serialize_disk_usage_volume(label: str, configured_path: str) -> DebugDiskU
         free_bytes=usage.free,
         configured_paths=(f"{label}: {configured_path}",),
         measured_paths=(str(measured_path),),
+        available=True,
     )
 
 
@@ -252,11 +317,16 @@ def _combine_disk_usage_volumes(volumes: tuple[DebugDiskUsageVolume, ...]) -> tu
     volume_indexes_by_usage: dict[tuple[int | str, int | str], int] = {}
 
     for volume in volumes:
-        usage_key = (
-            (volume.used_bytes, volume.total_bytes)
-            if volume.total_bytes > 0
-            else (volume.used_display, volume.total_display)
-        )
+        if not volume.available:
+            # Separate inaccessible mounts so Diagnostics keeps the failing
+            # configured path explicit instead of merging generic values.
+            usage_key = ("unavailable", volume.configured_path)
+        else:
+            usage_key = (
+                (volume.used_bytes, volume.total_bytes)
+                if volume.total_bytes > 0
+                else (volume.used_display, volume.total_display)
+            )
 
         existing_index = volume_indexes_by_usage.get(usage_key)
         if existing_index is None:
@@ -298,6 +368,7 @@ def _combine_disk_usage_volumes(volumes: tuple[DebugDiskUsageVolume, ...]) -> tu
             free_bytes=existing_volume.free_bytes,
             configured_paths=configured_paths,
             measured_paths=measured_paths,
+            available=existing_volume.available and volume.available,
         )
 
     return tuple(combined_volumes)
@@ -318,7 +389,9 @@ def collect_disk_usage_snapshot() -> DebugDiskUsageSnapshot:
     severity_rank = {"ok": 0, "warning": 1, "critical": 2}
     worst_volume = max(combined_volumes, key=lambda volume: severity_rank[volume.severity])
     status_label = "Disk space OK"
-    if worst_volume.severity == "warning":
+    if any(not volume.available for volume in combined_volumes):
+        status_label = "Storage unavailable"
+    elif worst_volume.severity == "warning":
         status_label = "Disk space nearing full"
     elif worst_volume.severity == "critical":
         status_label = "Disk space critical"

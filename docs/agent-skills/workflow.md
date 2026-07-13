@@ -41,7 +41,11 @@ targets the phone or installed mobile app.
 Phone-sized authenticated layouts hide the brand mark and desktop logout form.
 The visible top bar should place Work and Review left-aligned for managed web
 users, then right-align Help, Config, optional Diagnostics, and logout in that
-order. The Work button links to `/home` and uses the same work-entry icon on
+order. Keep the shared authenticated top bar sticky at the top of the viewport
+for the complete document scroll on every phone and full-browser page. Do not
+constrain `html` or `body` to one viewport height, because that ends the sticky
+containing block and lets the header scroll away. The Work button links to
+`/home` and uses the same work-entry icon on
 phone and full-browser navigation. Managed users marked as Admin also see
 Diagnostics in the right-side phone action group, but that flag must not remove
 Config or grant super-admin-only Users navigation. The config super admin sees
