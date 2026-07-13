@@ -134,7 +134,7 @@ def test_external_nginx_sample_keeps_public_surface_controls() -> None:
     restore_block_end_index = sample_text.index("\n    }", restore_index)
     restore_block = sample_text[restore_index:restore_block_end_index]
     assert "client_max_body_size 250m;" in restore_block
-    assert "proxy_pass http://job_logger_app:8000/debug/restore;" in restore_block
+    assert "proxy_pass http://jldapp:8000/debug/restore;" in restore_block
 
     websocket_index = sample_text.index("location ~ ^/jobs/[^/]+/description/audio/stream$")
     websocket_block_end_index = sample_text.index("\n    }", websocket_index)

@@ -181,6 +181,10 @@ class Settings:
     # APP_HEALTH_MONITOR_INTERVAL_SECONDS controls the background Pushover check cadence.
     app_health_monitor_interval_seconds: int
 
+    # APP_HEALTH_DISK_*_FREE_MB classify app-visible filesystems by free space only.
+    app_health_disk_warning_free_mb: int
+    app_health_disk_critical_free_mb: int
+
     # APP_HEALTH_DB_LATENCY_*_MS classify slow database probes for monitoring.
     app_health_db_latency_warning_ms: float
     app_health_db_latency_critical_ms: float
@@ -189,11 +193,8 @@ class Settings:
     app_health_db_pool_warning_percent: float
     app_health_db_pool_critical_percent: float
 
-    # LOG_LEVEL controls how verbose stdout/stderr and optional file logs should be.
+    # LOG_LEVEL controls how verbose stdout/stderr logs should be.
     log_level: str
-
-    # LOG_DIR optionally enables a redacted app log file under the configured directory.
-    log_dir: str | None
 
     # APP_USERNAME is the single local app account name.
     app_username: str
@@ -237,6 +238,9 @@ class Settings:
 
     # PASSWORD_RESET_TOKEN_TTL_HOURS controls how long emailed reset links work.
     password_reset_token_ttl_hours: float
+
+    # PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD controls unmatched-email abuse blocking.
+    password_reset_failed_attempts_block_threshold: int
 
     # APP_PUBLIC_BASE_URL is the absolute HTTPS origin used in app-generated email links.
     app_public_base_url: str
@@ -525,6 +529,14 @@ class Settings:
 def load_settings() -> Settings:
     """Load application settings from the current process environment."""
 
+    disk_warning_free_mb = _get_positive_integer("APP_HEALTH_DISK_WARNING_FREE_MB", 1000)
+    disk_critical_free_mb = _get_positive_integer("APP_HEALTH_DISK_CRITICAL_FREE_MB", 250)
+    if disk_critical_free_mb >= disk_warning_free_mb:
+        raise ValueError(
+            "APP_HEALTH_DISK_CRITICAL_FREE_MB must be less than "
+            "APP_HEALTH_DISK_WARNING_FREE_MB."
+        )
+
     return Settings(
         app_environment=os.getenv("APP_ENV", "development"),
         dev_build=_get_boolean("DEV_BUILD", False),
@@ -543,12 +555,13 @@ def load_settings() -> Settings:
             5,
         ),
         app_health_monitor_interval_seconds=_get_positive_integer("APP_HEALTH_MONITOR_INTERVAL_SECONDS", 300),
+        app_health_disk_warning_free_mb=disk_warning_free_mb,
+        app_health_disk_critical_free_mb=disk_critical_free_mb,
         app_health_db_latency_warning_ms=_get_positive_float("APP_HEALTH_DB_LATENCY_WARNING_MS", 250.0),
         app_health_db_latency_critical_ms=_get_positive_float("APP_HEALTH_DB_LATENCY_CRITICAL_MS", 1000.0),
         app_health_db_pool_warning_percent=_get_positive_float("APP_HEALTH_DB_POOL_WARNING_PERCENT", 80.0),
         app_health_db_pool_critical_percent=_get_positive_float("APP_HEALTH_DB_POOL_CRITICAL_PERCENT", 95.0),
         log_level=_get_log_level(),
-        log_dir=(os.getenv("LOG_DIR") or "").strip() or None,
         app_username=os.getenv("APP_USERNAME", "admin"),
         app_password=os.getenv("APP_PASSWORD") or None,
         admin_contact_email=(os.getenv("ADMIN_CONTACT_EMAIL") or "").strip(),
@@ -566,6 +579,10 @@ def load_settings() -> Settings:
         login_local_lockout_minutes=_get_positive_integer("LOGIN_LOCAL_LOCKOUT_MINUTES", 15),
         password_reset_enabled=_get_boolean("PASSWORD_RESET_ENABLED", False),
         password_reset_token_ttl_hours=_get_positive_float("PASSWORD_RESET_TOKEN_TTL_HOURS", 24.0),
+        password_reset_failed_attempts_block_threshold=_get_positive_integer(
+            "PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD",
+            3,
+        ),
         app_public_base_url=(os.getenv("APP_PUBLIC_BASE_URL") or "").strip().rstrip("/"),
         mail_enabled=_get_boolean("MAIL_ENABLED", False),
         mail_from_email=(os.getenv("MAIL_FROM_EMAIL", "joblogger@example.com").strip() or "joblogger@example.com"),

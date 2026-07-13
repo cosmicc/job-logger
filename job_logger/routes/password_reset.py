@@ -24,11 +24,14 @@ from job_logger.services.password_reset import (
     consume_account_reset_rate_limit,
     consume_preflight_reset_rate_limits,
     create_password_reset_token,
+    current_unmatched_password_reset_lockout,
     find_unique_enabled_web_user_by_email,
     lookup_password_reset_token,
     normalize_password_reset_email,
     password_reset_url,
     record_password_reset_audit,
+    record_unmatched_password_reset_attempt_and_maybe_block,
+    reset_unmatched_password_reset_attempts,
 )
 from job_logger.services.turnstile import verify_turnstile_response
 from job_logger.services.users import WebUserError
@@ -241,6 +244,29 @@ async def request_password_reset(
         add_flash_message(request, str(exc), "error")
         return RedirectResponse(url="/forgot-password", status_code=303)
 
+    abuse_lockout = current_unmatched_password_reset_lockout(
+        database_session,
+        request,
+        application_settings=application_settings,
+    )
+    if abuse_lockout.locked:
+        record_password_reset_audit(
+            database_session,
+            action="auth.password_reset.local_lockout",
+            request=request,
+            normalized_email=normalized_email,
+            details={
+                "scope": "unmatched_email_ip",
+                "failed_count": abuse_lockout.failed_count,
+                "limit": abuse_lockout.max_attempts,
+                "lockout_remaining_seconds": abuse_lockout.remaining_seconds,
+            },
+            application_settings=application_settings,
+        )
+        database_session.commit()
+        add_flash_message(request, PASSWORD_RESET_RATE_LIMIT_MESSAGE, "error")
+        return RedirectResponse(url="/forgot-password", status_code=303)
+
     rate_limit = consume_preflight_reset_rate_limits(
         database_session,
         request,
@@ -292,17 +318,31 @@ async def request_password_reset(
     )
     web_user = find_unique_enabled_web_user_by_email(database_session, normalized_email=normalized_email)
     if web_user is None:
+        failed_count = record_unmatched_password_reset_attempt_and_maybe_block(
+            database_session,
+            request,
+            application_settings=application_settings,
+        )
         record_password_reset_audit(
             database_session,
             action="auth.password_reset.email_not_sent",
             request=request,
             normalized_email=normalized_email,
-            details={"result": "no_unique_enabled_user"},
+            details={
+                "result": "no_unique_enabled_user",
+                "failed_count": failed_count,
+                "limit": application_settings.password_reset_failed_attempts_block_threshold,
+                "lockout_applied": (
+                    failed_count >= application_settings.password_reset_failed_attempts_block_threshold
+                ),
+            },
             application_settings=application_settings,
         )
         database_session.commit()
         add_flash_message(request, PASSWORD_RESET_GENERIC_MESSAGE, "success")
         return RedirectResponse(url="/forgot-password", status_code=303)
+
+    reset_unmatched_password_reset_attempts(database_session, request)
 
     account_rate_limit = consume_account_reset_rate_limit(database_session, web_user=web_user)
     if account_rate_limit.limited:

@@ -2,6 +2,43 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## 1.3.1 - 07.13.2026 - Swarm deployment, disk health, and password-reset protection
+
+### Added
+
+- Added a GitHub Actions workflow that publishes private application and Nginx
+  images to GHCR with `dev`, `latest`, application-version, and commit-SHA tags
+  according to the source branch.
+- Added configurable free-space warning and critical thresholds, defaulting to
+  less than 1000 MB and less than 250 MB respectively.
+- Added IP-based protection for three consecutive forgot-password submissions
+  whose valid email address does not resolve to exactly one enabled account,
+  including local lockout and optional app-managed Cloudflare blocking.
+
+### Changed
+
+- Advanced the source-controlled dev runtime version to `v1.3.1`, including
+  the Python package metadata and PWA service worker cache version.
+- Renamed the Swarm definition to `docker-stack.yml`, renamed its application
+  and Nginx services to `jldapp` and `jldnginx`, and configured two
+  `cloudflared` replicas with no more than one replica per node.
+- Changed Swarm storage so only automatic database backups and the local
+  faster-whisper model cache use the pre-mounted
+  `/mnt/swarm-storage/job-logger-dev` NFS share.
+- Changed application, Nginx, and Cloudflare Tunnel logging to console-only
+  output for Docker and Swarm log collection.
+- Changed disk-health severity to depend only on configurable remaining free
+  space; the used-space percentage remains informational.
+
+### Fixed
+
+- Fixed unmatched forgot-password attempts so the abuse counter resets after
+  a valid unique enabled-account match while browser responses remain generic.
+- Fixed the Swarm deployment contract so its Cloudflare Tunnel origin can use
+  the stable `http://jldnginx` service endpoint across rolling tasks.
+- Fixed Docker interpolation of the Nginx health check so Compose and Swarm
+  render the container-side PID lookup correctly.
+
 ## 1.3.0 - 07.11.2026 - Admin contact, user management, review totals, and public-device sessions
 
 ### Added

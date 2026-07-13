@@ -2,6 +2,20 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## 1.3.1 - 07.13.2026 - Password reset protection and recovery reliability
+
+### Added
+
+- Forgot-password requests now protect the submitting IP after three consecutive valid email addresses that do not match one enabled account.
+
+### Changed
+
+- A valid unique account match now clears the consecutive unmatched-email counter while password-reset responses remain private and generic.
+
+### Fixed
+
+- Repeated unknown, disabled, or duplicate-email reset attempts can no longer continue without the same local protection used for invalid sign-in attempts.
+
 ## 1.3.0 - 07.11.2026 - Admin contact, user management, review totals, and public-device sessions
 
 ### Added

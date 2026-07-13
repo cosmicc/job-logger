@@ -306,59 +306,52 @@ database, network, or code details.
 
 ### Docker Swarm Deployment
 
-Use `docker-swarm.yml` for Swarm. It is image-based, does not build locally,
-and expects PostgreSQL to run outside the stack:
+Use `docker-stack.yml` for Swarm. It is image-based, expects PostgreSQL to run
+outside the stack, and pulls the private app and Nginx packages published by
+GitHub Actions:
 
 ```bash
-export JOB_LOGGER_APP_IMAGE=registry.example.com/job-logger-app:1.3.0
-export JOB_LOGGER_NGINX_IMAGE=registry.example.com/job-logger-nginx:1.3.0
-export JOB_LOGGER_BUNDLED_EDGE_REPLICAS=1
-export JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger
+export JOB_LOGGER_APP_IMAGE=ghcr.io/cosmicc/job-logger-app:dev
+export JOB_LOGGER_NGINX_IMAGE=ghcr.io/cosmicc/job-logger-nginx:dev
+export JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger-dev
 export DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
 export CLOUDFLARE_TUNNEL_TOKEN=<token>
-docker stack deploy -c docker-swarm.yml job_logger
+docker stack deploy --with-registry-auth -c docker-stack.yml job_logger_dev
 ```
 
-Build and push the app image from the root `Dockerfile` and the Nginx image
-from `docker/nginx/Dockerfile` before deploying. Configure the Cloudflare Tunnel
-public hostname to use the Swarm service origin `http://nginx:80`.
+Log in to GHCR on the Swarm manager that performs the deployment and keep
+`--with-registry-auth` on the deploy command so workers receive pull
+credentials, or configure the private registry credentials in Portainer. The
+image workflow publishes `dev` and commit-SHA tags from `dev`; `main` publishes
+`latest`, the source-controlled version, and a commit-SHA tag. Production
+should pin the version tag instead of following `dev` or `latest`.
+
+The Swarm service names are `jldapp` and `jldnginx`. Swarm task container names
+still include the stack name, replica slot, and task ID. Configure the
+Cloudflare Tunnel public hostname to use `http://jldnginx`; HTTP defaults to
+port 80. The stack runs two `cloudflared` replicas and limits them to one per
+node, so at least two eligible Swarm nodes are required.
 
 Before deploying the stack, mount the shared NFS storage on every Swarm node at
-`${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}` and create
-these subdirectories:
+`${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger-dev}` and ensure
+these existing subdirectories are writable through the NFS share:
 
 ```text
 backups/
-logs/app/
-logs/nginx/
-logs/cloudflared/
 models/faster-whisper/
 ```
 
-The app container runs as UID/GID `1000`, so `backups/`, `logs/app/`, and
-`models/faster-whisper/` must be writable by that ID. The bundled nginx and
-cloudflared log directories must be writable by those container runtimes.
-
-Swarm binds that shared path into the stack so app logs, nginx logs,
-cloudflared logs, automatic backups, and local faster-whisper model files
-survive task rescheduling across nodes. Application data remains in the remote
-PostgreSQL database selected by `DATABASE_URL`; do not add database files to
-the NFS share for this stack.
-
-For an external nginx/cloudflared Swarm edge, set
-`JOB_LOGGER_BUNDLED_EDGE_REPLICAS=0` before `docker stack deploy`. This keeps
-the Job Logger app service running while scaling the bundled nginx and
-`cloudflared` services to zero. Attach the external nginx service to the Job
-Logger overlay network created by the stack, usually `job_logger_job_logger`
-when the stack name is `job_logger`, and proxy to `http://job_logger_app:8000`.
-Use `docs/external-nginx-job-logger.conf` as the starting nginx config and copy
-`docker/nginx/errors/` into that nginx image if you want matching app-styled
-proxy error pages. Point external `cloudflared` to the external nginx service,
-not directly to the app container. External nginx and cloudflared stacks should
-use the same shared storage strategy for their own logs because
-`docker-swarm.yml` only mounts log storage for the bundled edge services.
+No deployment-time `chown` or `chmod` step is required for this preconfigured
+share. Swarm binds only automatic backups and local faster-whisper model files
+to NFS so they survive task rescheduling. Application data remains in the
+remote PostgreSQL database selected by `DATABASE_URL`. App, Nginx, and
+`cloudflared` operational logs go only to stdout/stderr and remain available
+through the Docker logging driver.
 
 The standalone `docker-compose.yml` remains the path for single-host installs.
+If you intentionally replace the bundled Swarm Nginx service, use
+`docs/external-nginx-job-logger.conf` as the maintained starting point and
+proxy to `http://jldapp:8000` on the stack overlay network.
 
 If the local troubleshooting URL is changed to a different port, update only:
 
@@ -581,12 +574,17 @@ missing for enabled password reset, and it also requires Turnstile keys when
 non-enumerating, send email only when exactly one enabled managed user has the
 submitted email address, store only HMAC token hashes, expire links after 24
 hours by default, invalidate old managed-user sessions after a successful
-reset, and keep reset routes behind Cloudflare Access when configured.
+reset, and keep reset routes behind Cloudflare Access when configured. Three
+consecutive emails that do not resolve to exactly one enabled account locally
+lock that trusted request IP and, when Cloudflare blocking is configured, add
+it to the app-managed Cloudflare block list. A matching enabled account resets
+that consecutive-failure counter. Browser responses remain non-enumerating.
 
 Password reset settings:
 
 - `PASSWORD_RESET_ENABLED`, default `false`
 - `PASSWORD_RESET_TOKEN_TTL_HOURS`, default `24`
+- `PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD`, default `3`
 - `APP_PUBLIC_BASE_URL`, such as `https://logger.example.com`
 - `MAIL_ENABLED`, `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME`, and `MAIL_MODE`.
   `MAIL_MODE=smtp` uses `MAIL_SMTP_HOST`, `MAIL_SMTP_PORT`,
@@ -612,7 +610,7 @@ Set these passkey variables for production when needed:
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
 defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.3.0`. Version history starts at `v1.0.0`.
+currently `v1.3.1`. Version history starts at `v1.0.0`.
 
 Authenticated pages show a Help button in the shared header. `/help` starts
 with **Ask AI for help**, shows **Operational Status**, then shows the current
@@ -636,7 +634,7 @@ changelog views use the same authenticated session, dark/light theme variables,
 and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the authenticated Help button is yellow
 on desktop and phone layouts, and `/help` shows the current version with `DEV`,
-such as `v1.3.0 DEV`.
+such as `v1.3.1 DEV`.
 
 ## Provider Modes
 
@@ -665,7 +663,7 @@ The Docker Compose stack stores faster-whisper model files in the
 `faster_whisper_models` volume mounted at `/models/faster-whisper`. This keeps
 the model local and avoids redownloading it on every container restart.
 Docker Swarm stores the same path under the shared
-`${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/models/faster-whisper`
+`${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger-dev}/models/faster-whisper`
 directory so rescheduled app tasks can reuse the existing model cache on any
 node.
 Set `FASTER_WHISPER_LOCAL_FILES_ONLY=true` after the model exists locally if the
@@ -1288,16 +1286,23 @@ The same threshold locally blocks further password or Device sign-in
 verification for `LOGIN_LOCAL_LOCKOUT_MINUTES`, defaulting to 15. A successful
 password or Device sign-in login for that IP and username resets the counter to
 zero first.
+Forgot-password protection separately counts syntactically valid emails that
+do not resolve to exactly one enabled managed account. At
+`PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD`, defaulting to 3, the same
+trusted IP enters local lockout and optional Cloudflare blocking. A unique
+enabled-account match resets that IP counter without changing the generic
+browser response.
 `CLOUDFLARE_IP_BLOCK_ALLOWLIST` accepts trusted IPs or CIDRs separated by
 commas or whitespace so home/admin addresses are never app-blocked.
 
 The `/debug` page also includes a **Disk space** card for the app-visible root
 filesystem and `AUTOMATIC_BACKUP_DIR`. Paths with exactly matching used and
 total space are combined into one row because they are reporting the same
-underlying storage. The card warns at 85% used or under 5 GB free, and becomes
-critical at 95% used or under 1 GB free. In Docker this reflects storage visible
-from the app container; monitor PostgreSQL storage separately unless that
-storage is also exposed to the app container.
+underlying storage. Disk alerts use free space only: warning below
+`APP_HEALTH_DISK_WARNING_FREE_MB`, defaulting to 1000 MB, and critical below
+`APP_HEALTH_DISK_CRITICAL_FREE_MB`, defaulting to 250 MB. Used percentage stays
+visible for context but never triggers an alert. Monitor PostgreSQL storage
+separately unless it is also exposed to the app container.
 
 Diagnostics includes a **Database** card with safe connectivity status, query
 latency, backend/driver, migration revision, and connection-pool counters. It
@@ -1318,19 +1323,17 @@ uptime monitor: if the host, container, network path, or app process is fully
 down, the app cannot send its own Pushover message. Use an external monitor
 against `/health/live` for full unavailability alerts.
 
-Application logs go to stdout/stderr for standalone Compose compatibility. Use
-`docker compose logs app` or the configured container log driver for
-operational log history. In Swarm, `docker-swarm.yml` also sets `LOG_DIR` to
-`/data/logs`, backed by the shared storage path's `logs/app/` directory, so the
-redacted app log is also written to `job-logger-app.log`. `LOG_LEVEL` controls
-both stdout/stderr and file-log verbosity and must be one of `DEBUG`, `INFO`,
-`WARNING`, or `ERROR`.
+App, Nginx, and `cloudflared` operational logs go only to stdout/stderr in both
+Compose and Swarm. Use `docker compose logs app`,
+`docker service logs <stack>_jldapp`, or the configured container log driver
+for history. `LOG_LEVEL` controls app stdout/stderr verbosity and must be one of
+`DEBUG`, `INFO`, `WARNING`, or `ERROR`.
 
 The app also creates automatic full-database backups at startup and then every
 hour when `AUTOMATIC_BACKUPS_ENABLED=true`, which is the default. Docker Compose
 stores them in `${AUTOMATIC_BACKUP_DIR:-/data/backups}`, backed by the
 `automatic_backups` Docker volume. Docker Swarm stores them in the shared
-`${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/backups`
+`${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger-dev}/backups`
 directory. Retention keeps the newest 6 hourly backups plus one daily backup
 for today and one for each of the prior 2 days; expired automatic backups are
 purged after each successful automatic backup.

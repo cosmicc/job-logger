@@ -309,12 +309,16 @@ class PasswordResetToken(Base):
 
 
 class PasswordResetRequestCounter(Base):
-    """Persistent fixed-window throttle for self-service password-reset requests."""
+    """Persistent throttle or consecutive-abuse counter for password reset."""
 
     __tablename__ = "password_reset_request_counters"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string, comment="Stable reset throttle counter UUID.")
-    scope: Mapped[str] = mapped_column(String(20), nullable=False, comment="Throttle scope: ip, email, or account.")
+    scope: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        comment="Throttle scope: ip, email, account, or unmatched_email_ip.",
+    )
     scope_key: Mapped[str] = mapped_column(String(128), nullable=False, comment="Safe throttle key for the scope.")
     window_started_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")

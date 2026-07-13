@@ -53,8 +53,9 @@ def test_authenticated_help_page_renders_version_and_changelog(
     assert ">Operational Status<" in response.text
     assert ">Operational<" in response.text
     assert "All monitored app checks are fully operational." in response.text
-    assert ">v1.3.0<" in response.text
-    assert '<p class="help-version-release-date">Released: 07.11.2026</p>' in response.text
+    assert ">v1.3.1<" in response.text
+    assert '<p class="help-version-release-date">Released: 07.13.2026</p>' in response.text
+    assert "Released: 07.13.2026" in response.text
     assert "Released: 07.11.2026" in response.text
     assert "Released: 07.10.2026" in response.text
     assert 'href="/changelog"' in response.text
@@ -88,8 +89,8 @@ def test_help_page_shows_released_current_version_date(
         "load_changelog_entries",
         lambda: [
             ChangelogEntry(
-                version="1.3.0",
-                release_date="07.11.2026",
+                version="1.3.1",
+                release_date="07.13.2026",
                 title="Released test version",
                 changes=("Released-current test note.",),
             ),
@@ -105,8 +106,8 @@ def test_help_page_shows_released_current_version_date(
     response = authenticated_client.get("/help")
 
     assert response.status_code == 200
-    assert '<p class="help-version-release-date">Released: 07.11.2026</p>' in response.text
-    assert '<span class="release-date">Released: 07.11.2026</span>' in response.text
+    assert '<p class="help-version-release-date">Released: 07.13.2026</p>' in response.text
+    assert '<span class="release-date">Released: 07.13.2026</span>' in response.text
     assert '<span class="release-date">Released: 07.03.2026</span>' in response.text
 
 
@@ -406,4 +407,4 @@ def test_help_page_marks_dev_build(authenticated_client: TestClient) -> None:
     response = authenticated_client.get("/help")
 
     assert response.status_code == 200
-    assert ">v1.3.0 DEV<" in response.text
+    assert ">v1.3.1 DEV<" in response.text

@@ -107,7 +107,14 @@ and invalidate the user's existing signed sessions after success. Reset requests
 must verify Cloudflare Turnstile server-side when enabled, use independent
 IP/email/account throttles, and audit only safe metadata such as email hashes,
 user IDs, usernames, reset row IDs, provider names, delivery results, and
-rate-limit scopes. `TURNSTILE_ENABLED=false` is allowed for password reset in
+rate-limit scopes. Consecutive syntactically valid reset emails that do not
+resolve to exactly one enabled user are counted by trusted enforcement IP.
+At `PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD`, defaulting to 3, the IP
+must enter the normal local lockout and, when configured, the app-managed
+Cloudflare block list. Missing, disabled, and duplicate matches all count;
+one unique enabled match resets the counter. Keep browser responses generic,
+store no raw submitted email in the counter, and honor the Cloudflare IP
+allowlist. `TURNSTILE_ENABLED=false` is allowed for password reset in
 development and production; when Turnstile is disabled, the reset flow must
 still use CSRF, Cloudflare Access when configured, rate limits, generic
 non-enumerating responses, and HMAC-stored token hashes.
@@ -617,7 +624,7 @@ must mark the Help navigation button in yellow so dev instances are visually
 distinct from production without adding a separate pill. Full-browser
 authenticated headers also show the version under the left-side Job Logger
 title, using `vX.Y.Z-DEV` for dev builds. The Help page itself must show the
-current version with `DEV`, such as `v1.3.0 DEV`.
+current version with `DEV`, such as `v1.3.1 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows compact route and status icons on the left,
@@ -827,20 +834,17 @@ host/container/process-down alerts require an external monitor against
 `/health/live`. `DEV_BUILD=true` must suppress Pushover health notifications
 regardless of `PUSHOVER_ENABLED`.
 
-Swarm deployment uses `JOB_LOGGER_BUNDLED_EDGE_REPLICAS` because Swarm does
-not support Compose profiles. The default value is `1`, which runs bundled
-nginx and `cloudflared`. Set it to `0` only when an external nginx and
-`cloudflared` stack in the same Swarm handles the public edge and proxies to
-the Job Logger app service on the shared overlay network.
-Swarm deployment must also bind all file-backed runtime state to the shared
-NFS-backed storage path configured by `JOB_LOGGER_SWARM_STORAGE_PATH`,
-defaulting to `/mnt/swarm-storage/job-logger`. Keep app logs, bundled nginx
-logs, bundled cloudflared logs, automatic backups, and the faster-whisper model
-cache under that shared path so tasks can move between Swarm nodes without
-losing files. The Swarm database state remains on the remote PostgreSQL server
-referenced by `DATABASE_URL`; do not add a file-backed database service to
-`docker-swarm.yml` unless the operator explicitly asks for that separate
-persistent database design.
+Swarm deployment uses `docker-stack.yml`, the `jldapp` and `jldnginx` service
+names, private GHCR images selected by `JOB_LOGGER_APP_IMAGE` and
+`JOB_LOGGER_NGINX_IMAGE`, and the `http://jldnginx` Cloudflare Tunnel origin.
+Run two `cloudflared` replicas with at most one replica per node. The shared
+NFS path configured by `JOB_LOGGER_SWARM_STORAGE_PATH` defaults to
+`/mnt/swarm-storage/job-logger-dev` and is mounted on every node without
+deployment-time ownership or mode changes. Bind only automatic backups and the
+faster-whisper model cache under that path. App, Nginx, and `cloudflared`
+operational logs must go only to stdout/stderr. The Swarm database state remains
+on the remote PostgreSQL server referenced by `DATABASE_URL`; do not add a
+file-backed database service to `docker-stack.yml` unless explicitly requested.
 
 Health checks should be added for services where practical.
 PostgreSQL health checks must allow enough startup grace for first-time volume
@@ -1094,9 +1098,8 @@ The application is a FastAPI project under `job_logger/`.
   backups as startup or hourly when creation audit metadata is available.
 - `job_logger/services/login_failures.py` writes and reads sanitized
   successful/failed login attempts from the database and generates sanitized
-  JSONL downloads for Diagnostics. `LOG_LEVEL` controls stdout/stderr and
-  optional `LOG_DIR` file-log verbosity and must be one of `DEBUG`, `INFO`,
-  `WARNING`, or `ERROR`.
+  JSONL downloads for Diagnostics. `LOG_LEVEL` controls stdout/stderr verbosity
+  and must be one of `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
 - `job_logger/services/login_protection.py` enforces local pre-authentication
   lockout, increments persistent consecutive failed-login counters by trusted
   enforcement IP and username, stores sanitized failed-login database records,
@@ -1339,6 +1342,10 @@ In production:
   connection-pool pressure, active local login lockouts, and app-managed
   Cloudflare IP blocks. The `/debug` page should show a yellow or red
   app-health banner at the top when any monitored issue is active.
+  Disk alerts must use free space only: warning below
+  `APP_HEALTH_DISK_WARNING_FREE_MB`, defaulting to 1000, and critical below
+  `APP_HEALTH_DISK_CRITICAL_FREE_MB`, defaulting to 250. Used percentage is
+  display-only and must not trigger an alert.
 - The optional Pushover health monitor is best-effort and in-process. It can
   notify on degraded, changed, and restored monitored health only while the app
   process is running. Keep `PUSHOVER_USER_KEY` and `PUSHOVER_APP_KEY` in

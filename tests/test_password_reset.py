@@ -8,13 +8,21 @@ from urllib.parse import urlsplit
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from job_logger import database
 from job_logger.config import settings
 from job_logger.main import create_app
-from job_logger.models import AuditEvent, PasswordResetToken, WebUser
+from job_logger.models import (
+    AuditEvent,
+    CloudflareIPBlock,
+    PasswordResetRequestCounter,
+    PasswordResetToken,
+    WebUser,
+)
 from job_logger.routes import password_reset as password_reset_routes
 from job_logger.routes import users as users_routes
+from job_logger.services import password_reset as password_reset_service
 from job_logger.services.mail import MailDeliveryResult
 from job_logger.services.password_reset import PASSWORD_RESET_RATE_LIMIT_MESSAGE
 from job_logger.services.users import create_web_user, verify_web_user_password
@@ -169,6 +177,28 @@ def test_disabled_users_do_not_receive_password_reset_email(client: TestClient, 
     assert sent_messages == []
 
 
+def test_syntactically_invalid_reset_email_does_not_increment_abuse_counter(client: TestClient) -> None:
+    """Only syntactically valid but unmatched email addresses should count."""
+
+    with TestClient(create_app(_reset_settings())) as reset_client:
+        csrf_token = _forgot_password_csrf(reset_client)
+        for _ in range(4):
+            response = reset_client.post(
+                "/forgot-password",
+                data={"csrf_token": csrf_token, "email": "not-an-email"},
+                follow_redirects=True,
+            )
+            assert "Email must be a valid address." in response.text
+
+    with database.SessionLocal() as database_session:
+        unmatched_counter = database_session.scalar(
+            select(PasswordResetRequestCounter).where(
+                PasswordResetRequestCounter.scope == "unmatched_email_ip"
+            )
+        )
+        assert unmatched_counter is None
+
+
 def test_password_reset_link_changes_password_once_and_invalidates_sessions(client: TestClient, monkeypatch) -> None:
     """A valid reset token should be single-use, update the password, and invalidate sessions."""
 
@@ -287,15 +317,22 @@ def test_admin_sent_password_reset_link_works_when_self_service_reset_is_disable
         assert user.password_must_change is False
 
 
-def test_password_reset_requests_are_rate_limited_by_ip(client: TestClient) -> None:
-    """Reset throttles should work even when submitted emails do not match users."""
+def test_password_reset_requests_are_rate_limited_by_ip(client: TestClient, monkeypatch) -> None:
+    """The existing request throttle should still limit repeated valid-account requests."""
+
+    _set_seed_user_email("tech@example.test")
+    monkeypatch.setattr(
+        password_reset_routes,
+        "send_password_reset_email",
+        lambda **kwargs: MailDeliveryResult(succeeded=True),
+    )
 
     with TestClient(create_app(_reset_settings())) as reset_client:
         csrf_token = _forgot_password_csrf(reset_client)
         responses = [
             reset_client.post(
                 "/forgot-password",
-                data={"csrf_token": csrf_token, "email": f"missing-{index}@example.test"},
+                data={"csrf_token": csrf_token, "email": "tech@example.test"},
                 follow_redirects=True,
             )
             for index in range(6)
@@ -306,6 +343,183 @@ def test_password_reset_requests_are_rate_limited_by_ip(client: TestClient) -> N
     with database.SessionLocal() as database_session:
         audit_actions = [row.action for row in database_session.execute(select(AuditEvent)).scalars()]
         assert "auth.password_reset.rate_limited" in audit_actions
+
+
+def test_three_unmatched_reset_emails_lock_and_auto_block_the_trusted_ip(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    """Three consecutive unmatched emails should use local and Cloudflare protection."""
+
+    created_blocks: list[tuple[str, str, str, int | None]] = []
+
+    def fake_create_app_cloudflare_block(
+        database_session: Session,
+        ip_address: str,
+        *,
+        source: str,
+        reason: str,
+        failure_count: int | None = None,
+        application_settings=settings,
+    ) -> CloudflareIPBlock:
+        created_blocks.append((ip_address, source, reason, failure_count))
+        block = CloudflareIPBlock(
+            ip_address=ip_address,
+            cloudflare_rule_id="cf-password-reset-rule",
+            source=source,
+            reason=reason,
+            failure_count=failure_count,
+            notes="Job Logger automatic password reset block",
+        )
+        database_session.add(block)
+        database_session.flush()
+        return block
+
+    monkeypatch.setattr(
+        password_reset_service,
+        "cloudflare_ip_blocking_configured",
+        lambda application_settings=settings: True,
+    )
+    monkeypatch.setattr(
+        password_reset_service,
+        "create_app_cloudflare_block",
+        fake_create_app_cloudflare_block,
+    )
+    reset_settings = _reset_settings(
+        cloudflare_ip_blocking_enabled=True,
+        cloudflare_api_token="test-token",
+        cloudflare_zone_id="test-zone",
+    )
+
+    with TestClient(create_app(reset_settings)) as reset_client:
+        csrf_token = _forgot_password_csrf(reset_client)
+        responses = [
+            reset_client.post(
+                "/forgot-password",
+                headers={"X-Forwarded-For": "198.51.100.77"},
+                data={"csrf_token": csrf_token, "email": f"missing-{index}@example.test"},
+                follow_redirects=True,
+            )
+            for index in range(3)
+        ]
+        locked_response = reset_client.post(
+            "/forgot-password",
+            headers={"X-Forwarded-For": "198.51.100.77"},
+            data={"csrf_token": csrf_token, "email": "tech@example.test"},
+            follow_redirects=True,
+        )
+
+    assert all("If an enabled Job Logger account exists" in response.text for response in responses)
+    assert PASSWORD_RESET_RATE_LIMIT_MESSAGE in locked_response.text
+    assert created_blocks == [
+        (
+            "198.51.100.77",
+            "automatic_password_reset",
+            "3 consecutive unmatched password reset email attempts",
+            3,
+        )
+    ]
+    with database.SessionLocal() as database_session:
+        counter = database_session.scalar(
+            select(PasswordResetRequestCounter).where(
+                PasswordResetRequestCounter.scope == "unmatched_email_ip",
+                PasswordResetRequestCounter.scope_key == "198.51.100.77",
+            )
+        )
+        assert counter is not None
+        assert counter.request_count == 3
+        scope_keys = [
+            row.scope_key
+            for row in database_session.execute(select(PasswordResetRequestCounter)).scalars()
+        ]
+        assert not any("missing-" in scope_key or "@example.test" in scope_key for scope_key in scope_keys)
+        block = database_session.scalar(
+            select(CloudflareIPBlock).where(CloudflareIPBlock.ip_address == "198.51.100.77")
+        )
+        assert block is not None
+        assert block.source == "automatic_password_reset"
+        audit_actions = [row.action for row in database_session.execute(select(AuditEvent)).scalars()]
+        assert "debug.cloudflare_ip_block.created" in audit_actions
+        assert "auth.password_reset.local_lockout" in audit_actions
+
+
+def test_unique_enabled_reset_email_clears_consecutive_unmatched_counter(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    """A unique enabled-account match should restart the IP abuse sequence."""
+
+    _set_seed_user_email("tech@example.test")
+    monkeypatch.setattr(
+        password_reset_routes,
+        "send_password_reset_email",
+        lambda **kwargs: MailDeliveryResult(succeeded=True),
+    )
+
+    with TestClient(create_app(_reset_settings())) as reset_client:
+        csrf_token = _forgot_password_csrf(reset_client)
+        for index in range(2):
+            reset_client.post(
+                "/forgot-password",
+                data={"csrf_token": csrf_token, "email": f"missing-{index}@example.test"},
+                follow_redirects=False,
+            )
+        reset_client.post(
+            "/forgot-password",
+            data={"csrf_token": csrf_token, "email": "tech@example.test"},
+            follow_redirects=False,
+        )
+
+    with database.SessionLocal() as database_session:
+        counter = database_session.scalar(
+            select(PasswordResetRequestCounter).where(
+                PasswordResetRequestCounter.scope == "unmatched_email_ip"
+            )
+        )
+        assert counter is not None
+        assert counter.request_count == 0
+
+
+def test_password_reset_cloudflare_allowlist_prevents_automatic_rule(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    """The Cloudflare allowlist must prevent a reset-abuse access rule."""
+
+    monkeypatch.setattr(
+        password_reset_service,
+        "cloudflare_ip_blocking_configured",
+        lambda application_settings=settings: True,
+    )
+
+    def fail_create_app_cloudflare_block(*args, **kwargs):
+        raise AssertionError("allowlisted IP must not be sent to Cloudflare")
+
+    monkeypatch.setattr(
+        password_reset_service,
+        "create_app_cloudflare_block",
+        fail_create_app_cloudflare_block,
+    )
+    reset_settings = _reset_settings(
+        cloudflare_ip_blocking_enabled=True,
+        cloudflare_api_token="test-token",
+        cloudflare_zone_id="test-zone",
+        cloudflare_ip_block_allowlist="198.51.100.0/24",
+    )
+
+    with TestClient(create_app(reset_settings)) as reset_client:
+        csrf_token = _forgot_password_csrf(reset_client)
+        for index in range(3):
+            response = reset_client.post(
+                "/forgot-password",
+                headers={"X-Forwarded-For": "198.51.100.88"},
+                data={"csrf_token": csrf_token, "email": f"missing-{index}@example.test"},
+                follow_redirects=True,
+            )
+            assert "If an enabled Job Logger account exists" in response.text
+
+    with database.SessionLocal() as database_session:
+        assert database_session.scalar(select(CloudflareIPBlock)) is None
 
 
 def test_turnstile_csp_is_added_when_password_reset_uses_turnstile(client: TestClient) -> None:

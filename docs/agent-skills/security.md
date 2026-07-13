@@ -87,7 +87,15 @@ invalidate existing managed-user sessions on success. Reset throttles are
 independent of Turnstile: per IP 5 requests per 15 minutes, per submitted email
 3 per hour, and per matched account 1 email per 15 minutes. Store email
 throttle keys and audit email identifiers as HMAC hashes, not raw submitted
-addresses. `TURNSTILE_ENABLED=false` is allowed in development and production,
+addresses. Also count consecutive syntactically valid emails that do not match
+exactly one enabled account by trusted enforcement IP. Missing, disabled, and
+duplicate matches count toward
+`PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD`, defaulting to 3. At the
+threshold, apply `LOGIN_LOCAL_LOCKOUT_MINUTES` and optional app-managed
+Cloudflare blocking; reset the counter after one unique enabled match. Keep the
+browser response non-enumerating, store no raw email in that IP counter, and
+honor `CLOUDFLARE_IP_BLOCK_ALLOWLIST`. `TURNSTILE_ENABLED=false` is allowed in
+development and production,
 but the flow must still use CSRF, Cloudflare Access when configured, rate
 limits, generic non-enumerating responses, and HMAC-stored token hashes.
 Reset-token pages and completion must keep accepting valid admin-sent reset
@@ -293,13 +301,16 @@ submission-attempt diagnostics must stay paginated at 7 rows per page without
 vertical table scrollbars. Cloudflare blocked-IP diagnostics stay paginated at
 10 rows per page. Wide Diagnostics tables should stay horizontally scrollable on
 phone layouts instead of compressing columns, especially when they include
-per-row backup or Cloudflare actions. `LOG_LEVEL` controls stdout/stderr and optional `LOG_DIR`
-file-log verbosity and must be limited to `DEBUG`, `INFO`, `WARNING`, or
-`ERROR`. `/debug` may also show
+per-row backup or Cloudflare actions. `LOG_LEVEL` controls stdout/stderr
+verbosity and must be limited to `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
+`/debug` may also show
 disk usage for app-visible storage paths such as `/` and
 `${AUTOMATIC_BACKUP_DIR}`. Combine monitored paths when used bytes and total
 bytes match exactly, and keep disk diagnostics read-only and limited to path,
-usage, and warning/critical metadata. On full-browser Diagnostics, keep the
+usage, and warning/critical metadata. Warning and critical health state must be
+based only on free space through `APP_HEALTH_DISK_WARNING_FREE_MB`, defaulting
+to 1000, and `APP_HEALTH_DISK_CRITICAL_FREE_MB`, defaulting to 250. Used
+percentage remains display-only. On full-browser Diagnostics, keep the
 disk-space card and managed-web-user session-controls card together on a
 same-height row above the database card; phone layouts should continue stacking
 those cards.
@@ -620,7 +631,8 @@ The scheduler writes one startup file and then hourly files under
 `AUTOMATIC_BACKUP_DIR`, defaulting to `/data/backups` in Docker. Keep the
 backup directory private: files must be written through owner-only temporary
 files when possible. Swarm binds `/data/backups` to the shared
-`JOB_LOGGER_SWARM_STORAGE_PATH` backup directory so retained backups are
+`JOB_LOGGER_SWARM_STORAGE_PATH` backup directory, defaulting to
+`/mnt/swarm-storage/job-logger-dev/backups`, so retained backups are
 available after task rescheduling,
 directory listings and downloads must be Diagnostics-authorized only, selected
 download or restore filenames must be strictly validated instead of trusting
@@ -633,10 +645,10 @@ sensitive runtime state for older files that lack that metadata.
 ## Docker And Runtime Safety
 
 The application container runs as the fixed unprivileged `appuser` account.
-Application logs must go to stdout/stderr so standalone Compose deployments can
-collect them through the container runtime. Swarm deployments also set `LOG_DIR`
-to a shared NFS-backed app-log directory so a redacted file log survives task
-rescheduling.
+Application, Nginx, and `cloudflared` operational logs must go only to
+stdout/stderr so Compose and Swarm collect them through the container runtime.
+Do not restore `LOG_DIR`, Nginx file-log paths, or the `cloudflared --logfile`
+option.
 
 PostgreSQL data must live in a persistent volume or documented persistent
 storage.
@@ -653,16 +665,16 @@ shared `bundled-edge` profile so they can be enabled or omitted together.
 Normalize plain `postgresql://` and `postgres://` URLs to the installed psycopg
 3 driver before creating app or Alembic engines. Keep remote database
 connections bounded with the documented pool and timeout settings.
-Swarm deployment must use `docker-swarm.yml`, prebuilt pushed images, a remote
-PostgreSQL `DATABASE_URL`, overlay networking, and shared NFS-backed file
-storage under `JOB_LOGGER_SWARM_STORAGE_PATH`, defaulting to
-`/mnt/swarm-storage/job-logger`. Bind app logs, bundled nginx logs, bundled
-cloudflared logs, automatic backups, and the faster-whisper model cache under
-that path. Do not add a PostgreSQL service to the Swarm file unless the
-operator explicitly asks for a separate persistent Swarm database design. Swarm
-uses `JOB_LOGGER_BUNDLED_EDGE_REPLICAS` instead of Compose profiles; keep the
-default at `1`, and use `0` only when an external nginx and `cloudflared` stack
-in the same Swarm handles the public edge.
+Swarm deployment must use `docker-stack.yml`, prebuilt private GHCR images, a
+remote PostgreSQL `DATABASE_URL`, and overlay networking. The app and Nginx
+service names are `jldapp` and `jldnginx`; the remotely managed tunnel origin
+is `http://jldnginx`. Run two `cloudflared` replicas with
+`max_replicas_per_node: 1`. Shared NFS storage under
+`JOB_LOGGER_SWARM_STORAGE_PATH`, defaulting to
+`/mnt/swarm-storage/job-logger-dev`, is already mounted on every node and must
+hold only automatic backups and the faster-whisper model cache. Do not run
+deployment-time `chown` or `chmod`, and do not add a PostgreSQL service unless
+the operator explicitly requests a separate persistent Swarm database design.
 
 The app entrypoint should wait briefly for database connectivity and emit
 sanitized diagnostics before migrations. If the database remains unavailable,
