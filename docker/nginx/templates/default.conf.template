@@ -10,7 +10,9 @@ map $http_cf_connecting_ip $job_logger_client_ip {
 
 server {
     # Nginx listens only inside Docker unless mapped by docker-compose.yml.
-    listen 80;
+    # Swarm sets this from HTTP_PORT so the private tunnel origin port is
+    # configurable without publishing the service through the routing mesh.
+    listen ${NGINX_LISTEN_PORT};
     server_name _;
     server_tokens off;
 

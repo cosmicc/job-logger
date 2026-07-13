@@ -306,35 +306,56 @@ database, network, or code details.
 
 ### Docker Swarm Deployment
 
-Use `docker-stack.yml` for Swarm. It is image-based, expects PostgreSQL to run
-outside the stack, and pulls the private app and Nginx packages published by
-GitHub Actions:
+Swarm has separate production and dev contracts. Both are image-based, expect
+PostgreSQL outside the stack, and pull the private app and Nginx packages
+published by GitHub Actions:
+
+| Environment | Stack file | Stack name | App / Nginx | Storage root | Tunnel origin |
+| --- | --- | --- | --- | --- | --- |
+| Production | `docker-stack.yml` | `job_logger` | `jlapp` / `jlnginx` | `/mnt/swarm-storage/job-logger` | `http://jlnginx:${HTTP_PORT}` |
+| Dev | `docker-stack.dev.yml` | `job_logger_dev` | `jldapp` / `jldnginx` | `/mnt/swarm-storage/job-logger-dev` | `http://jldnginx:${HTTP_PORT}` |
+
+Production should pin a version published from `main`:
+
+```bash
+export JOB_LOGGER_APP_IMAGE=ghcr.io/cosmicc/job-logger-app:1.3.1
+export JOB_LOGGER_NGINX_IMAGE=ghcr.io/cosmicc/job-logger-nginx:1.3.1
+export JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger
+export DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
+export CLOUDFLARE_TUNNEL_TOKEN=<token>
+export HTTP_PORT=80
+docker stack deploy --with-registry-auth -c docker-stack.yml job_logger
+```
+
+Dev uses the `dev` image tags and its own storage root:
 
 ```bash
 export JOB_LOGGER_APP_IMAGE=ghcr.io/cosmicc/job-logger-app:dev
 export JOB_LOGGER_NGINX_IMAGE=ghcr.io/cosmicc/job-logger-nginx:dev
 export JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger-dev
-export DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
-export CLOUDFLARE_TUNNEL_TOKEN=<token>
-docker stack deploy --with-registry-auth -c docker-stack.yml job_logger_dev
+export DATABASE_URL=postgresql+psycopg://job_logger_dev:<password>@postgres.example.com:5432/job_logger_dev
+export CLOUDFLARE_TUNNEL_TOKEN=<dev-token>
+export HTTP_PORT=80
+docker stack deploy --with-registry-auth -c docker-stack.dev.yml job_logger_dev
 ```
 
 Log in to GHCR on the Swarm manager that performs the deployment and keep
 `--with-registry-auth` on the deploy command so workers receive pull
 credentials, or configure the private registry credentials in Portainer. The
 image workflow publishes `dev` and commit-SHA tags from `dev`; `main` publishes
-`latest`, the source-controlled version, and a commit-SHA tag. Production
-should pin the version tag instead of following `dev` or `latest`.
+`latest`, the source-controlled version, and a commit-SHA tag. Keep the dev and
+production stack environments separate, including `DATABASE_URL`,
+`APP_SECRET_KEY`, tunnel token, public URL, and WebAuthn settings.
 
-The Swarm service names are `jldapp` and `jldnginx`. Swarm task container names
-still include the stack name, replica slot, and task ID. Configure the
-Cloudflare Tunnel public hostname to use `http://jldnginx`; HTTP defaults to
-port 80. The stack runs two `cloudflared` replicas and limits them to one per
-node, so at least two eligible Swarm nodes are required.
+`HTTP_PORT` is the private Nginx listener inside each stack overlay and defaults
+to `80`. Set the matching Cloudflare Tunnel origin to `http://jldnginx:80` for
+dev or `http://jlnginx:80` for production. If you change `HTTP_PORT`, change the
+corresponding tunnel origin port too. The port is intentionally not published
+through the Swarm routing mesh. Both stacks run two `cloudflared` replicas with
+at most one per node, so at least two eligible nodes are required.
 
-Before deploying the stack, mount the shared NFS storage on every Swarm node at
-`${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger-dev}` and ensure
-these existing subdirectories are writable through the NFS share:
+Before deployment, mount both selected NFS roots on every eligible node and
+ensure each has these existing writable subdirectories:
 
 ```text
 backups/
@@ -350,8 +371,8 @@ through the Docker logging driver.
 
 The standalone `docker-compose.yml` remains the path for single-host installs.
 If you intentionally replace the bundled Swarm Nginx service, use
-`docs/external-nginx-job-logger.conf` as the maintained starting point and
-proxy to `http://jldapp:8000` on the stack overlay network.
+`docs/external-nginx-job-logger.conf` as the maintained production starting
+point and proxy to `http://jlapp:8000`; use `jldapp` for dev.
 
 If the local troubleshooting URL is changed to a different port, update only:
 
@@ -662,10 +683,9 @@ Set these variables for local transcription:
 The Docker Compose stack stores faster-whisper model files in the
 `faster_whisper_models` volume mounted at `/models/faster-whisper`. This keeps
 the model local and avoids redownloading it on every container restart.
-Docker Swarm stores the same path under the shared
-`${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger-dev}/models/faster-whisper`
-directory so rescheduled app tasks can reuse the existing model cache on any
-node.
+Docker Swarm stores the same path under the selected production or dev storage
+root in `models/faster-whisper/`, so rescheduled app tasks can reuse the model
+cache on any node.
 Set `FASTER_WHISPER_LOCAL_FILES_ONLY=true` after the model exists locally if the
 container should not attempt any model download.
 `FASTER_WHISPER_CPU_THREADS` defaults to `8` and is passed directly to
@@ -1325,18 +1345,19 @@ against `/health/live` for full unavailability alerts.
 
 App, Nginx, and `cloudflared` operational logs go only to stdout/stderr in both
 Compose and Swarm. Use `docker compose logs app`,
-`docker service logs <stack>_jldapp`, or the configured container log driver
-for history. `LOG_LEVEL` controls app stdout/stderr verbosity and must be one of
-`DEBUG`, `INFO`, `WARNING`, or `ERROR`.
+`docker service logs job_logger_jlapp`,
+`docker service logs job_logger_dev_jldapp`, or the configured container log
+driver for history. `LOG_LEVEL` controls app stdout/stderr verbosity and must
+be one of `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
 
 The app also creates automatic full-database backups at startup and then every
 hour when `AUTOMATIC_BACKUPS_ENABLED=true`, which is the default. Docker Compose
 stores them in `${AUTOMATIC_BACKUP_DIR:-/data/backups}`, backed by the
-`automatic_backups` Docker volume. Docker Swarm stores them in the shared
-`${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger-dev}/backups`
-directory. Retention keeps the newest 6 hourly backups plus one daily backup
-for today and one for each of the prior 2 days; expired automatic backups are
-purged after each successful automatic backup.
+`automatic_backups` Docker volume. Docker Swarm stores them in `backups/` under
+the selected production or dev storage root. Retention keeps the newest 6
+hourly backups plus one daily backup for today and one for each of the prior 2
+days; expired automatic backups are purged after each successful automatic
+backup.
 Diagnostics labels retained automatic backups as `Startup` or `Hourly` when
 that creation metadata is available; older retained files may show no source
 label.

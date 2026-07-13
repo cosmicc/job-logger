@@ -630,10 +630,9 @@ Automatic backups use the same full-backup content format and restore path.
 The scheduler writes one startup file and then hourly files under
 `AUTOMATIC_BACKUP_DIR`, defaulting to `/data/backups` in Docker. Keep the
 backup directory private: files must be written through owner-only temporary
-files when possible. Swarm binds `/data/backups` to the shared
-`JOB_LOGGER_SWARM_STORAGE_PATH` backup directory, defaulting to
-`/mnt/swarm-storage/job-logger-dev/backups`, so retained backups are
-available after task rescheduling,
+files when possible. Swarm binds `/data/backups` to `backups/` under the
+environment-specific `JOB_LOGGER_SWARM_STORAGE_PATH` shared NFS root. Retained
+backups are available after task rescheduling,
 directory listings and downloads must be Diagnostics-authorized only, selected
 download or restore filenames must be strictly validated instead of trusting
 form paths, and retention must purge expired automatic backups after successful
@@ -665,16 +664,22 @@ shared `bundled-edge` profile so they can be enabled or omitted together.
 Normalize plain `postgresql://` and `postgres://` URLs to the installed psycopg
 3 driver before creating app or Alembic engines. Keep remote database
 connections bounded with the documented pool and timeout settings.
-Swarm deployment must use `docker-stack.yml`, prebuilt private GHCR images, a
-remote PostgreSQL `DATABASE_URL`, and overlay networking. The app and Nginx
-service names are `jldapp` and `jldnginx`; the remotely managed tunnel origin
-is `http://jldnginx`. Run two `cloudflared` replicas with
-`max_replicas_per_node: 1`. Shared NFS storage under
-`JOB_LOGGER_SWARM_STORAGE_PATH`, defaulting to
-`/mnt/swarm-storage/job-logger-dev`, is already mounted on every node and must
-hold only automatic backups and the faster-whisper model cache. Do not run
-deployment-time `chown` or `chmod`, and do not add a PostgreSQL service unless
-the operator explicitly requests a separate persistent Swarm database design.
+Swarm deployment must use prebuilt private GHCR images, a remote PostgreSQL
+`DATABASE_URL`, and overlay networking. Production uses `docker-stack.yml`,
+`jlapp`, `jlnginx`, production-tag image variable values, and
+`http://jlnginx:<HTTP_PORT>`. Dev uses `docker-stack.dev.yml`, `jldapp`,
+`jldnginx`, dev-tag values in the same per-stack image variables, and
+`http://jldnginx:<HTTP_PORT>`.
+`HTTP_PORT` controls the private Nginx listener and defaults to `80`; do not
+publish it through the Swarm routing mesh because that would expose Nginx on
+node interfaces. Run two `cloudflared` replicas per stack with
+`max_replicas_per_node: 1`. Per-stack `JOB_LOGGER_SWARM_STORAGE_PATH` defaults
+to `/mnt/swarm-storage/job-logger` in production and
+`/mnt/swarm-storage/job-logger-dev` in dev. Both are already mounted on every
+node and must hold only automatic backups and the faster-whisper model cache.
+Do not run deployment-time `chown` or `chmod`, and do not add a PostgreSQL
+service unless the operator explicitly requests a separate persistent Swarm
+database design.
 
 The app entrypoint should wait briefly for database connectivity and emit
 sanitized diagnostics before migrations. If the database remains unavailable,
@@ -707,9 +712,11 @@ production startup must not hard-require that optional Access header gate.
 Production startup must still fail unless `APP_SESSION_COOKIE_SECURE=true`,
 non-default app/database secrets that are not copied placeholders are
 configured, and `AUTOTASK_PROVIDER=autotask` is used.
-Docker nginx publishing binds only to `127.0.0.1` and uses `HTTP_PORT` as the
-host-networked `cloudflared` origin URL port. External nginx deployments must
-attach to the same trusted Docker network or Swarm overlay as the app service
+Docker Compose Nginx publishing binds only to `127.0.0.1` and uses `HTTP_PORT`
+as the host-networked `cloudflared` origin URL port. Swarm uses `HTTP_PORT` only
+as Nginx's private overlay listener and does not publish it. External nginx
+deployments must attach to the same trusted Docker network or Swarm overlay as
+the app service
 and mirror the bundled nginx security behavior: blocked API/schema/docs/health
 paths, sanitized `X-Forwarded-For` and `X-Real-IP`, forwarded HTTPS scheme
 preservation, the audio WebSocket route, the scoped `/debug/restore` body

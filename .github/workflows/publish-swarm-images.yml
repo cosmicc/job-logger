@@ -15,6 +15,7 @@ on:
       - "README.md"
       - "WEB_CHANGELOG.md"
       - "docker-stack.yml"
+      - "docker-stack.dev.yml"
       - ".github/workflows/publish-swarm-images.yml"
 
   workflow_dispatch:
@@ -43,7 +44,10 @@ jobs:
           APP_SECRET_KEY: validation-secret-key
           APP_PASSWORD: validation-password
           CLOUDFLARE_TUNNEL_TOKEN: validation-tunnel-token
-        run: docker stack config -c docker-stack.yml >/dev/null
+          HTTP_PORT: 8080
+        run: |
+          docker stack config -c docker-stack.yml >/dev/null
+          docker stack config -c docker-stack.dev.yml >/dev/null
 
   publish:
     name: Publish ${{ matrix.component }} image
@@ -53,12 +57,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - component: jldapp
+          - component: app
             context: .
             dockerfile: ./Dockerfile
             image: ghcr.io/cosmicc/job-logger-app
 
-          - component: jldnginx
+          - component: nginx
             context: ./docker/nginx
             dockerfile: ./docker/nginx/Dockerfile
             image: ghcr.io/cosmicc/job-logger-nginx

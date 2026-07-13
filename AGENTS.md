@@ -785,8 +785,9 @@ The project must support Docker-based deployment.
 
 Docker Compose should include the Python application, PostgreSQL, and
 `cloudflared` when practical.
-Nginx host publishing must bind only to `127.0.0.1` and use `HTTP_PORT` for the
-host-networked Cloudflare Tunnel origin URL, such as `http://127.0.0.1:2082`.
+Docker Compose Nginx host publishing must bind only to `127.0.0.1` and use
+`HTTP_PORT` for the host-networked Cloudflare Tunnel origin URL, such as
+`http://127.0.0.1:2082`. Swarm keeps the Nginx listener private to its overlay.
 The internet-facing nginx template must block public API-style, generated docs,
 and public health paths and use app-styled Job Logger web service error pages
 for common nginx-generated 4xx and 5xx responses instead of stock server pages.
@@ -834,17 +835,23 @@ host/container/process-down alerts require an external monitor against
 `/health/live`. `DEV_BUILD=true` must suppress Pushover health notifications
 regardless of `PUSHOVER_ENABLED`.
 
-Swarm deployment uses `docker-stack.yml`, the `jldapp` and `jldnginx` service
-names, private GHCR images selected by `JOB_LOGGER_APP_IMAGE` and
-`JOB_LOGGER_NGINX_IMAGE`, and the `http://jldnginx` Cloudflare Tunnel origin.
-Run two `cloudflared` replicas with at most one replica per node. The shared
-NFS path configured by `JOB_LOGGER_SWARM_STORAGE_PATH` defaults to
-`/mnt/swarm-storage/job-logger-dev` and is mounted on every node without
-deployment-time ownership or mode changes. Bind only automatic backups and the
-faster-whisper model cache under that path. App, Nginx, and `cloudflared`
-operational logs must go only to stdout/stderr. The Swarm database state remains
-on the remote PostgreSQL server referenced by `DATABASE_URL`; do not add a
-file-backed database service to `docker-stack.yml` unless explicitly requested.
+Production Swarm deployment uses `docker-stack.yml`, the `jlapp` and `jlnginx`
+service names, private GHCR images selected by `JOB_LOGGER_APP_IMAGE` and
+`JOB_LOGGER_NGINX_IMAGE`, and the `http://jlnginx:<HTTP_PORT>` Cloudflare Tunnel
+origin. Dev Swarm deployment uses `docker-stack.dev.yml`, the `jldapp` and
+`jldnginx` service names, dev-tag values in the same per-stack image variables,
+and `http://jldnginx:<HTTP_PORT>`. `HTTP_PORT` defaults to the private overlay
+port `80`; do not publish it through the Swarm routing mesh because Swarm cannot
+restrict a published port to loopback.
+Run two `cloudflared` replicas with at most one replica per node in each stack.
+The per-stack `JOB_LOGGER_SWARM_STORAGE_PATH` defaults to
+`/mnt/swarm-storage/job-logger` in production and
+`/mnt/swarm-storage/job-logger-dev` in dev. Both NFS roots are mounted on every
+eligible node without deployment-time ownership or mode changes. Bind only
+automatic backups and the faster-whisper model cache under those paths.
+App, Nginx, and `cloudflared` operational logs must go only to stdout/stderr.
+Each stack must use its own remote PostgreSQL database and deployment secrets;
+do not add a file-backed database service unless explicitly requested.
 
 Health checks should be added for services where practical.
 PostgreSQL health checks must allow enough startup grace for first-time volume
@@ -948,10 +955,11 @@ branch. Do not merge `dev` into `main`, tag a release, or report production
 deployment readiness unless the user explicitly asks for that release step.
 
 The dev deployment should run as a separate instance from production, with its
-own checkout or worktree, Docker Compose project name, `.env`, database volume
-or remote database, backup path, Cloudflare Tunnel token, public hostname,
-WebAuthn origin, and host-facing `HTTP_PORT`. This keeps dev testing from
-sharing production sessions, backups, database state, or tunnel credentials.
+own checkout or worktree, Docker Compose project or Swarm stack name, `.env`,
+database volume or remote database, backup path, Cloudflare Tunnel token,
+public hostname, WebAuthn origin, and environment-specific `HTTP_PORT`. This
+keeps dev testing from sharing production sessions, backups, database state, or
+tunnel credentials.
 
 ## Agent Orientation Map
 

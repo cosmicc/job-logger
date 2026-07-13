@@ -6,6 +6,7 @@ from pathlib import Path
 
 COMPOSE_FILE = Path(__file__).resolve().parents[1] / "docker-compose.yml"
 SWARM_FILE = Path(__file__).resolve().parents[1] / "docker-stack.yml"
+DEV_SWARM_FILE = Path(__file__).resolve().parents[1] / "docker-stack.dev.yml"
 ENV_EXAMPLE_FILE = Path(__file__).resolve().parents[1] / ".env.example"
 README_FILE = Path(__file__).resolve().parents[1] / "README.md"
 EXTERNAL_NGINX_FILE = Path(__file__).resolve().parents[1] / "docs/external-nginx-job-logger.conf"
@@ -47,9 +48,10 @@ def test_compose_and_swarm_expose_admin_contact_email() -> None:
 
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
     swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    dev_swarm_text = DEV_SWARM_FILE.read_text(encoding="utf-8")
     env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
 
-    for deployment_text in (compose_text, swarm_text):
+    for deployment_text in (compose_text, swarm_text, dev_swarm_text):
         assert "ADMIN_CONTACT_EMAIL: ${ADMIN_CONTACT_EMAIL:-}" in deployment_text
 
     assert "ADMIN_CONTACT_EMAIL=admin@example.com" in env_example_text
@@ -73,9 +75,10 @@ def test_compose_and_swarm_expose_password_reset_settings() -> None:
 
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
     swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    dev_swarm_text = DEV_SWARM_FILE.read_text(encoding="utf-8")
     env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
 
-    for deployment_text in (compose_text, swarm_text):
+    for deployment_text in (compose_text, swarm_text, dev_swarm_text):
         assert "PASSWORD_RESET_ENABLED: ${PASSWORD_RESET_ENABLED:-false}" in deployment_text
         assert "PASSWORD_RESET_TOKEN_TTL_HOURS: ${PASSWORD_RESET_TOKEN_TTL_HOURS:-24}" in deployment_text
         assert (
@@ -168,9 +171,10 @@ def test_compose_and_swarm_expose_pushover_health_settings() -> None:
 
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
     swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    dev_swarm_text = DEV_SWARM_FILE.read_text(encoding="utf-8")
     env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
 
-    for deployment_text in (compose_text, swarm_text):
+    for deployment_text in (compose_text, swarm_text, dev_swarm_text):
         assert "APP_HEALTH_MONITOR_INTERVAL_SECONDS: ${APP_HEALTH_MONITOR_INTERVAL_SECONDS:-300}" in deployment_text
         assert "APP_HEALTH_DISK_WARNING_FREE_MB: ${APP_HEALTH_DISK_WARNING_FREE_MB:-1000}" in deployment_text
         assert "APP_HEALTH_DISK_CRITICAL_FREE_MB: ${APP_HEALTH_DISK_CRITICAL_FREE_MB:-250}" in deployment_text
@@ -194,9 +198,10 @@ def test_compose_and_swarm_expose_ai_help_settings() -> None:
 
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
     swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    dev_swarm_text = DEV_SWARM_FILE.read_text(encoding="utf-8")
     env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
 
-    for deployment_text in (compose_text, swarm_text):
+    for deployment_text in (compose_text, swarm_text, dev_swarm_text):
         assert "AI_HELP_ENABLED: ${AI_HELP_ENABLED:-false}" in deployment_text
         assert "AI_HELP_PROVIDER: ${AI_HELP_PROVIDER:-gemini}" in deployment_text
         assert "GEMINI_API_KEY: ${GEMINI_API_KEY:-}" in deployment_text
@@ -218,9 +223,10 @@ def test_compose_and_swarm_expose_autotask_thread_limit_settings() -> None:
 
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
     swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    dev_swarm_text = DEV_SWARM_FILE.read_text(encoding="utf-8")
     env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
 
-    for deployment_text in (compose_text, swarm_text):
+    for deployment_text in (compose_text, swarm_text, dev_swarm_text):
         assert "AUTOTASK_MAX_CONCURRENT_REQUESTS: ${AUTOTASK_MAX_CONCURRENT_REQUESTS:-2}" in deployment_text
         assert "AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS: ${AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS:-30}" in deployment_text
 
@@ -233,9 +239,10 @@ def test_gemini_cleanup_uses_shared_gemini_api_base_setting() -> None:
 
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
     swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+    dev_swarm_text = DEV_SWARM_FILE.read_text(encoding="utf-8")
     env_example_text = ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
 
-    for deployment_text in (compose_text, swarm_text):
+    for deployment_text in (compose_text, swarm_text, dev_swarm_text):
         assert "GEMINI_API_BASE: ${GEMINI_API_BASE:-https://generativelanguage.googleapis.com/v1beta/openai/}" in deployment_text
         assert "GEMINI_CLEANUP_MODEL: ${GEMINI_CLEANUP_MODEL:-gemini-3.5-flash}" in deployment_text
         assert "GEMINI_CLEANUP_API_BASE_URL" not in deployment_text
@@ -255,6 +262,9 @@ def test_env_example_documents_compose_and_swarm_contracts() -> None:
     assert "For a remote PostgreSQL server, remove `local-db`" in env_example_text
     assert "For an external nginx and" in env_example_text
     assert "remove `bundled-edge`" in env_example_text
+    assert "JOB_LOGGER_APP_IMAGE=ghcr.io/cosmicc/job-logger-app:1.3.1" in env_example_text
+    assert "JOB_LOGGER_NGINX_IMAGE=ghcr.io/cosmicc/job-logger-nginx:1.3.1" in env_example_text
+    assert "JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger" in env_example_text
     assert "JOB_LOGGER_APP_IMAGE=ghcr.io/cosmicc/job-logger-app:dev" in env_example_text
     assert "JOB_LOGGER_NGINX_IMAGE=ghcr.io/cosmicc/job-logger-nginx:dev" in env_example_text
     assert "JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger-dev" in env_example_text
@@ -276,15 +286,20 @@ def test_nginx_host_port_uses_localhost_and_http_port() -> None:
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
 
     assert '"127.0.0.1:${HTTP_PORT:-11030}:80"' in compose_text
+    assert "NGINX_LISTEN_PORT: 80" in compose_text
     assert "network_mode: \"host\"" in compose_text
 
 
-def test_swarm_stack_uses_private_images_stable_services_and_scoped_shared_storage() -> None:
-    """Swarm should use stable service names and NFS only for backups and models."""
+def _assert_common_swarm_contract(
+    swarm_text: str,
+    *,
+    app_service: str,
+    nginx_service: str,
+) -> None:
+    """Check security and availability rules shared by both Swarm stacks."""
 
-    swarm_text = SWARM_FILE.read_text(encoding="utf-8")
-    app_index = swarm_text.index("  jldapp:")
-    nginx_index = swarm_text.index("\n  jldnginx:", app_index)
+    app_index = swarm_text.index(f"  {app_service}:")
+    nginx_index = swarm_text.index(f"\n  {nginx_service}:", app_index)
     app_block = swarm_text[app_index:nginx_index]
     cloudflared_index = swarm_text.index("\n  cloudflared:", nginx_index)
     nginx_block = swarm_text[nginx_index:cloudflared_index]
@@ -292,10 +307,9 @@ def test_swarm_stack_uses_private_images_stable_services_and_scoped_shared_stora
     cloudflared_block = swarm_text[cloudflared_index:networks_index]
 
     assert "build:" not in swarm_text
-    assert "image: ${JOB_LOGGER_APP_IMAGE" in swarm_text
-    assert "image: ${JOB_LOGGER_NGINX_IMAGE" in swarm_text
     assert "replicas: 1" in app_block
-    assert "APP_UPSTREAM_HOST: jldapp" in nginx_block
+    assert f"APP_UPSTREAM_HOST: {app_service}" in nginx_block
+    assert "NGINX_LISTEN_PORT: ${HTTP_PORT:-80}" in nginx_block
     assert "replicas: 1" in nginx_block
     assert "replicas: 2" in cloudflared_block
     assert "max_replicas_per_node: 1" in cloudflared_block
@@ -307,7 +321,6 @@ def test_swarm_stack_uses_private_images_stable_services_and_scoped_shared_stora
     assert "LOG_DIR:" not in app_block
     assert "LOGIN_FAILURE_LOG_PATH" not in swarm_text
     assert "LOGIN_SUCCESS_LOG_PATH" not in swarm_text
-    assert "JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger-dev" in swarm_text
     assert "target: /data/logs" not in app_block
     assert "target: /data/backups" in app_block
     assert "target: /models/faster-whisper" in app_block
@@ -322,8 +335,46 @@ def test_swarm_stack_uses_private_images_stable_services_and_scoped_shared_stora
     assert "driver: overlay" in swarm_text
     assert "deploy:" in swarm_text
     assert "network_mode" not in swarm_text
+    assert "ports:" not in swarm_text
     assert "postgres:16-alpine" not in swarm_text
     assert "secrets:" not in swarm_text
+
+
+def test_production_swarm_stack_uses_production_names_and_storage() -> None:
+    """Production Swarm should use unqualified names and versioned images."""
+
+    swarm_text = SWARM_FILE.read_text(encoding="utf-8")
+
+    _assert_common_swarm_contract(
+        swarm_text,
+        app_service="jlapp",
+        nginx_service="jlnginx",
+    )
+    assert "image: ${JOB_LOGGER_APP_IMAGE" in swarm_text
+    assert "image: ${JOB_LOGGER_NGINX_IMAGE" in swarm_text
+    assert "APP_ENV: ${APP_ENV:-production}" in swarm_text
+    assert "DEV_BUILD: ${DEV_BUILD:-false}" in swarm_text
+    assert "JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger" in swarm_text
+
+
+def test_dev_swarm_stack_uses_dev_names_images_and_storage() -> None:
+    """Dev Swarm should be visibly and operationally separate from production."""
+
+    swarm_text = DEV_SWARM_FILE.read_text(encoding="utf-8")
+
+    _assert_common_swarm_contract(
+        swarm_text,
+        app_service="jldapp",
+        nginx_service="jldnginx",
+    )
+    assert "image: ${JOB_LOGGER_APP_IMAGE" in swarm_text
+    assert "image: ${JOB_LOGGER_NGINX_IMAGE" in swarm_text
+    assert "APP_ENV: ${APP_ENV:-development}" in swarm_text
+    assert "DEV_BUILD: ${DEV_BUILD:-true}" in swarm_text
+    assert (
+        "JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger-dev"
+        in swarm_text
+    )
     assert not (SWARM_FILE.parent / "docker-swarm.yml").exists()
 
 
@@ -335,16 +386,21 @@ def test_readme_documents_compose_edge_and_swarm_deployment() -> None:
 
     assert "COMPOSE_PROFILES=local-db,bundled-edge" in readme_text
     assert "COMPOSE_PROFILES=local-db" in readme_text
+    assert "JOB_LOGGER_APP_IMAGE=ghcr.io/cosmicc/job-logger-app:1.3.1" in readme_text
+    assert "JOB_LOGGER_NGINX_IMAGE=ghcr.io/cosmicc/job-logger-nginx:1.3.1" in readme_text
+    assert "JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger" in readme_text
     assert "JOB_LOGGER_APP_IMAGE=ghcr.io/cosmicc/job-logger-app:dev" in readme_text
     assert "JOB_LOGGER_NGINX_IMAGE=ghcr.io/cosmicc/job-logger-nginx:dev" in readme_text
     assert "JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger-dev" in readme_text
     assert "docker stack deploy --with-registry-auth" in readme_text
-    assert "http://jldnginx" in readme_text
+    assert "http://jlnginx:80" in readme_text
+    assert "http://jldnginx:80" in readme_text
     assert "two `cloudflared` replicas" in readme_text
     assert "models/faster-whisper/" in readme_text
     assert "docs/external-nginx-job-logger.conf" in readme_text
-    assert "proxy to `http://jldapp:8000`" in readme_text
-    assert "proxy_pass http://jldapp:8000" in external_nginx_text
+    assert "proxy to `http://jlapp:8000`" in readme_text
+    assert "use `jldapp` for dev" in readme_text
+    assert "proxy_pass http://jlapp:8000" in external_nginx_text
 
 
 def test_github_workflow_publishes_branch_specific_swarm_images() -> None:
@@ -363,6 +419,8 @@ def test_github_workflow_publishes_branch_specific_swarm_images() -> None:
     assert "type=sha,prefix=sha-,format=long" in workflow_text
     assert "packages: write" in workflow_text
     assert "docker stack config -c docker-stack.yml" in workflow_text
+    assert "docker stack config -c docker-stack.dev.yml" in workflow_text
+    assert '      - "docker-stack.dev.yml"' in workflow_text
     assert "actions/checkout@v7" in workflow_text
     assert "docker/setup-buildx-action@v4" in workflow_text
     assert "docker/login-action@v4" in workflow_text
