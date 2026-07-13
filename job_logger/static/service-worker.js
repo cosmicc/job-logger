@@ -1,6 +1,6 @@
 "use strict";
 
-const SERVICE_WORKER_VERSION = "job-logger-pwa-1.3.0";
+const SERVICE_WORKER_VERSION = "job-logger-pwa-1.3.1";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());

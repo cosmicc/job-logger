@@ -16,10 +16,15 @@ from job_logger.services.changelog import (
 from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
-CURRENT_RELEASE_DATE = "07.11.2026"
-CURRENT_WEB_TITLE = "Admin contact, user management, review totals, and public-device sessions"
-CURRENT_DETAILED_HEADING = f"## 1.3.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
-CURRENT_WEB_HEADING = f"## 1.3.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+CURRENT_RELEASE_DATE = "07.13.2026"
+CURRENT_WEB_TITLE = "Password reset protection and recovery reliability"
+CURRENT_DETAILED_HEADING = (
+    f"## 1.3.1 - {CURRENT_RELEASE_DATE} - Swarm deployment, disk health, and password-reset protection"
+)
+CURRENT_WEB_HEADING = f"## 1.3.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+V130_WEB_TITLE = "Admin contact, user management, review totals, and public-device sessions"
+V130_RELEASE_DATE = "07.11.2026"
+V130_HEADING = f"## 1.3.0 - {V130_RELEASE_DATE} - {V130_WEB_TITLE}"
 V124_WEB_TITLE = "Review activity cleanup, work minimums, password reset, and version polish"
 V124_RELEASE_DATE = "07.10.2026"
 V124_DETAILED_HEADING = (
@@ -36,6 +41,7 @@ V120_RELEASE_DATE = "07.02.2026"
 RELEASE_HEADING_PATTERN = re.compile(r"^## \d+\.\d+\.\d+ - (?:\d{2}\.\d{2}\.\d{4} - .+|.+)")
 DETAILED_RELEASE_HEADINGS = (
     CURRENT_DETAILED_HEADING,
+    V130_HEADING,
     V124_DETAILED_HEADING,
     "## 1.2.3 - 07.05.2026 - Help navigation, AI Help and cleanup, changelog display, and Portainer env guidance",
     "## 1.2.2 - 07.03.2026 - Health alerts, app icon, user manual, and Swarm storage",
@@ -54,6 +60,7 @@ DETAILED_RELEASE_HEADINGS = (
 )
 WEB_RELEASE_HEADINGS = (
     CURRENT_WEB_HEADING,
+    V130_HEADING,
     f"## 1.2.4 - {V124_RELEASE_DATE} - {V124_WEB_TITLE}",
     f"## 1.2.3 - {V123_RELEASE_DATE} - {V123_WEB_TITLE}",
     f"## 1.2.2 - {V122_RELEASE_DATE} - {V122_WEB_TITLE}",
@@ -122,7 +129,7 @@ def _assert_changelog_sections_are_non_empty(
 def test_app_version_matches_current_changelog_version() -> None:
     """The source-controlled version should match the current changelog entry."""
 
-    assert APP_VERSION == "1.3.0"
+    assert APP_VERSION == "1.3.1"
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -201,67 +208,21 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="1.3.0",
+        version="1.3.1",
         release_date=CURRENT_RELEASE_DATE,
         title=CURRENT_WEB_TITLE,
         changes=(
-            "The app can now show the configured admin contact email when a disabled account tries to sign in.",
             (
-                "New web users can now receive a welcome email with the app link, username, "
-                "temporary-password instructions, and phone install steps."
-            ),
-            "Administrators can now send a password reset email or resend the welcome email from each user row.",
-            "Administrators can now click the Enabled or Disabled status pill to disable or re-enable that account.",
-            "Administrators can now delete web users from each user row.",
-            (
-                "Work now shows centered compact boxed total time-entry hours for today and this week, "
-                "and Review now shows Today and Week total cards."
+                "Forgot-password requests now protect the submitting IP after three consecutive valid email "
+                "addresses that do not match one enabled account."
             ),
             (
-                "Administrators now see a temporary success or failure overlay after sending a password reset "
-                "email or welcome email from the user list."
+                "A valid unique account match now clears the consecutive unmatched-email counter while "
+                "password-reset responses remain private and generic."
             ),
             (
-                "The login page now has a public-device option for password sign-in that signs the user out "
-                "after 15 minutes of inactivity."
-            ),
-            (
-                "Ask AI for help now adds a support contact line under the answer when the app administrator "
-                "configures an admin contact email."
-            ),
-            (
-                "The Add user form now has a checked-by-default welcome email option that admins can turn off "
-                "for that user."
-            ),
-            "The user list no longer shows internal Autotask resource ID or role ID values.",
-            (
-                "Deleting a user now fully removes users with no jobs, while users with jobs are hidden and "
-                "restored when the same Autotask resource ID is added again."
-            ),
-            "Review now shows 10 jobs per page, ordered newest to oldest.",
-            "Home now hides service calls when the matching local ticket is marked Follow up.",
-            (
-                "The public-device checkbox now appears below **Forgot password?** and keeps its extra "
-                "description in hover text."
-            ),
-            (
-                "The Device sign-in button now greys out and cannot be clicked while **This is a public "
-                "device** is checked."
-            ),
-            "Password reset and welcome emails now refer to the app as Autotask Job Logger.",
-            (
-                "Disabled-account sign-in messages now point users to the configured contact email instead of "
-                "a generic administrator message."
-            ),
-            (
-                "New user creation now continues even if the optional welcome email is not sent, "
-                "and the admin sees a warning."
-            ),
-            "Public-device sessions no longer show Device sign-in setup prompts or allow new Device sign-in setup.",
-            "Password reset emails sent from user management now work even when self-service password reset is turned off.",
-            (
-                "Full-browser Home now keeps the Service calls title raised above the date selector, "
-                "with the date and empty-state message tighter and cleaner."
+                "Repeated unknown, disabled, or duplicate-email reset attempts can no longer continue without "
+                "the same local protection used for invalid sign-in attempts."
             ),
         ),
     )
@@ -284,6 +245,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
+    assert ">1.3.1<" in response.text
     assert ">1.3.0<" in response.text
     assert ">1.2.4<" in response.text
     assert ">1.2.3<" in response.text
@@ -300,6 +262,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert ">1.0.2<" in response.text
     assert ">1.0.1<" in response.text
     assert ">1.0.0<" in response.text
+    assert "[1.3.1]" not in response.text
     assert "[1.3.0]" not in response.text
     assert "[1.2.4]" not in response.text
     assert "[1.2.3]" not in response.text
@@ -312,6 +275,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert V122_WEB_TITLE in response.text
     assert PREVIOUS_WEB_TITLE in response.text
     assert V120_WEB_TITLE in response.text
+    assert "Forgot-password requests now protect the submitting IP" in response.text
+    assert V130_WEB_TITLE in response.text
     assert (
         "The app can now show the configured admin contact email when a disabled account tries to sign in."
     ) in response.text
@@ -630,7 +595,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "The mobile close button exits the app screen without logging out." in response.text
     assert "The changelog page now shows short release notes for each version." in response.text
     assert "The mobile home page now starts directly with the work-entry card." in response.text
-    v125_index = response.text.index(CURRENT_WEB_TITLE)
+    v131_index = response.text.index(CURRENT_WEB_TITLE)
+    v130_index = response.text.index(V130_WEB_TITLE)
     v124_index = response.text.index(V124_WEB_TITLE)
     v123_index = response.text.index(V123_WEB_TITLE)
     v122_index = response.text.index(V122_WEB_TITLE)
@@ -646,7 +612,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     v102_index = response.text.index("Autotask workflow and desktop layout updates")
     v101_index = response.text.index("Mobile shell navigation and close behavior")
     v100_index = response.text.index("Initial release")
-    assert v125_index < v124_index
+    assert v131_index < v130_index
+    assert v130_index < v124_index
     assert v124_index < v123_index
     assert v123_index < v122_index
     assert v122_index < v121_index
@@ -662,6 +629,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert v102_index < v101_index
     assert v101_index < v100_index
     assert f'<h2 id="current-version-heading">{CURRENT_WEB_TITLE}</h2>' in response.text
+    assert '<span class="release-version">1.3.1</span>' in response.text
+    assert '<span class="release-date">07.13.2026</span>' in response.text
     assert '<span class="release-version">1.3.0</span>' in response.text
     assert '<span class="release-date">07.11.2026</span>' in response.text
     assert '<span class="release-version">1.2.4</span>' in response.text

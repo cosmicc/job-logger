@@ -1,5 +1,9 @@
 FROM nginx:1.27-alpine
 
+# Keep direct image runs valid while Compose and Swarm may provide an explicit
+# private listener port through their deployment contracts.
+ENV NGINX_LISTEN_PORT=80
+
 # Remove the stock site so a failed template render cannot silently serve the
 # default nginx 404 page instead of proxying to the FastAPI application.
 RUN rm -f /etc/nginx/conf.d/default.conf

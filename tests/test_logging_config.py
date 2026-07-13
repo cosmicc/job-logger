@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 import pytest
 
@@ -32,14 +31,13 @@ def test_log_level_setting_is_validated(monkeypatch: pytest.MonkeyPatch) -> None
         load_settings()
 
 
-def test_log_dir_setting_is_optional(monkeypatch: pytest.MonkeyPatch) -> None:
-    """LOG_DIR should enable file logs only when explicitly configured."""
-
-    monkeypatch.delenv("LOG_DIR", raising=False)
-    assert load_settings().log_dir is None
+def test_log_dir_is_ignored_for_console_only_logging(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Legacy LOG_DIR values must not restore application file logging."""
 
     monkeypatch.setenv("LOG_DIR", "/data/logs")
-    assert load_settings().log_dir == "/data/logs"
+    application_settings = load_settings()
+
+    assert not hasattr(application_settings, "log_dir")
 
 
 def test_configured_log_level_controls_stdout(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -71,29 +69,25 @@ def test_configured_log_level_controls_stdout(monkeypatch: pytest.MonkeyPatch, c
         _remove_job_logger_handlers()
 
 
-def test_configured_log_dir_writes_redacted_file_log(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """Optional LOG_DIR file logging should use the shared redacting formatter."""
+def test_configured_logging_installs_only_the_stdout_handler(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Application logging should never create a file handler."""
 
-    logger = logging.getLogger("job_logger.tests.file_logging")
     root_logger = logging.getLogger()
     previous_root_level = root_logger.level
     try:
         monkeypatch.setenv("LOG_LEVEL", "INFO")
-        monkeypatch.setenv("LOG_DIR", str(tmp_path))
+        monkeypatch.setenv("LOG_DIR", "/data/logs")
         configure_logging(load_settings())
-        logger.info("request api_key=secret-token Authorization: Bearer secret-bearer")
-        for handler in logging.getLogger().handlers:
-            handler.flush()
 
-        log_file_text = (tmp_path / "job-logger-app.log").read_text(encoding="utf-8")
-        assert "job_logger.tests.file_logging" in log_file_text
-        assert "api_key=***" in log_file_text
-        assert "Authorization: Bearer ***" in log_file_text
-        assert "secret-token" not in log_file_text
-        assert "secret-bearer" not in log_file_text
+        app_handlers = [
+            handler
+            for handler in root_logger.handlers
+            if getattr(handler, "_job_logger_marker", "")
+        ]
+        assert [getattr(handler, "_job_logger_marker", "") for handler in app_handlers] == [
+            "job_logger_stdout"
+        ]
+        assert not any(isinstance(handler, logging.FileHandler) for handler in app_handlers)
     finally:
         root_logger.setLevel(previous_root_level)
         _remove_job_logger_handlers()

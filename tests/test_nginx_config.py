@@ -59,12 +59,23 @@ def test_nginx_uses_app_styled_error_pages() -> None:
 
 
 def test_nginx_log_paths_are_environment_configurable() -> None:
-    """Swarm should be able to send bundled nginx logs to shared storage."""
+    """Bundled Nginx logs should remain configurable for console output."""
 
     template_text = NGINX_TEMPLATE.read_text(encoding="utf-8")
 
     assert "access_log ${NGINX_ACCESS_LOG};" in template_text
     assert "error_log ${NGINX_ERROR_LOG};" in template_text
+
+
+def test_nginx_listener_port_is_environment_configurable() -> None:
+    """Swarm should be able to match the private tunnel origin port."""
+
+    template_text = NGINX_TEMPLATE.read_text(encoding="utf-8")
+    dockerfile_text = NGINX_DOCKERFILE.read_text(encoding="utf-8")
+
+    assert "listen ${NGINX_LISTEN_PORT};" in template_text
+    assert "listen 80;" not in template_text
+    assert "ENV NGINX_LISTEN_PORT=80" in dockerfile_text
 
 
 def test_nginx_restore_upload_limit_is_scoped_to_restore_endpoint() -> None:
@@ -134,7 +145,7 @@ def test_external_nginx_sample_keeps_public_surface_controls() -> None:
     restore_block_end_index = sample_text.index("\n    }", restore_index)
     restore_block = sample_text[restore_index:restore_block_end_index]
     assert "client_max_body_size 250m;" in restore_block
-    assert "proxy_pass http://job_logger_app:8000/debug/restore;" in restore_block
+    assert "proxy_pass http://jlapp:8000/debug/restore;" in restore_block
 
     websocket_index = sample_text.index("location ~ ^/jobs/[^/]+/description/audio/stream$")
     websocket_block_end_index = sample_text.index("\n    }", websocket_index)

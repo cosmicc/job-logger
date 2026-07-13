@@ -56,7 +56,10 @@ prompt if one appears. Job Logger always shows the same confirmation message,
 even when no enabled account matches that email address. If your email matches
 exactly one enabled account, you will receive a reset link that works once and
 expires after 24 hours. After you set the new password, sign in again with that
-password.
+password. Three consecutive reset requests that do not match one enabled
+account can temporarily block further requests from that location. Carefully
+check the email address before submitting again, or contact your app
+administrator if the location becomes blocked.
 
 ## Device Sign-In
 
@@ -380,6 +383,11 @@ contact your app administrator if no email is shown.
 
 Sign-in is temporarily blocked for that location. Wait and try again later, or
 contact your app administrator.
+
+**Too many password reset requests**
+
+Password reset is temporarily blocked for that location. Wait and try again
+later, or contact your app administrator to verify the account email address.
 
 **If an enabled Job Logger account exists for that email address, a password reset email has been sent**
 

@@ -1,7 +1,6 @@
 FROM python:3.12-slim AS runtime
 
-# Python writes logs to stdout/stderr, and Swarm can also enable shared file
-# logs with LOG_DIR.
+# Python writes all runtime logs to stdout/stderr for Docker log collection.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
@@ -11,7 +10,7 @@ WORKDIR /app
 # Create a dedicated unprivileged user before copying application files.
 RUN groupadd --gid 1000 appuser \
     && useradd --uid 1000 --gid appuser --create-home --shell /usr/sbin/nologin appuser \
-    && mkdir -p /models/faster-whisper /data/backups /data/logs \
+    && mkdir -p /models/faster-whisper /data/backups \
     && chown -R appuser:appuser /models /data
 
 COPY pyproject.toml README.md WEB_CHANGELOG.md /app/

@@ -10,7 +10,9 @@ map $http_cf_connecting_ip $job_logger_client_ip {
 
 server {
     # Nginx listens only inside Docker unless mapped by docker-compose.yml.
-    listen 80;
+    # Swarm sets this from HTTP_PORT so the private tunnel origin port is
+    # configurable without publishing the service through the routing mesh.
+    listen ${NGINX_LISTEN_PORT};
     server_name _;
     server_tokens off;
 
@@ -27,8 +29,7 @@ server {
     error_page 503 /errors/503.html;
     error_page 504 /errors/504.html;
 
-    # Compose keeps logs on stdout/stderr by default; Swarm can point these at
-    # shared NFS-backed files through NGINX_ACCESS_LOG and NGINX_ERROR_LOG.
+    # All deployments keep Nginx logs on stdout/stderr for Docker log collection.
     access_log ${NGINX_ACCESS_LOG};
     error_log ${NGINX_ERROR_LOG};
 

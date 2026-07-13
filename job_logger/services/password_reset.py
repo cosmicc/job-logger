@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -15,6 +16,14 @@ from sqlalchemy.orm import Session
 from job_logger.config import Settings, settings
 from job_logger.models import PasswordResetRequestCounter, PasswordResetToken, WebUser
 from job_logger.services.audit import record_audit_event
+from job_logger.services.cloudflare_blocks import (
+    CloudflareBlockError,
+    cloudflare_block_for_ip,
+    cloudflare_ip_blocking_configured,
+    create_app_cloudflare_block,
+    ip_is_allowlisted,
+    normalize_ip_address,
+)
 from job_logger.services.login_failures import enforcement_client_ip_from_request
 from job_logger.services.session_control import invalidate_web_user_sessions
 from job_logger.services.users import WebUserError, change_web_user_password, normalize_optional_email
@@ -33,6 +42,8 @@ EMAIL_RESET_LIMIT = 3
 EMAIL_RESET_WINDOW = timedelta(hours=1)
 ACCOUNT_EMAIL_LIMIT = 1
 ACCOUNT_EMAIL_WINDOW = timedelta(minutes=15)
+UNMATCHED_EMAIL_IP_SCOPE = "unmatched_email_ip"
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -43,6 +54,16 @@ class PasswordResetRateLimitResult:
     scope: str | None = None
     limit: int = 0
     window_seconds: int = 0
+
+
+@dataclass(frozen=True)
+class PasswordResetAbuseLockoutState:
+    """Local lockout state for repeated unmatched reset-email submissions."""
+
+    locked: bool
+    failed_count: int
+    max_attempts: int
+    remaining_seconds: int
 
 
 @dataclass(frozen=True)
@@ -216,6 +237,162 @@ def find_unique_enabled_web_user_by_email(
     if len(matching_users) != 1:
         return None
     return matching_users[0]
+
+
+def _unmatched_email_ip_counter(
+    database_session: Session,
+    request: Request,
+) -> PasswordResetRequestCounter | None:
+    """Return the consecutive unmatched-email counter for the trusted request IP."""
+
+    client_ip = enforcement_client_ip_from_request(request)
+    return database_session.scalar(
+        select(PasswordResetRequestCounter)
+        .where(
+            PasswordResetRequestCounter.scope == UNMATCHED_EMAIL_IP_SCOPE,
+            PasswordResetRequestCounter.scope_key == client_ip,
+        )
+        .with_for_update()
+        .limit(1)
+    )
+
+
+def current_unmatched_password_reset_lockout(
+    database_session: Session,
+    request: Request,
+    *,
+    application_settings: Settings = settings,
+) -> PasswordResetAbuseLockoutState:
+    """Return whether repeated unmatched reset emails locally lock this IP."""
+
+    threshold = application_settings.password_reset_failed_attempts_block_threshold
+    counter = _unmatched_email_ip_counter(database_session, request)
+    if counter is None or counter.request_count < threshold:
+        return PasswordResetAbuseLockoutState(
+            locked=False,
+            failed_count=counter.request_count if counter is not None else 0,
+            max_attempts=threshold,
+            remaining_seconds=0,
+        )
+
+    current_time = now_utc()
+    last_failed_at_utc = _as_utc(counter.updated_at_utc)
+    if last_failed_at_utc is None:
+        return PasswordResetAbuseLockoutState(
+            locked=False,
+            failed_count=counter.request_count,
+            max_attempts=threshold,
+            remaining_seconds=0,
+        )
+
+    lockout_expires_at = last_failed_at_utc + timedelta(
+        minutes=application_settings.login_local_lockout_minutes
+    )
+    remaining_seconds = max(int((lockout_expires_at - current_time).total_seconds()), 0)
+    if remaining_seconds <= 0:
+        counter.window_started_at_utc = current_time
+        counter.request_count = 0
+        counter.updated_at_utc = current_time
+        database_session.flush()
+        return PasswordResetAbuseLockoutState(
+            locked=False,
+            failed_count=0,
+            max_attempts=threshold,
+            remaining_seconds=0,
+        )
+
+    return PasswordResetAbuseLockoutState(
+        locked=True,
+        failed_count=counter.request_count,
+        max_attempts=threshold,
+        remaining_seconds=remaining_seconds,
+    )
+
+
+def reset_unmatched_password_reset_attempts(
+    database_session: Session,
+    request: Request,
+) -> None:
+    """Reset the trusted IP counter after one unique enabled email match."""
+
+    counter = _unmatched_email_ip_counter(database_session, request)
+    if counter is None:
+        return
+
+    current_time = now_utc()
+    counter.window_started_at_utc = current_time
+    counter.request_count = 0
+    counter.updated_at_utc = current_time
+    database_session.flush()
+
+
+def record_unmatched_password_reset_attempt_and_maybe_block(
+    database_session: Session,
+    request: Request,
+    *,
+    application_settings: Settings = settings,
+) -> int:
+    """Count an unmatched reset email and optionally block the trusted IP."""
+
+    current_time = now_utc()
+    counter = _unmatched_email_ip_counter(database_session, request)
+    if counter is None:
+        counter = PasswordResetRequestCounter(
+            scope=UNMATCHED_EMAIL_IP_SCOPE,
+            scope_key=enforcement_client_ip_from_request(request),
+            window_started_at_utc=current_time,
+            request_count=0,
+            created_at_utc=current_time,
+            updated_at_utc=current_time,
+        )
+        database_session.add(counter)
+
+    counter.request_count += 1
+    counter.updated_at_utc = current_time
+    database_session.flush()
+    failed_count = counter.request_count
+    threshold = application_settings.password_reset_failed_attempts_block_threshold
+    if failed_count < threshold or not cloudflare_ip_blocking_configured(application_settings):
+        return failed_count
+
+    normalized_ip = normalize_ip_address(enforcement_client_ip_from_request(request))
+    if normalized_ip is None:
+        LOGGER.warning("Skipped password-reset Cloudflare auto-block for invalid client IP")
+        return failed_count
+    if ip_is_allowlisted(normalized_ip, application_settings):
+        LOGGER.warning("Skipped password-reset Cloudflare auto-block for allowlisted ip=%s", normalized_ip)
+        return failed_count
+    if cloudflare_block_for_ip(database_session, normalized_ip) is not None:
+        return failed_count
+
+    reason = f"{threshold} consecutive unmatched password reset email attempts"
+    try:
+        block = create_app_cloudflare_block(
+            database_session,
+            normalized_ip,
+            source="automatic_password_reset",
+            reason=reason,
+            failure_count=failed_count,
+            application_settings=application_settings,
+        )
+    except CloudflareBlockError as exc:
+        LOGGER.warning("Could not auto-block password-reset IP at Cloudflare: %s", exc)
+        return failed_count
+
+    record_audit_event(
+        database_session,
+        actor="system",
+        action="debug.cloudflare_ip_block.created",
+        request=request,
+        details={
+            "ip_address": block.ip_address,
+            "cloudflare_rule_id": block.cloudflare_rule_id,
+            "source": block.source,
+            "reason": block.reason,
+            "failure_count": failed_count,
+        },
+    )
+    return failed_count
 
 
 def create_password_reset_token(

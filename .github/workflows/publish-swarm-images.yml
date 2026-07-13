@@ -1,0 +1,111 @@
+name: Build and publish Swarm images
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - "job_logger/**"
+      - "migrations/**"
+      - "docker/**"
+      - "Dockerfile"
+      - "alembic.ini"
+      - "pyproject.toml"
+      - "README.md"
+      - "WEB_CHANGELOG.md"
+      - "docker-stack.yml"
+      - "docker-stack.dev.yml"
+      - ".github/workflows/publish-swarm-images.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: job-logger-swarm-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-stack:
+    name: Validate Docker stack
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Render Docker stack
+        env:
+          JOB_LOGGER_APP_IMAGE: ghcr.io/cosmicc/job-logger-app:validation
+          JOB_LOGGER_NGINX_IMAGE: ghcr.io/cosmicc/job-logger-nginx:validation
+          DATABASE_URL: postgresql+psycopg://job_logger:validation@postgres.example.test:5432/job_logger
+          APP_SECRET_KEY: validation-secret-key
+          APP_PASSWORD: validation-password
+          CLOUDFLARE_TUNNEL_TOKEN: validation-tunnel-token
+          HTTP_PORT: 8080
+        run: |
+          docker stack config -c docker-stack.yml >/dev/null
+          docker stack config -c docker-stack.dev.yml >/dev/null
+
+  publish:
+    name: Publish ${{ matrix.component }} image
+    needs: validate-stack
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: app
+            context: .
+            dockerfile: ./Dockerfile
+            image: ghcr.io/cosmicc/job-logger-app
+
+          - component: nginx
+            context: ./docker/nginx
+            dockerfile: ./docker/nginx/Dockerfile
+            image: ghcr.io/cosmicc/job-logger-nginx
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Read application version
+        id: version
+        shell: bash
+        run: |
+          version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: metadata
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ matrix.image }}
+          tags: |
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ steps.version.outputs.version }},enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-,format=long
+
+      - name: Build and publish ${{ matrix.component }}
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}

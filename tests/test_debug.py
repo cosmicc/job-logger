@@ -272,6 +272,8 @@ def test_debug_page_shows_disk_space_monitor(super_admin_client: TestClient, mon
     snapshot = system_health.DebugDiskUsageSnapshot(
         severity="warning",
         status_label="Disk space nearing full",
+        warning_free_display="1000.0 MB",
+        critical_free_display="250.0 MB",
         volumes=(
             system_health.DebugDiskUsageVolume(
                 label="Backup directory",
@@ -295,7 +297,9 @@ def test_debug_page_shows_disk_space_monitor(super_admin_client: TestClient, mon
     assert 'id="disk-space"' in response.text
     assert "disk-space-card disk-space-warning" in response.text
     assert "Disk space nearing full" in response.text
-    assert "Warning at 85% used or under 5 GB free" in response.text
+    assert "Warning under 1000.0 MB free" in response.text
+    assert "critical under 250.0 MB free" in response.text
+    assert "Used percentage is informational only" in response.text
     assert "Backup directory" in response.text
     assert "88.6 GB / 100.0 GB (88.6%)" in response.text
     assert "/data/backups" in response.text
@@ -407,8 +411,8 @@ def test_database_diagnostics_snapshot_handles_failed_probe_safely(monkeypatch) 
     assert "secret-db.internal" not in " ".join(rendered_values)
 
 
-def test_debug_disk_usage_serializer_uses_existing_parent_for_missing_path(tmp_path: Path, monkeypatch) -> None:
-    """Disk diagnostics should still work when a configured child path is absent."""
+def test_debug_disk_usage_serializer_ignores_used_percentage(tmp_path: Path, monkeypatch) -> None:
+    """Disk diagnostics should measure an existing parent and alert on free space only."""
 
     configured_path = tmp_path / "logs" / "future"
     observed_paths: list[Path] = []
@@ -434,8 +438,36 @@ def test_debug_disk_usage_serializer_uses_existing_parent_for_missing_path(tmp_p
     assert volume.free_display == "4.0 GB"
     assert volume.used_percent == 96.0
     assert volume.used_percent_display == "96.0%"
-    assert volume.severity == "critical"
-    assert volume.status_label == "Critical"
+    assert volume.severity == "ok"
+    assert volume.status_label == "OK"
+
+
+def test_debug_disk_usage_thresholds_use_strict_free_space_boundaries() -> None:
+    """Warning and critical disk states should use configurable strict MB thresholds."""
+
+    application_settings = replace(
+        settings,
+        app_health_disk_warning_free_mb=1000,
+        app_health_disk_critical_free_mb=250,
+    )
+    mebibyte = 1024 * 1024
+
+    assert system_health._disk_usage_severity(
+        1000 * mebibyte,
+        application_settings=application_settings,
+    ) == ("ok", "OK")
+    assert system_health._disk_usage_severity(
+        999 * mebibyte,
+        application_settings=application_settings,
+    ) == ("warning", "Nearing full")
+    assert system_health._disk_usage_severity(
+        250 * mebibyte,
+        application_settings=application_settings,
+    ) == ("warning", "Nearing full")
+    assert system_health._disk_usage_severity(
+        249 * mebibyte,
+        application_settings=application_settings,
+    ) == ("critical", "Critical")
 
 
 def test_debug_disk_usage_combines_paths_on_same_storage() -> None:

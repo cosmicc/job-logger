@@ -107,7 +107,14 @@ and invalidate the user's existing signed sessions after success. Reset requests
 must verify Cloudflare Turnstile server-side when enabled, use independent
 IP/email/account throttles, and audit only safe metadata such as email hashes,
 user IDs, usernames, reset row IDs, provider names, delivery results, and
-rate-limit scopes. `TURNSTILE_ENABLED=false` is allowed for password reset in
+rate-limit scopes. Consecutive syntactically valid reset emails that do not
+resolve to exactly one enabled user are counted by trusted enforcement IP.
+At `PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD`, defaulting to 3, the IP
+must enter the normal local lockout and, when configured, the app-managed
+Cloudflare block list. Missing, disabled, and duplicate matches all count;
+one unique enabled match resets the counter. Keep browser responses generic,
+store no raw submitted email in the counter, and honor the Cloudflare IP
+allowlist. `TURNSTILE_ENABLED=false` is allowed for password reset in
 development and production; when Turnstile is disabled, the reset flow must
 still use CSRF, Cloudflare Access when configured, rate limits, generic
 non-enumerating responses, and HMAC-stored token hashes.
@@ -617,7 +624,7 @@ must mark the Help navigation button in yellow so dev instances are visually
 distinct from production without adding a separate pill. Full-browser
 authenticated headers also show the version under the left-side Job Logger
 title, using `vX.Y.Z-DEV` for dev builds. The Help page itself must show the
-current version with `DEV`, such as `v1.3.0 DEV`.
+current version with `DEV`, such as `v1.3.1 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows compact route and status icons on the left,
@@ -778,8 +785,9 @@ The project must support Docker-based deployment.
 
 Docker Compose should include the Python application, PostgreSQL, and
 `cloudflared` when practical.
-Nginx host publishing must bind only to `127.0.0.1` and use `HTTP_PORT` for the
-host-networked Cloudflare Tunnel origin URL, such as `http://127.0.0.1:2082`.
+Docker Compose Nginx host publishing must bind only to `127.0.0.1` and use
+`HTTP_PORT` for the host-networked Cloudflare Tunnel origin URL, such as
+`http://127.0.0.1:2082`. Swarm keeps the Nginx listener private to its overlay.
 The internet-facing nginx template must block public API-style, generated docs,
 and public health paths and use app-styled Job Logger web service error pages
 for common nginx-generated 4xx and 5xx responses instead of stock server pages.
@@ -827,20 +835,23 @@ host/container/process-down alerts require an external monitor against
 `/health/live`. `DEV_BUILD=true` must suppress Pushover health notifications
 regardless of `PUSHOVER_ENABLED`.
 
-Swarm deployment uses `JOB_LOGGER_BUNDLED_EDGE_REPLICAS` because Swarm does
-not support Compose profiles. The default value is `1`, which runs bundled
-nginx and `cloudflared`. Set it to `0` only when an external nginx and
-`cloudflared` stack in the same Swarm handles the public edge and proxies to
-the Job Logger app service on the shared overlay network.
-Swarm deployment must also bind all file-backed runtime state to the shared
-NFS-backed storage path configured by `JOB_LOGGER_SWARM_STORAGE_PATH`,
-defaulting to `/mnt/swarm-storage/job-logger`. Keep app logs, bundled nginx
-logs, bundled cloudflared logs, automatic backups, and the faster-whisper model
-cache under that shared path so tasks can move between Swarm nodes without
-losing files. The Swarm database state remains on the remote PostgreSQL server
-referenced by `DATABASE_URL`; do not add a file-backed database service to
-`docker-swarm.yml` unless the operator explicitly asks for that separate
-persistent database design.
+Production Swarm deployment uses `docker-stack.yml`, the `jlapp` and `jlnginx`
+service names, private GHCR images selected by `JOB_LOGGER_APP_IMAGE` and
+`JOB_LOGGER_NGINX_IMAGE`, and the `http://jlnginx:<HTTP_PORT>` Cloudflare Tunnel
+origin. Dev Swarm deployment uses `docker-stack.dev.yml`, the `jldapp` and
+`jldnginx` service names, dev-tag values in the same per-stack image variables,
+and `http://jldnginx:<HTTP_PORT>`. `HTTP_PORT` defaults to the private overlay
+port `80`; do not publish it through the Swarm routing mesh because Swarm cannot
+restrict a published port to loopback.
+Run two `cloudflared` replicas with at most one replica per node in each stack.
+The per-stack `JOB_LOGGER_SWARM_STORAGE_PATH` defaults to
+`/mnt/swarm-storage/job-logger` in production and
+`/mnt/swarm-storage/job-logger-dev` in dev. Both NFS roots are mounted on every
+eligible node without deployment-time ownership or mode changes. Bind only
+automatic backups and the faster-whisper model cache under those paths.
+App, Nginx, and `cloudflared` operational logs must go only to stdout/stderr.
+Each stack must use its own remote PostgreSQL database and deployment secrets;
+do not add a file-backed database service unless explicitly requested.
 
 Health checks should be added for services where practical.
 PostgreSQL health checks must allow enough startup grace for first-time volume
@@ -944,10 +955,11 @@ branch. Do not merge `dev` into `main`, tag a release, or report production
 deployment readiness unless the user explicitly asks for that release step.
 
 The dev deployment should run as a separate instance from production, with its
-own checkout or worktree, Docker Compose project name, `.env`, database volume
-or remote database, backup path, Cloudflare Tunnel token, public hostname,
-WebAuthn origin, and host-facing `HTTP_PORT`. This keeps dev testing from
-sharing production sessions, backups, database state, or tunnel credentials.
+own checkout or worktree, Docker Compose project or Swarm stack name, `.env`,
+database volume or remote database, backup path, Cloudflare Tunnel token,
+public hostname, WebAuthn origin, and environment-specific `HTTP_PORT`. This
+keeps dev testing from sharing production sessions, backups, database state, or
+tunnel credentials.
 
 ## Agent Orientation Map
 
@@ -1094,9 +1106,8 @@ The application is a FastAPI project under `job_logger/`.
   backups as startup or hourly when creation audit metadata is available.
 - `job_logger/services/login_failures.py` writes and reads sanitized
   successful/failed login attempts from the database and generates sanitized
-  JSONL downloads for Diagnostics. `LOG_LEVEL` controls stdout/stderr and
-  optional `LOG_DIR` file-log verbosity and must be one of `DEBUG`, `INFO`,
-  `WARNING`, or `ERROR`.
+  JSONL downloads for Diagnostics. `LOG_LEVEL` controls stdout/stderr verbosity
+  and must be one of `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
 - `job_logger/services/login_protection.py` enforces local pre-authentication
   lockout, increments persistent consecutive failed-login counters by trusted
   enforcement IP and username, stores sanitized failed-login database records,
@@ -1339,6 +1350,10 @@ In production:
   connection-pool pressure, active local login lockouts, and app-managed
   Cloudflare IP blocks. The `/debug` page should show a yellow or red
   app-health banner at the top when any monitored issue is active.
+  Disk alerts must use free space only: warning below
+  `APP_HEALTH_DISK_WARNING_FREE_MB`, defaulting to 1000, and critical below
+  `APP_HEALTH_DISK_CRITICAL_FREE_MB`, defaulting to 250. Used percentage is
+  display-only and must not trigger an alert.
 - The optional Pushover health monitor is best-effort and in-process. It can
   notify on degraded, changed, and restored monitored health only while the app
   process is running. Keep `PUSHOVER_USER_KEY` and `PUSHOVER_APP_KEY` in

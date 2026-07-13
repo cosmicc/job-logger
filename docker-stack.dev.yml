@@ -1,6 +1,6 @@
 services:
-  app:
-    image: ${JOB_LOGGER_APP_IMAGE:?Set JOB_LOGGER_APP_IMAGE to a pushed app image}
+  jldapp:
+    image: ${JOB_LOGGER_APP_IMAGE:?Set JOB_LOGGER_APP_IMAGE to a private GHCR dev app image}
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the remote PostgreSQL URL}
       DATABASE_CONNECT_TIMEOUT_SECONDS: ${DATABASE_CONNECT_TIMEOUT_SECONDS:-5}
@@ -10,19 +10,20 @@ services:
       DATABASE_POOL_RECYCLE_SECONDS: ${DATABASE_POOL_RECYCLE_SECONDS:-1800}
       DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS: ${DATABASE_UNAVAILABLE_CHECK_INTERVAL_SECONDS:-5}
       APP_HEALTH_MONITOR_INTERVAL_SECONDS: ${APP_HEALTH_MONITOR_INTERVAL_SECONDS:-300}
+      APP_HEALTH_DISK_WARNING_FREE_MB: ${APP_HEALTH_DISK_WARNING_FREE_MB:-1000}
+      APP_HEALTH_DISK_CRITICAL_FREE_MB: ${APP_HEALTH_DISK_CRITICAL_FREE_MB:-250}
       APP_HEALTH_DB_LATENCY_WARNING_MS: ${APP_HEALTH_DB_LATENCY_WARNING_MS:-250}
       APP_HEALTH_DB_LATENCY_CRITICAL_MS: ${APP_HEALTH_DB_LATENCY_CRITICAL_MS:-1000}
       APP_HEALTH_DB_POOL_WARNING_PERCENT: ${APP_HEALTH_DB_POOL_WARNING_PERCENT:-80}
       APP_HEALTH_DB_POOL_CRITICAL_PERCENT: ${APP_HEALTH_DB_POOL_CRITICAL_PERCENT:-95}
       APP_HOST: 0.0.0.0
-      APP_ENV: ${APP_ENV:-production}
-      DEV_BUILD: ${DEV_BUILD:-false}
+      APP_ENV: ${APP_ENV:-development}
+      DEV_BUILD: ${DEV_BUILD:-true}
       APP_SECRET_KEY: ${APP_SECRET_KEY:?Set APP_SECRET_KEY}
       APP_USERNAME: ${APP_USERNAME:-admin}
       APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD}
       ADMIN_CONTACT_EMAIL: ${ADMIN_CONTACT_EMAIL:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      LOG_DIR: ${LOG_DIR:-/data/logs}
       APP_SESSION_COOKIE_SECURE: ${APP_SESSION_COOKIE_SECURE:-true}
       APP_SESSION_TIMEOUT_HOURS: ${APP_SESSION_TIMEOUT_HOURS:-12}
       CLOUDFLARE_ACCESS_REQUIRED: ${CLOUDFLARE_ACCESS_REQUIRED:-true}
@@ -34,6 +35,7 @@ services:
       LOGIN_LOCAL_LOCKOUT_MINUTES: ${LOGIN_LOCAL_LOCKOUT_MINUTES:-15}
       PASSWORD_RESET_ENABLED: ${PASSWORD_RESET_ENABLED:-false}
       PASSWORD_RESET_TOKEN_TTL_HOURS: ${PASSWORD_RESET_TOKEN_TTL_HOURS:-24}
+      PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD: ${PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD:-3}
       APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-}
       MAIL_ENABLED: ${MAIL_ENABLED:-false}
       MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-joblogger@example.com}
@@ -63,7 +65,7 @@ services:
       TRANSCRIPTION_PROVIDER: ${TRANSCRIPTION_PROVIDER:-mock}
       MAX_AUDIO_UPLOAD_BYTES: ${MAX_AUDIO_UPLOAD_BYTES:-10485760}
       MAX_BACKUP_RESTORE_BYTES: ${MAX_BACKUP_RESTORE_BYTES:-262144000}
-      AUTOMATIC_BACKUPS_ENABLED: ${AUTOMATIC_BACKUPS_ENABLED:-false}
+      AUTOMATIC_BACKUPS_ENABLED: ${AUTOMATIC_BACKUPS_ENABLED:-true}
       AUTOMATIC_BACKUP_DIR: ${AUTOMATIC_BACKUP_DIR:-/data/backups}
       FASTER_WHISPER_MODEL: ${FASTER_WHISPER_MODEL:-base.en}
       FASTER_WHISPER_DEVICE: ${FASTER_WHISPER_DEVICE:-cpu}
@@ -118,13 +120,10 @@ services:
       AUTOTASK_STATUS_COMPLETE_ID: ${AUTOTASK_STATUS_COMPLETE_ID:-}
     volumes:
       - type: bind
-        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/logs/app
-        target: /data/logs
-      - type: bind
-        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/backups
+        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger-dev}/backups
         target: /data/backups
       - type: bind
-        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/models/faster-whisper
+        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger-dev}/models/faster-whisper
         target: /models/faster-whisper
     networks:
       - job_logger
@@ -142,53 +141,51 @@ services:
         order: start-first
         failure_action: rollback
 
-  nginx:
-    image: ${JOB_LOGGER_NGINX_IMAGE:-replace-with-registry/job-logger-nginx:1.3.0}
+  jldnginx:
+    image: ${JOB_LOGGER_NGINX_IMAGE:?Set JOB_LOGGER_NGINX_IMAGE to a private GHCR dev nginx image}
     environment:
-      APP_UPSTREAM_HOST: app
-      NGINX_ACCESS_LOG: ${NGINX_ACCESS_LOG:-/var/log/nginx/access.log}
-      NGINX_ERROR_LOG: ${NGINX_ERROR_LOG:-/var/log/nginx/error.log warn}
+      APP_UPSTREAM_HOST: jldapp
+      # Swarm keeps Nginx private to the overlay. Configure the remotely
+      # managed tunnel origin as http://jldnginx:<HTTP_PORT>.
+      NGINX_LISTEN_PORT: ${HTTP_PORT:-80}
+      NGINX_ACCESS_LOG: ${NGINX_ACCESS_LOG:-/dev/stdout}
+      NGINX_ERROR_LOG: ${NGINX_ERROR_LOG:-/dev/stderr warn}
       NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-12m}
       NGINX_RESTORE_MAX_BODY_SIZE: ${NGINX_RESTORE_MAX_BODY_SIZE:-250m}
-    volumes:
-      - type: bind
-        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/logs/nginx
-        target: /var/log/nginx
     networks:
       - job_logger
     healthcheck:
-      test: ["CMD-SHELL", "[ -f /var/run/nginx.pid ] && kill -0 \"$(cat /var/run/nginx.pid)\""]
+      test: ["CMD-SHELL", "[ -f /var/run/nginx.pid ] && kill -0 \"$$(cat /var/run/nginx.pid)\""]
       interval: 30s
       timeout: 5s
       start_period: 20s
       retries: 3
     deploy:
-      replicas: ${JOB_LOGGER_BUNDLED_EDGE_REPLICAS:-1}
+      replicas: 1
       restart_policy:
         condition: any
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    command:
-      - tunnel
-      - --no-autoupdate
-      - --loglevel
-      - ${CLOUDFLARED_LOG_LEVEL:-info}
-      - --logfile
-      - ${CLOUDFLARED_LOG_FILE:-/var/log/cloudflared/cloudflared.log}
-      - run
-      - --token
-      - ${CLOUDFLARE_TUNNEL_TOKEN:-not-set}
-    volumes:
-      - type: bind
-        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger}/logs/cloudflared
-        target: /var/log/cloudflared
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN}
+      TUNNEL_LOGLEVEL: ${CLOUDFLARED_LOG_LEVEL:-info}
     networks:
       - job_logger
     deploy:
-      replicas: ${JOB_LOGGER_BUNDLED_EDGE_REPLICAS:-1}
+      replicas: 2
+      placement:
+        max_replicas_per_node: 1
       restart_policy:
         condition: any
+        delay: 5s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        # Stop one connector before replacing it so a two-node cluster can
+        # honor max_replicas_per_node while the other replica stays online.
+        order: stop-first
 
 networks:
   job_logger:

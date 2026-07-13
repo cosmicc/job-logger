@@ -153,6 +153,7 @@ def test_password_reset_settings_load_from_environment(monkeypatch) -> None:
 
     monkeypatch.setenv("PASSWORD_RESET_ENABLED", "true")
     monkeypatch.setenv("PASSWORD_RESET_TOKEN_TTL_HOURS", "12")
+    monkeypatch.setenv("PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD", "4")
     monkeypatch.setenv("APP_PUBLIC_BASE_URL", "https://logger.example.test/")
     monkeypatch.setenv("MAIL_ENABLED", "true")
     monkeypatch.setenv("MAIL_FROM_EMAIL", "support@example.test")
@@ -177,6 +178,7 @@ def test_password_reset_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.password_reset_enabled is True
     assert loaded_settings.password_reset_token_ttl_hours == 12
     assert loaded_settings.password_reset_token_ttl_seconds == 43200
+    assert loaded_settings.password_reset_failed_attempts_block_threshold == 4
     assert loaded_settings.app_public_base_url == "https://logger.example.test"
     assert loaded_settings.mail_delivery_configured is True
     assert loaded_settings.password_reset_mail_configured is True
@@ -291,6 +293,8 @@ def test_app_health_and_pushover_settings_load_from_environment(monkeypatch) -> 
     """App-health notification settings should stay environment-backed and secret-safe."""
 
     monkeypatch.setenv("APP_HEALTH_MONITOR_INTERVAL_SECONDS", "120")
+    monkeypatch.setenv("APP_HEALTH_DISK_WARNING_FREE_MB", "1500")
+    monkeypatch.setenv("APP_HEALTH_DISK_CRITICAL_FREE_MB", "300")
     monkeypatch.setenv("APP_HEALTH_DB_LATENCY_WARNING_MS", "150")
     monkeypatch.setenv("APP_HEALTH_DB_LATENCY_CRITICAL_MS", "700")
     monkeypatch.setenv("APP_HEALTH_DB_POOL_WARNING_PERCENT", "75")
@@ -304,6 +308,8 @@ def test_app_health_and_pushover_settings_load_from_environment(monkeypatch) -> 
     loaded_settings = load_settings()
 
     assert loaded_settings.app_health_monitor_interval_seconds == 120
+    assert loaded_settings.app_health_disk_warning_free_mb == 1500
+    assert loaded_settings.app_health_disk_critical_free_mb == 300
     assert loaded_settings.app_health_db_latency_warning_ms == 150
     assert loaded_settings.app_health_db_latency_critical_ms == 700
     assert loaded_settings.app_health_db_pool_warning_percent == 75
@@ -323,6 +329,16 @@ def test_app_health_and_pushover_settings_load_from_environment(monkeypatch) -> 
     assert dev_settings.pushover_enabled is True
     assert dev_settings.pushover_configured is True
     assert dev_settings.pushover_notifications_enabled is False
+
+
+def test_disk_health_thresholds_require_critical_below_warning(monkeypatch) -> None:
+    """Disk critical free space must remain lower than the warning threshold."""
+
+    monkeypatch.setenv("APP_HEALTH_DISK_WARNING_FREE_MB", "250")
+    monkeypatch.setenv("APP_HEALTH_DISK_CRITICAL_FREE_MB", "250")
+
+    with pytest.raises(ValueError, match="APP_HEALTH_DISK_CRITICAL_FREE_MB must be less"):
+        load_settings()
 
 
 def test_ai_help_settings_load_from_environment(monkeypatch) -> None:

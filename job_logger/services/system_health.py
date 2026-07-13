@@ -11,14 +11,11 @@ from threading import RLock
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from job_logger.config import settings
+from job_logger.config import Settings, settings
 from job_logger.models import CloudflareIPBlock, LoginFailureCounter
 from job_logger.services.database_diagnostics import DebugDatabaseSnapshot, collect_database_diagnostics_snapshot
 
-DISK_SPACE_WARNING_USED_PERCENT = 85.0
-DISK_SPACE_CRITICAL_USED_PERCENT = 95.0
-DISK_SPACE_WARNING_FREE_BYTES = 5 * 1024 * 1024 * 1024
-DISK_SPACE_CRITICAL_FREE_BYTES = 1 * 1024 * 1024 * 1024
+MEBIBYTE_BYTES = 1024 * 1024
 APP_HEALTH_SUMMARY_LIMIT = 240
 APP_HEALTH_SEVERITY_RANK = {"ok": 0, "warning": 1, "critical": 2}
 
@@ -51,6 +48,8 @@ class DebugDiskUsageSnapshot:
     severity: str
     status_label: str
     volumes: tuple[DebugDiskUsageVolume, ...]
+    warning_free_display: str = ""
+    critical_free_display: str = ""
 
 
 @dataclass(frozen=True)
@@ -201,12 +200,18 @@ def _existing_disk_probe_path(configured_path: str) -> Path:
     return Path("/")
 
 
-def _disk_usage_severity(used_percent: float, free_bytes: int) -> tuple[str, str]:
-    """Return the diagnostic severity and display label for a filesystem."""
+def _disk_usage_severity(
+    free_bytes: int,
+    *,
+    application_settings: Settings = settings,
+) -> tuple[str, str]:
+    """Return free-space-only diagnostic severity for a filesystem."""
 
-    if used_percent >= DISK_SPACE_CRITICAL_USED_PERCENT or free_bytes <= DISK_SPACE_CRITICAL_FREE_BYTES:
+    critical_free_bytes = application_settings.app_health_disk_critical_free_mb * MEBIBYTE_BYTES
+    warning_free_bytes = application_settings.app_health_disk_warning_free_mb * MEBIBYTE_BYTES
+    if free_bytes < critical_free_bytes:
         return "critical", "Critical"
-    if used_percent >= DISK_SPACE_WARNING_USED_PERCENT or free_bytes <= DISK_SPACE_WARNING_FREE_BYTES:
+    if free_bytes < warning_free_bytes:
         return "warning", "Nearing full"
     return "ok", "OK"
 
@@ -219,7 +224,7 @@ def _serialize_disk_usage_volume(label: str, configured_path: str) -> DebugDiskU
     used_percent = 0.0
     if usage.total > 0:
         used_percent = (usage.used / usage.total) * 100
-    severity, status_label = _disk_usage_severity(used_percent, usage.free)
+    severity, status_label = _disk_usage_severity(usage.free)
 
     return DebugDiskUsageVolume(
         label=label,
@@ -322,6 +327,8 @@ def collect_disk_usage_snapshot() -> DebugDiskUsageSnapshot:
         severity=worst_volume.severity,
         status_label=status_label,
         volumes=combined_volumes,
+        warning_free_display=_format_file_size(settings.app_health_disk_warning_free_mb * MEBIBYTE_BYTES),
+        critical_free_display=_format_file_size(settings.app_health_disk_critical_free_mb * MEBIBYTE_BYTES),
     )
 
 

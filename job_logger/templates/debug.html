@@ -34,7 +34,8 @@
           <div>
             <h2>Disk space</h2>
             <p class="muted-text">
-              App-visible storage paths. Warning at 85% used or under 5 GB free; critical at 95% used or under 1 GB free.
+              App-visible storage paths. Warning under {{ disk_usage.warning_free_display }} free;
+              critical under {{ disk_usage.critical_free_display }} free. Used percentage is informational only.
             </p>
           </div>
           <span class="status-chip disk-space-status disk-space-status-{{ disk_usage.severity }}">{{ disk_usage.status_label }}</span>
