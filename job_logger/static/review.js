@@ -1550,6 +1550,7 @@ function bindTicketLookup() {
   const ticketDescriptionDisplay = document.querySelector("[data-review-ticket-description-display]");
   const ticketNotesButtons = Array.from(document.querySelectorAll("[data-ticket-notes-button]"));
   const ticketTimeEntriesButtons = Array.from(document.querySelectorAll("[data-ticket-time-entries-button]"));
+  const ticketNavigationButtons = Array.from(document.querySelectorAll("[data-ticket-navigation-button]"));
   const ticketHeading = document.querySelector("[data-selected-ticket-heading]");
   const selectedRowTicketDisplay = document.querySelector("[data-review-selected-row-ticket]");
   if (!lookupUrl || !ticketSelectUrl || !statusElement || !resultsElement || !ticketNumberInput) {
@@ -1656,6 +1657,16 @@ function bindTicketLookup() {
       if (window.JobLoggerTicketNotes) {
         window.JobLoggerTicketNotes.refreshTimeEntriesButton(ticketTimeEntriesButton);
       }
+    }
+    if (ticketNavigationButtons.length && window.JobLoggerNavigation) {
+      window.JobLoggerNavigation.applyDestination(
+        ticketNavigationButtons[0].dataset.navigationUrl || "",
+        {
+          available: Boolean(selectedTicket.navigation_address),
+          navigation_app: selectedTicket.navigation_app,
+          navigation_address: selectedTicket.navigation_address,
+        },
+      );
     }
   }
 

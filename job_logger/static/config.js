@@ -160,5 +160,75 @@
     }
   }
 
+  function initializeNavigationConfigForm(form) {
+    const appInput = form.querySelector("[data-navigation-app-option]");
+    const homeInput = form.querySelector("[data-navigation-home-address]");
+    const officeInput = form.querySelector("[data-navigation-office-address]");
+    if (!appInput || !homeInput || !officeInput) {
+      return;
+    }
+
+    let lastSavedValues = {
+      navigationApp: appInput.value,
+      homeAddress: homeInput.value,
+      officeAddress: officeInput.value,
+    };
+    let saveSequence = 0;
+
+    function updateHomeRequirement() {
+      homeInput.required = appInput.value !== "none";
+    }
+
+    async function saveNavigationConfig() {
+      updateHomeRequirement();
+      if (!form.reportValidity()) {
+        setStatus(form, "Enter a home address before enabling navigation.", true);
+        return;
+      }
+
+      const requestSequence = ++saveSequence;
+      setStatus(form, "Saving...", false);
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "X-CSRF-Token": csrfToken(),
+          },
+          body: new FormData(form),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.detail || "Navigation configuration update failed.");
+        }
+        if (requestSequence !== saveSequence) {
+          return;
+        }
+        lastSavedValues = {
+          navigationApp: appInput.value,
+          homeAddress: homeInput.value,
+          officeAddress: officeInput.value,
+        };
+        setStatus(form, payload.message || "Configuration updated.", false);
+      } catch (error) {
+        if (requestSequence !== saveSequence) {
+          return;
+        }
+        appInput.value = lastSavedValues.navigationApp;
+        homeInput.value = lastSavedValues.homeAddress;
+        officeInput.value = lastSavedValues.officeAddress;
+        updateHomeRequirement();
+        setStatus(form, error.message || "Navigation configuration update failed.", true);
+      }
+    }
+
+    form.addEventListener("submit", (event) => event.preventDefault());
+    appInput.addEventListener("change", saveNavigationConfig);
+    homeInput.addEventListener("change", saveNavigationConfig);
+    officeInput.addEventListener("change", saveNavigationConfig);
+    updateHomeRequirement();
+  }
+
   document.querySelectorAll("[data-config-form]").forEach(initializeConfigForm);
+  document.querySelectorAll("[data-navigation-config-form]").forEach(initializeNavigationConfigForm);
 }());

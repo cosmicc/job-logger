@@ -571,6 +571,15 @@ resource/range metadata in list cards while keeping summary notes in the
 selected detail pane. Do not expose raw Autotask responses, credentials, or
 direct provider URLs to browser JavaScript.
 
+Navigation destinations are sensitive location data. Store only bounded
+single-line home and optional office values in the owning user's preference
+row. Never include raw home, office, ticket, service-call, company-location, or
+company-main addresses in audit details or application logs. Ticket and
+service-call destinations must be resolved through authenticated, owner-checked
+server routes and returned only as the one bounded address required for the
+current launch. Do not store customer addresses on Job rows or expose raw
+Autotask location records.
+
 Autotask service-call starts must also be server verified. The mobile browser
 may submit only the service-call ticket association ID and CSRF token; the
 server must confirm the association is in today's service-call list for the

@@ -57,6 +57,19 @@ def test_compose_and_swarm_expose_admin_contact_email() -> None:
     assert "ADMIN_CONTACT_EMAIL=admin@example.com" in env_example_text
 
 
+def test_compose_and_swarm_expose_navigation_office_address() -> None:
+    """Every Docker contract should pass the optional global office destination."""
+
+    deployment_texts = [
+        COMPOSE_FILE.read_text(encoding="utf-8"),
+        SWARM_FILE.read_text(encoding="utf-8"),
+        DEV_SWARM_FILE.read_text(encoding="utf-8"),
+    ]
+    for deployment_text in deployment_texts:
+        assert "NAVIGATION_OFFICE_ADDRESS: ${NAVIGATION_OFFICE_ADDRESS:-}" in deployment_text
+    assert "NAVIGATION_OFFICE_ADDRESS=" in ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+
+
 def test_compose_exposes_cloudflare_block_settings() -> None:
     """Docker Compose should pass app-managed Cloudflare block settings into the app."""
 

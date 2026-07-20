@@ -530,6 +530,21 @@ padding for phone status bars, and disabled page overscroll/bounce behavior.
 The authenticated top navigation remains visible while scrolling on both
 phone-sized and full-browser pages.
 
+Managed users can configure driving navigation on `/config`. Supported choices
+are **None**, **Device Default**, **Google Maps**, **Waze**, and **Apple Maps**.
+Enabling navigation requires a private Home address. Work then shows compact
+Home and Office buttons, and selected ticket context in Work in Progress and
+Review can show **Navigate**. Device Default uses the Android `geo:` handler,
+Apple Maps on iPhone/iPad, and a browser map on desktop. Starting a verified
+On-Site service call opens directions only after the local job commits; Remote
+service calls never launch directions automatically.
+
+Set `NAVIGATION_OFFICE_ADDRESS` to provide the optional deployment-wide Office
+destination. A user may save a private office override, or leave it blank to
+use the global value. Customer destinations are resolved transiently from the
+service-call location, ticket location, primary company location, then company
+main address in Autotask; they are not copied into local job or audit records.
+
 The service worker is intentionally network-only. It supports standalone app
 launch behavior but does not cache authenticated pages, job data, Autotask
 responses, transcription data, raw audio, or diagnostics.
@@ -632,8 +647,8 @@ Set these passkey variables for production when needed:
 ## Application Version And Changelog
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
-defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.3.1`. Version history starts at `v1.0.0`.
+defined in `job_logger/version.py`, mirrored in `pyproject.toml` and the root
+`VERSION` file, and is currently `v1.4.0`. Version history starts at `v1.0.0`.
 
 Authenticated pages show a Help button in the shared header. `/help` starts
 with **Ask AI for help**, shows **Operational Status**, then shows the current
@@ -657,7 +672,7 @@ changelog views use the same authenticated session, dark/light theme variables,
 and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the authenticated Help button is yellow
 on desktop and phone layouts, and `/help` shows the current version with `DEV`,
-such as `v1.3.1 DEV`.
+such as `v1.4.0 DEV`.
 
 ## Provider Modes
 
@@ -904,8 +919,9 @@ Diagnostics-authorized users see the specific monitored issue details.
 
 ### Autotask
 
-Autotask is mandatory for normal production use because the app now uses
-Autotask Companies and Tickets to decide which ticket receives time. Production
+Autotask is mandatory for normal production use because the app uses Autotask
+Companies, CompanyLocations, and Tickets for verified ticket and navigation
+context. Production
 must run with `AUTOTASK_PROVIDER=autotask`. The `mock` provider is only for
 tests or isolated development.
 

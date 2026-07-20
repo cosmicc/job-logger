@@ -840,6 +840,17 @@ small {
   gap: 10px;
 }
 
+.navigation-address-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.config-privacy-note {
+  margin: 0;
+  font-size: 12px;
+}
+
 .theme-choice-card {
   position: relative;
   display: flex;
@@ -2091,7 +2102,8 @@ a:focus-visible {
   display: none;
 }
 
-.ticket-notes-button {
+.ticket-notes-button,
+.ticket-navigation-button {
   min-height: 34px;
   padding: 6px 10px;
   gap: 6px;
@@ -2099,7 +2111,8 @@ a:focus-visible {
   white-space: nowrap;
 }
 
-.ticket-notes-button svg {
+.ticket-notes-button svg,
+.ticket-navigation-button svg {
   width: 16px;
   height: 16px;
 }
@@ -2926,6 +2939,24 @@ td a {
   color: var(--text);
   font-size: 13px;
   font-weight: 850;
+}
+
+.quick-navigation-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 150px));
+  justify-content: center;
+  gap: 8px;
+  margin: 4px auto 10px;
+}
+
+.quick-navigation-button {
+  min-height: 38px;
+  justify-content: center;
+}
+
+.quick-navigation-button svg {
+  width: 17px;
+  height: 17px;
 }
 
 .review-pagination {
@@ -5352,8 +5383,14 @@ td a {
   .user-edit-grid,
   .add-user-fields-grid,
   .theme-card-grid,
+  .navigation-address-grid,
   .password-field-grid {
     grid-template-columns: 1fr;
+  }
+
+  .quick-navigation-row {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .users-page-actions,

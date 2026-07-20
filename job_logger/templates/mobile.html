@@ -116,6 +116,33 @@
       </div>
     {% endif %}
 
+    {% if navigation_app is defined and navigation_app != "none" and navigation_home_address %}
+      <nav class="quick-navigation-row" aria-label="Quick navigation">
+        <button
+          class="secondary-button quick-navigation-button"
+          type="button"
+          data-static-navigation-button
+          data-navigation-app="{{ navigation_app }}"
+          data-navigation-address="{{ navigation_home_address }}"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-8 9 8"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path></svg>
+          Home
+        </button>
+        {% if navigation_office_address %}
+          <button
+            class="secondary-button quick-navigation-button"
+            type="button"
+            data-static-navigation-button
+            data-navigation-app="{{ navigation_app }}"
+            data-navigation-address="{{ navigation_office_address }}"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5l8-3 8 3v16"></path><path d="M9 9h2"></path><path d="M9 13h2"></path><path d="M9 17h2"></path><path d="M15 9h2"></path><path d="M15 13h2"></path><path d="M15 17h2"></path></svg>
+            Office
+          </button>
+        {% endif %}
+      </nav>
+    {% endif %}
+
     <section class="active-jobs-stack">
       {% if active_jobs %}
         {% for active_job in active_jobs %}
@@ -407,6 +434,18 @@
                   <span class="active-ticket-value-desktop active-ticket-title-display" data-active-ticket-title-display-desktop>{{ active_job.ticket_title or active_job.ticket_number or "" }}</span>
                 </dd>
                 <div class="ticket-context-actions ticket-context-actions-desktop">
+                  {% if navigation_app is defined and navigation_app != "none" %}
+                    <button
+                      class="secondary-button ticket-navigation-button is-hidden"
+                      type="button"
+                      data-ticket-navigation-button
+                      data-navigation-url="/review/{{ active_job.id }}/navigation"
+                      aria-label="Navigate to client"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-5.2 7-13a7 7 0 1 0-14 0c0 7.8 7 13 7 13Z"></path><circle cx="12" cy="9" r="2.5"></circle></svg>
+                      Navigate
+                    </button>
+                  {% endif %}
                   <button
                     class="secondary-button ticket-notes-button is-hidden"
                     type="button"
@@ -456,6 +495,18 @@
                   <span class="active-ticket-value-desktop active-ticket-number-display" data-active-ticket-number-display-desktop>{{ active_job.ticket_number or "" }}</span>
                 </dd>
                 <div class="ticket-context-actions ticket-context-actions-mobile">
+                  {% if navigation_app is defined and navigation_app != "none" %}
+                    <button
+                      class="secondary-button ticket-navigation-button is-hidden"
+                      type="button"
+                      data-ticket-navigation-button
+                      data-navigation-url="/review/{{ active_job.id }}/navigation"
+                      aria-label="Navigate to client"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-5.2 7-13a7 7 0 1 0-14 0c0 7.8 7 13 7 13Z"></path><circle cx="12" cy="9" r="2.5"></circle></svg>
+                      Navigate
+                    </button>
+                  {% endif %}
                   <button
                     class="secondary-button ticket-notes-button is-hidden"
                     type="button"
@@ -798,6 +849,7 @@
   {{ render_ticket_notes_overlay() }}
   <script src="/static/ticket-notes.js?v={{ static_asset_version }}" defer></script>
   <script src="/static/date-time-controls.js?v={{ static_asset_version }}" defer></script>
+  <script src="/static/navigation.js?v={{ static_asset_version }}" defer></script>
   <script src="/static/mobile.js?v={{ static_asset_version }}" defer></script>
   {% if show_passkey_setup_prompt %}
     <script src="/static/passkeys.js?v={{ static_asset_version }}" defer></script>

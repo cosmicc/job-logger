@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from job_logger.config import settings
 from job_logger.database import get_database_session
-from job_logger.enums import JobStatus, TicketStatus, WorkLocation
+from job_logger.enums import JobStatus, NavigationApp, TicketStatus, WorkLocation
 from job_logger.security import (
     SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY,
     add_flash_message,
@@ -72,6 +72,7 @@ from job_logger.services.jobs import (
 )
 from job_logger.services.passkeys import passkey_credential_count_for_user
 from job_logger.services.preferences import (
+    get_navigation_preferences_for_principal,
     get_submit_from_work_in_progress_for_principal,
     get_submit_from_work_in_progress_for_session,
     preference_principal_from_session,
@@ -732,6 +733,10 @@ def home_page(
         database_session,
         principal.key if principal else None,
     )
+    navigation_preferences = get_navigation_preferences_for_principal(
+        database_session,
+        principal.key if principal else None,
+    )
     show_passkey_setup_prompt = (
         bool(request.session.get(SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY, False))
         and passkey_credential_count_for_user(database_session, web_user.id) == 0
@@ -752,6 +757,9 @@ def home_page(
             week_work_hours_label=format_duration_minutes(week_total_minutes) or "0 Hours",
             can_start_jobs=True,
             start_block_reason=None,
+            navigation_app=navigation_preferences.navigation_app.value,
+            navigation_home_address=navigation_preferences.home_address,
+            navigation_office_address=navigation_preferences.effective_office_address,
         ),
     )
 
@@ -913,9 +921,10 @@ async def start_work(
 async def start_work_from_service_call(
     request: Request,
     database_session: Session = Depends(get_database_session),
-) -> RedirectResponse:
+) -> Response:
     """Start a new active work job from a server-verified Autotask service call."""
 
+    wants_json_response = _wants_json_response(request)
     actor = require_authenticated_username(request)
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
@@ -924,24 +933,36 @@ async def start_work_from_service_call(
     try:
         service_call_ticket_id = int(str(raw_service_call_ticket_id or "").strip())
     except ValueError:
+        if wants_json_response:
+            return JSONResponse({"detail": "Selected service call is invalid."}, status_code=400)
         add_flash_message(request, "Selected service call is invalid.", "error")
         return RedirectResponse(url="/home", status_code=303)
 
     if service_call_ticket_id <= 0:
+        if wants_json_response:
+            return JSONResponse({"detail": "Selected service call is invalid."}, status_code=400)
         add_flash_message(request, "Selected service call is invalid.", "error")
         return RedirectResponse(url="/home", status_code=303)
 
     try:
         selected_service_call_date = _parse_service_call_local_date(str(form_data.get("service_call_date") or ""))
     except ValueError as exc:
+        if wants_json_response:
+            return JSONResponse({"detail": str(exc)}, status_code=400)
         add_flash_message(request, str(exc), "error")
         return RedirectResponse(url="/home", status_code=303)
 
     try:
         web_user = _current_enabled_web_user(request, database_session)
+        principal = preference_principal_from_session(request.session)
+        navigation_preferences = get_navigation_preferences_for_principal(
+            database_session,
+            principal.key if principal else None,
+        )
         service_call_options = get_autotask_provider().list_todays_service_calls_for_resource(
             resource_id=web_user.autotask_resource_id,
             local_service_date=selected_service_call_date,
+            include_navigation=navigation_preferences.navigation_app != NavigationApp.NONE,
         )
         service_call_options = _filter_hidden_local_service_calls(
             database_session,
@@ -992,9 +1013,25 @@ async def start_work_from_service_call(
             },
         )
         database_session.commit()
+        should_navigate = (
+            selected_service_call.detected_work_location == WorkLocation.ON_SITE
+            and navigation_preferences.navigation_app != NavigationApp.NONE
+        )
+        if wants_json_response:
+            return JSONResponse(
+                {
+                    "job_id": job.id,
+                    "message": "Work started from service call.",
+                    "navigation_app": navigation_preferences.navigation_app.value,
+                    "navigation_address": selected_service_call.navigation_address if should_navigate else None,
+                    "navigation_requested": should_navigate,
+                }
+            )
         add_flash_message(request, "Work started from service call.", "success")
     except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
+        if wants_json_response:
+            return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
     return RedirectResponse(url="/home", status_code=303)
@@ -1167,15 +1204,32 @@ async def select_active_ticket(
         database_session.rollback()
         return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
 
-    return JSONResponse(
-        {
+    principal = preference_principal_from_session(request.session)
+    navigation_preferences = get_navigation_preferences_for_principal(
+        database_session,
+        principal.key if principal else None,
+    )
+    response_payload = {
             "ticket_number": job.ticket_number,
             "ticket_title": job.ticket_title,
             "ticket_description": job.ticket_description,
             "ticket_status": job.ticket_status.value if job.ticket_status else None,
             "ticket_status_label": selected_ticket_option.status_label,
-        }
-    )
+    }
+    if navigation_preferences.navigation_app != NavigationApp.NONE:
+        try:
+            navigation_address = get_autotask_provider().get_ticket_navigation_address(
+                job.ticket_number,
+                job.autotask_company_id,
+                resource_id=web_user.autotask_resource_id,
+            )
+        except AutotaskSubmissionError:
+            navigation_address = None
+        response_payload.update(
+            navigation_app=navigation_preferences.navigation_app.value,
+            navigation_address=navigation_address,
+        )
+    return JSONResponse(response_payload)
 
 
 @router.post("/jobs/{job_id}/delete")

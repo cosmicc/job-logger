@@ -82,6 +82,8 @@ Current provider responsibilities:
 - Search Resources for super-admin managed-user setup.
 - Query one selected company by ID.
 - Query open tickets for a company.
+- Resolve transient ticket and service-call navigation destinations from
+  `CompanyLocations` and company main-address fields.
 - Query selected-day service calls for the logged-in managed web user's
   resource.
 - Resolve service-call ticket/resource relationships before starting a job from
@@ -122,6 +124,7 @@ The live check currently verifies:
 
 - Required workflow configuration is present.
 - Company query endpoint is reachable.
+- CompanyLocations query endpoint is reachable.
 - Ticket status metadata endpoint is reachable.
 - Ticket query endpoint is reachable.
 
@@ -256,6 +259,8 @@ it needs several related Autotask entities:
   that specific service-call ticket row.
 - `Tickets` for ticket number, title, bounded description, status, and source.
 - `Companies` for the client name stored with the new active job.
+- `CompanyLocations` for service-call, ticket, and primary company navigation
+  destinations.
 
 The browser must submit only `service_call_ticket_id`, `service_call_date`, and
 CSRF to `POST /jobs/start/service-call`. The route re-reads the provider's
@@ -270,6 +275,13 @@ work-location values from hidden fields for this path. Starting from a service
 call stores verified local job metadata and defaults local ticket status to
 In progress, but it must not patch Autotask ticket status or perform any other
 remote write before submission.
+
+Navigation address priority is service-call `companylocationID`, ticket
+`companylocationID`, primary active CompanyLocation, then the Companies main
+address. Regular selected tickets start at ticket `companylocationID`, then use
+the same company fallbacks. Validate every CompanyLocation belongs to the
+expected company. Return a bounded single-line address only; do not return raw
+location rows and do not store customer addresses on Job or audit rows.
 
 The `/home/service-calls` response may include a preformatted local
 start/end time range for display, such as `4:00pm-5:00pm`. Treat that range as
@@ -304,8 +316,8 @@ text nor source identifies a work mode, display `Not specified` and let the
 started job use the normal Remote default.
 
 The Autotask API user's security level must be able to read `ServiceCalls`,
-`ServiceCallTickets`, and `ServiceCallTicketResources` in addition to the
-existing Companies/Tickets permissions. Service-call lookup failures should be
+`ServiceCallTickets`, `ServiceCallTicketResources`, and `CompanyLocations` in
+addition to the existing Companies/Tickets permissions. Service-call lookup failures should be
 shown as safe, bounded UI errors without blocking the blank Start Work path.
 
 ## Caching Rules

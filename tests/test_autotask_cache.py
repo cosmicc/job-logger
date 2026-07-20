@@ -242,6 +242,7 @@ class FakeOpenTicketLookupClient:
                 "status",
                 "completedDate",
                 "source",
+                "companylocationID",
             ]
             assert {"op": "eq", "field": "companyID", "value": 1001} in json["filter"]
             assert {"op": "notExist", "field": "completedDate"} in json["filter"]
@@ -262,6 +263,27 @@ class FakeOpenTicketLookupClient:
                             "title": "Completed ticket should not be returned",
                             "status": 5,
                         },
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/CompanyLocations/query":
+            assert json["MaxRecords"] == 500
+            assert {"op": "eq", "field": "isPrimary", "value": True} in json["filter"]
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "id": 5101,
+                            "companyID": 1001,
+                            "isActive": True,
+                            "isPrimary": True,
+                            "address1": "Primary Office",
+                            "city": "Detroit",
+                            "state": "MI",
+                            "postalCode": "48201",
+                        }
                     ],
                     "pageDetails": {},
                 }
@@ -493,7 +515,14 @@ class FakeServiceCallLookupClient:
         assert json["MaxRecords"] == 500
 
         if endpoint_path == "/ServiceCalls/query":
-            assert json["IncludeFields"] == ["id", "description", "startDateTime", "endDateTime", "companyID"]
+            assert json["IncludeFields"] == [
+                "id",
+                "description",
+                "startDateTime",
+                "endDateTime",
+                "companyID",
+                "companylocationID",
+            ]
             assert {
                 "op": "gte",
                 "field": "startDateTime",
@@ -513,6 +542,7 @@ class FakeServiceCallLookupClient:
                             "startDateTime": "2026-06-16T13:00:00Z",
                             "endDateTime": "2026-06-16T14:00:00Z",
                             "companyID": 1001,
+                            "companylocationID": 5001,
                         },
                         {
                             "id": 7002,
@@ -551,7 +581,16 @@ class FakeServiceCallLookupClient:
             )
 
         if endpoint_path == "/Tickets/query":
-            assert json["IncludeFields"] == ["id", "ticketNumber", "title", "description", "companyID", "status", "source"]
+            assert json["IncludeFields"] == [
+                "id",
+                "ticketNumber",
+                "title",
+                "description",
+                "companyID",
+                "companylocationID",
+                "status",
+                "source",
+            ]
             assert json["filter"] == [{"op": "in", "field": "id", "value": [9001]}]
             return FakeAutotaskResponse(
                 {
@@ -562,6 +601,7 @@ class FakeServiceCallLookupClient:
                             "title": "Firewall replacement",
                             "description": "Replace firewall and verify VPN.",
                             "companyID": 1001,
+                            "companylocationID": 5002,
                             "status": 1,
                             "source": "Datto Alert",
                         }
@@ -571,7 +611,16 @@ class FakeServiceCallLookupClient:
             )
 
         if endpoint_path == "/Companies/query":
-            assert json["IncludeFields"] == ["id", "companyName", "isActive"]
+            assert json["IncludeFields"] == [
+                "id",
+                "companyName",
+                "isActive",
+                "address1",
+                "address2",
+                "city",
+                "state",
+                "postalCode",
+            ]
             assert json["filter"] == [{"op": "in", "field": "id", "value": [1001, 1002]}]
             return FakeAutotaskResponse(
                 {
@@ -579,6 +628,42 @@ class FakeServiceCallLookupClient:
                         {"id": 1001, "companyName": "Acme Services", "isActive": True},
                         {"id": 1002, "companyName": "Other Client", "isActive": True},
                     ],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/CompanyLocations/query":
+            if json["filter"] == [{"op": "in", "field": "id", "value": [5001, 5002]}]:
+                return FakeAutotaskResponse(
+                    {
+                        "items": [
+                            {
+                                "id": 5001,
+                                "companyID": 1001,
+                                "isActive": True,
+                                "address1": "500 Service Call Lane",
+                                "city": "Detroit",
+                                "state": "MI",
+                                "postalCode": "48205",
+                            },
+                            {
+                                "id": 5002,
+                                "companyID": 1001,
+                                "isActive": True,
+                                "address1": "600 Ticket Lane",
+                                "city": "Detroit",
+                                "state": "MI",
+                                "postalCode": "48206",
+                            },
+                        ],
+                        "pageDetails": {},
+                    }
+                )
+            assert {"op": "in", "field": "companyID", "value": [1001, 1002]} in json["filter"]
+            assert {"op": "eq", "field": "isPrimary", "value": True} in json["filter"]
+            return FakeAutotaskResponse(
+                {
+                    "items": [],
                     "pageDetails": {},
                 }
             )
@@ -1702,8 +1787,16 @@ def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypat
     monkeypatch.setattr(provider, "_client", fake_client_context)
 
     current_time_utc = datetime(2026, 6, 16, 15, 30, tzinfo=UTC)
-    first_lookup = provider.list_todays_service_calls_for_resource(resource_id=1, current_time_utc=current_time_utc)
-    second_lookup = provider.list_todays_service_calls_for_resource(resource_id=1, current_time_utc=current_time_utc)
+    first_lookup = provider.list_todays_service_calls_for_resource(
+        resource_id=1,
+        current_time_utc=current_time_utc,
+        include_navigation=True,
+    )
+    second_lookup = provider.list_todays_service_calls_for_resource(
+        resource_id=1,
+        current_time_utc=current_time_utc,
+        include_navigation=True,
+    )
 
     assert len(first_lookup) == 1
     service_call_option = first_lookup[0]
@@ -1720,6 +1813,7 @@ def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypat
     assert service_call_option.autotask_company_id == 1001
     assert service_call_option.start_datetime_utc == datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
     assert service_call_option.end_datetime_utc == datetime(2026, 6, 16, 14, 0, tzinfo=UTC)
+    assert service_call_option.navigation_address == "500 Service Call Lane, Detroit, MI 48205"
     assert second_lookup == first_lookup
     assert fake_client.status_lookup_count == 1
     assert fake_client.source_lookup_count == 1
@@ -1729,6 +1823,8 @@ def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypat
         "/ServiceCallTicketResources/query",
         "/Tickets/query",
         "/Companies/query",
+        "/CompanyLocations/query",
+        "/CompanyLocations/query",
     ]
 
 

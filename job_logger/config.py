@@ -33,6 +33,7 @@ DEFAULT_GEMINI_HELP_API_BASE = "https://generativelanguage.googleapis.com/v1beta
 
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR"}
 VALID_MAIL_MODES = {"smtp", "smtp2go"}
+MAX_NAVIGATION_ADDRESS_LENGTH = 300
 
 
 def _get_boolean(environment_variable_name: str, default_value: bool) -> bool:
@@ -144,6 +145,17 @@ def _get_mail_mode() -> str:
     return mail_mode
 
 
+def _get_navigation_office_address() -> str:
+    """Return a bounded single-line global office destination."""
+
+    office_address = " ".join((os.getenv("NAVIGATION_OFFICE_ADDRESS") or "").split())
+    if len(office_address) > MAX_NAVIGATION_ADDRESS_LENGTH:
+        raise ValueError(
+            f"NAVIGATION_OFFICE_ADDRESS must be {MAX_NAVIGATION_ADDRESS_LENGTH} characters or fewer."
+        )
+    return office_address
+
+
 @dataclass(frozen=True)
 class Settings:
     """Typed application settings loaded from environment variables."""
@@ -205,6 +217,9 @@ class Settings:
 
     # ADMIN_CONTACT_EMAIL is the safe support contact shown to end users.
     admin_contact_email: str
+
+    # NAVIGATION_OFFICE_ADDRESS is the optional deployment-wide office destination.
+    navigation_office_address: str
 
     # APP_SESSION_COOKIE_SECURE should be true when served through HTTPS/Cloudflare.
     session_cookie_secure: bool
@@ -565,6 +580,7 @@ def load_settings() -> Settings:
         app_username=os.getenv("APP_USERNAME", "admin"),
         app_password=os.getenv("APP_PASSWORD") or None,
         admin_contact_email=(os.getenv("ADMIN_CONTACT_EMAIL") or "").strip(),
+        navigation_office_address=_get_navigation_office_address(),
         session_cookie_secure=_get_boolean("APP_SESSION_COOKIE_SECURE", False),
         session_timeout_hours=_get_positive_float("APP_SESSION_TIMEOUT_HOURS", 12.0),
         cloudflare_access_required=_get_boolean("CLOUDFLARE_ACCESS_REQUIRED", False),

@@ -185,13 +185,18 @@ when an option changes, and supports `dark` or `light` visual themes for all
 authenticated mobile and web pages. It also supports the default-off **Submit
 from Work in Progress** option. When enabled, ending an active job submits the
 time entry directly to Autotask instead of stopping in Review first. The
+per-user navigation setting supports None, Device Default, Google Maps, Waze,
+and Apple Maps. Home address is required only while navigation is enabled.
+Office address is optional and overrides `NAVIGATION_OFFICE_ADDRESS` when set.
+Keep home and office addresses out of audit events and logs. Autotask customer
+addresses are transient provider data and must not be stored on Job rows. The
 password-change section on `/config` is the exception: it requires two matching
 password entries and an explicit **Change password** submit button, and the
 password card must show the managed-user password requirements. The config
 super admin does not have user settings, does not see the Config menu item,
 cannot access `/config`, and always renders in dark mode.
 The `/config` cards should render in this order: **Appearance**, **Password**,
-**Device sign-in**, then **Workflow**.
+**Device sign-in**, **Navigation**, then **Workflow**.
 
 Never rely on the mobile UI, browser state, or hidden form fields for security
 decisions. The server must validate authentication, authorization, CSRF tokens,
@@ -624,7 +629,7 @@ must mark the Help navigation button in yellow so dev instances are visually
 distinct from production without adding a separate pill. Full-browser
 authenticated headers also show the version under the left-side Job Logger
 title, using `vX.Y.Z-DEV` for dev builds. The Help page itself must show the
-current version with `DEV`, such as `v1.3.1 DEV`.
+current version with `DEV`, such as `v1.4.0 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows compact route and status icons on the left,

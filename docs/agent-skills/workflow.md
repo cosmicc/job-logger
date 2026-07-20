@@ -82,9 +82,9 @@ Destructive red controls must stay red on hover, using a brighter red instead
 of falling back to a neutral dark hover.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 the Help button in yellow, while the full-browser header version label under
-the Job Logger title appends `-DEV`, such as `v1.3.1-DEV`. Keep a small but
+the Job Logger title appends `-DEV`, such as `v1.4.0-DEV`. Keep a small but
 visible gap between the title and header version label. The `/help` page shows
-the current version with `DEV`, such as `v1.3.1 DEV`. Keep the Help icon
+the current version with `DEV`, such as `v1.4.0 DEV`. Keep the Help icon
 compact so it does not crowd the mobile navigation icons.
 When cached app health is degraded, every authenticated user sees an exclamation
 status button in the top bar that links to `/help#operational-status`. Use
@@ -295,6 +295,13 @@ call starts an active job with the associated ticket number, ticket title,
 bounded ticket description, client name, company ID, and detected work-location
 mode.
 
+If the managed user enabled navigation and the verified service call is
+detected as On-Site, the JSON start path may return its transient Autotask
+destination only after the local job and audit event commit successfully. The
+browser then opens the configured provider. Remote or unknown service-call
+locations must not auto-launch navigation. A missing destination must not undo
+or hide a successfully started job.
+
 The `/home/service-calls` endpoint is only for drawing already-verified
 candidate cards in the browser. Before returning or accepting service-call
 options, route code must filter out tickets that already have a local Job Logger
@@ -311,6 +318,12 @@ status. Mobile forms that navigate or redirect, including start, service-call
 start, end, rounded-start adjustment, and active delete, should show the shared
 loading overlay once a submit is accepted so slow Autotask lookups do not look
 like ignored taps.
+
+Selected-ticket Work in Progress and Review context may expose a **Navigate**
+button for the owning managed user when navigation is enabled and a server-side
+Autotask lookup returns an address. Submitted jobs keep this read-only
+convenience action. Home and effective Office buttons belong in the compact
+Work summary area and remain hidden when navigation is None.
 
 Selected ticket descriptions on mobile are read-only Autotask context. Long
 descriptions should stay escaped, bounded to an internal scroll area, and

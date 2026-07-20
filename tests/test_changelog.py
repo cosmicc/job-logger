@@ -16,13 +16,16 @@ from job_logger.services.changelog import (
 from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token
 
-CURRENT_RELEASE_DATE = "07.13.2026"
-CURRENT_WEB_TITLE = "Password reset protection, navigation, and recovery reliability"
+CURRENT_RELEASE_DATE = "07.20.2026"
+CURRENT_WEB_TITLE = "Navigation apps and quick destinations"
 CURRENT_DETAILED_HEADING = (
-    f"## 1.3.1 - {CURRENT_RELEASE_DATE} - Swarm deployment, storage health, navigation, and "
-    "password-reset protection"
+    f"## 1.4.0 - {CURRENT_RELEASE_DATE} - Configurable navigation and Autotask destinations"
 )
-CURRENT_WEB_HEADING = f"## 1.3.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+CURRENT_WEB_HEADING = f"## 1.4.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+V131_DETAILED_HEADING = (
+    "## 1.3.1 - 07.13.2026 - Swarm deployment, storage health, navigation, and password-reset protection"
+)
+V131_WEB_HEADING = "## 1.3.1 - 07.13.2026 - Password reset protection, navigation, and recovery reliability"
 V130_WEB_TITLE = "Admin contact, user management, review totals, and public-device sessions"
 V130_RELEASE_DATE = "07.11.2026"
 V130_HEADING = f"## 1.3.0 - {V130_RELEASE_DATE} - {V130_WEB_TITLE}"
@@ -42,6 +45,7 @@ V120_RELEASE_DATE = "07.02.2026"
 RELEASE_HEADING_PATTERN = re.compile(r"^## \d+\.\d+\.\d+ - (?:\d{2}\.\d{2}\.\d{4} - .+|.+)")
 DETAILED_RELEASE_HEADINGS = (
     CURRENT_DETAILED_HEADING,
+    V131_DETAILED_HEADING,
     V130_HEADING,
     V124_DETAILED_HEADING,
     "## 1.2.3 - 07.05.2026 - Help navigation, AI Help and cleanup, changelog display, and Portainer env guidance",
@@ -61,6 +65,7 @@ DETAILED_RELEASE_HEADINGS = (
 )
 WEB_RELEASE_HEADINGS = (
     CURRENT_WEB_HEADING,
+    V131_WEB_HEADING,
     V130_HEADING,
     f"## 1.2.4 - {V124_RELEASE_DATE} - {V124_WEB_TITLE}",
     f"## 1.2.3 - {V123_RELEASE_DATE} - {V123_WEB_TITLE}",
@@ -130,7 +135,9 @@ def _assert_changelog_sections_are_non_empty(
 def test_app_version_matches_current_changelog_version() -> None:
     """The source-controlled version should match the current changelog entry."""
 
-    assert APP_VERSION == "1.3.1"
+    assert APP_VERSION == "1.4.0"
+    version_file = Path(__file__).resolve().parents[1] / "VERSION"
+    assert version_file.read_text(encoding="utf-8").strip() == APP_VERSION
 
 
 def test_detailed_and_web_changelogs_stay_versioned() -> None:
@@ -209,22 +216,23 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="1.3.1",
+        version="1.4.0",
         release_date=CURRENT_RELEASE_DATE,
         title=CURRENT_WEB_TITLE,
         changes=(
             (
-                "Forgot-password requests now protect the submitting IP after three consecutive valid email "
-                "addresses that do not match one enabled account."
+                "Config now lets each user choose None, Device Default, Google Maps, Waze, or Apple Maps and "
+                "save private Home and optional Office destinations."
             ),
             (
-                "A valid unique account match now clears the consecutive unmatched-email counter while "
-                "password-reset responses remain private and generic."
+                "Work now has quick Home and Office buttons, and selected tickets can show a Navigate button "
+                "in Work in Progress and Review."
             ),
-            "The top navigation now remains visible while scrolling on phones and full browsers.",
+            "Starting an On-Site service call now opens directions after Job Logger confirms the work entry started successfully.",
+            "Remote service calls do not open navigation automatically.",
             (
-                "Repeated unknown, disabled, or duplicate-email reset attempts can no longer continue without "
-                "the same local protection used for invalid sign-in attempts."
+                "Missing Autotask addresses no longer interrupt starting work, and navigation buttons stay "
+                "hidden when no usable destination is available."
             ),
         ),
     )

@@ -1866,8 +1866,6 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
   serviceCallForm.method = "post";
   serviceCallForm.action = "/jobs/start/service-call";
   serviceCallForm.className = "service-call-start-form";
-  serviceCallForm.dataset.pageLoadingForm = "";
-  serviceCallForm.dataset.loadingMessage = "Starting work and updating Autotask ticket status...";
 
   const csrfInput = document.createElement("input");
   csrfInput.type = "hidden";
@@ -1915,6 +1913,47 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
   }
   optionButton.append(ticketTitle);
   serviceCallForm.append(csrfInput, serviceCallTicketInput, serviceCallDateInput, optionButton);
+  serviceCallForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    optionButton.disabled = true;
+    optionButton.classList.add("is-loading");
+    showMobilePageLoading("Starting work...");
+    try {
+      const response = await fetch(serviceCallForm.action, {
+        method: "POST",
+        headers: {Accept: "application/json"},
+        body: new FormData(serviceCallForm),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.detail || "The service call could not be started.");
+      }
+      if (
+        payload.navigation_requested
+        && payload.navigation_address
+        && window.JobLoggerNavigation
+        && window.JobLoggerNavigation.launch(
+          payload.navigation_app,
+          payload.navigation_address,
+          {refreshOnReturn: true},
+        )
+      ) {
+        return;
+      }
+      if (payload.navigation_requested && !payload.navigation_address) {
+        window.alert("Work started, but Autotask did not provide a navigation address for this client.");
+      }
+      window.location.assign("/home");
+    } catch (error) {
+      optionButton.disabled = false;
+      optionButton.classList.remove("is-loading");
+      hideMobilePageLoading();
+      const panel = serviceCallForm.closest("[data-service-call-panel]");
+      if (panel) {
+        setServiceCallPanelError(panel, error.message || "The service call could not be started.");
+      }
+    }
+  });
   return serviceCallForm;
 }
 
@@ -2081,6 +2120,17 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
   }
   if (ticketTimeEntriesButtons.length && window.JobLoggerTicketNotes) {
     window.JobLoggerTicketNotes.refreshTimeEntriesButton(ticketTimeEntriesButtons[0]);
+  }
+  const ticketNavigationButton = activeJobCard.querySelector("[data-ticket-navigation-button]");
+  if (ticketNavigationButton && window.JobLoggerNavigation) {
+    window.JobLoggerNavigation.applyDestination(
+      ticketNavigationButton.dataset.navigationUrl || "",
+      {
+        available: Boolean(selectedTicket.navigation_address),
+        navigation_app: selectedTicket.navigation_app,
+        navigation_address: selectedTicket.navigation_address,
+      },
+    );
   }
   if (ticketNumber) {
     lockActiveClientInputForSelectedTicket(jobId);

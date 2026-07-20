@@ -2,6 +2,37 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations
+
+### Added
+
+- Added per-user navigation choices for None, Device Default, Google Maps,
+  Waze, and Apple Maps, with a required home destination while navigation is
+  enabled and an optional private office override.
+- Added compact Home and Office navigation buttons on Work and a Navigate
+  button for selected tickets in Work in Progress and Review, including
+  submitted jobs.
+- Added `NAVIGATION_OFFICE_ADDRESS` as an optional Docker, Swarm, and
+  `.env.example` setting used when a managed user has no office override.
+
+### Changed
+
+- Advanced the source-controlled dev runtime version to `v1.4.0`, including
+  package metadata, the root `VERSION` file, and the PWA service worker version.
+- Changed On-Site service-call starts to commit the new local job first and
+  then open the configured navigation app. Remote service calls never launch
+  navigation automatically.
+- Added server-side Autotask address resolution in service-call location,
+  ticket location, primary company location, then company main-address order.
+  Customer destinations remain transient and are not stored on local jobs.
+
+### Fixed
+
+- Kept missing customer or office addresses from blocking job creation and hid
+  unavailable navigation actions instead of launching an empty destination.
+- Preserved older backups by restoring navigation disabled with no private
+  address values when the new preference columns are absent.
+
 ## 1.3.1 - 07.13.2026 - Swarm deployment, storage health, navigation, and password-reset protection
 
 ### Added

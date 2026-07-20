@@ -123,6 +123,12 @@ to two active work records at the same time.
 Each Work in Progress card belongs to your user account. Other users do not use
 your active cards.
 
+When navigation is enabled in Config, Work shows quick **Home** and **Office**
+buttons. Office appears only when you or your administrator configured an
+office destination. Starting a service call detected as On-Site opens your
+chosen navigation app after Job Logger confirms the work entry started. Remote
+service calls start without opening navigation.
+
 ## Work In Progress Fields
 
 A Work in Progress card contains the information that will eventually be sent
@@ -177,6 +183,10 @@ When available, these buttons open read-only Autotask context for the selected
 ticket. **Ticket notes** shows ticket-note history. **Past time entries** shows
 prior time entries for the ticket. Some Autotask-generated system notes are
 filtered out so this list focuses on useful ticket history.
+
+When Autotask provides an address and navigation is enabled, **Navigate** opens
+directions to the selected ticket's client. The button is available in Work in
+Progress and Review, including after submission.
 
 **Summary notes**
 
@@ -340,6 +350,16 @@ password-change step until the new password is saved.
 ### Device Sign-In
 
 Set up or delete device sign-in credentials for your account.
+
+### Navigation
+
+Choose **None**, **Device Default**, **Google Maps**, **Waze**, or **Apple
+Maps**. Home address is required when navigation is enabled. Office address is
+optional; leave it blank to use your organization's office address when one is
+configured. These personal addresses save with your user settings.
+
+Device Default asks Android to use its registered map handler, uses Apple Maps
+on iPhone or iPad, and opens browser directions on a desktop.
 
 ### Workflow
 

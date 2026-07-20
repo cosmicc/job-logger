@@ -46,6 +46,16 @@ class ThemeMode(StrEnum):
     LIGHT = "light"
 
 
+class NavigationApp(StrEnum):
+    """Supported per-user navigation launch targets."""
+
+    NONE = "none"
+    DEVICE_DEFAULT = "device_default"
+    GOOGLE_MAPS = "google_maps"
+    WAZE = "waze"
+    APPLE_MAPS = "apple_maps"
+
+
 class TranscriptionStatus(StrEnum):
     """State of the most recent speech-to-text attempt for a job."""
 

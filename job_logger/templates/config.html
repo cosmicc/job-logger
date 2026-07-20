@@ -199,6 +199,57 @@
         {% endif %}
 
         {% if not password_change_required %}
+          <section class="edit-panel config-panel" aria-labelledby="navigation-heading">
+            <div class="panel-title-row">
+              <div>
+                <h2 id="navigation-heading">Navigation</h2>
+                <p class="muted-text">Choose how Job Logger opens directions and save your quick destinations.</p>
+              </div>
+            </div>
+            <form method="post" action="/config" class="stack-form config-form" data-navigation-config-form>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <label>
+                <span>Navigation app</span>
+                <select name="navigation_app" data-navigation-app-option>
+                  {% for option_value, option_label in navigation_app_options %}
+                    <option value="{{ option_value }}" {% if selected_navigation_app == option_value %}selected{% endif %}>{{ option_label }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <div class="navigation-address-grid">
+                <label>
+                  <span>Home address</span>
+                  <input
+                    name="home_address"
+                    type="text"
+                    maxlength="300"
+                    autocomplete="street-address"
+                    value="{{ navigation_home_address }}"
+                    data-navigation-home-address
+                    {% if selected_navigation_app != "none" %}required{% endif %}
+                  >
+                  <small class="muted-text">Required while navigation is enabled.</small>
+                </label>
+                <label>
+                  <span>Office address override</span>
+                  <input
+                    name="office_address"
+                    type="text"
+                    maxlength="300"
+                    autocomplete="street-address"
+                    value="{{ navigation_office_address }}"
+                    data-navigation-office-address
+                  >
+                  <small class="muted-text">
+                    Optional.{% if global_navigation_office_configured %} Leave blank to use the globally configured office.{% else %} No global office is configured.{% endif %}
+                  </small>
+                </label>
+              </div>
+              <p class="config-privacy-note muted-text">Saved addresses are private user settings and are not included in audit logs.</p>
+              <p class="config-save-status muted-text" data-config-status aria-live="polite">Changes save automatically.</p>
+            </form>
+          </section>
+
           <section class="edit-panel config-panel" aria-labelledby="workflow-heading">
             <div class="panel-title-row">
               <div>
