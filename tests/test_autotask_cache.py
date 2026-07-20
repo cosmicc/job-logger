@@ -241,6 +241,8 @@ class FakeOpenTicketLookupClient:
                 "description",
                 "status",
                 "completedDate",
+                "createDate",
+                "dueDateTime",
                 "source",
                 "companylocationID",
             ]
@@ -257,6 +259,8 @@ class FakeOpenTicketLookupClient:
                             "description": "Cached open ticket description.",
                             "status": 1,
                             "source": 11,
+                            "createDate": "2026-06-16T12:00:00Z",
+                            "dueDateTime": "2026-06-18T21:00:00Z",
                         },
                         {
                             "ticketNumber": "T20260616.0002",
@@ -1693,6 +1697,8 @@ def test_open_ticket_lookup_reuses_recent_server_verified_list(monkeypatch: pyte
     assert [ticket.ticket_number for ticket in first_lookup] == ["T20260616.0001"]
     assert first_lookup[0].detected_work_location == WorkLocation.REMOTE
     assert first_lookup[0].work_location_label == "Remote"
+    assert first_lookup[0].created_at_utc == datetime(2026, 6, 16, 12, 0, tzinfo=UTC)
+    assert first_lookup[0].due_at_utc == datetime(2026, 6, 18, 21, 0, tzinfo=UTC)
     assert second_lookup == first_lookup
     assert fake_client.company_query_count == 1
     assert fake_client.ticket_query_count == 1

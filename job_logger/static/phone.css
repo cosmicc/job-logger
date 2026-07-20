@@ -516,20 +516,23 @@
 }
 
 .ticket-context-actions-mobile {
-  display: flex;
-  flex-wrap: nowrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-top: 8px;
   width: 100%;
 }
 
-.ticket-context-actions-mobile .ticket-notes-button {
-  flex: 1 1 0;
+.ticket-context-actions-mobile .ticket-notes-button,
+.ticket-context-actions-mobile .ticket-navigation-button {
   justify-content: center;
   min-width: 0;
   padding-left: 8px;
   padding-right: 8px;
+}
+
+.ticket-context-actions-mobile .ticket-navigation-button {
+  grid-column: 1 / -1;
 }
 
 .ticket-notes-overlay {

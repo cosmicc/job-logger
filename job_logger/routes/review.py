@@ -71,6 +71,7 @@ from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_o
 from job_logger.time_utils import (
     format_duration_minutes,
     format_local_date,
+    format_local_date_display,
     format_local_display,
     format_local_time,
     format_rounded_duration_label,
@@ -270,6 +271,8 @@ def review_ticket_options(
                     "status_label": ticket_option.status_label,
                     "status_id": ticket_option.status_id,
                     "company_name": ticket_option.company_name,
+                    "start_date": format_local_date_display(ticket_option.created_at_utc),
+                    "due_by_date": format_local_date_display(ticket_option.due_at_utc),
                     "work_location_label": ticket_option.work_location_label,
                     "work_location_class": _ticket_option_location_class(ticket_option),
                 }

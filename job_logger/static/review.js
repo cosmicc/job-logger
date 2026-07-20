@@ -1491,6 +1491,8 @@ function renderTicketOptionButton(optionButton, ticketOption) {
   const ticketTitle = ticketOption.title || "Untitled ticket";
   const ticketStatus = ticketOption.status_label || "Unknown status";
   const companyName = ticketOption.company_name || "Unknown company";
+  const startDate = toSafeMapString(ticketOption.start_date).trim() || "Not set";
+  const dueByDate = toSafeMapString(ticketOption.due_by_date).trim() || "Not set";
   const locationLabel = ticketOption.work_location_label || "Not specified";
   const locationClass = ticketOption.work_location_class || "ticket-location-unknown";
   const cardHeader = document.createElement("span");
@@ -1503,6 +1505,7 @@ function renderTicketOptionButton(optionButton, ticketOption) {
   optionButton.replaceChildren(
     cardHeader,
     createTicketOptionSpan("ticket-option-title", ticketTitle),
+    createTicketOptionSpan("ticket-option-dates", `Start ${startDate} · Due by ${dueByDate}`),
     createTicketOptionSpan("ticket-option-meta", `${ticketStatus} | ${companyName}`),
   );
 }

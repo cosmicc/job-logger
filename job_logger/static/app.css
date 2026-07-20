@@ -1592,6 +1592,7 @@ a:focus-visible {
 .service-call-time-range,
 .ticket-option-number,
 .ticket-option-title,
+.ticket-option-dates,
 .ticket-option-meta {
   overflow-wrap: anywhere;
   font-size: 14px;
@@ -1614,6 +1615,12 @@ a:focus-visible {
 
 .ticket-option-meta {
   color: var(--muted);
+}
+
+.ticket-option-dates {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
 }
 
 .service-call-location-badge,

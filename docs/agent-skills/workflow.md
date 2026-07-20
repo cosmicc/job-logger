@@ -287,7 +287,8 @@ Service-call options are provided by
 which derives Remote/On-Site from the service-call details text. The resource ID
 must come from the enabled managed web user, not config or browser input. Each
 rendered card should stay compact and show the client name, Remote/On-Site
-label, local start/end time range, and associated ticket title, with different
+label, scheduled local date, local start/end time range, and associated ticket
+title, with different
 Remote and On-Site coloring for quick scanning. Use the specific
 `.service-call-option-button.service-call-location-*` styling hooks so these
 cards do not regress to the generic grey button treatment. Clicking a service
@@ -324,6 +325,9 @@ button for the owning managed user when navigation is enabled and a server-side
 Autotask lookup returns an address. Submitted jobs keep this read-only
 convenience action. Home and effective Office buttons belong in the compact
 Work summary area and remain hidden when navigation is None.
+On phone layouts, place **Navigate** on its own full-width row above the two
+equal-width **Ticket notes** and **Past time entries** buttons so no action is
+pushed outside the viewport.
 
 Selected ticket descriptions on mobile are read-only Autotask context. Long
 descriptions should stay escaped, bounded to an internal scroll area, and
@@ -351,7 +355,8 @@ In the active mobile card, the destructive mobile discard action is labeled
 **End Work**, **End Note**, or the direct-submit variant to keep the Work in
 Progress actions compact.
 When two active jobs are present, their Work in Progress panels should use
-distinct slot shading. In full-browser layout, keep End Work/Delete directly
+distinct slot shading and render the most recently started job first. In
+full-browser layout, keep End Work/Delete directly
 under the Record/AI Cleanup row and place recording or AI cleanup status below
 all action buttons.
 Status chips shown in review, user management, and diagnostics should use the

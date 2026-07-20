@@ -228,12 +228,18 @@ def test_changelog_parser_reads_current_release() -> None:
                 "Work now has quick Home and Office buttons, and selected tickets can show a Navigate button "
                 "in Work in Progress and Review."
             ),
+            "Service calls now show their scheduled date, and open tickets show Start and Due by dates.",
             "Starting an On-Site service call now opens directions after Job Logger confirms the work entry started successfully.",
             "Remote service calls do not open navigation automatically.",
+            (
+                "The newest concurrent Work in Progress job now appears first, Device sign-in is the final "
+                "Config card, and phone ticket actions use two compact rows."
+            ),
             (
                 "Missing Autotask addresses no longer interrupt starting work, and navigation buttons stay "
                 "hidden when no usable destination is available."
             ),
+            "Work Duration now stays synchronized with the visible start and end times after 15-minute adjustments.",
         ),
     )
 

@@ -196,7 +196,7 @@ password card must show the managed-user password requirements. The config
 super admin does not have user settings, does not see the Config menu item,
 cannot access `/config`, and always renders in dark mode.
 The `/config` cards should render in this order: **Appearance**, **Password**,
-**Device sign-in**, **Navigation**, then **Workflow**.
+**Navigation**, **Workflow**, then **Device sign-in** as the final card.
 
 Never rely on the mobile UI, browser state, or hidden form fields for security
 decisions. The server must validate authentication, authorization, CSRF tokens,
@@ -572,7 +572,8 @@ When no service calls are available for a selected day, the full-browser
 empty-state message should be centered. Phone spacing should remain governed by
 the shared/mobile CSS.
 When two active jobs are present, their Work in Progress cards should use
-distinct slot shading so they are easier to tell apart. On full-browser Work in
+distinct slot shading so they are easier to tell apart, and the most recently
+started job must appear above the earlier active job. On full-browser Work in
 Progress cards, the End Work/Delete row belongs directly under the
 Record/AI Cleanup row, and recording/AI status text belongs below all action
 buttons. Active Work in Progress cards should show an editable **Job date**
@@ -733,6 +734,9 @@ directly above the centered **Ticket number** card, then a centered **Ticket
 name** card with the **Ticket notes** and **Past time entries** buttons split
 across one row above **Ticket description**. On phone-sized layouts, both
 ticket-history buttons must open the same full-screen overlay. Work in
+Progress and Review must place **Navigate** on its own full-width phone row
+above the two equal-width history buttons so all three actions fit without
+horizontal overflow. Work in
 Progress must keep the **Past time entries** button visible beside **Ticket
 notes** for every active job whose authenticated lookup returns rows,
 including the first active-job card when two jobs are open. On full-browser
@@ -1177,7 +1181,8 @@ The normal workflow is:
    Autotask API contactability check. After the page has loaded, browser
    JavaScript queries `/home/service-calls` to populate service-call start
    cards for the selected local date and that user's Autotask resource,
-   including each call's local start/end time range. The mobile date navigator
+   including each call's scheduled local date and start/end time range. The
+   mobile date navigator
    can move backward/forward by day or open a calendar picker, and its visible
    label shows `Today`, `Yesterday`, or `Tomorrow` with the weekday when
    applicable; other dates show the month, ordinal day, and weekday without
@@ -1202,7 +1207,9 @@ The normal workflow is:
    falling back to remote-only Autotask ticket sources such as `RMM Alert`,
    `Datto Alert`, `BCDR Alert`, and `Email Alert` when text detection has no
    result. Remote and On-Site color treatment matches service-call cards.
-   Mobile ticket numbers are populated from that selection instead of manual
+   Ticket choices also show **Start** from Autotask `Tickets.createDate` and
+   **Due by** from `Tickets.dueDateTime`. Mobile ticket numbers are populated
+   from that selection instead of manual
    entry. Selection never patches Autotask ticket status; it stores verified
    local ticket metadata and defaults the editable local ticket status to
    In progress until the job's time entry is submitted. The selected ticket

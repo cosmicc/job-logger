@@ -167,8 +167,10 @@ Ticket lookup uses `/review/{job_id}/tickets`.
 Ticket lookup requires the stored Autotask company ID and verified client name.
 
 Ticket options returned to the browser include safe ticket number, title,
-bounded description, status label, company name, and display-only work-location
-detection. Review ticket selection uses `POST /review/{job_id}/ticket`; the
+bounded description, status label, company name, local display dates derived
+from `Tickets.createDate` as **Start** and `Tickets.dueDateTime` as **Due by**,
+and display-only work-location detection. Review ticket selection uses
+`POST /review/{job_id}/ticket`; the
 route uses the server-verified open-ticket list that was just loaded when the
 short-lived selection cache is available, falls back to re-querying Autotask
 when that cache is expired or absent, verifies the submitted ticket number is
@@ -283,8 +285,9 @@ the same company fallbacks. Validate every CompanyLocation belongs to the
 expected company. Return a bounded single-line address only; do not return raw
 location rows and do not store customer addresses on Job or audit rows.
 
-The `/home/service-calls` response may include a preformatted local
-start/end time range for display, such as `4:00pm-5:00pm`. Treat that range as
+The `/home/service-calls` response includes a preformatted local scheduled date
+and may include a local start/end time range for display, such as
+`06/20/2026 · 4:00pm-5:00pm`. Treat that context as
 read-only card context; it must not be submitted back by the browser or used as
 the authorization source for starting a job.
 

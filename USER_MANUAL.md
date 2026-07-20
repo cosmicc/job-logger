@@ -118,7 +118,8 @@ hours. Ticket notes do not add to these totals because they do not record start
 and end times.
 
 Select **Start Work** to create a Work in Progress card. Job Logger supports up
-to two active work records at the same time.
+to two active work records at the same time. When two are active, the most
+recently started record appears above the earlier record.
 
 Each Work in Progress card belongs to your user account. Other users do not use
 your active cards.
@@ -174,8 +175,10 @@ selected, the client becomes read-only for that work record.
 **Ticket number** and **Ticket name**
 
 After selecting a verified client, load that client's open tickets and select
-the correct ticket. Job Logger saves the selected ticket number, title, and
-description. The ticket identity becomes read-only after selection.
+the correct ticket. Each choice includes the ticket's **Start** date and
+**Due by** date when Autotask provides them. Job Logger saves the selected
+ticket number, title, and description. The ticket identity becomes read-only
+after selection.
 
 **Ticket notes** and **Past time entries**
 
@@ -186,7 +189,9 @@ filtered out so this list focuses on useful ticket history.
 
 When Autotask provides an address and navigation is enabled, **Navigate** opens
 directions to the selected ticket's client. The button is available in Work in
-Progress and Review, including after submission.
+Progress and Review, including after submission. On phones, Navigate uses its
+own row above the Ticket notes and Past time entries buttons so all three
+actions remain easy to tap.
 
 **Summary notes**
 
@@ -347,10 +352,6 @@ not save automatically because they require explicit confirmation.
 When Job Logger says you are using a temporary password, Config shows only the
 password-change step until the new password is saved.
 
-### Device Sign-In
-
-Set up or delete device sign-in credentials for your account.
-
 ### Navigation
 
 Choose **None**, **Device Default**, **Google Maps**, **Waze**, or **Apple
@@ -373,6 +374,11 @@ in Progress card.
 Use the default off setting when you want to review and edit every completed
 record before Autotask submission. Turn it on when you trust the Work in
 Progress fields and want fewer steps.
+
+### Device Sign-In
+
+The final Config card lets you set up or delete device sign-in credentials for
+your account.
 
 ## Help And Changelog
 

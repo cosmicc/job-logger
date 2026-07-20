@@ -428,22 +428,28 @@ def ensure_job_ready_for_autotask_submission(job: Job) -> None:
 
 
 def list_active_jobs(database_session: Session) -> list[Job]:
-    """Return all active jobs in slot/date order."""
+    """Return all active jobs with the most recently started job first."""
 
     active_jobs = list(database_session.execute(select(Job).where(Job.status == JobStatus.ACTIVE)).scalars())
-    active_jobs.sort(key=lambda job: ((job.job_slot or 99), job.created_at_utc))
+    active_jobs.sort(
+        key=lambda job: (job.created_at_utc, job.job_slot or 0),
+        reverse=True,
+    )
     return active_jobs
 
 
 def list_active_jobs_for_web_user(database_session: Session, web_user_id: str) -> list[Job]:
-    """Return active jobs owned by one managed web user."""
+    """Return one managed user's active jobs with the newest start first."""
 
     active_jobs = list(
         database_session.execute(
             select(Job).where(Job.status == JobStatus.ACTIVE, Job.web_user_id == web_user_id)
         ).scalars()
     )
-    active_jobs.sort(key=lambda job: ((job.job_slot or 99), job.created_at_utc))
+    active_jobs.sort(
+        key=lambda job: (job.created_at_utc, job.job_slot or 0),
+        reverse=True,
+    )
     return active_jobs
 
 

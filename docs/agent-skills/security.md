@@ -235,8 +235,8 @@ requirements so users can fix validation failures before submitting. It must
 clear the temporary-password flag after a successful change. Never log, audit,
 or flash the raw submitted password.
 The `/config` page should keep its cards ordered as **Appearance**,
-**Password**, **Device sign-in**, then **Workflow** so routine password and
-passkey controls appear before the optional direct-submit workflow preference.
+**Password**, **Navigation**, **Workflow**, then **Device sign-in** so passkey
+setup remains the final card on the page.
 
 Disabling a managed web user from `/users` must invalidate that user's existing
 signed sessions and preserve the row. Keeping a disabled row lets the login

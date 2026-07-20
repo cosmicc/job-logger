@@ -83,6 +83,7 @@ from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_o
 from job_logger.time_utils import (
     format_duration_minutes,
     format_local_compact_time_range,
+    format_local_date_display,
     format_local_time,
     format_rounded_duration_label,
     format_utc_iso,
@@ -302,6 +303,7 @@ def _service_call_option_payload(service_call_option: AutotaskServiceCallOption)
             service_call_option.start_datetime_utc,
             service_call_option.end_datetime_utc,
         ),
+        "scheduled_date": format_local_date_display(service_call_option.start_datetime_utc),
         "work_location_label": service_call_option.work_location_label,
         "work_location_class": _service_call_location_class(service_call_option),
         "ticket_status_label": service_call_option.ticket_status_label,

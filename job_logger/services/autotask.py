@@ -413,6 +413,12 @@ class AutotaskTicketOption:
     # company_name is included because client-name searches can match more than one company.
     company_name: str
 
+    # created_at_utc is Tickets.createDate, presented to users as the ticket Start date.
+    created_at_utc: datetime | None = None
+
+    # due_at_utc is Tickets.dueDateTime, presented to users as the Due by date.
+    due_at_utc: datetime | None = None
+
     # detected_work_location is inferred from safe ticket title/description text
     # and then ticket source as a fallback; it is not an authorization source.
     detected_work_location: WorkLocation | None = None
@@ -1278,6 +1284,8 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 description=f"Mock ticket description for {safe_client_name}.",
                 status_label="In Progress",
                 company_name=safe_client_name,
+                created_at_utc=datetime(2026, 6, 16, 12, 0, tzinfo=UTC),
+                due_at_utc=datetime(2026, 6, 18, 21, 0, tzinfo=UTC),
                 detected_work_location=WorkLocation.REMOTE,
                 work_location_label=WORK_LOCATION_DISPLAY_LABELS[WorkLocation.REMOTE],
                 status_id=1,
@@ -1289,6 +1297,8 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 description=f"Mock follow-up description for {safe_client_name}.",
                 status_label="Follow Up",
                 company_name=safe_client_name,
+                created_at_utc=datetime(2026, 6, 17, 12, 0, tzinfo=UTC),
+                due_at_utc=datetime(2026, 6, 20, 21, 0, tzinfo=UTC),
                 detected_work_location=WorkLocation.ON_SITE,
                 work_location_label=WORK_LOCATION_DISPLAY_LABELS[WorkLocation.ON_SITE],
                 status_id=4,
@@ -2639,6 +2649,8 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 "description",
                 "status",
                 "completedDate",
+                "createDate",
+                "dueDateTime",
                 "source",
                 "companylocationID",
             ],
@@ -2710,6 +2722,8 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     description=ticket_description,
                     status_label=status_labels.get(status_id, str(raw_status_id or "Unknown")),
                     company_name=company_name,
+                    created_at_utc=_parse_autotask_datetime(ticket.get("createDate")),
+                    due_at_utc=_parse_autotask_datetime(ticket.get("dueDateTime")),
                     detected_work_location=detected_work_location,
                     work_location_label=work_location_label_for_detection(detected_work_location),
                     status_id=status_id if status_id >= 0 else None,

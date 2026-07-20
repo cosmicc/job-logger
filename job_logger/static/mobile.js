@@ -956,14 +956,10 @@ function updateActiveTimeDisplays(activeTimeForm, payload) {
     stopTimeInput.dataset.initialRoundedStopUtc = toSafeMapString(payload.rounded_stop_utc);
     stopTimeInput.dataset.initialRoundedStopLocalTime = toSafeMapString(payload.rounded_stop_time);
   }
-  if (payload.duration_label) {
-    const durationDisplay = activeJobCard.querySelector("[data-duration-display]");
-    if (durationDisplay) {
-      durationDisplay.textContent = toSafeMapString(payload.duration_label);
-    }
-  } else {
-    updateActiveDurationDisplay(activeJobCard);
-  }
+  // Derive the visible duration from the visible canonical fields. This keeps
+  // the label synchronized even when rapid start/stop edits return out of
+  // order or a server save normalizes one of the displayed time values.
+  updateActiveDurationDisplay(activeJobCard);
 
   return activeJobCard;
 }
@@ -1711,6 +1707,8 @@ function renderTicketOptionButton(optionButton, ticketOption) {
   const ticketTitle = ticketOption.title || "Untitled ticket";
   const ticketStatus = ticketOption.status_label || "Unknown status";
   const companyName = ticketOption.company_name || "Unknown company";
+  const startDate = toSafeMapString(ticketOption.start_date).trim() || "Not set";
+  const dueByDate = toSafeMapString(ticketOption.due_by_date).trim() || "Not set";
   const locationLabel = ticketOption.work_location_label || "Not specified";
   const locationClass = ticketOption.work_location_class || "ticket-location-unknown";
   const cardHeader = document.createElement("span");
@@ -1723,6 +1721,7 @@ function renderTicketOptionButton(optionButton, ticketOption) {
   optionButton.replaceChildren(
     cardHeader,
     createTicketOptionSpan("ticket-option-title", ticketTitle),
+    createTicketOptionSpan("ticket-option-dates", `Start ${startDate} · Due by ${dueByDate}`),
     createTicketOptionSpan("ticket-option-meta", `${ticketStatus} | ${companyName}`),
   );
 }
@@ -1902,13 +1901,14 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
   ticketTitle.textContent = serviceCallOption.ticket_title || "Untitled ticket";
 
   const scheduledTimeRange = toSafeMapString(serviceCallOption.scheduled_time_range).trim();
+  const scheduledDate = toSafeMapString(serviceCallOption.scheduled_date).trim();
   const timeRange = document.createElement("span");
   timeRange.className = "service-call-time-range";
-  timeRange.textContent = scheduledTimeRange;
+  timeRange.textContent = [scheduledDate, scheduledTimeRange].filter(Boolean).join(" · ");
 
   cardHeader.append(clientName, workLocationBadge);
   optionButton.append(cardHeader);
-  if (scheduledTimeRange) {
+  if (timeRange.textContent) {
     optionButton.append(timeRange);
   }
   optionButton.append(ticketTitle);

@@ -14,6 +14,8 @@ All notable changes to Job Logger are documented in this file.
   submitted jobs.
 - Added `NAVIGATION_OFFICE_ADDRESS` as an optional Docker, Swarm, and
   `.env.example` setting used when a managed user has no office override.
+- Added the scheduled date to service-call cards and **Start** plus **Due by**
+  dates to open-ticket cards using Autotask ticket creation and due timestamps.
 
 ### Changed
 
@@ -25,6 +27,12 @@ All notable changes to Job Logger are documented in this file.
 - Added server-side Autotask address resolution in service-call location,
   ticket location, primary company location, then company main-address order.
   Customer destinations remain transient and are not stored on local jobs.
+- Changed concurrent Work in Progress ordering so the newest active job appears
+  above the previously started job.
+- Moved the Config **Device sign-in** card to the bottom of the page after
+  Workflow.
+- Changed phone ticket actions to show Navigate on its own row above Ticket
+  notes and Past time entries.
 
 ### Fixed
 
@@ -32,6 +40,8 @@ All notable changes to Job Logger are documented in this file.
   unavailable navigation actions instead of launching an empty destination.
 - Preserved older backups by restoring navigation disabled with no private
   address values when the new preference columns are absent.
+- Fixed Work Duration updates so the label is recalculated from the exact
+  visible start and end times after every saved adjustment.
 
 ## 1.3.1 - 07.13.2026 - Swarm deployment, storage health, navigation, and password-reset protection
 

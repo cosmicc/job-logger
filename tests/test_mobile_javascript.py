@@ -42,6 +42,8 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
                 jobDateDisplayTextForDateValue,
                 jobDateLabelForDateValue,
                 setDateWeekdayLabelText,
+                updateActiveDurationDisplay,
+                updateActiveTimeDisplays,
                 updateActiveTicketDisplay,
                 weekdayNameForDateValue,
               };`;
@@ -371,6 +373,51 @@ def test_mobile_date_label_uses_near_current_relative_text(tmp_path: Path) -> No
         assert.match(dateDisplay.textContent, /^06\\/20\\/2026(  \\((Today|Yesterday|Tomorrow)\\))?$/);
         browserContext.__mobileTestApi.setDateWeekdayLabelText(dateDisplay, "bad-date");
         assert.strictEqual(dateDisplay.textContent, "");
+        """,
+    )
+
+
+def test_mobile_duration_is_derived_from_the_visible_canonical_times(tmp_path: Path) -> None:
+    """A completed time save must not leave a stale duration label behind."""
+
+    run_mobile_javascript_harness(
+        tmp_path,
+        """
+        const startTimeInput = createFakeElement("input");
+        startTimeInput.dataset = {activeTimeKind: "start"};
+        startTimeInput.value = "8:00 am";
+        const stopTimeInput = createFakeElement("input");
+        stopTimeInput.dataset = {activeTimeKind: "stop"};
+        stopTimeInput.value = "8:15 am";
+        const durationDisplay = createFakeElement("strong");
+        durationDisplay.textContent = "15 Minutes";
+        const activeJobCard = createFakeElement("section");
+        activeJobCard.querySelector = (selector) => {
+          if (selector.includes('data-active-time-kind="start"')) return startTimeInput;
+          if (selector.includes('data-active-time-kind="stop"')) return stopTimeInput;
+          if (selector === "[data-duration-display]") return durationDisplay;
+          return null;
+        };
+        activeJobCard.querySelectorAll = () => [];
+        const activeTimeForm = createFakeElement("form");
+        activeTimeForm.dataset = {jobId: "duration-job"};
+        fakeDocument.querySelector = (selector) => (
+          selector === '[data-active-job-card="duration-job"]' ? activeJobCard : null
+        );
+
+        browserContext.__mobileTestApi.updateActiveTimeDisplays(activeTimeForm, {
+          job_id: "duration-job",
+          rounded_start_time: "9:00 am",
+          rounded_start_utc: "2026-06-16T13:00:00Z",
+          rounded_stop_time: "10:30 am",
+          rounded_stop_utc: "2026-06-16T14:30:00Z",
+          rounded_stop_overridden: true,
+          duration_label: "9 Hours",
+        });
+
+        assert.strictEqual(startTimeInput.value, "9:00 am");
+        assert.strictEqual(stopTimeInput.value, "10:30 am");
+        assert.strictEqual(durationDisplay.textContent, "1.5 Hours");
         """,
     )
 

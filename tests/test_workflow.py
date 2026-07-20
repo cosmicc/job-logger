@@ -1894,8 +1894,9 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".form-grid > .review-ticket-title-card {\n  display: grid;\n  order: 100;\n}" in phone_stylesheet
     assert ".ticket-context-actions-mobile {\n  display: none;\n}" in stylesheet
     assert ".ticket-context-actions-desktop {\n  display: none;\n}" in phone_stylesheet
-    assert ".ticket-context-actions-mobile {\n  display: flex;" in phone_stylesheet
-    assert "  flex-wrap: nowrap;" in phone_stylesheet
+    assert ".ticket-context-actions-mobile {\n  display: grid;" in phone_stylesheet
+    assert "  grid-template-columns: repeat(2, minmax(0, 1fr));" in phone_stylesheet
+    assert ".ticket-context-actions-mobile .ticket-navigation-button {\n  grid-column: 1 / -1;\n}" in phone_stylesheet
     assert ".readonly-field-card.review-ticket-title-card {\n  justify-items: center;\n  text-align: center;\n}" in stylesheet
     assert ".readonly-field-card.review-client-name-card {\n  justify-items: center;\n  text-align: center;\n}" in stylesheet
     assert (
@@ -2842,6 +2843,8 @@ def test_review_ticket_lookup_returns_open_tickets_for_job_client(authenticated_
     assert response_payload["tickets"][0]["ticket_number"] == "T20260616.0001"
     assert response_payload["tickets"][0]["company_name"] == "Acme Services"
     assert response_payload["tickets"][0]["description"] == "Mock ticket description for Acme Services."
+    assert response_payload["tickets"][0]["start_date"] == "06/16/2026"
+    assert response_payload["tickets"][0]["due_by_date"] == "06/18/2026"
     assert response_payload["tickets"][0]["work_location_label"] == "Remote"
     assert response_payload["tickets"][0]["work_location_class"] == "ticket-location-remote"
 
@@ -3917,6 +3920,7 @@ def test_mobile_service_call_start_populates_active_job(
         "client_name": "Scheduled Service Client",
         "ticket_title": "Mock open ticket for Scheduled Service Client",
         "scheduled_time_range": "12:00pm-1:00pm",
+        "scheduled_date": "06/20/2026",
         "work_location_label": "On-Site",
         "work_location_class": "service-call-location-on_site",
         "ticket_status_label": "New",
@@ -5001,3 +5005,36 @@ def test_mobile_allows_two_active_jobs(authenticated_client: TestClient) -> None
         assert active_slots == {1, 2}
         assert all(job.client_name is None for job in active_jobs)
         assert all(job.ticket_number is None for job in active_jobs)
+
+
+def test_mobile_renders_the_newest_active_job_first(authenticated_client: TestClient) -> None:
+    """The newest concurrent job should appear above the earlier active job."""
+
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    assert authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    ).status_code == 303
+    assert authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    ).status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_jobs = database_session.query(Job).where(Job.status == JobStatus.ACTIVE).all()
+        jobs_by_slot = {job.job_slot: job for job in active_jobs}
+        older_job = jobs_by_slot[1]
+        newer_job = jobs_by_slot[2]
+        older_job.created_at_utc = datetime(2026, 6, 16, 12, 0)
+        newer_job.created_at_utc = datetime(2026, 6, 16, 12, 5)
+        database_session.commit()
+        older_job_id = older_job.id
+        newer_job_id = newer_job.id
+
+    rendered_home = authenticated_client.get("/home").text
+    assert rendered_home.index(f'data-active-job-card="{newer_job_id}"') < rendered_home.index(
+        f'data-active-job-card="{older_job_id}"'
+    )

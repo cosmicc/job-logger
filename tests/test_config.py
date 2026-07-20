@@ -50,9 +50,9 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert (
         config_response.text.index('id="appearance-heading"')
         < config_response.text.index('id="password-heading"')
-        < config_response.text.index('id="passkeys-heading"')
         < config_response.text.index('id="navigation-heading"')
         < config_response.text.index('id="workflow-heading"')
+        < config_response.text.index('id="passkeys-heading"')
     )
     assert 'data-config-form' in config_response.text
     assert "Save config" not in config_response.text
