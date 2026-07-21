@@ -1,5 +1,8 @@
 # TicketPilot Agent Skill: Autotask Integration
 
+TicketPilot's formal long name is **Ticket Pilot for Autotask** because the
+production workflow requires the Autotask service and API.
+
 Read this file before changing Autotask configuration, company lookup, ticket
 lookup, connectivity checks, ticket status handling, submission payloads, or
 Autotask diagnostics.

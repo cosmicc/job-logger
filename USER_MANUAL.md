@@ -1,9 +1,11 @@
 # TicketPilot User Manual
 
-This manual explains the TicketPilot screens and workflows available to a normal
-managed web user. It covers signing in, resetting your password, recording work,
-submitting Autotask time entries or ticket notes, reviewing completed work,
-changing your own settings, and understanding common messages.
+TicketPilot's formal name is **Ticket Pilot for Autotask** because its work
+workflow relies on the Autotask service. This manual explains the TicketPilot
+screens and workflows available to a normal managed web user. It covers signing
+in, resetting your password, recording work, submitting Autotask time entries
+or ticket notes, reviewing completed work, changing your own settings, and
+understanding common messages.
 
 ## What TicketPilot Does
 

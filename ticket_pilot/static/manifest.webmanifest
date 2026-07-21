@@ -1,8 +1,8 @@
 {
   "id": "/home",
-  "name": "TicketPilot",
+  "name": "Ticket Pilot for Autotask",
   "short_name": "TicketPilot",
-  "description": "Quick work timer, notes capture, review, and Autotask submission.",
+  "description": "Ticket Pilot for Autotask work timing, notes, review, and submission.",
   "start_url": "/home",
   "scope": "/",
   "display": "standalone",

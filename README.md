@@ -1,9 +1,12 @@
 # TicketPilot
 
-TicketPilot is a security-focused Dockerized Python web application for quickly
-recording Autotask time entries or customer-visible ticket notes from a phone
-or web browser, reviewing or directly submitting recorded jobs, and sending
-accepted records to Autotask.
+**Ticket Pilot for Autotask** is the formal name of TicketPilot. It is a
+security-focused Dockerized Python web application for quickly recording
+Autotask time entries or customer-visible ticket notes from a phone or web
+browser, reviewing or directly submitting recorded jobs, and sending accepted
+records to Autotask. Production use requires an Autotask service account and
+API access because the work workflow relies on Autotask resources, companies,
+tickets, service calls, time entries, and ticket notes.
 
 End users can use [USER_MANUAL.md](USER_MANUAL.md) for a full walkthrough of
 sign-in, password reset, Work in Progress, Review, Config, and common app
@@ -23,6 +26,13 @@ messages.
 - Optional self-service password reset uses SMTP mail and can use Cloudflare
   Turnstile human verification.
 - Configurable providers support mock or live speech-to-text and Autotask modes.
+
+No paid Cloudflare subscription is required for the bundled internet-facing
+deployment. A free Cloudflare account and its Zero Trust Free plan are
+sufficient for Cloudflare Tunnel and optional Cloudflare Access within
+Cloudflare's free-plan limits. See Cloudflare's
+[Zero Trust plan comparison](https://www.cloudflare.com/plans/zero-trust-services/)
+and [Tunnel documentation](https://developers.cloudflare.com/tunnel/).
 
 Cloudflare documents Tunnel as an outbound `cloudflared` connector and Access as
 the control point for self-hosted applications:
@@ -164,9 +174,8 @@ Keep the dev instance isolated from production:
   marks the instance as dev and Pushover health notifications stay disabled
   even if `PUSHOVER_ENABLED=true` is present in the shared environment.
 - Set `APP_ENV=development` only for an isolated dev instance. Production keeps
-  `APP_ENV=production`. Keep `CLOUDFLARE_ACCESS_REQUIRED=true` for
-  internet-facing deployments once the matching Cloudflare Access application
-  is configured.
+  `APP_ENV=production`. `CLOUDFLARE_ACCESS_REQUIRED` defaults to `false`; set it
+  to `true` only after the matching Cloudflare Access application is configured.
 - Use real Autotask credentials only when the dev workflow intentionally needs
   live Autotask testing. Keep `AUTOTASK_PROVIDER=mock` for isolated UI or
   workflow-only checks.
@@ -203,16 +212,19 @@ container can come up with one `docker compose up -d --build` command. Remove
    `127.0.0.1` is the stable address from the connector to the localhost
    Nginx port.
 
-3. Create a Cloudflare Access self-hosted application for that hostname.
+3. Optionally create a Cloudflare Access self-hosted application for that
+   hostname as a second authentication gate. The app's own login remains
+   required whether Access is enabled or disabled.
 4. Put the tunnel token in `.env` as `CLOUDFLARE_TUNNEL_TOKEN` when using the
    bundled `cloudflared` service.
    If this token is missing or invalid, Cloudflare will return a 502 and
    `cloudflared` will repeatedly restart.
-5. Prefer `CLOUDFLARE_ACCESS_REQUIRED=true` for production when the matching
-   Cloudflare Access application is configured. Docker Compose defaults this
-   setting to true, but `APP_ENV=production` no longer refuses startup solely
-   because the optional Access header gate is disabled. Secure session cookies
-   are still required in production.
+5. `CLOUDFLARE_ACCESS_REQUIRED` defaults to `false`. Set it to `true` only when
+   the matching Cloudflare Access application is already protecting the public
+   hostname; otherwise Cloudflare Tunnel requests will be rejected for not
+   carrying an Access identity header. `APP_ENV=production` allows either
+   setting, while secure session cookies and application-level authentication
+   remain required.
 6. Set `APP_PUBLIC_BASE_URL` to the same public HTTPS origin before enabling
    account emails, because password reset and welcome emails use that value for
    absolute links. Keep `/forgot-password` and `/reset-password/...` behind the

@@ -30,9 +30,11 @@ def test_manifest_exposes_standalone_mobile_app_metadata(client: TestClient) -> 
     response = client.get("/manifest.webmanifest")
 
     assert response.status_code == 200
+    assert client.app.title == "Ticket Pilot for Autotask"
     assert response.headers["content-type"].startswith("application/manifest+json")
     manifest = response.json()
-    assert manifest["name"] == "TicketPilot"
+    assert manifest["name"] == "Ticket Pilot for Autotask"
+    assert manifest["short_name"] == "TicketPilot"
     assert manifest["start_url"] == "/home"
     assert manifest["scope"] == "/"
     assert manifest["display"] == "standalone"
@@ -92,7 +94,6 @@ def test_brand_assets_are_source_controlled_without_superseded_files() -> None:
     repository_root = Path(__file__).resolve().parents[1]
     design_dir = repository_root / "docs" / "design"
     assert {path.name for path in design_dir.iterdir() if path.is_file()} == {
-        "color_palette.png",
         "theme_palettes.svg",
     }
 

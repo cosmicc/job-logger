@@ -133,7 +133,21 @@ def test_compose_requires_app_and_database_secrets() -> None:
     assert "APP_PASSWORD: ${APP_PASSWORD:-admin}" not in compose_text
     assert "ticket_pilot_password" not in compose_text
     assert "APP_SESSION_COOKIE_SECURE: ${APP_SESSION_COOKIE_SECURE:-true}" in compose_text
-    assert "CLOUDFLARE_ACCESS_REQUIRED: ${CLOUDFLARE_ACCESS_REQUIRED:-true}" in compose_text
+    assert "CLOUDFLARE_ACCESS_REQUIRED: ${CLOUDFLARE_ACCESS_REQUIRED:-false}" in compose_text
+
+
+def test_cloudflare_access_header_gate_defaults_off_in_all_docker_contracts() -> None:
+    """Access enforcement should require an explicit operator opt-in."""
+
+    deployment_texts = (
+        COMPOSE_FILE.read_text(encoding="utf-8"),
+        SWARM_FILE.read_text(encoding="utf-8"),
+        DEV_SWARM_FILE.read_text(encoding="utf-8"),
+    )
+    for deployment_text in deployment_texts:
+        assert "CLOUDFLARE_ACCESS_REQUIRED: ${CLOUDFLARE_ACCESS_REQUIRED:-false}" in deployment_text
+
+    assert "CLOUDFLARE_ACCESS_REQUIRED=false" in ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
 
 
 def test_compose_database_container_uses_local_profile() -> None:
@@ -283,6 +297,8 @@ def test_env_example_documents_compose_and_swarm_contracts() -> None:
     assert "TICKET_PILOT_SWARM_STORAGE_PATH=/mnt/swarm-storage/ticket-pilot-dev" in env_example_text
     assert "failed to read /data/compose/1/stack.env: line 1: key cannot contain a space" in readme_text
     assert "plain `KEY=value` lines only" in readme_text
+    assert "A free Cloudflare account" in readme_text
+    assert "No paid Cloudflare subscription is required" in readme_text
     assert "DATABASE_URL=" in env_example_text
     assert "DATABASE_POOL_RECYCLE_SECONDS=1800" in env_example_text
     assert "LOG_DIR=" not in env_example_text

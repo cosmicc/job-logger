@@ -720,8 +720,9 @@ receiving JSON error bodies.
 Cloudflare Tunnel tokens, Cloudflare API tokens, and app secrets must remain
 outside source control. Docker Compose must not provide working default app,
 database, or session secrets. Docker Compose should default
-`CLOUDFLARE_ACCESS_REQUIRED=true` for internet-facing deployments, but
-production startup must not hard-require that optional Access header gate.
+`CLOUDFLARE_ACCESS_REQUIRED=false`; enable it only after a matching Cloudflare
+Access application is configured for the public hostname. Production startup
+must not hard-require that optional Access header gate.
 Production startup must still fail unless `APP_SESSION_COOKIE_SECURE=true`,
 non-default app/database secrets that are not copied placeholders are
 configured, and `AUTOTASK_PROVIDER=autotask` is used.

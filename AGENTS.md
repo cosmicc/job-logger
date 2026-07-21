@@ -3,6 +3,9 @@
 ## Project Overview
 
 This repository is for a Dockerized Python web application named TicketPilot.
+Its formal long name is **Ticket Pilot for Autotask**; use `TicketPilot` as the
+compact UI, code, package, and deployment name. Production use depends on the
+Autotask service and valid Autotask API access.
 The application provides a mobile-first web workflow for recording work time,
 recording spoken job descriptions, reviewing recorded jobs, and creating
 Autotask time entries or customer-visible ticket notes after review and
@@ -846,8 +849,9 @@ Compose must fail closed when `APP_SECRET_KEY`, `APP_PASSWORD`, or the selected
 database credential source is missing instead of falling back to development
 secrets. Local-db deployments use `POSTGRES_PASSWORD`; remote database
 deployments use `DATABASE_URL`.
-Compose should default the optional Cloudflare Access header gate on for
-production, but production startup must only hard-require secure session
+Compose and Swarm must default the optional Cloudflare Access header gate off.
+Operators may set `CLOUDFLARE_ACCESS_REQUIRED=true` only after a matching
+Cloudflare Access application is configured. Production startup must only hard-require secure session
 cookies, non-default app/database secrets that are not copied placeholders, and
 `AUTOTASK_PROVIDER=autotask`.
 
@@ -1170,10 +1174,8 @@ The application is a FastAPI project under `ticket_pilot/`.
   and the canonical source-controlled TicketPilot logo and app-icon files under
   `static/icons/`. Keep supplied branding sources unchanged and remove
   superseded logo/icon files when artwork is replaced.
-- `docs/design/` contains the reference color palettes.
-  `docs/design/color_palette.png` preserves the original Default Dark
-  reference, while `docs/design/theme_palettes.svg` defines every selectable
-  light and dark theme.
+- `docs/design/` contains `theme_palettes.svg`, the only maintained reference
+  defining every selectable light and dark theme.
 - `migrations/versions/` contains Alembic schema migrations.
 - `scripts/` contains operational helper scripts, including Autotask ID
   discovery.

@@ -16,6 +16,8 @@ Short release notes shown on the authenticated `/changelog` page.
 - Full-browser Config now uses the available width with paired cards, and both blank and concurrent Work start panels keep their controls left of Service calls.
 - Active Remote entries keep at least 15 minutes and On-Site entries keep at least 1 hour; changing work type updates only the stop time and uses the current rounded block when it is later.
 - Dark themes use the white TicketPilot mark and light themes use the black mark in the full-browser header and browser tab.
+- The formal long application name is now Ticket Pilot for Autotask, reflecting that its work workflow relies on Autotask.
+- Cloudflare Access enforcement now starts off by default and can be enabled after an Access application is configured; a paid Cloudflare plan is not required.
 
 ### Fixed
 

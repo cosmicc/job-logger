@@ -40,6 +40,11 @@ All notable changes to TicketPilot are documented in this file.
   neutral fallback. Theme changes update both immediately.
 - Changed the PWA manifest and Apple touch icon to use the supplied
   multi-resolution TicketPilot app icons without altering their source files.
+- Established **Ticket Pilot for Autotask** as the formal long application name
+  while retaining `TicketPilot` for compact UI, package, and deployment use.
+- Defaulted optional Cloudflare Access header enforcement to off across Compose,
+  Swarm, and the environment example. A free Cloudflare account is sufficient
+  for the bundled Tunnel and optional Access deployment within free-plan limits.
 
 ### Fixed
 
@@ -50,6 +55,8 @@ All notable changes to TicketPilot are documented in this file.
 - Kept the Work Duration display synchronized with server-normalized stop times
   after a Remote or On-Site change.
 - Removed all superseded logo, install-icon, and maskable-icon assets.
+- Removed the superseded single-theme `docs/design/color_palette.png` reference;
+  the seven-theme SVG is now the only maintained palette reference.
 
 ## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations
 
