@@ -189,11 +189,13 @@ ticket. **Ticket notes** shows ticket-note history. **Past time entries** shows
 prior time entries for the ticket. Some Autotask-generated system notes are
 filtered out so this list focuses on useful ticket history.
 
-When Autotask provides an address and navigation is enabled, **Navigate** opens
+When Autotask provides an address and navigation is enabled, **Navigate to Destination** opens
 directions to the selected ticket's client. The button is available in Work in
 Progress and Review, including after submission. It is available only for time
-entries. On phones, Navigate uses its own row immediately above the Entry type
-pill card and disappears when Ticket note is selected.
+entries. Home, Office, and Navigate to Destination use a subtle blue shade so
+they stand out from surrounding controls. On phones, Navigate to Destination
+uses its own row immediately above the Entry type pill card and disappears when
+Ticket note is selected.
 
 **Summary notes**
 

@@ -534,7 +534,7 @@ Managed users can configure driving navigation on `/config`. Supported choices
 are **None**, **Device Default**, **Google Maps**, **Waze**, and **Apple Maps**.
 Enabling navigation requires a private Home address. Work then shows compact
 Home and Office buttons, and selected ticket context in Work in Progress and
-Review can show **Navigate**. Device Default uses the Android `geo:` handler,
+Review can show **Navigate to Destination**. Device Default uses the Android `geo:` handler,
 Apple Maps on iPhone/iPad, and a browser map on desktop. Navigation controls
 and automatic On-Site service-call directions are enabled on phones and tablets
 by default. Desktop browsers require the separate default-off **Allow
@@ -1087,9 +1087,11 @@ start with Workflow Rule, and notes with titles that start with Some actions
 did not occur are treated as system noise and filtered out. Notes are shown
 newest first with two-line title cards. Past time entries list the
 resource, local start/stop time, and hours, and selecting one shows its summary
-of work. On phones, **Navigate** uses its own full-width row, while **Ticket
-notes** and **Past time entries** share a separate compact row in the selected
-ticket context. Navigate sits immediately above **Entry type** and is shown
+of work. Home, Office, and **Navigate to Destination** use the shared subtle
+blue navigation treatment. On phones, Navigate to Destination uses its own
+full-width row, while **Ticket notes** and **Past time entries** share a
+separate compact row in the selected
+ticket context. Navigate to Destination sits immediately above **Entry type** and is shown
 only for time entries; selecting **Ticket note** hides it.
 Long ticket descriptions stay inside a scrollable read-only box instead of
 expanding the mobile page indefinitely; phone-sized layouts cap that visible

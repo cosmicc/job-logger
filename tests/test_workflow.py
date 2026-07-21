@@ -1906,6 +1906,19 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".mobile-entry-navigation-row.is-destination-hidden," in phone_stylesheet
     assert ".mobile-entry-navigation-row.is-entry-mode-hidden {\n  display: none;\n}" in phone_stylesheet
     assert ".mobile-entry-navigation-row .ticket-navigation-button {\n  width: 100%;\n}" in phone_stylesheet
+    assert (
+        ".quick-navigation-button,\n"
+        ".ticket-navigation-button {\n"
+        "  border-color: var(--nav-action-border);\n"
+        "  background: var(--nav-action-bg);\n"
+        "  box-shadow: var(--nav-action-shadow);\n"
+        "  color: var(--nav-action);\n"
+        "}"
+    ) in stylesheet
+    assert mobile_template.count("Navigate to Destination") == 2
+    assert review_template.count("Navigate to Destination") == 2
+    assert 'aria-label="Navigate to destination"' in mobile_template
+    assert 'aria-label="Navigate to destination"' in review_template
     assert mobile_template.count("data-mobile-entry-navigation-row") == 1
     assert review_template.count("data-mobile-entry-navigation-row") == 1
     assert mobile_template.index("data-mobile-entry-navigation-row") < mobile_template.index('class="metric-card entry-type-card"')

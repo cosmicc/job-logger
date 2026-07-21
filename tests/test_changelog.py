@@ -225,7 +225,7 @@ def test_changelog_parser_reads_current_release() -> None:
                 "save private Home and optional Office destinations."
             ),
             (
-                "Work now has quick Home and Office buttons, and selected tickets can show a Navigate button "
+                "Work now has quick Home and Office buttons, and selected tickets can show a Navigate to Destination button "
                 "in Work in Progress and Review."
             ),
             "Service calls now show their scheduled date, and open tickets show Start and Due by dates.",
@@ -237,7 +237,7 @@ def test_changelog_parser_reads_current_release() -> None:
             "Remote service calls do not open navigation automatically.",
             (
                 "The newest concurrent Work in Progress job now appears first, Device sign-in is the final "
-                "Config card, and phone Navigate buttons sit above Entry type only for time entries."
+                "Config card, and blue Navigate to Destination buttons sit above Entry type only for time entries on phones."
             ),
             (
                 "Phones and tablets now receive navigation without relying on browser window size; full web "

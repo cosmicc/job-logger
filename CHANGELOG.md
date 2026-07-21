@@ -9,9 +9,9 @@ All notable changes to Job Logger are documented in this file.
 - Added per-user navigation choices for None, Device Default, Google Maps,
   Waze, and Apple Maps, with a required home destination while navigation is
   enabled and an optional private office override.
-- Added compact Home and Office navigation buttons on Work and a Navigate
-  button for selected tickets in Work in Progress and Review, including
-  submitted jobs.
+- Added compact Home and Office navigation buttons on Work and a **Navigate to
+  Destination** button for selected tickets in Work in Progress and Review,
+  including submitted jobs.
 - Added `NAVIGATION_OFFICE_ADDRESS` as an optional Docker, Swarm, and
   `.env.example` setting used when a managed user has no office override.
 - Added the scheduled date to service-call cards and **Start** plus **Due by**
@@ -34,8 +34,9 @@ All notable changes to Job Logger are documented in this file.
   above the previously started job.
 - Moved the Config **Device sign-in** card to the bottom of the page after
   Workflow.
-- Moved the phone Navigate action in Work in Progress and Review to its own
-  full-width row immediately above Entry type, and hid it for ticket notes.
+- Moved the phone **Navigate to Destination** action in Work in Progress and
+  Review to its own full-width row immediately above Entry type, hid it for
+  ticket notes, and gave it plus Home and Office a subtle blue treatment.
 - Changed navigation availability to use browser device signals instead of
   viewport width, including phones, Android tablets, iPads, iPadOS desktop-style
   user agents, and iPods as mobile devices.

@@ -2975,6 +2975,22 @@ td a {
   justify-content: center;
 }
 
+.quick-navigation-button,
+.ticket-navigation-button {
+  border-color: var(--nav-action-border);
+  background: var(--nav-action-bg);
+  box-shadow: var(--nav-action-shadow);
+  color: var(--nav-action);
+}
+
+.quick-navigation-button:hover,
+.ticket-navigation-button:hover {
+  border-color: var(--nav-action-hover);
+  background: rgba(59, 130, 246, 0.24);
+  box-shadow: var(--button-hover-shadow);
+  color: var(--nav-action-hover);
+}
+
 .quick-navigation-button svg {
   width: 17px;
   height: 17px;
