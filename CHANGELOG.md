@@ -1,6 +1,55 @@
 # Changelog
 
-All notable changes to Job Logger are documented in this file.
+All notable changes to TicketPilot are documented in this file.
+
+## 2.0.0 - TicketPilot rename, themes, layouts, and active timing
+
+### Added
+
+- Added TicketPilot-branded application metadata, install assets, browser
+  namespace, Python package namespace, and deployment identifiers.
+- Added Sage Light and Sky Light palettes plus Slate Dark, Forest Dark, and
+  Plum Dark palettes, bringing Config to three light and four dark choices.
+- Added a checked-in seven-theme palette reference for future visual work.
+- Added the supplied white, grey, and black TicketPilot SVG logo sources and
+  the supplied 128, 256, 512, and 1024 pixel installed-app icon sources.
+
+### Changed
+
+- Renamed the application from Job Logger to TicketPilot across the web
+  interface, account emails, Help content, documentation, source code, tests,
+  scripts, and operational examples.
+- Replaced the internal `job_logger`, `job-logger`, `JOB_LOGGER_*`, and
+  `JobLogger` contracts with `ticket_pilot`, `ticket-pilot`,
+  `TICKET_PILOT_*`, and `TicketPilot` respectively.
+- Renamed Docker Compose and Swarm database, image, service, storage, backup,
+  network, and external-Nginx references. Production Swarm now uses `tpapp`
+  and `tpnginx`; dev Swarm uses `tpdapp` and `tpdnginx`.
+- Advanced all source-controlled version surfaces to the unreleased `2.0.0`
+  development version.
+- Widened the full-browser Config page and arranged its cards in a balanced
+  two-column layout while keeping the phone layout stacked.
+- Rebalanced full-browser blank and concurrent start-work panels so their
+  smaller single-line headings and Start Work controls stay left of Service
+  calls.
+- Changed active Work time handling so Remote stops stay at least 15 minutes
+  after start and On-Site stops stay at least 1 hour after start. Changing work
+  type recalculates only the stop, using the current rounded block when later.
+- Changed the authenticated desktop logo and browser favicon to use the white
+  logo on dark themes, the black logo on light themes, and the grey logo as a
+  neutral fallback. Theme changes update both immediately.
+- Changed the PWA manifest and Apple touch icon to use the supplied
+  multi-resolution TicketPilot app icons without altering their source files.
+
+### Fixed
+
+- Removed stale former-name labels and paths from runtime metadata, public
+  application surfaces, deployment templates, and maintained documentation.
+- Removed the Help and Config page titles and their unused vertical space,
+  while retaining the compact per-user Settings line on Config.
+- Kept the Work Duration display synchronized with server-normalized stop times
+  after a Remote or On-Site change.
+- Removed all superseded logo, install-icon, and maskable-icon assets.
 
 ## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations
 

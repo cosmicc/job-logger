@@ -18,7 +18,7 @@ def test_navigation_script_builds_provider_and_device_specific_urls(tmp_path: Pa
         pytest.skip("Node.js is required to execute navigation.js.")
 
     repository_root = Path(__file__).resolve().parents[1]
-    navigation_script_path = repository_root / "job_logger" / "static" / "navigation.js"
+    navigation_script_path = repository_root / "ticket_pilot" / "static" / "navigation.js"
     harness_path = tmp_path / "navigation_script_test.js"
     harness_path.write_text(
         textwrap.dedent(
@@ -34,7 +34,7 @@ def test_navigation_script_builds_provider_and_device_specific_urls(tmp_path: Pa
             const browserWindow = {{
               addEventListener(name, handler) {{ windowHandlers[name] = handler; }},
               location: {{href: "", reload() {{}}}},
-              JobLoggerNavigation: null,
+              TicketPilotNavigation: null,
             }};
             const browserDocument = {{
               addEventListener(name, handler) {{ documentHandlers[name] = handler; }},
@@ -51,7 +51,7 @@ def test_navigation_script_builds_provider_and_device_specific_urls(tmp_path: Pa
               window: browserWindow,
             }};
             vm.runInNewContext(script, context, {{filename: "navigation.js"}});
-            const api = browserWindow.JobLoggerNavigation;
+            const api = browserWindow.TicketPilotNavigation;
             const address = "123 Main Street, Detroit, MI 48201";
 
             assert.strictEqual(

@@ -6,16 +6,16 @@ import logging
 
 import pytest
 
-from job_logger.config import load_settings
-from job_logger.logging_config import configure_logging
+from ticket_pilot.config import load_settings
+from ticket_pilot.logging_config import configure_logging
 
 
-def _remove_job_logger_handlers() -> None:
+def _remove_ticket_pilot_handlers() -> None:
     """Remove app handlers installed by logging configuration tests."""
 
     root_logger = logging.getLogger()
     for handler in list(root_logger.handlers):
-        if getattr(handler, "_job_logger_marker", "") in {"job_logger_app_file", "job_logger_stdout"}:
+        if getattr(handler, "_ticket_pilot_marker", "") in {"ticket_pilot_app_file", "ticket_pilot_stdout"}:
             root_logger.removeHandler(handler)
             handler.close()
 
@@ -43,7 +43,7 @@ def test_log_dir_is_ignored_for_console_only_logging(monkeypatch: pytest.MonkeyP
 def test_configured_log_level_controls_stdout(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     """The stdout app log should honor LOG_LEVEL."""
 
-    logger = logging.getLogger("job_logger.tests.logging")
+    logger = logging.getLogger("ticket_pilot.tests.logging")
     root_logger = logging.getLogger()
     previous_root_level = root_logger.level
     try:
@@ -66,7 +66,7 @@ def test_configured_log_level_controls_stdout(monkeypatch: pytest.MonkeyPatch, c
         assert "error message visible" in log_text
     finally:
         root_logger.setLevel(previous_root_level)
-        _remove_job_logger_handlers()
+        _remove_ticket_pilot_handlers()
 
 
 def test_configured_logging_installs_only_the_stdout_handler(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -82,12 +82,12 @@ def test_configured_logging_installs_only_the_stdout_handler(monkeypatch: pytest
         app_handlers = [
             handler
             for handler in root_logger.handlers
-            if getattr(handler, "_job_logger_marker", "")
+            if getattr(handler, "_ticket_pilot_marker", "")
         ]
-        assert [getattr(handler, "_job_logger_marker", "") for handler in app_handlers] == [
-            "job_logger_stdout"
+        assert [getattr(handler, "_ticket_pilot_marker", "") for handler in app_handlers] == [
+            "ticket_pilot_stdout"
         ]
         assert not any(isinstance(handler, logging.FileHandler) for handler in app_handlers)
     finally:
         root_logger.setLevel(previous_root_level)
-        _remove_job_logger_handlers()
+        _remove_ticket_pilot_handlers()

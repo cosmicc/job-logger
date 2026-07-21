@@ -6,9 +6,9 @@ from dataclasses import replace
 
 from fastapi.testclient import TestClient
 
-from job_logger.config import settings
-from job_logger.main import create_app
 from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token
+from ticket_pilot.config import settings
+from ticket_pilot.main import create_app
 
 BROWSER_ACCEPT_HEADER = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
 
@@ -93,14 +93,14 @@ def test_public_app_shell_metadata_contains_no_private_workflow_data(client: Tes
 
     manifest_response = client.get("/manifest.webmanifest")
     service_worker_response = client.get("/service-worker.js")
-    icon_response = client.get("/static/icons/job-logger-install-icon-192.png")
+    icon_response = client.get("/static/icons/ticketpilot-app-icon-128.png")
 
     assert manifest_response.status_code == 200
     assert service_worker_response.status_code == 200
     assert icon_response.status_code == 200
     public_text = manifest_response.text + service_worker_response.text
     assert "csrf" not in public_text.lower()
-    assert "job_logger_session" not in public_text
+    assert "ticket_pilot_session" not in public_text
     assert "APP_PASSWORD" not in public_text
     assert "ticket_number" not in public_text
     assert "summary_notes" not in public_text
@@ -108,7 +108,7 @@ def test_public_app_shell_metadata_contains_no_private_workflow_data(client: Tes
 
 
 def test_browser_missing_page_renders_app_error_for_anonymous_users(client: TestClient) -> None:
-    """Browser navigation to a missing app route should show a Job Logger error page."""
+    """Browser navigation to a missing app route should show a TicketPilot error page."""
 
     response = client.get(
         "/does-not-exist",
@@ -218,8 +218,8 @@ def test_database_unavailable_mode_serves_styled_retry_page() -> None:
     assert "/static/app.css" in login_response.text
     assert "/static/service-unavailable.css" in login_response.text
     assert "service-unavailable-brand" not in login_response.text
-    assert "Job Logger" not in login_response.text
-    assert "job-logger-icon-maskable-512.png" not in login_response.text
+    assert "TicketPilot" not in login_response.text
+    assert "maskable" not in login_response.text
     assert "Work logging service" not in login_response.text
     assert "Temporary outage" in login_response.text
     assert "database" not in login_response.text.lower()

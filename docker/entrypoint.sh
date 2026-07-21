@@ -6,7 +6,7 @@ set -eu
 # health checks are best-effort and the `db` service name might appear late).
 wait_for_database() {
   # Match entrypoint and migration behavior with the same default when no env var is set.
-  database_url="${DATABASE_URL:-postgresql+psycopg://job_logger:job_logger_password@db:5432/job_logger}"
+  database_url="${DATABASE_URL:-postgresql+psycopg://ticket_pilot:ticket_pilot_password@db:5432/ticket_pilot}"
   timeout_seconds="${DATABASE_CONNECT_TIMEOUT_SECONDS:-60}"
   sleep_seconds="${DATABASE_CONNECT_RETRY_DELAY_SECONDS:-2}"
   attempt=1
@@ -107,4 +107,4 @@ else
 fi
 
 # Start the FastAPI application. Uvicorn is used directly to keep the container simple.
-exec uvicorn job_logger.main:app --host "${APP_HOST:-0.0.0.0}" --port "${APP_PORT:-8000}" --proxy-headers
+exec uvicorn ticket_pilot.main:app --host "${APP_HOST:-0.0.0.0}" --port "${APP_PORT:-8000}" --proxy-headers

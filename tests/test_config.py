@@ -9,13 +9,13 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from job_logger import database
-from job_logger.config import load_settings, settings
-from job_logger.database import create_database_engine, normalize_database_url
-from job_logger.enums import NavigationApp, ThemeMode
-from job_logger.main import create_app, validate_runtime_settings
-from job_logger.models import AuditEvent, UserPreference, WebUser
 from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as, login_as_super_admin, login_as_web_user
+from ticket_pilot import database
+from ticket_pilot.config import load_settings, settings
+from ticket_pilot.database import create_database_engine, normalize_database_url
+from ticket_pilot.enums import NavigationApp, ThemeMode
+from ticket_pilot.main import create_app, validate_runtime_settings
+from ticket_pilot.models import AuditEvent, UserPreference, WebUser
 
 
 def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticated_client: TestClient) -> None:
@@ -26,6 +26,10 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert 'class="theme-dark"' in config_response.text
     assert 'class="config-layout"' in config_response.text
     assert 'class="theme-option-grid theme-card-grid"' in config_response.text
+    assert "<h1>Config</h1>" not in config_response.text
+    assert "Settings for tech." in config_response.text
+    assert 'class="muted-text config-page-intro"' in config_response.text
+    assert 'class="edit-panel config-panel config-appearance-panel config-grid-full"' in config_response.text
     assert 'action="/config/password"' in config_response.text
     assert "Change password" in config_response.text
     assert "Password requirements" in config_response.text
@@ -70,6 +74,17 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert "data-config-current-theme" not in config_response.text
     assert "data-config-theme-summary" not in config_response.text
     assert re.search(r'name="theme"[^>]+value="dark"[^>]+checked', config_response.text)
+    for theme_value, theme_label in (
+        ("dark", "Default Dark"),
+        ("dark-slate", "Slate Dark"),
+        ("dark-forest", "Forest Dark"),
+        ("dark-plum", "Plum Dark"),
+        ("light", "Default Light"),
+        ("light-sage", "Sage Light"),
+        ("light-sky", "Sky Light"),
+    ):
+        assert f'value="{theme_value}"' in config_response.text
+        assert theme_label in config_response.text
 
     csrf_token = extract_csrf_token(config_response.text)
     save_response = authenticated_client.post(
@@ -97,6 +112,8 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     mobile_response = authenticated_client.get("/home")
     assert 'class="theme-light"' in updated_config_response.text
     assert 'class="theme-light"' in mobile_response.text
+    assert 'src="/static/icons/ticketpilot-logo-black.svg?v=' in updated_config_response.text
+    assert 'href="/static/icons/ticketpilot-logo-black.svg?v=' in updated_config_response.text
     assert re.search(r'name="theme"[^>]+value="light"[^>]+checked', updated_config_response.text)
     assert "On" in updated_config_response.text
 
@@ -105,6 +122,38 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
         assert preference is not None
         assert preference.theme == ThemeMode.LIGHT
         assert preference.submit_from_work_in_progress is True
+
+
+@pytest.mark.parametrize(
+    ("theme_value", "theme_color"),
+    (
+        ("light-sage", "#f5f7f1"),
+        ("light-sky", "#f2f7fb"),
+        ("dark-slate", "#111827"),
+        ("dark-forest", "#0d1914"),
+        ("dark-plum", "#1a1220"),
+    ),
+)
+def test_config_autosaves_additional_visual_themes(
+    authenticated_client: TestClient,
+    theme_value: str,
+    theme_color: str,
+) -> None:
+    """Every added palette should persist and render through the shared theme class."""
+
+    config_response = authenticated_client.get("/config")
+    csrf_token = extract_csrf_token(config_response.text)
+
+    save_response = authenticated_client.post(
+        "/config",
+        headers={"Accept": "application/json", "X-CSRF-Token": csrf_token},
+        data={"csrf_token": csrf_token, "theme": theme_value},
+    )
+
+    assert save_response.status_code == 200
+    assert save_response.json()["theme"] == theme_value
+    assert save_response.json()["theme_color"] == theme_color
+    assert f'class="theme-{theme_value}"' in authenticated_client.get("/home").text
 
 
 def test_navigation_preferences_require_home_and_do_not_audit_addresses(
@@ -265,7 +314,7 @@ def test_password_reset_settings_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("APP_PUBLIC_BASE_URL", "https://logger.example.test/")
     monkeypatch.setenv("MAIL_ENABLED", "true")
     monkeypatch.setenv("MAIL_FROM_EMAIL", "support@example.test")
-    monkeypatch.setenv("MAIL_FROM_NAME", "Job Logger Support")
+    monkeypatch.setenv("MAIL_FROM_NAME", "TicketPilot Support")
     monkeypatch.setenv("MAIL_MODE", "smtp")
     monkeypatch.setenv("MAIL_SMTP_HOST", "smtp.example.test")
     monkeypatch.setenv("MAIL_SMTP_PORT", "465")
@@ -292,7 +341,7 @@ def test_password_reset_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.password_reset_mail_configured is True
     assert loaded_settings.mail_enabled is True
     assert loaded_settings.mail_from_email == "support@example.test"
-    assert loaded_settings.mail_from_name == "Job Logger Support"
+    assert loaded_settings.mail_from_name == "TicketPilot Support"
     assert loaded_settings.mail_mode == "smtp"
     assert loaded_settings.mail_smtp_host == "smtp.example.test"
     assert loaded_settings.mail_smtp_port == 465
@@ -347,7 +396,7 @@ def test_password_reset_runtime_validation_requires_mail_public_url_and_enabled_
             dev_build=False,
             app_secret_key="production-secret-key-with-enough-length",
             app_password="production-password",
-            database_url="postgresql+psycopg://job_logger:production-password@db/job_logger",
+            database_url="postgresql+psycopg://ticket_pilot:production-password@db/ticket_pilot",
             session_cookie_secure=True,
             autotask_provider="autotask",
         )
@@ -459,7 +508,7 @@ def test_ai_help_settings_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta/openai/")
     monkeypatch.setenv("AI_HELP_MAX_TOKENS", "800")
     monkeypatch.setenv("AI_HELP_TEMPERATURE", "0.2")
-    monkeypatch.setenv("AI_HELP_INSTRUCTIONS", "Answer Job Logger support questions for end users.")
+    monkeypatch.setenv("AI_HELP_INSTRUCTIONS", "Answer TicketPilot support questions for end users.")
 
     loaded_settings = load_settings()
 
@@ -470,7 +519,7 @@ def test_ai_help_settings_load_from_environment(monkeypatch) -> None:
     assert loaded_settings.gemini_api_base == "https://generativelanguage.googleapis.com/v1beta/openai"
     assert loaded_settings.ai_help_max_tokens == 800
     assert loaded_settings.ai_help_temperature == 0.2
-    assert loaded_settings.ai_help_instructions == "Answer Job Logger support questions for end users."
+    assert loaded_settings.ai_help_instructions == "Answer TicketPilot support questions for end users."
     assert loaded_settings.ai_help_configured is True
 
 
@@ -491,14 +540,14 @@ def test_gemini_cleanup_reuses_gemini_api_base(monkeypatch) -> None:
 def test_plain_postgresql_urls_use_installed_psycopg_driver() -> None:
     """Provider-style PostgreSQL URLs should not require the psycopg2 package."""
 
-    normalized_full_url = normalize_database_url("postgresql://job_logger:not-default@db:5432/job_logger")
-    normalized_short_url = normalize_database_url("postgres://job_logger:not-default@db:5432/job_logger")
-    full_url_engine = create_database_engine("postgresql://job_logger:not-default@db:5432/job_logger")
-    short_url_engine = create_database_engine("postgres://job_logger:not-default@db:5432/job_logger")
+    normalized_full_url = normalize_database_url("postgresql://ticket_pilot:not-default@db:5432/ticket_pilot")
+    normalized_short_url = normalize_database_url("postgres://ticket_pilot:not-default@db:5432/ticket_pilot")
+    full_url_engine = create_database_engine("postgresql://ticket_pilot:not-default@db:5432/ticket_pilot")
+    short_url_engine = create_database_engine("postgres://ticket_pilot:not-default@db:5432/ticket_pilot")
 
     try:
-        assert normalized_full_url == "postgresql+psycopg://job_logger:not-default@db:5432/job_logger"
-        assert normalized_short_url == "postgresql+psycopg://job_logger:not-default@db:5432/job_logger"
+        assert normalized_full_url == "postgresql+psycopg://ticket_pilot:not-default@db:5432/ticket_pilot"
+        assert normalized_short_url == "postgresql+psycopg://ticket_pilot:not-default@db:5432/ticket_pilot"
         assert full_url_engine.url.drivername == "postgresql+psycopg"
         assert short_url_engine.url.drivername == "postgresql+psycopg"
     finally:
@@ -531,7 +580,7 @@ def test_runtime_validation_allows_cloudflare_access_disabled_in_production() ->
         app_environment="production",
         app_secret_key="x" * 32,
         app_password="not-the-default-password",
-        database_url="postgresql+psycopg://job_logger:not-default@db:5432/job_logger",
+        database_url="postgresql+psycopg://ticket_pilot:not-default@db:5432/ticket_pilot",
         session_cookie_secure=True,
         cloudflare_access_required=False,
         autotask_provider="autotask",
@@ -548,7 +597,7 @@ def test_runtime_validation_rejects_production_development_defaults() -> None:
         app_environment="production",
         app_secret_key="development-only-change-me",
         app_password="admin",
-        database_url="postgresql+psycopg://job_logger:job_logger_password@db:5432/job_logger",
+        database_url="postgresql+psycopg://ticket_pilot:ticket_pilot_password@db:5432/ticket_pilot",
         session_cookie_secure=True,
         cloudflare_access_required=True,
         autotask_provider="autotask",
@@ -566,7 +615,7 @@ def test_runtime_validation_rejects_production_placeholder_secrets() -> None:
         app_environment="production",
         app_secret_key="replace-with-at-least-32-random-characters",
         app_password="replace-with-a-long-random-app-password",
-        database_url="postgresql+psycopg://job_logger:replace-with-a-long-random-database-password@db:5432/job_logger",
+        database_url="postgresql+psycopg://ticket_pilot:replace-with-a-long-random-database-password@db:5432/ticket_pilot",
         session_cookie_secure=True,
         cloudflare_access_required=True,
         autotask_provider="autotask",
@@ -584,7 +633,7 @@ def test_production_security_headers_include_hsts() -> None:
         app_environment="production",
         app_secret_key="x" * 32,
         app_password="not-the-default-password",
-        database_url="postgresql+psycopg://job_logger:not-default@db:5432/job_logger",
+        database_url="postgresql+psycopg://ticket_pilot:not-default@db:5432/ticket_pilot",
         session_cookie_secure=True,
         cloudflare_access_required=True,
         autotask_provider="autotask",

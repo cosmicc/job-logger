@@ -1,4 +1,4 @@
-"""Create initial job logger schema.
+"""Create initial TicketPilot schema.
 
 Revision ID: 0001_initial_schema
 Revises:
@@ -122,7 +122,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Drop the initial job logger schema."""
+    """Drop the initial TicketPilot schema."""
 
     op.drop_index("ix_submission_attempts_job_created_at", table_name="submission_attempts")
     op.drop_table("submission_attempts")

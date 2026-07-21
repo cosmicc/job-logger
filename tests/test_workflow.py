@@ -12,16 +12,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from starlette.websockets import WebSocketDisconnect
 
-from job_logger import database, ui
-from job_logger.enums import EntryType, JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
-from job_logger.models import AuditEvent, Job, SubmissionAttempt, WebUser
-from job_logger.services import system_health
-from job_logger.services.ai_cleanup import AiCleanupResult
-from job_logger.services.autotask import AutotaskSubmissionResult
-from job_logger.services.jobs import get_active_job
-from job_logger.time_utils import format_local_time, local_date_for, round_start_for_technician
-from job_logger.version import APP_VERSION
 from tests.conftest import extract_csrf_token, login_as_super_admin
+from ticket_pilot import database, ui
+from ticket_pilot.enums import EntryType, JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
+from ticket_pilot.models import AuditEvent, Job, SubmissionAttempt, WebUser
+from ticket_pilot.services import system_health
+from ticket_pilot.services.ai_cleanup import AiCleanupResult
+from ticket_pilot.services.autotask import AutotaskSubmissionResult
+from ticket_pilot.services.jobs import get_active_job
+from ticket_pilot.time_utils import format_local_time, local_date_for, round_start_for_technician
+from ticket_pilot.version import APP_VERSION
 
 
 def create_submitted_mock_job(authenticated_client: TestClient, *, summary_notes: str = "Locked submitted job notes") -> tuple[str, str]:
@@ -341,8 +341,8 @@ def test_work_in_progress_can_submit_directly_to_autotask(authenticated_client: 
     assert f'formaction="/review/{active_job_id}/accept"' not in review_page_response.text
 
 
-def test_on_site_active_work_requires_one_hour_before_end(authenticated_client: TestClient) -> None:
-    """On-Site time entries cannot be ended while the rounded duration is under one hour."""
+def test_on_site_active_work_clamps_to_one_hour_before_end(authenticated_client: TestClient) -> None:
+    """Ending new On-Site work should move only the stop to at least one hour."""
 
     mobile_page_response = authenticated_client.get("/home")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -374,10 +374,10 @@ def test_on_site_active_work_requires_one_hour_before_end(authenticated_client: 
     with database.SessionLocal() as database_session:
         active_job = database_session.get(Job, active_job_id)
         assert active_job is not None
-        assert active_job.status == JobStatus.ACTIVE
-        assert active_job.raw_end_utc is None
-        assert active_job.rounded_end_utc is None
-        assert active_job.work_location == WorkLocation.REMOTE
+        assert active_job.status == JobStatus.READY_FOR_REVIEW
+        assert active_job.raw_end_utc is not None
+        assert active_job.rounded_end_utc >= active_job.rounded_start_utc + timedelta(hours=1)
+        assert active_job.work_location == WorkLocation.ON_SITE
 
 
 def test_review_rejects_on_site_time_entry_shorter_than_one_hour(authenticated_client: TestClient) -> None:
@@ -811,7 +811,7 @@ def test_active_job_ai_cleanup_returns_replacement_text(
     """Mobile AI cleanup returns cleaned text without exposing provider details."""
 
     monkeypatch.setattr(
-        "job_logger.routes.mobile.cleanup_summary_text",
+        "ticket_pilot.routes.mobile.cleanup_summary_text",
         lambda **_kwargs: AiCleanupResult(
             provider="gemini",
             model="test-cleanup-model",
@@ -860,7 +860,7 @@ def test_active_job_ai_cleanup_can_be_reverted_from_persisted_state(
     """Work in Progress cleanup stores a server-backed original for Revert cleanup."""
 
     monkeypatch.setattr(
-        "job_logger.routes.mobile.cleanup_summary_text",
+        "ticket_pilot.routes.mobile.cleanup_summary_text",
         lambda **_kwargs: AiCleanupResult(
             provider="gemini",
             model="test-cleanup-model",
@@ -929,7 +929,7 @@ def test_active_job_ai_cleanup_revert_state_expires_on_home_render(
     """Old Work in Progress cleanup undo text should be minimized automatically."""
 
     monkeypatch.setattr(
-        "job_logger.routes.mobile.cleanup_summary_text",
+        "ticket_pilot.routes.mobile.cleanup_summary_text",
         lambda **_kwargs: AiCleanupResult(
             provider="gemini",
             model="test-cleanup-model",
@@ -991,7 +991,7 @@ def test_review_ai_cleanup_allows_submitted_summary_replacement(
     """Review cleanup can prepare submitted-entry text without patching Autotask."""
 
     monkeypatch.setattr(
-        "job_logger.routes.review.cleanup_summary_text",
+        "ticket_pilot.routes.review.cleanup_summary_text",
         lambda **_kwargs: AiCleanupResult(
             provider="grok",
             model="test-cleanup-model",
@@ -1026,7 +1026,7 @@ def test_submitted_review_ai_cleanup_pending_text_survives_reload_and_reverts(
 
     monkeypatch.setattr(ui, "settings", replace(ui.settings, ai_cleanup_enabled=True))
     monkeypatch.setattr(
-        "job_logger.routes.review.cleanup_summary_text",
+        "ticket_pilot.routes.review.cleanup_summary_text",
         lambda **_kwargs: AiCleanupResult(
             provider="grok",
             model="test-cleanup-model",
@@ -1079,7 +1079,7 @@ def test_submitted_review_ai_cleanup_revert_state_expires_on_review_render(
 
     monkeypatch.setattr(ui, "settings", replace(ui.settings, ai_cleanup_enabled=True))
     monkeypatch.setattr(
-        "job_logger.routes.review.cleanup_summary_text",
+        "ticket_pilot.routes.review.cleanup_summary_text",
         lambda **_kwargs: AiCleanupResult(
             provider="grok",
             model="test-cleanup-model",
@@ -1365,7 +1365,7 @@ def test_failed_delete_from_autotask_prompts_local_review_purge(
         summary_notes="Submitted notes for failed remote delete.",
     )
     monkeypatch.setattr(
-        "job_logger.services.jobs.get_autotask_provider",
+        "ticket_pilot.services.jobs.get_autotask_provider",
         lambda: FailingDeleteAutotaskProvider(),
     )
 
@@ -1387,7 +1387,7 @@ def test_failed_delete_from_autotask_prompts_local_review_purge(
     failed_review_response = authenticated_client.get(f"/review/{submitted_job_id}")
     failed_review_html = failed_review_response.text
     assert "Autotask delete failed" in failed_review_html
-    assert "Purge from Job Logger review?" in failed_review_html
+    assert "Purge from TicketPilot review?" in failed_review_html
     assert "It does not delete the Autotask record." in failed_review_html
     assert f'action="/review/{submitted_job_id}/purge-submitted-local"' in failed_review_html
 
@@ -1423,7 +1423,7 @@ def test_mobile_page_and_blank_start_do_not_probe_autotask(
 
         raise AssertionError("Autotask provider should not be used by the initial mobile page or blank Start Work.")
 
-    monkeypatch.setattr("job_logger.routes.mobile.get_autotask_provider", fail_if_provider_is_used)
+    monkeypatch.setattr("ticket_pilot.routes.mobile.get_autotask_provider", fail_if_provider_is_used)
     mobile_page_response = authenticated_client.get("/home")
     assert mobile_page_response.status_code == 200
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -1479,8 +1479,9 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert "Autotask API:" not in response.text
     assert "Secure session" not in response.text
     assert 'class="desktop-header-left"' in response.text
-    assert 'class="brand-icon" src="/static/icons/job-logger-logo-transparent.png?v=' in response.text
-    assert '<span class="brand-title">Job Logger</span>' in response.text
+    assert 'class="brand-icon" src="/static/icons/ticketpilot-logo-white.svg?v=' in response.text
+    assert "data-theme-logo" in response.text
+    assert '<span class="brand-title">TicketPilot</span>' in response.text
     assert f'<span class="desktop-brand-version">v{APP_VERSION}</span>' in response.text
     assert f"v{APP_VERSION}-DEV" not in response.text
     assert 'href="/help"' in response.text
@@ -1598,7 +1599,7 @@ def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(aut
     assert 'class="icon-button desktop-logout-button"' in response.text
     assert 'aria-label="Log out"' in response.text
     assert "<span>Log out</span>" in response.text
-    assert '<span class="brand-title">Job Logger</span>' in response.text
+    assert '<span class="brand-title">TicketPilot</span>' in response.text
     assert f'<span class="desktop-brand-version">v{APP_VERSION}</span>' in response.text
     assert f"v{APP_VERSION}-DEV" not in response.text
     assert 'data-close-app-button' not in response.text
@@ -1618,7 +1619,7 @@ def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(aut
 def test_authenticated_header_stays_sticky_for_full_document_scroll() -> None:
     """The shared header should not be constrained to the first viewport."""
 
-    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(
+    stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css").read_text(
         encoding="utf-8"
     )
 
@@ -1650,17 +1651,17 @@ def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_
 def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrollable() -> None:
     """CSS should keep mobile service-call cards distinct and long ticket descriptions bounded."""
 
-    stylesheet_path = Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css"
+    stylesheet_path = Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css"
     stylesheet = stylesheet_path.read_text(encoding="utf-8")
-    phone_stylesheet_path = Path(__file__).resolve().parents[1] / "job_logger" / "static" / "phone.css"
+    phone_stylesheet_path = Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "phone.css"
     phone_stylesheet = phone_stylesheet_path.read_text(encoding="utf-8")
-    desktop_stylesheet_path = Path(__file__).resolve().parents[1] / "job_logger" / "static" / "desktop.css"
+    desktop_stylesheet_path = Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "desktop.css"
     desktop_stylesheet = desktop_stylesheet_path.read_text(encoding="utf-8")
-    mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
-    review_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
-    mobile_javascript = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "mobile.js").read_text(encoding="utf-8")
-    review_javascript = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "review.js").read_text(encoding="utf-8")
-    navigation_javascript = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "navigation.js").read_text(encoding="utf-8")
+    mobile_template = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "templates" / "review.html").read_text(encoding="utf-8")
+    mobile_javascript = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_javascript = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
+    navigation_javascript = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "navigation.js").read_text(encoding="utf-8")
 
     assert ".service-call-option-button.service-call-location-remote" in stylesheet
     assert ".service-call-option-button.service-call-location-on_site" in stylesheet
@@ -1998,7 +1999,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "grid-template-columns: minmax(280px, 0.82fr) minmax(420px, 1.18fr);" in desktop_stylesheet
     assert "gap: 10px 28px;" in desktop_stylesheet
     assert (
-        ".active-jobs-stack > .work-panel:not([data-active-job-card]) > .service-call-start-panel {\n"
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) > .service-call-start-panel,\n"
+        "  .concurrent-start-panel > .service-call-start-panel {\n"
         "    grid-column: 2;\n"
         "    grid-row: 1 / span 5;\n"
         "    align-self: start;\n"
@@ -2010,37 +2012,44 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
         "  }"
     ) in desktop_stylesheet
     assert (
-        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header {\n"
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header,\n"
+        "  .concurrent-start-panel .service-call-panel-header {\n"
         "    align-content: start;\n"
         "    gap: 2px;\n"
         "  }"
     ) in desktop_stylesheet
     assert (
-        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header h3 {\n"
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-panel-header h3,\n"
+        "  .concurrent-start-panel .service-call-panel-header h3 {\n"
         "    line-height: 1;\n"
         "    transform: translateY(-10px);\n"
         "  }"
     ) in desktop_stylesheet
     assert (
-        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-date-nav {\n"
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-date-nav,\n"
+        "  .concurrent-start-panel .service-call-date-nav {\n"
         "    height: 32px;\n"
         "  }"
     ) in desktop_stylesheet
     assert (
-        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-date-button {\n"
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) .service-call-date-button,\n"
+        "  .concurrent-start-panel .service-call-date-button {\n"
         "    height: 32px;\n"
         "    min-height: 32px;\n"
         "    padding: 4px 10px;\n"
         "  }"
     ) in desktop_stylesheet
     assert (
-        ".active-jobs-stack > .work-panel:not([data-active-job-card]) [data-service-call-empty] {\n"
+        ".active-jobs-stack > .work-panel:not([data-active-job-card]) [data-service-call-empty],\n"
+        "  .concurrent-start-panel [data-service-call-empty] {\n"
         "    justify-self: stretch;\n"
         "    margin: 0;\n"
         "    padding: 12px 14px;\n"
         "    text-align: center;\n"
         "  }"
     ) in desktop_stylesheet
+    assert 'class="work-panel concurrent-start-panel"' in mobile_template
+    assert "white-space: nowrap;" in desktop_stylesheet
     assert "grid-template-columns: minmax(0, 1fr) minmax(360px, 0.78fr);" in desktop_stylesheet
     assert ".work-panel[data-active-job-card] .job-date-card .date-input-shell" in desktop_stylesheet
     assert "width: min(100%, 270px);" in desktop_stylesheet
@@ -2060,8 +2069,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".work-panel[data-active-job-card] .job-date-card .date-input-shell" not in phone_stylesheet
     assert ".work-panel[data-active-job-card] > .description-box > .note-title-field:not(.is-hidden)" not in phone_stylesheet
     assert ".work-panel[data-active-job-card] > .description-box > .note-title-field.is-hidden + label" not in phone_stylesheet
-    mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
-    review_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+    mobile_template = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "templates" / "review.html").read_text(encoding="utf-8")
     assert 'work-location-card{% if is_ticket_note %} is-hidden' not in mobile_template
     assert 'review-work-location-card{% if is_ticket_note %} is-hidden' not in review_template
     assert "work-location-card-disabled" in mobile_template
@@ -3533,6 +3542,75 @@ def test_mobile_active_job_background_save_returns_ticket_lookup_context(authent
     assert ticket_lookup_response.json()["tickets"][0]["ticket_number"] == "T20260616.0001"
 
 
+def test_active_work_location_change_recalculates_only_stop_time(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Work type changes should use the location minimum or later current block."""
+
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+
+    rounded_start = datetime(2026, 6, 16, 12, 0, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+        active_job.rounded_start_utc = rounded_start
+        active_job.rounded_end_utc = None
+        active_job.local_work_date = local_date_for(rounded_start)
+        database_session.commit()
+
+    clock = {"now": datetime(2026, 6, 16, 12, 20, tzinfo=UTC)}
+    monkeypatch.setattr("ticket_pilot.services.jobs.now_utc", lambda: clock["now"])
+
+    on_site_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        headers={"Accept": "application/json"},
+        data={"csrf_token": csrf_token, "work_location": "on_site"},
+    )
+    assert on_site_response.status_code == 200
+    assert on_site_response.json()["rounded_start_time"] == "8:00 am"
+    assert on_site_response.json()["rounded_stop_time"] == "9:00 am"
+    assert on_site_response.json()["duration_label"] == "1 Hour"
+    assert on_site_response.json()["minimum_duration_minutes"] == 60
+
+    remote_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        headers={"Accept": "application/json"},
+        data={"csrf_token": csrf_token, "work_location": "remote"},
+    )
+    assert remote_response.status_code == 200
+    assert remote_response.json()["rounded_start_time"] == "8:00 am"
+    assert remote_response.json()["rounded_stop_time"] == "8:30 am"
+    assert remote_response.json()["duration_label"] == "30 Minutes"
+    assert remote_response.json()["minimum_duration_minutes"] == 15
+
+    clock["now"] = datetime(2026, 6, 16, 13, 8, tzinfo=UTC)
+    later_on_site_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        headers={"Accept": "application/json"},
+        data={"csrf_token": csrf_token, "work_location": "on_site"},
+    )
+    assert later_on_site_response.status_code == 200
+    assert later_on_site_response.json()["rounded_start_time"] == "8:00 am"
+    assert later_on_site_response.json()["rounded_stop_time"] == "9:15 am"
+    assert later_on_site_response.json()["duration_label"] == "1.25 Hours"
+
+    with database.SessionLocal() as database_session:
+        active_job = database_session.get(Job, active_job_id)
+        assert active_job is not None
+        assert active_job.rounded_start_utc == rounded_start.replace(tzinfo=None)
+        assert active_job.rounded_end_utc == datetime(2026, 6, 16, 13, 15)
+        assert active_job.work_location == WorkLocation.ON_SITE
+
+
 def test_mobile_audio_stream_requires_csrf(authenticated_client: TestClient) -> None:
     """The WebSocket audio stream validates CSRF before accepting audio bytes."""
 
@@ -3917,7 +3995,7 @@ def test_mobile_service_call_start_populates_active_job(
     """Clicking a service call starts a job from server-resolved Autotask data."""
 
     monkeypatch.setattr(
-        "job_logger.routes.mobile.now_utc",
+        "ticket_pilot.routes.mobile.now_utc",
         lambda: datetime(2026, 6, 28, 13, 0, tzinfo=UTC),
     )
 
@@ -4225,8 +4303,8 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
     """Review should show 10 newest jobs per page with day/week time-entry totals."""
 
     current_time = datetime(2026, 6, 25, 16, 0, tzinfo=UTC)
-    monkeypatch.setattr("job_logger.routes.review.now_utc", lambda: current_time)
-    monkeypatch.setattr("job_logger.routes.mobile.now_utc", lambda: current_time)
+    monkeypatch.setattr("ticket_pilot.routes.review.now_utc", lambda: current_time)
+    monkeypatch.setattr("ticket_pilot.routes.mobile.now_utc", lambda: current_time)
     local_work_day = local_date_for(current_time)
     created_ticket_numbers: list[str] = []
     oldest_job_id = ""
@@ -4302,7 +4380,7 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
     assert 'class="work-hours-compact" aria-label="Time-entry hours worked"' in home_response.text
     assert "<strong>5.5 Hours</strong>" in home_response.text
     assert "work-hours-summary" not in home_response.text
-    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
+    stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
     assert (
         ".work-hours-compact {\n"
         "  display: flex;\n"
@@ -4320,7 +4398,7 @@ def test_mobile_service_call_date_labels(authenticated_client: TestClient, monke
     """Service-call day navigation should label relative and calendar dates clearly."""
 
     monkeypatch.setattr(
-        "job_logger.routes.mobile.now_utc",
+        "ticket_pilot.routes.mobile.now_utc",
         lambda: datetime(2026, 6, 20, 13, 0, tzinfo=UTC),
     )
 
@@ -4737,8 +4815,8 @@ def test_mobile_active_job_rounded_stop_can_be_set_from_time_input(authenticated
         assert audit_event.job_id == active_job_id
 
 
-def test_mobile_active_job_rounded_stop_rejects_time_before_start(authenticated_client: TestClient) -> None:
-    """The editable active stop time must stay after the rounded start time."""
+def test_mobile_active_job_rounded_stop_clamps_time_before_start(authenticated_client: TestClient) -> None:
+    """The editable active stop should clamp to the Remote minimum after start."""
 
     mobile_page_response = authenticated_client.get("/home")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -4765,14 +4843,15 @@ def test_mobile_active_job_rounded_stop_rejects_time_before_start(authenticated_
         data={"csrf_token": csrf_token, "job_date": "2026-06-16", "rounded_stop_time": "7:45 am"},
     )
 
-    assert save_response.status_code == 400
-    assert "after rounded start" in save_response.json()["detail"]
+    assert save_response.status_code == 200
+    assert save_response.json()["rounded_stop_time"] == "8:15 am"
+    assert save_response.json()["duration_label"] == "15 Minutes"
     with database.SessionLocal() as database_session:
         active_job = database_session.get(Job, active_job_id)
         assert active_job is not None
-        assert active_job.rounded_end_utc is None
-        audit_events = database_session.query(AuditEvent).filter_by(action="job.rounded_stop.set").all()
-        assert audit_events == []
+        assert active_job.rounded_end_utc == datetime(2026, 6, 16, 12, 15)
+        audit_event = database_session.query(AuditEvent).filter_by(action="job.rounded_stop.set").one()
+        assert audit_event.job_id == active_job_id
 
 
 def test_mobile_active_job_rounded_stop_rejects_selector_payload(authenticated_client: TestClient) -> None:
@@ -4833,7 +4912,7 @@ def test_mobile_end_job_rounds_live_stop_up_for_technician(
         active_job.local_work_date = rounded_start.date()
         database_session.commit()
 
-    monkeypatch.setattr("job_logger.services.jobs.now_utc", lambda: datetime(2026, 6, 16, 12, 8, tzinfo=UTC))
+    monkeypatch.setattr("ticket_pilot.services.jobs.now_utc", lambda: datetime(2026, 6, 16, 12, 8, tzinfo=UTC))
 
     end_response = authenticated_client.post(
         f"/jobs/{active_job_id}/end",

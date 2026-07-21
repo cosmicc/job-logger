@@ -2,6 +2,28 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## 2.0.0 - TicketPilot rename, themes, layouts, and active timing
+
+### Added
+
+- TicketPilot is now the application name across the web interface and installed app.
+- Config now offers three comfortable light themes and four dark themes.
+- TicketPilot now uses its new logo and new high-resolution installed-app icon.
+
+### Changed
+
+- Account emails, Help content, and user documentation now use the TicketPilot name.
+- Full-browser Config now uses the available width with paired cards, and both blank and concurrent Work start panels keep their controls left of Service calls.
+- Active Remote entries keep at least 15 minutes and On-Site entries keep at least 1 hour; changing work type updates only the stop time and uses the current rounded block when it is later.
+- Dark themes use the white TicketPilot mark and light themes use the black mark in the full-browser header and browser tab.
+
+### Fixed
+
+- Removed stale former-name labels from user-facing application pages and metadata.
+- Help and Config now begin closer to the navigation bar without redundant page titles or blank space.
+- Work Duration now updates immediately when a work-type change normalizes the active stop time.
+- Removed the former logo and app-icon artwork so browsers no longer discover stale branding assets.
+
 ## 1.4.0 - 07.20.2026 - Navigation apps and quick destinations
 
 ### Added

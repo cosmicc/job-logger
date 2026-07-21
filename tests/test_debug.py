@@ -17,10 +17,11 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from job_logger import database
-from job_logger.config import settings
-from job_logger.enums import JobStatus, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
-from job_logger.models import (
+from tests.conftest import extract_csrf_token, login_as_super_admin, login_as_web_user
+from ticket_pilot import database
+from ticket_pilot.config import settings
+from ticket_pilot.enums import JobStatus, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
+from ticket_pilot.models import (
     AuditEvent,
     CloudflareIPBlock,
     Job,
@@ -31,9 +32,9 @@ from job_logger.models import (
     WebAuthnCredential,
     WebUser,
 )
-from job_logger.routes import debug as debug_routes
-from job_logger.services import app_health_monitor, database_diagnostics, pushover, system_health
-from job_logger.services.backups import (
+from ticket_pilot.routes import debug as debug_routes
+from ticket_pilot.services import app_health_monitor, database_diagnostics, pushover, system_health
+from ticket_pilot.services.backups import (
     AUTOMATIC_BACKUP_FILENAME_PREFIX,
     AUTOMATIC_BACKUP_FILENAME_SUFFIX,
     AUTOMATIC_BACKUP_TRIGGER_STARTUP,
@@ -42,11 +43,10 @@ from job_logger.services.backups import (
     list_automatic_backup_files,
     run_automatic_backup_once,
 )
-from job_logger.services.cloudflare_blocks import create_cloudflare_ip_block, ip_is_allowlisted
-from job_logger.services.jobs import get_active_job
-from job_logger.time_utils import format_local_display
-from job_logger.version import APP_VERSION
-from tests.conftest import extract_csrf_token, login_as_super_admin, login_as_web_user
+from ticket_pilot.services.cloudflare_blocks import create_cloudflare_ip_block, ip_is_allowlisted
+from ticket_pilot.services.jobs import get_active_job
+from ticket_pilot.time_utils import format_local_display
+from ticket_pilot.version import APP_VERSION
 
 
 def _seed_full_backup_data() -> str:
@@ -328,7 +328,7 @@ def test_debug_page_shows_database_connectivity_card(super_admin_client: TestCli
     assert "Checked out" in response.text
     assert "DATABASE_URL" not in response.text
     assert "postgresql://" not in response.text
-    assert "job_logger_password" not in response.text
+    assert "ticket_pilot_password" not in response.text
 
 
 def test_database_diagnostics_snapshot_uses_safe_sqlite_metadata() -> None:
@@ -842,9 +842,9 @@ def test_app_health_pushover_notifications_fire_on_degrade_change_and_restore(mo
     ) == "restored"
 
     assert [title for title, _message, _priority in sent_notifications] == [
-        "Job Logger health degraded",
-        "Job Logger health changed",
-        "Job Logger health restored",
+        "TicketPilot health degraded",
+        "TicketPilot health changed",
+        "TicketPilot health restored",
     ]
     assert sent_notifications[0][2] == 0
     assert sent_notifications[1][2] == 1
@@ -868,7 +868,7 @@ def test_pushover_notifications_do_not_send_in_dev_build(monkeypatch) -> None:
     )
 
     assert pushover.send_pushover_notification(
-        "Job Logger health degraded",
+        "TicketPilot health degraded",
         "Database unavailable",
         application_settings=notification_settings,
     ) is False
@@ -1087,7 +1087,7 @@ def test_failed_login_writes_sanitized_database_row_and_debug_window(client: Tes
     download_response = client.get("/debug/logs/login-failures")
     assert download_response.status_code == 200
     assert "web_login_failed" in download_response.text
-    assert "job-logger-login-failures.jsonl" in download_response.headers["content-disposition"]
+    assert "ticket-pilot-login-failures.jsonl" in download_response.headers["content-disposition"]
     assert download_response.headers["cache-control"] == "no-store"
     assert failed_password not in download_response.text
     log_payload = json.loads(download_response.text.strip())
@@ -1097,7 +1097,7 @@ def test_failed_login_writes_sanitized_database_row_and_debug_window(client: Tes
     success_download_response = client.get("/debug/logs/login-successes")
     assert success_download_response.status_code == 200
     assert "web_login_succeeded" in success_download_response.text
-    assert "job-logger-login-successes.jsonl" in success_download_response.headers["content-disposition"]
+    assert "ticket-pilot-login-successes.jsonl" in success_download_response.headers["content-disposition"]
     assert success_download_response.headers["cache-control"] == "no-store"
 
     entry_id_match = re.search(r'name="entry_id" value="([a-f0-9-]{36})"', debug_response.text)
@@ -1166,11 +1166,11 @@ def test_create_cloudflare_ip_block_sends_zone_access_rule_payload(monkeypatch) 
         captured_request["timeout"] = timeout
         return FakeResponse()
 
-    monkeypatch.setattr("job_logger.services.cloudflare_blocks.httpx.post", fake_post)
+    monkeypatch.setattr("ticket_pilot.services.cloudflare_blocks.httpx.post", fake_post)
 
     result = create_cloudflare_ip_block(
         "203.0.113.44",
-        note="Job Logger manual block",
+        note="TicketPilot manual block",
         application_settings=cloudflare_settings,
     )
 
@@ -1180,7 +1180,7 @@ def test_create_cloudflare_ip_block_sends_zone_access_rule_payload(monkeypatch) 
     assert captured_request["json"] == {
         "mode": "block",
         "configuration": {"target": "ip", "value": "203.0.113.44"},
-        "notes": "Job Logger manual block",
+        "notes": "TicketPilot manual block",
     }
 
 
@@ -1208,18 +1208,18 @@ def test_failed_login_auto_blocks_cloudflare_ip_after_five_consecutive_failures(
             source=source,
             reason=reason,
             failure_count=failure_count,
-            notes="Job Logger automatic block",
+            notes="TicketPilot automatic block",
         )
         database_session.add(block)
         database_session.flush()
         return block
 
     monkeypatch.setattr(
-        "job_logger.services.login_protection.cloudflare_ip_blocking_configured",
+        "ticket_pilot.services.login_protection.cloudflare_ip_blocking_configured",
         lambda application_settings=settings: True,
     )
     monkeypatch.setattr(
-        "job_logger.services.login_protection.create_app_cloudflare_block",
+        "ticket_pilot.services.login_protection.create_app_cloudflare_block",
         fake_create_app_cloudflare_block,
     )
 
@@ -1293,18 +1293,18 @@ def test_cloudflare_auto_block_uses_enforcement_ip_not_display_xff(
             source=source,
             reason=reason,
             failure_count=failure_count,
-            notes="Job Logger automatic block",
+            notes="TicketPilot automatic block",
         )
         database_session.add(block)
         database_session.flush()
         return block
 
     monkeypatch.setattr(
-        "job_logger.services.login_protection.cloudflare_ip_blocking_configured",
+        "ticket_pilot.services.login_protection.cloudflare_ip_blocking_configured",
         lambda application_settings=settings: True,
     )
     monkeypatch.setattr(
-        "job_logger.services.login_protection.create_app_cloudflare_block",
+        "ticket_pilot.services.login_protection.create_app_cloudflare_block",
         fake_create_app_cloudflare_block,
     )
 
@@ -1415,11 +1415,11 @@ def test_successful_login_resets_consecutive_failures_before_auto_block(
         raise AssertionError("Cloudflare block should not be created after a reset.")
 
     monkeypatch.setattr(
-        "job_logger.services.login_protection.cloudflare_ip_blocking_configured",
+        "ticket_pilot.services.login_protection.cloudflare_ip_blocking_configured",
         lambda application_settings=settings: True,
     )
     monkeypatch.setattr(
-        "job_logger.services.login_protection.create_app_cloudflare_block",
+        "ticket_pilot.services.login_protection.create_app_cloudflare_block",
         fail_create_app_cloudflare_block,
     )
 
@@ -1524,7 +1524,7 @@ def test_debug_cloudflare_block_buttons_create_and_remove_app_managed_block(
             source=source,
             reason=reason,
             failure_count=failure_count,
-            notes="Job Logger manual block",
+            notes="TicketPilot manual block",
         )
         database_session.add(block)
         database_session.flush()
@@ -1677,12 +1677,12 @@ def test_debug_login_pagination(super_admin_client: TestClient) -> None:
     assert "success-11" not in debug_response.text
     assert "Application Log" not in debug_response.text
 
-    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
+    stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
     phone_stylesheet = (
-        Path(__file__).resolve().parents[1] / "job_logger" / "static" / "phone.css"
+        Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "phone.css"
     ).read_text(encoding="utf-8")
     desktop_stylesheet = (
-        Path(__file__).resolve().parents[1] / "job_logger" / "static" / "desktop.css"
+        Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "desktop.css"
     ).read_text(encoding="utf-8")
     assert ".login-attempt-window" in stylesheet
     assert "max-height: 430px;" not in stylesheet
@@ -1743,7 +1743,7 @@ def test_debug_paginates_cloudflare_blocked_ips(super_admin_client: TestClient) 
                     source="automatic",
                     reason=f"pagination test block {index}",
                     failure_count=index,
-                    notes="Job Logger pagination test block",
+                    notes="TicketPilot pagination test block",
                     created_at_utc=created_at + timedelta(minutes=index),
                     updated_at_utc=created_at + timedelta(minutes=index),
                 )
@@ -1885,7 +1885,7 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     login_as_super_admin(authenticated_client)
     debug_response = authenticated_client.get("/debug")
     assert debug_response.status_code == 200
-    assert "Diagnostics - Job Logger" in debug_response.text
+    assert "Diagnostics - TicketPilot" in debug_response.text
     assert "<h1>Diagnostics</h1>" in debug_response.text
     assert (
         "Monitor storage, database connectivity, login activity, Cloudflare blocks, "
@@ -1913,7 +1913,7 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
     assert "Use Test Autotask API to verify the mandatory Autotask dependency" not in debug_response.text
     assert 'class="backup-meta-grid"' in debug_response.text
     assert "Restore scope" in debug_response.text
-    assert "Validated restores replace all Job Logger database tables with the backup contents." in debug_response.text
+    assert "Validated restores replace all TicketPilot database tables with the backup contents." in debug_response.text
     assert "Restore confirmation" not in debug_response.text
     assert '<div class="debug-scroll-table-wrap debug-submission-table-wrap diagnostics-seven-row-window">' in debug_response.text
     assert '<table class="debug-submission-table">' in debug_response.text
@@ -2078,7 +2078,7 @@ def test_debug_downloads_automatic_backup(super_admin_client: TestClient) -> Non
     assert download_response.headers["cache-control"] == "no-store"
     assert backup_result.backup_file.filename in download_response.headers["content-disposition"]
     payload = json.loads(gzip.decompress(download_response.content).decode("utf-8"))
-    assert payload["format"] == "job_logger.full_backup"
+    assert payload["format"] == "ticket_pilot.full_backup"
 
     with database.SessionLocal() as database_session:
         audit_event = database_session.scalar(
@@ -2089,7 +2089,7 @@ def test_debug_downloads_automatic_backup(super_admin_client: TestClient) -> Non
 
 
 def test_debug_full_backup_download_and_restore_round_trip(super_admin_client: TestClient) -> None:
-    """Diagnostics can download and restore a full Job Logger data snapshot."""
+    """Diagnostics can download and restore a full TicketPilot data snapshot."""
 
     original_job_id = _seed_full_backup_data()
 
@@ -2106,8 +2106,8 @@ def test_debug_full_backup_download_and_restore_round_trip(super_admin_client: T
 
     assert backup_response.status_code == 200
     assert backup_response.headers["cache-control"] == "no-store"
-    assert "job-logger-full-backup" in backup_response.headers["content-disposition"]
-    assert payload["format"] == "job_logger.full_backup"
+    assert "ticket-pilot-full-backup" in backup_response.headers["content-disposition"]
+    assert payload["format"] == "ticket_pilot.full_backup"
     assert payload["table_counts"]["jobs"] == 1
     assert payload["table_counts"]["submission_attempts"] == 1
     assert payload["table_counts"]["audit_events"] >= 1
@@ -2123,7 +2123,7 @@ def test_debug_full_backup_download_and_restore_round_trip(super_admin_client: T
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
-                "job-logger-full-backup.json.gz",
+                "ticket-pilot-full-backup.json.gz",
                 backup_response.content,
                 "application/gzip",
             )
@@ -2187,7 +2187,7 @@ def test_debug_restore_defaults_direct_submit_for_legacy_preference_backups(
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
-                "job-logger-v1.0.2-full-backup.json.gz",
+                "ticket-pilot-v1.0.2-full-backup.json.gz",
                 legacy_backup_content,
                 "application/gzip",
             )
@@ -2240,7 +2240,7 @@ def test_debug_restore_defaults_missing_web_session_invalidation_column(
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
-                "job-logger-pre-session-invalidation-full-backup.json.gz",
+                "ticket-pilot-pre-session-invalidation-full-backup.json.gz",
                 legacy_backup_content,
                 "application/gzip",
             )
@@ -2288,7 +2288,7 @@ def test_debug_restore_defaults_missing_web_user_default_role_column(
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
-                "job-logger-pre-default-role-full-backup.json.gz",
+                "ticket-pilot-pre-default-role-full-backup.json.gz",
                 legacy_backup_content,
                 "application/gzip",
             )
@@ -2337,7 +2337,7 @@ def test_debug_restore_defaults_missing_web_user_last_login_column(
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
-                "job-logger-pre-last-login-full-backup.json.gz",
+                "ticket-pilot-pre-last-login-full-backup.json.gz",
                 legacy_backup_content,
                 "application/gzip",
             )
@@ -2385,7 +2385,7 @@ def test_debug_restore_defaults_missing_web_user_admin_column(
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
-                "job-logger-pre-debug-admin-full-backup.json.gz",
+                "ticket-pilot-pre-debug-admin-full-backup.json.gz",
                 legacy_backup_content,
                 "application/gzip",
             )
@@ -2433,7 +2433,7 @@ def test_debug_restore_defaults_missing_web_user_password_change_column(
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
-                "job-logger-pre-password-change-full-backup.json.gz",
+                "ticket-pilot-pre-password-change-full-backup.json.gz",
                 legacy_backup_content,
                 "application/gzip",
             )
@@ -2482,7 +2482,7 @@ def test_debug_restore_defaults_missing_web_user_archive_column(
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
-                "job-logger-pre-web-user-archive-full-backup.json.gz",
+                "ticket-pilot-pre-web-user-archive-full-backup.json.gz",
                 legacy_backup_content,
                 "application/gzip",
             )
@@ -2531,7 +2531,7 @@ def test_debug_restore_defaults_missing_ai_cleanup_revert_columns(
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
-                "job-logger-pre-cleanup-revert-full-backup.json.gz",
+                "ticket-pilot-pre-cleanup-revert-full-backup.json.gz",
                 legacy_backup_content,
                 "application/gzip",
             )
@@ -2576,7 +2576,7 @@ def test_debug_restore_defaults_missing_passkey_table_to_empty(
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
-                "job-logger-pre-passkey-full-backup.json.gz",
+                "ticket-pilot-pre-passkey-full-backup.json.gz",
                 legacy_backup_content,
                 "application/gzip",
             )
@@ -2612,7 +2612,7 @@ def test_debug_restore_defaults_missing_cloudflare_security_tables_to_empty(
                 source="automatic",
                 reason="backup compatibility seed",
                 failure_count=3,
-                notes="Job Logger automatic block",
+                notes="TicketPilot automatic block",
                 created_at_utc=datetime(2026, 6, 24, 12, 0, tzinfo=UTC),
                 updated_at_utc=datetime(2026, 6, 24, 12, 0, tzinfo=UTC),
             )
@@ -2654,7 +2654,7 @@ def test_debug_restore_defaults_missing_cloudflare_security_tables_to_empty(
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
-                "job-logger-pre-cloudflare-blocks-full-backup.json.gz",
+                "ticket-pilot-pre-cloudflare-blocks-full-backup.json.gz",
                 legacy_backup_content,
                 "application/gzip",
             )
@@ -2708,7 +2708,7 @@ def test_debug_restore_defaults_missing_login_counter_username(
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
-                "job-logger-pre-login-counter-username-full-backup.json.gz",
+                "ticket-pilot-pre-login-counter-username-full-backup.json.gz",
                 legacy_backup_content,
                 "application/gzip",
             )
@@ -2742,7 +2742,7 @@ def test_debug_restore_requires_confirmation(super_admin_client: TestClient) -> 
         data={"csrf_token": restore_csrf_token, "confirmation": "restore"},
         files={
             "backup_file": (
-                "job-logger-full-backup.json.gz",
+                "ticket-pilot-full-backup.json.gz",
                 backup_response.content,
                 "application/gzip",
             )

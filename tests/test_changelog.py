@@ -8,20 +8,20 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from job_logger.services.changelog import (
+from tests.conftest import extract_csrf_token
+from ticket_pilot.services.changelog import (
     ChangelogEntry,
     current_changelog_entry,
     load_changelog_entries,
 )
-from job_logger.version import APP_VERSION
-from tests.conftest import extract_csrf_token
+from ticket_pilot.version import APP_VERSION
 
-CURRENT_RELEASE_DATE = "07.20.2026"
-CURRENT_WEB_TITLE = "Navigation apps and quick destinations"
-CURRENT_DETAILED_HEADING = (
-    f"## 1.4.0 - {CURRENT_RELEASE_DATE} - Configurable navigation and Autotask destinations"
-)
-CURRENT_WEB_HEADING = f"## 1.4.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+CURRENT_RELEASE_DATE = ""
+CURRENT_WEB_TITLE = "TicketPilot rename, themes, layouts, and active timing"
+CURRENT_DETAILED_HEADING = "## 2.0.0 - TicketPilot rename, themes, layouts, and active timing"
+CURRENT_WEB_HEADING = f"## 2.0.0 - {CURRENT_WEB_TITLE}"
+V140_DETAILED_HEADING = "## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations"
+V140_WEB_HEADING = "## 1.4.0 - 07.20.2026 - Navigation apps and quick destinations"
 V131_DETAILED_HEADING = (
     "## 1.3.1 - 07.13.2026 - Swarm deployment, storage health, navigation, and password-reset protection"
 )
@@ -45,6 +45,7 @@ V120_RELEASE_DATE = "07.02.2026"
 RELEASE_HEADING_PATTERN = re.compile(r"^## \d+\.\d+\.\d+ - (?:\d{2}\.\d{2}\.\d{4} - .+|.+)")
 DETAILED_RELEASE_HEADINGS = (
     CURRENT_DETAILED_HEADING,
+    V140_DETAILED_HEADING,
     V131_DETAILED_HEADING,
     V130_HEADING,
     V124_DETAILED_HEADING,
@@ -65,6 +66,7 @@ DETAILED_RELEASE_HEADINGS = (
 )
 WEB_RELEASE_HEADINGS = (
     CURRENT_WEB_HEADING,
+    V140_WEB_HEADING,
     V131_WEB_HEADING,
     V130_HEADING,
     f"## 1.2.4 - {V124_RELEASE_DATE} - {V124_WEB_TITLE}",
@@ -135,7 +137,7 @@ def _assert_changelog_sections_are_non_empty(
 def test_app_version_matches_current_changelog_version() -> None:
     """The source-controlled version should match the current changelog entry."""
 
-    assert APP_VERSION == "1.4.0"
+    assert APP_VERSION == "2.0.0"
     version_file = Path(__file__).resolve().parents[1] / "VERSION"
     assert version_file.read_text(encoding="utf-8").strip() == APP_VERSION
 
@@ -179,7 +181,7 @@ def test_web_changelog_is_available_to_runtime_artifacts() -> None:
     wheel_force_include = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
 
     assert "WEB_CHANGELOG.md" in dockerfile_text
-    assert wheel_force_include["WEB_CHANGELOG.md"] == "job_logger/WEB_CHANGELOG.md"
+    assert wheel_force_include["WEB_CHANGELOG.md"] == "ticket_pilot/WEB_CHANGELOG.md"
 
 
 def test_user_manual_stays_end_user_focused() -> None:
@@ -190,6 +192,7 @@ def test_user_manual_stays_end_user_focused() -> None:
 
     for expected_section in (
         "## Signing In",
+        "## Installing The App On A Phone",
         "## Device Sign-In",
         "## Work Page",
         "## Review Page",
@@ -216,39 +219,34 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="1.4.0",
+        version="2.0.0",
         release_date=CURRENT_RELEASE_DATE,
         title=CURRENT_WEB_TITLE,
         changes=(
+            "TicketPilot is now the application name across the web interface and installed app.",
+            "Config now offers three comfortable light themes and four dark themes.",
+            "TicketPilot now uses its new logo and new high-resolution installed-app icon.",
+            "Account emails, Help content, and user documentation now use the TicketPilot name.",
             (
-                "Config now lets each user choose None, Device Default, Google Maps, Waze, or Apple Maps and "
-                "save private Home and optional Office destinations."
+                "Full-browser Config now uses the available width with paired cards, and both blank and concurrent "
+                "Work start panels keep their controls left of Service calls."
             ),
             (
-                "Work now has quick Home and Office buttons, and selected tickets can show a Navigate to Destination button "
-                "in Work in Progress and Review."
-            ),
-            "Service calls now show their scheduled date, and open tickets show Start and Due by dates.",
-            (
-                "Config now has a default-off option to allow navigation buttons and automatic directions "
-                "on the full web version."
-            ),
-            "Starting an On-Site service call now opens directions after Job Logger confirms the work entry started successfully.",
-            "Remote service calls do not open navigation automatically.",
-            (
-                "The newest concurrent Work in Progress job now appears first, Device sign-in is the final "
-                "Config card, and blue Navigate to Destination buttons sit above Entry type only for time entries on phones."
+                "Active Remote entries keep at least 15 minutes and On-Site entries keep at least 1 hour; changing "
+                "work type updates only the stop time and uses the current rounded block when it is later."
             ),
             (
-                "Phones and tablets now receive navigation without relying on browser window size; full web "
-                "browsers require the separate navigation opt-in."
+                "Dark themes use the white TicketPilot mark and light themes use the black mark in the full-browser "
+                "header and browser tab."
             ),
+            "Removed stale former-name labels from user-facing application pages and metadata.",
             (
-                "Missing Autotask addresses no longer interrupt starting work, and navigation buttons stay "
-                "hidden when no usable destination is available."
+                "Help and Config now begin closer to the navigation bar without redundant page titles or blank space."
             ),
-            "Work Duration now stays synchronized with the visible start and end times after 15-minute adjustments.",
-            "Full web browsers no longer show or trigger navigation unless the user explicitly allows it.",
+            "Work Duration now updates immediately when a work-type change normalizes the active stop time.",
+            (
+                "Removed the former logo and app-icon artwork so browsers no longer discover stale branding assets."
+            ),
         ),
     )
 
@@ -270,6 +268,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
+    assert ">2.0.0<" in response.text
+    assert ">1.4.0<" in response.text
     assert ">1.3.1<" in response.text
     assert ">1.3.0<" in response.text
     assert ">1.2.4<" in response.text
@@ -360,10 +360,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "The login page now shows the app version in small text under the sign-in card, "
         "with DEV added for development builds."
     ) in response.text
-    assert (
-        "Full browsers now show the app version under the Job Logger title in the header, "
-        "with DEV added for development builds."
-    ) in response.text
+    assert "Full browsers now show the app version under the" in response.text
+    assert "title in the header, with DEV added for development builds." in response.text
     assert "The header now uses Help instead of the version number; phones show a Help icon and full browsers show the same icon with Help." in response.text
     assert "Help now sits beside Log out in the header, while the main route buttons stay grouped together." in response.text
     assert (
@@ -380,10 +378,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     ) in response.text
     assert "The Help page cards now have a little more space between them." in response.text
     assert "Ask AI for help now uses a one-line question field that submits when Enter is pressed." in response.text
-    assert (
-        "The Help page can answer one Job Logger support question at a time "
-        "when the app administrator configures Gemini AI Help instructions."
-    ) in response.text
+    assert "The Help page can answer one" in response.text
+    assert "support question at a time when the app administrator configures Gemini AI Help instructions." in response.text
     assert "Gemini AI Cleanup now uses the same Gemini endpoint setup as Ask AI for help." in response.text
     assert (
         "Ask AI for help now keeps broad/simple answers concise and avoids showing "
@@ -407,10 +403,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "Help now labels released version dates as Released: MM.DD.YYYY and shows "
         "previous changelog entries as full-width cards without timeline dots."
     ) in response.text
-    assert (
-        "Updated the app icon, browser favicon, and desktop header logo "
-        "to the new Job Logger artwork."
-    ) in response.text
+    assert "Updated the app icon, browser favicon, and desktop header logo" in response.text
+    assert "to the new" in response.text
     assert (
         "The installed app icon now uses the original dark-background icon artwork, "
         "fills the icon frame, and avoids the over-zoomed maskable icon crop."
@@ -438,10 +432,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Full-browser navigation is now centered and uses the app&#39;s home-screen icon in the header." in response.text
     assert "The login page no longer shows a top app mark above the sign-in form." in response.text
     assert "The full-browser header now uses the same installed-app icon asset." in response.text
-    assert (
-        "If storage is temporarily unavailable, the browser now shows a Job Logger-styled "
-        "Service Temporarily Unavailable page that retries sign-in automatically."
-    ) in response.text
+    assert "If storage is temporarily unavailable, the browser now shows a" in response.text
+    assert "-styled Service Temporarily Unavailable page that retries sign-in automatically." in response.text
     assert "The changelog now shows version numbers without brackets and release dates for released versions." in response.text
     assert (
         "The work-entry navigation button now says Work, uses a work-entry icon, "
@@ -467,7 +459,8 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
         "Note title fields are centered, Work in Progress status messages sit under the action buttons, "
         "and Ticket note or On-Site switch selections are orange."
     ) in response.text
-    assert "Web service and missing-page errors now match Job Logger&#39;s look and offer Back to Login or Back to Work." in response.text
+    assert "Web service and missing-page errors now match" in response.text
+    assert "look and offer Back to Login or Back to Work." in response.text
     assert "The temporary outage page now uses a tighter card without the extra app header." in response.text
     assert "Work entries can now be Time entries or customer-visible Ticket notes." in response.text
     assert (
@@ -567,17 +560,15 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert "Review client search no longer shows a Summary notes warning while typing." in response.text
     assert "Choosing an open ticket now locks that job&#39;s client name everywhere." in response.text
     assert "Mobile Review status messages now stay below the action buttons." in response.text
-    assert "Service-call starts now hide tickets already marked Complete in Job Logger." in response.text
+    assert "Service-call starts now hide tickets already marked Complete in" in response.text
     assert "Submitted Review entries now use a clearer Submit changes button." in response.text
     assert "User management rows now fit better on full browser screens." in response.text
     assert "User management, ticket status, and Device sign-in updates" in response.text
     assert "User management rows are more compact and easier to scan." in response.text
     assert "Passkey setup and login buttons now use the clearer Device sign-in name." in response.text
-    assert (
-        "Submitted time entries now keep the Autotask ticket status matched to the selected Job Logger "
-        "status on submit and Edit Entry."
-    ) in response.text
-    assert "If Delete From Autotask fails, Review can now offer a local-only purge option for the Job Logger entry." in response.text
+    assert "Submitted time entries now keep the Autotask ticket status matched to the selected" in response.text
+    assert "status on submit and Edit Entry." in response.text
+    assert "If Delete From Autotask fails, Review can now offer a local-only purge option for the" in response.text
     assert "Review action cleanup" in response.text
     assert "Review detail now uses compact action rows like Work in Progress." in response.text
     assert "Record and AI Cleanup now share a row on review detail with shorter labels and icons." in response.text
@@ -705,7 +696,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
 def test_changelog_title_uses_bold_page_heading_style() -> None:
     """The changelog page title should keep an explicit bold heading style."""
 
-    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
+    stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
 
     assert ".changelog-page-header h1" in stylesheet
     assert ".changelog-current-panel h2,\n.changelog-entry-panel h2" in stylesheet

@@ -12,10 +12,11 @@ from sqlalchemy import select
 from webauthn.helpers import bytes_to_base64url
 from webauthn.helpers.exceptions import InvalidAuthenticationResponse
 
-from job_logger import database
-from job_logger.config import settings
-from job_logger.models import AuditEvent, LoginAttempt, WebAuthnCredential, WebUser
-from job_logger.security import (
+from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as, login_as_web_user
+from ticket_pilot import database
+from ticket_pilot.config import settings
+from ticket_pilot.models import AuditEvent, LoginAttempt, WebAuthnCredential, WebUser
+from ticket_pilot.security import (
     PUBLIC_DEVICE_IDLE_TIMEOUT_SECONDS,
     SESSION_AUTHENTICATED_AT_UTC_KEY,
     SESSION_PUBLIC_DEVICE_KEY,
@@ -24,8 +25,7 @@ from job_logger.security import (
     authenticated_session_is_expired,
     public_device_session_is_idle_expired,
 )
-from job_logger.version import APP_VERSION
-from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as, login_as_web_user
+from ticket_pilot.version import APP_VERSION
 
 
 @dataclass(frozen=True)
@@ -90,7 +90,7 @@ def _register_mock_passkey(
     assert options_response.status_code == 200
 
     monkeypatch.setattr(
-        "job_logger.services.passkeys.verify_registration_response",
+        "ticket_pilot.services.passkeys.verify_registration_response",
         lambda **_: FakeVerifiedRegistration(
             credential_id=credential_id,
             credential_public_key=b"public-key",
@@ -191,11 +191,11 @@ def test_login_page_exposes_password_fallback_and_passkey_button(client: TestCli
     assert f'<p class="login-version-label">v{APP_VERSION}</p>' in response.text
     assert f"v{APP_VERSION}-DEV" not in response.text
     assert '<header class="app-header' not in response.text
-    assert 'aria-label="Job Logger home"' not in response.text
+    assert 'aria-label="TicketPilot home"' not in response.text
 
     repository_root = Path(__file__).resolve().parents[1]
-    passkeys_script = (repository_root / "job_logger" / "static" / "passkeys.js").read_text(encoding="utf-8")
-    stylesheet = (repository_root / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
+    passkeys_script = (repository_root / "ticket_pilot" / "static" / "passkeys.js").read_text(encoding="utf-8")
+    stylesheet = (repository_root / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
     assert "function initializePublicDeviceLoginToggle(button)" in passkeys_script
     assert 'checkbox.addEventListener("change", updateButtonState);' in passkeys_script
     assert "button.disabled = publicDeviceSelected;" in passkeys_script
@@ -218,7 +218,7 @@ def test_login_page_marks_dev_build_version(client: TestClient) -> None:
 def test_login_version_label_uses_small_close_spacing() -> None:
     """The login version label should stay visually small and close to the card."""
 
-    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(
+    stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css").read_text(
         encoding="utf-8"
     )
 
@@ -290,8 +290,8 @@ def test_home_prompts_for_passkey_once_per_login_until_one_is_registered(client:
     login_as_web_user(client)
     next_login_home_response = client.get("/home")
     assert "Set up faster sign-in" in next_login_home_response.text
-    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
-    phone_stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "phone.css").read_text(encoding="utf-8")
+    stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
+    phone_stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "phone.css").read_text(encoding="utf-8")
     assert ".phone-only-passkey-home-prompt {\n  display: none;" in stylesheet
     assert ".phone-only-passkey-home-prompt {\n  display: block;" in phone_stylesheet
 
@@ -358,7 +358,7 @@ def test_passkey_login_creates_managed_user_session(client: TestClient, monkeypa
     assert options_response.json()["publicKey"]["rpId"] == "testserver"
 
     monkeypatch.setattr(
-        "job_logger.services.passkeys.verify_authentication_response",
+        "ticket_pilot.services.passkeys.verify_authentication_response",
         lambda **_: FakeVerifiedAuthentication(
             credential_id=b"credential-one",
             new_sign_count=12,
@@ -411,7 +411,7 @@ def test_public_device_passkey_login_hides_passkey_setup(client: TestClient, mon
     assert options_response.status_code == 200
 
     monkeypatch.setattr(
-        "job_logger.services.passkeys.verify_authentication_response",
+        "ticket_pilot.services.passkeys.verify_authentication_response",
         lambda **_: FakeVerifiedAuthentication(
             credential_id=b"credential-one",
             new_sign_count=12,
@@ -452,7 +452,7 @@ def test_failed_passkey_login_keeps_password_fallback(client: TestClient, monkey
     def reject_authentication(**_):
         raise InvalidAuthenticationResponse("bad signature")
 
-    monkeypatch.setattr("job_logger.services.passkeys.verify_authentication_response", reject_authentication)
+    monkeypatch.setattr("ticket_pilot.services.passkeys.verify_authentication_response", reject_authentication)
     verify_response = client.post(
         "/login/passkey/verify",
         headers={"X-CSRF-Token": csrf_token},

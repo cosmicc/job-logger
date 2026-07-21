@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discover Autotask IDs needed by Job Logger from a local .env file.
+"""Discover Autotask IDs needed by TicketPilot from a local .env file.
 
 The script performs read-only Autotask REST calls for ticket status picklist IDs
 and workflow endpoint preflight checks. It intentionally avoids printing
@@ -28,7 +28,7 @@ REQUIRED_AUTOTASK_SETTINGS = (
     "AUTOTASK_API_INTEGRATION_CODE",
 )
 
-# STATUS_ENVIRONMENT_VARIABLES maps the local Job Logger status keys to the
+# STATUS_ENVIRONMENT_VARIABLES maps the local TicketPilot status keys to the
 # labels expected in the Autotask Tickets.status picklist metadata.
 STATUS_ENVIRONMENT_VARIABLES = {
     "AUTOTASK_STATUS_IN_PROGRESS_ID": "In progress",

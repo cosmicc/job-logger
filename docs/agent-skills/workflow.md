@@ -1,11 +1,11 @@
-# Job Logger Agent Skill: Workflow
+# TicketPilot Agent Skill: Workflow
 
 Read this file before changing mobile work entry, active job behavior, review
 behavior, job statuses, time rounding, or job-related database fields.
 
 ## Core Service Boundary
 
-`job_logger/services/jobs.py` is the workflow authority. Routes should collect
+`ticket_pilot/services/jobs.py` is the workflow authority. Routes should collect
 and validate request-level concerns such as authentication and CSRF, then call
 service functions for state changes. Do not reimplement job status rules inside
 templates, JavaScript, or route handlers.
@@ -29,22 +29,22 @@ Important workflow service responsibilities include:
 ## Active Job Flow
 
 The work-entry home page is `/home`, implemented by
-`job_logger/routes/mobile.py` and `job_logger/templates/mobile.html`.
+`ticket_pilot/routes/mobile.py` and `ticket_pilot/templates/mobile.html`.
 
 The same route is also the full-browser Home and Work in Progress surface.
 The selected mobile or desktop presentation must come from client/browser and
 media behavior, not from separate route names.
 When JavaScript behavior must distinguish mobile devices from the full web
-version, `window.JobLoggerNavigation.isMobileDevice()` in
-`job_logger/static/navigation.js` is the single application detector. Reuse it
+version, `window.TicketPilotNavigation.isMobileDevice()` in
+`ticket_pilot/static/navigation.js` is the single application detector. Reuse it
 instead of creating feature-local viewport, user-agent, touch, or pointer
 checks. Extend that shared helper and `tests/test_navigation_javascript.py`
 when device coverage changes. Use `isNavigationAllowed()` when the separate
 full-web navigation opt-in is also part of the decision. These helpers are for
 presentation and convenience behavior only, never authentication or
 authorization.
-Use `job_logger/static/desktop.css` for wider browser-only layout improvements
-and leave `job_logger/static/phone.css` unchanged unless the request explicitly
+Use `ticket_pilot/static/desktop.css` for wider browser-only layout improvements
+and leave `ticket_pilot/static/phone.css` unchanged unless the request explicitly
 targets the phone or installed mobile app.
 
 Phone-sized authenticated layouts hide the brand mark and desktop logout form.
@@ -66,13 +66,15 @@ Keep the explicit desktop logout form available on non-mobile authenticated
 pages. Full-browser top navigation should stay
 centered for route links and use raised blue icon-and-text buttons. Full-browser
 Help belongs in the right-side action group immediately to the left of the
-visible **Log out** button. The authenticated desktop brand mark
-should use the source-controlled transparent Job Logger logo asset, while the
-PWA manifest and favicon use the source-controlled icon-format Job Logger
-artwork so installed home-screen icons fill the icon frame with the dark
-app-icon background. Use the `job-logger-install-icon-*` files and do not
-advertise maskable install icons unless a future design includes a tested
-full-bleed mask-safe background.
+visible **Log out** button. The authenticated desktop brand mark and favicon
+must use `ticketpilot-logo-white.svg` on every dark theme and
+`ticketpilot-logo-black.svg` on every light theme, with
+`ticketpilot-logo-grey.svg` as the neutral fallback. Theme changes on Config
+must update both immediately. The PWA manifest must use the supplied
+`ticketpilot-app-icon-*` PNG files at 128, 256, 512, and 1024 pixels, and the
+Apple touch link uses the 256 pixel source. Do not advertise maskable icons
+unless separately supplied artwork has a tested full-bleed mask-safe
+background.
 Phone-sized navigation remains compact blue icon buttons with icon artwork
 large enough to scan quickly, with all phone nav icons using one shared visible
 size inside the compact buttons. Full-browser navigation includes a right-side
@@ -91,9 +93,9 @@ Destructive red controls must stay red on hover, using a brighter red instead
 of falling back to a neutral dark hover.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 the Help button in yellow, while the full-browser header version label under
-the Job Logger title appends `-DEV`, such as `v1.4.0-DEV`. Keep a small but
+the TicketPilot title appends `-DEV`, such as `v2.0.0-DEV`. Keep a small but
 visible gap between the title and header version label. The `/help` page shows
-the current version with `DEV`, such as `v1.4.0 DEV`. Keep the Help icon
+the current version with `DEV`, such as `v2.0.0 DEV`. Keep the Help icon
 compact so it does not crowd the mobile navigation icons.
 When cached app health is degraded, every authenticated user sees an exclamation
 status button in the top bar that links to `/help#operational-status`. Use
@@ -156,7 +158,9 @@ Active jobs support these updates before completion:
   being edited.
 - Append to resolution, defaulting on for both time entries and ticket notes.
 - Work location mode, either Remote or On-Site, which is stored separately from
-  the visible notes.
+  the visible notes. Changing this mode for an active time entry must preserve
+  the start and recalculate only the stop to the later of the work-location
+  minimum or the current rounded 15-minute block.
 - Local job date through the Work in Progress **Job date** calendar field. The
   selector shows `(Today)`, `(Yesterday)`, or `(Tomorrow)` inside the date box
   when the selected date is adjacent to the current app-local date. The date
@@ -176,6 +180,12 @@ Active jobs support these updates before completion:
   server-validated `-15` and `+15` minute buttons on either side of the field.
   These controls must not use the full-page status overlay because the
   adjustment should feel immediate.
+- Active Remote work must always show and persist a stop at least 15 rounded
+  minutes after start. Active On-Site work must always show and persist a stop
+  at least 1 rounded hour after start. When the job has already run beyond that
+  minimum, a work-location change uses the current rounded block. The active
+  save response must return the canonical start, stop, minimum, and duration so
+  browser JavaScript updates the visible End time and Work Duration together.
 - A centered **Work Duration** label on its own row under the Work in Progress
   start/end time controls, such as `Work Duration: 15 Minutes`,
   `Work Duration: 1 Hour`, or `Work Duration: 1.25 Hours`. The server returns
@@ -285,7 +295,7 @@ older review text.
 The mobile start panels show Autotask service calls for a selected local date
 when an active job slot is available. The page should render immediately with a
 **Loading service calls...** state and no synchronous Autotask calls. After the
-window `load` event, `job_logger/static/mobile.js` loads `/home/service-calls`
+window `load` event, `ticket_pilot/static/mobile.js` loads `/home/service-calls`
 to fetch safe card data for the current selected date. The panel has compact
 previous/next day buttons with the displayed day between them; clicking that day
 opens the native calendar picker. Today, yesterday, and tomorrow labels put the
@@ -319,7 +329,7 @@ job.
 
 The `/home/service-calls` endpoint is only for drawing already-verified
 candidate cards in the browser. Before returning or accepting service-call
-options, route code must filter out tickets that already have a local Job Logger
+options, route code must filter out tickets that already have a local TicketPilot
 job for the current managed web user with ticket status Complete or Follow up;
 this local filter applies even when that job has not been submitted to Autotask
 yet.
@@ -434,8 +444,8 @@ Direct Work in Progress submission rules:
 
 ## Speech-To-Text Flow
 
-Recording is browser-side in `job_logger/static/mobile.js` for active work and
-`job_logger/static/review.js` for review detail.
+Recording is browser-side in `ticket_pilot/static/mobile.js` for active work and
+`ticket_pilot/static/review.js` for review detail.
 
 Current behavior:
 
@@ -509,7 +519,7 @@ AI cleanup is an optional server-side integration controlled by
 `AI_CLEANUP_ENABLED` and `AI_CLEANUP_PROVIDER`. Supported providers are
 Gemini, Groq, Ollama, and LM Studio. The browser sends the current editable
 summary text to a CSRF-protected cleanup endpoint; the server validates the job
-state, calls `job_logger/services/ai_cleanup.py`, records a metadata-only audit
+state, calls `ticket_pilot/services/ai_cleanup.py`, records a metadata-only audit
 event, and returns cleaned text. The cleanup route
 must not submit to Autotask, change ticket/client identity, or bypass the normal
 save/review/submitted-entry update workflow.
@@ -521,7 +531,7 @@ setting as AI Help, but it must keep `GEMINI_CLEANUP_MODEL` and
 `AI_CLEANUP_INSTRUCTIONS` separate from the Help model and support prompt.
 
 Mobile active jobs use `POST /jobs/{job_id}/summary/cleanup`. After a successful
-response, `job_logger/static/mobile.js` replaces the active summary textarea and
+response, `ticket_pilot/static/mobile.js` replaces the active summary textarea and
 persists the cleaned result through the existing active description text save
 endpoint. Mobile AI cleanup uses the same `.recording-status` line as save and
 audio recording messages for progress, success, and failure details. Status
@@ -551,8 +561,8 @@ revert routes act on a job.
 
 ## Review Flow
 
-The review page is `/review`, implemented by `job_logger/routes/review.py`,
-`job_logger/templates/review.html`, and `job_logger/static/review.js`.
+The review page is `/review`, implemented by `ticket_pilot/routes/review.py`,
+`ticket_pilot/templates/review.html`, and `ticket_pilot/static/review.js`.
 
 Review supports:
 
@@ -713,8 +723,8 @@ Autotask**, which deletes the external Autotask record and moves the local job
 back to review only after Autotask confirms the delete. This action must not
 delete the local job, audit events, or submission attempts. If Delete From
 Autotask fails, the selected detail may show a session-scoped local-only purge
-dialog that warns the Autotask record may still exist before removing the Job
-Logger review row.
+dialog that warns the Autotask record may still exist before removing the
+TicketPilot review row.
 
 The review detail uses one local job date with start and end times, and the
 **Job date** selector shows `(Today)`, `(Yesterday)`, or `(Tomorrow)` inside the
@@ -725,10 +735,13 @@ time is not after the start time on that same date. Keep the audit timeline
 collapsed by default with an expandable detail section.
 Time-entry duration validation must also enforce the selected work-location
 minimum: Remote requires at least 15 rounded minutes, while On-Site requires at
-least 1 rounded hour. Enforce this in `job_logger/services/jobs.py` for active
+least 1 rounded hour. Enforce this in `ticket_pilot/services/jobs.py` for active
 end-work, active time edits with an end override, Review saves, Review
 submission/retry, submitted-entry edits, and final Autotask submission
 readiness. Ticket notes do not use start/stop time fields and are exempt.
+Active Work time edits clamp the stop to the selected minimum; Review and
+submitted-entry edits remain manual and reject an undersized duration instead
+of silently changing it.
 
 ## Job Status Expectations
 
@@ -754,7 +767,7 @@ values limited to internal compatibility parsing or external API payloads.
 
 All stored timestamps are UTC.
 
-Use `job_logger/time_utils.py` for:
+Use `ticket_pilot/time_utils.py` for:
 
 - Local/UTC conversion.
 - 15-minute rounding.

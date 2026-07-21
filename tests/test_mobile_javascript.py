@@ -22,7 +22,7 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
     repository_root = Path(__file__).resolve().parents[1]
     # mobile_script_path is read by the Node harness so the test executes the
     # production browser script instead of a copied or simplified version.
-    mobile_script_path = repository_root / "job_logger" / "static" / "mobile.js"
+    mobile_script_path = repository_root / "ticket_pilot" / "static" / "mobile.js"
     # harness_path keeps the temporary Node test outside source control while
     # still letting pytest report the exact browser-side assertion failure.
     harness_path = tmp_path / "mobile_script_test.js"
@@ -412,11 +412,13 @@ def test_mobile_duration_is_derived_from_the_visible_canonical_times(tmp_path: P
           rounded_stop_time: "10:30 am",
           rounded_stop_utc: "2026-06-16T14:30:00Z",
           rounded_stop_overridden: true,
+          minimum_duration_minutes: 60,
           duration_label: "9 Hours",
         });
 
         assert.strictEqual(startTimeInput.value, "9:00 am");
         assert.strictEqual(stopTimeInput.value, "10:30 am");
+        assert.strictEqual(stopTimeInput.dataset.minimumDurationMinutes, "60");
         assert.strictEqual(durationDisplay.textContent, "1.5 Hours");
         """,
     )
@@ -530,7 +532,7 @@ def test_mobile_ticket_selection_locks_client_input(tmp_path: Path) -> None:
           return [];
         };
 
-        browserContext.window.JobLoggerTicketNotes = {
+        browserContext.window.TicketPilotTicketNotes = {
           refreshButton(button) {
             refreshedNotesButtons.push(button);
           },
@@ -591,7 +593,7 @@ def test_mobile_company_selection_stays_editable_until_ticket() -> None:
     """Selecting a company should clear stale tickets without locking the input."""
 
     repository_root = Path(__file__).resolve().parents[1]
-    mobile_script = (repository_root / "job_logger" / "static" / "mobile.js").read_text(encoding="utf-8")
+    mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
 
     assert "function resetActiveTicketPickerForClientChange" in mobile_script
     assert "activeTicketLookupGenerations.set(" in mobile_script

@@ -1,6 +1,6 @@
-# Job Logger
+# TicketPilot
 
-Job Logger is a security-focused Dockerized Python web application for quickly
+TicketPilot is a security-focused Dockerized Python web application for quickly
 recording Autotask time entries or customer-visible ticket notes from a phone
 or web browser, reviewing or directly submitting recorded jobs, and sending
 accepted records to Autotask.
@@ -111,7 +111,7 @@ Autotask REST API references used by this app:
    an optional default fallback for tickets that do not return usable role data.
    Add/edit forms also include a default-off Admin checkbox that grants that
    managed user full `/debug` Diagnostics access only.
-   When Autotask returns an email for the selected resource, Job Logger saves it
+   When Autotask returns an email for the selected resource, TicketPilot saves it
    with that web-user account. Managed-user passwords must be at least 8
    characters and include lowercase, uppercase, number, and symbol characters.
    Passwords created or reset by the config super admin are temporary; the
@@ -121,9 +121,11 @@ Autotask REST API references used by this app:
    from earlier single-user installs.
 
 8. Managed web users can open `/config` to choose their visual theme and how
-   finished Work in Progress entries are submitted. Dark is the default, and changes save and apply
-   immediately without a Save button. Light and dark themes apply to mobile and
-   web pages for that login only. The **Submit from Work in Progress** workflow
+   finished Work in Progress entries are submitted. Default Dark is selected
+   initially, and changes save and apply immediately without a Save button.
+   Config offers three light and four dark palettes, shown in the maintained
+   [theme palette reference](docs/design/theme_palettes.svg), and the chosen
+   theme applies to mobile and web pages for that login only. The **Submit from Work in Progress** workflow
    option is not a workflow availability toggle. It is off by default; when
    enabled, ending work submits the completed time entry or ticket note to
    Autotask immediately instead of requiring Review first. The same page
@@ -146,7 +148,7 @@ can be tested before they are merged back to `main`.
 For a dev deployment, use a separate checkout or working tree on the server:
 
 ```bash
-git clone --branch dev https://github.com/cosmicc/job-logger.git job-logger-dev
+git clone --branch dev https://github.com/cosmicc/ticket-pilot.git ticket-pilot-dev
 ```
 
 Keep the dev instance isolated from production:
@@ -172,7 +174,7 @@ Keep the dev instance isolated from production:
 Example same-host dev startup:
 
 ```bash
-COMPOSE_PROJECT_NAME=job_logger_dev \
+COMPOSE_PROJECT_NAME=ticket_pilot_dev \
 HTTP_PORT=11031 \
 DEV_BUILD=true \
 docker compose up -d --build
@@ -281,17 +283,17 @@ lines first. If redeploy fails before pulling images with an error like
 `failed to read /data/compose/1/stack.env: line 1: key cannot contain a space`,
 line 1 of the generated Portainer `stack.env` contains text that is not a valid
 environment variable name. Remove that prose or convert it to a valid key such
-as `AI_HELP_INSTRUCTIONS=Answer Job Logger support questions for end users.`
+as `AI_HELP_INSTRUCTIONS=Answer TicketPilot support questions for end users.`
 on one line.
 
 For a remote PostgreSQL server, provide:
 
 ```env
-DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
+DATABASE_URL=postgresql+psycopg://ticket_pilot:<password>@postgres.example.com:5432/ticket_pilot
 ```
 
 If a managed PostgreSQL provider supplies a `postgresql://` or `postgres://`
-URL, Job Logger normalizes it to the installed psycopg 3 driver before app
+URL, TicketPilot normalizes it to the installed psycopg 3 driver before app
 startup and migrations create database engines.
 
 Keep the remote database private to trusted networks or TLS-protected
@@ -312,31 +314,55 @@ published by GitHub Actions:
 
 | Environment | Stack file | Stack name | App / Nginx | Storage root | Tunnel origin |
 | --- | --- | --- | --- | --- | --- |
-| Production | `docker-stack.yml` | `job_logger` | `jlapp` / `jlnginx` | `/mnt/swarm-storage/job-logger` | `http://jlnginx:${HTTP_PORT}` |
-| Dev | `docker-stack.dev.yml` | `job_logger_dev` | `jldapp` / `jldnginx` | `/mnt/swarm-storage/job-logger-dev` | `http://jldnginx:${HTTP_PORT}` |
+| Production | `docker-stack.yml` | `ticket_pilot` | `tpapp` / `tpnginx` | `/mnt/swarm-storage/ticket-pilot` | `http://tpnginx:${HTTP_PORT}` |
+| Dev | `docker-stack.dev.yml` | `ticket_pilot_dev` | `tpdapp` / `tpdnginx` | `/mnt/swarm-storage/ticket-pilot-dev` | `http://tpdnginx:${HTTP_PORT}` |
+
+#### Version 2.0.0 name-change upgrade
+
+Version 2.0.0 intentionally replaces every former product-prefixed runtime and
+deployment identifier; it does not provide aliases for superseded names. Before
+upgrading an existing deployment:
+
+- Create and verify a full backup with the currently running version. Restore
+  any pre-2.0.0 backup before upgrading, then create a new TicketPilot backup
+  after the upgrade because the backup envelope and filename prefix changed.
+- Update the deployment environment to use `TICKET_PILOT_APP_IMAGE`,
+  `TICKET_PILOT_NGINX_IMAGE`, and `TICKET_PILOT_SWARM_STORAGE_PATH`.
+- Preserve the deployment's current `DATABASE_URL`, `POSTGRES_DB`, and
+  `POSTGRES_USER` values when retaining an existing database. The new
+  `ticket_pilot` database defaults are for fresh deployments unless the
+  database and role are deliberately renamed by the operator.
+- Point `TICKET_PILOT_SWARM_STORAGE_PATH` at the existing mounted storage root
+  until backup and model-cache files are deliberately moved to the new default
+  path.
+- Expect existing signed browser sessions to require a new sign-in because the
+  application session-cookie name changed with the product namespace.
+
+Publish or otherwise make the renamed TicketPilot GHCR images available before
+deploying these stack files; the former image namespace is no longer used.
 
 Production should pin a version published from `main`:
 
 ```bash
-export JOB_LOGGER_APP_IMAGE=ghcr.io/cosmicc/job-logger-app:1.3.1
-export JOB_LOGGER_NGINX_IMAGE=ghcr.io/cosmicc/job-logger-nginx:1.3.1
-export JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger
-export DATABASE_URL=postgresql+psycopg://job_logger:<password>@postgres.example.com:5432/job_logger
+export TICKET_PILOT_APP_IMAGE=ghcr.io/cosmicc/ticket-pilot-app:2.0.0
+export TICKET_PILOT_NGINX_IMAGE=ghcr.io/cosmicc/ticket-pilot-nginx:2.0.0
+export TICKET_PILOT_SWARM_STORAGE_PATH=/mnt/swarm-storage/ticket-pilot
+export DATABASE_URL=postgresql+psycopg://ticket_pilot:<password>@postgres.example.com:5432/ticket_pilot
 export CLOUDFLARE_TUNNEL_TOKEN=<token>
 export HTTP_PORT=80
-docker stack deploy --with-registry-auth -c docker-stack.yml job_logger
+docker stack deploy --with-registry-auth -c docker-stack.yml ticket_pilot
 ```
 
 Dev uses the `dev` image tags and its own storage root:
 
 ```bash
-export JOB_LOGGER_APP_IMAGE=ghcr.io/cosmicc/job-logger-app:dev
-export JOB_LOGGER_NGINX_IMAGE=ghcr.io/cosmicc/job-logger-nginx:dev
-export JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger-dev
-export DATABASE_URL=postgresql+psycopg://job_logger_dev:<password>@postgres.example.com:5432/job_logger_dev
+export TICKET_PILOT_APP_IMAGE=ghcr.io/cosmicc/ticket-pilot-app:dev
+export TICKET_PILOT_NGINX_IMAGE=ghcr.io/cosmicc/ticket-pilot-nginx:dev
+export TICKET_PILOT_SWARM_STORAGE_PATH=/mnt/swarm-storage/ticket-pilot-dev
+export DATABASE_URL=postgresql+psycopg://ticket_pilot_dev:<password>@postgres.example.com:5432/ticket_pilot_dev
 export CLOUDFLARE_TUNNEL_TOKEN=<dev-token>
 export HTTP_PORT=80
-docker stack deploy --with-registry-auth -c docker-stack.dev.yml job_logger_dev
+docker stack deploy --with-registry-auth -c docker-stack.dev.yml ticket_pilot_dev
 ```
 
 Log in to GHCR on the Swarm manager that performs the deployment and keep
@@ -348,8 +374,8 @@ production stack environments separate, including `DATABASE_URL`,
 `APP_SECRET_KEY`, tunnel token, public URL, and WebAuthn settings.
 
 `HTTP_PORT` is the private Nginx listener inside each stack overlay and defaults
-to `80`. Set the matching Cloudflare Tunnel origin to `http://jldnginx:80` for
-dev or `http://jlnginx:80` for production. If you change `HTTP_PORT`, change the
+to `80`. Set the matching Cloudflare Tunnel origin to `http://tpdnginx:80` for
+dev or `http://tpnginx:80` for production. If you change `HTTP_PORT`, change the
 corresponding tunnel origin port too. The port is intentionally not published
 through the Swarm routing mesh. Both stacks run two `cloudflared` replicas with
 at most one per node, so at least two eligible nodes are required.
@@ -371,8 +397,8 @@ through the Docker logging driver.
 
 The standalone `docker-compose.yml` remains the path for single-host installs.
 If you intentionally replace the bundled Swarm Nginx service, use
-`docs/external-nginx-job-logger.conf` as the maintained production starting
-point and proxy to `http://jlapp:8000`; use `jldapp` for dev.
+`docs/external-nginx-ticket-pilot.conf` as the maintained production starting
+point and proxy to `http://tpapp:8000`; use `tpdapp` for dev.
 
 If the local troubleshooting URL is changed to a different port, update only:
 
@@ -389,7 +415,7 @@ schema/documentation, and health-check paths such as `/api`, `/openapi.json`,
 `/docs`, `/redoc`, `/nginx-health`, and `/health/*`. The Docker health checks
 use private container networking instead of public URLs. Proxy-generated common
 web errors use app-styled web service pages instead of the stock server page.
-Missing app pages and other browser-facing app errors also render a Job Logger
+Missing app pages and other browser-facing app errors also render a TicketPilot
 error page with a **Back to Login** or **Back to Work** button based on the
 current app session. JSON clients that request JSON keep the normal JSON error
 body.
@@ -407,13 +433,13 @@ line is not an Nginx configuration failure by itself.
 ### PostgreSQL Healthcheck Troubleshooting
 
 If a first-time or cold Docker/Portainer deploy fails with a message like
-`dependency failed to start: container job-logger-dev-db-1 is unhealthy`, check
+`dependency failed to start: container ticket-pilot-dev-db-1 is unhealthy`, check
 the PostgreSQL container before removing any volumes:
 
 ```bash
-docker ps -a --filter name=job-logger-dev-db-1
-docker logs --tail=120 job-logger-dev-db-1
-docker inspect --format '{{.State.Health.Status}}' job-logger-dev-db-1
+docker ps -a --filter name=ticket-pilot-dev-db-1
+docker logs --tail=120 ticket-pilot-dev-db-1
+docker inspect --format '{{.State.Health.Status}}' ticket-pilot-dev-db-1
 ```
 
 The database service healthcheck has a startup grace period, and Compose starts
@@ -438,7 +464,7 @@ The PostgreSQL Docker image only applies `POSTGRES_PASSWORD` when the database
 volume is first initialized. If `.env` is changed later while keeping the same
 `postgres_data` volume, the app can show the temporary service page while
 retrying the database, or PostgreSQL can log `password authentication failed for
-user "job_logger"`.
+user "ticket_pilot"`.
 
 Do not delete the database volume to fix a password mismatch unless the stored
 job history is intentionally being discarded. Instead, update the existing
@@ -519,7 +545,7 @@ tunnel is working.
 
 ## Mobile App Mode
 
-Job Logger includes progressive web app metadata so a phone can install it from
+TicketPilot includes progressive web app metadata so a phone can install it from
 the browser and launch it without the normal browser toolbar.
 
 Use the Cloudflare HTTPS hostname on the phone, sign in, open the browser menu,
@@ -555,13 +581,17 @@ Static CSS and JavaScript links include a content-derived version value so
 browser and installed-app shells fetch changed assets after deploy without
 requiring an application version bump.
 Favicon and Apple touch icon links use the same content-derived version value.
-The installed-app icon comes from the web manifest and uses the icon-format Job
-Logger artwork through dedicated install-icon filenames so the dark app-icon
-background fills the mobile home-screen icon frame. The manifest intentionally
-advertises non-maskable icons because launcher maskable cropping can over-zoom
-this artwork. Mobile operating systems may update that icon after the manifest
-and icon URL/content change, but some installed PWA shells keep the original
-home-screen icon until the app is removed and installed again.
+The full-browser header and favicon use the supplied white TicketPilot SVG on
+dark themes and the black SVG on light themes; the supplied grey SVG is the
+neutral fallback. A theme change on Config updates both immediately. The web
+manifest advertises the supplied 128, 256, 512, and 1024 pixel PNG app icons,
+and the 256 pixel source is also used as the Apple touch icon. These files are
+kept unchanged under `ticket_pilot/static/icons/`, which is the canonical
+branding source directory. The manifest intentionally advertises them as
+non-maskable icons because no separate mask-safe artwork was supplied. Mobile
+operating systems may update an icon after its manifest URL/content changes,
+but some installed PWA shells keep the original home-screen icon until the app
+is removed and installed again.
 
 ## Authentication And Device Sign-In
 
@@ -576,7 +606,7 @@ submitted, the login screen says the account is disabled. Set
 `ADMIN_CONTACT_EMAIL` to show a contact address in disabled-account messages.
 The Add user page can also send a checked-by-default welcome email when the new
 user has a stored email address and account email delivery is configured. The
-welcome email calls the app Autotask Job Logger and includes the app link,
+welcome email calls the app TicketPilot and includes the app link,
 username, temporary-password instructions, mobile install steps, and support
 contact, but not the temporary password.
 The per-user password reset email action can send a reset link from the Users
@@ -590,7 +620,7 @@ security key, fingerprint, Face ID, PIN, pattern, or another local unlock
 method. Device sign-in can be set up from `/config` after a normal password
 login. On phone-sized layouts, the `/home` page prompts managed users without a
 registered credential only once after each successful login, while `/config`
-always keeps setup available. Job Logger stores only the public credential ID,
+always keeps setup available. TicketPilot stores only the public credential ID,
 public key,
 signature counter, and device metadata. The phone, browser, or passkey provider
 keeps the private key and performs the local unlock prompt.
@@ -602,7 +632,7 @@ button.
 
 On `/config`, Device sign-in is the final card after Navigation and Workflow.
 The login page also has a default-off **This is a public device** checkbox for
-password sign-in. When selected, Job Logger signs the user out after 15 minutes
+password sign-in. When selected, TicketPilot signs the user out after 15 minutes
 of inactivity and hides new Device sign-in setup prompts for that session. The
 checkbox appears below **Forgot password?**, keeps its extra description in a
 hover hint, and disables the Device sign-in button until it is unchecked.
@@ -641,7 +671,7 @@ Password reset settings:
 
 Set these passkey variables for production when needed:
 
-- `WEBAUTHN_RP_NAME`, the label shown by the browser, defaults to `Job Logger`.
+- `WEBAUTHN_RP_NAME`, the label shown by the browser, defaults to `TicketPilot`.
 - `WEBAUTHN_RP_ID`, optional relying-party domain override, such as
   `logger.example.com`.
 - `WEBAUTHN_ORIGIN`, optional expected browser origin, such as
@@ -651,9 +681,9 @@ Set these passkey variables for production when needed:
 
 ## Application Version And Changelog
 
-Job Logger uses source-controlled semantic versioning. The runtime version is
-defined in `job_logger/version.py`, mirrored in `pyproject.toml` and the root
-`VERSION` file, and is currently `v1.4.0`. Version history starts at `v1.0.0`.
+TicketPilot uses source-controlled semantic versioning. The runtime version is
+defined in `ticket_pilot/version.py`, mirrored in `pyproject.toml` and the root
+`VERSION` file, and is currently `v2.0.0`. Version history starts at `v1.0.0`.
 
 Authenticated pages show a Help button in the shared header. `/help` starts
 with **Ask AI for help**, shows **Operational Status**, then shows the current
@@ -673,11 +703,11 @@ and agents.
 `WEB_CHANGELOG.md` is only for user-facing changes; keep diagnostics,
 debug-page, super-admin-only, operator-only, and agent-facing notes in
 `CHANGELOG.md` only. The Help and
-changelog views use the same authenticated session, dark/light theme variables,
+changelog views use the same authenticated session, shared theme variables,
 and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the authenticated Help button is yellow
 on desktop and phone layouts, and `/help` shows the current version with `DEV`,
-such as `v1.4.0 DEV`.
+such as `v2.0.0 DEV`.
 
 ## Provider Modes
 
@@ -730,7 +760,7 @@ For remote faster-whisper, set:
 - `FASTER_WHISPER_REMOTE_API_KEY` when the remote service requires a bearer token.
 - `FASTER_WHISPER_REMOTE_TIMEOUT_SECONDS`
 
-Job Logger posts multipart form data to `FASTER_WHISPER_REMOTE_URL` with an
+TicketPilot posts multipart form data to `FASTER_WHISPER_REMOTE_URL` with an
 `audio` file field plus optional `model`, `language`, `beam_size`, and
 `initial_prompt` fields. The remote service should return JSON with a `text`
 field containing the transcript. HTTP remote URLs must stay on loopback or
@@ -765,7 +795,7 @@ recordings.
 ### AI Summary Cleanup
 
 AI summary cleanup is separate from speech-to-text. It sends the current
-editable summary text to the configured AI provider through the Job Logger
+editable summary text to the configured AI provider through the TicketPilot
 server, then replaces the summary textarea with the cleaned text returned by
 that provider.
 
@@ -777,7 +807,7 @@ The feature is disabled by default. Configure it in Docker or `.env`:
 - `AI_CLEANUP_MAX_INPUT_CHARS`, default `12000`
 - `AI_CLEANUP_INSTRUCTIONS`
 
-Job Logger sends `AI_CLEANUP_INSTRUCTIONS` through the provider's instruction
+TicketPilot sends `AI_CLEANUP_INSTRUCTIONS` through the provider's instruction
 channel, such as the system message or local-provider system field. The visible
 summary prompt contains the cleanup task, minimal job context, and the summary
 text without duplicating those configured instructions.
@@ -813,8 +843,8 @@ URL to `http://host.docker.internal:11434/api` so the app container can reach
 an Ollama process running on the same host. The selected model must already be
 available to that Ollama server. To use an Ollama server elsewhere on the
 private network, set the base URL to that server's private IP and API path, for
-example `OLLAMA_CLEANUP_API_BASE_URL=http://172.25.1.99:11234/api`. Job Logger
-appends `/generate` to that base URL. If Job Logger is running in Docker, the
+example `OLLAMA_CLEANUP_API_BASE_URL=http://172.25.1.99:11234/api`. TicketPilot
+appends `/generate` to that base URL. If TicketPilot is running in Docker, the
 Ollama server must listen on an interface reachable from the app container; keep
 firewall rules tight and do not expose the model server publicly.
 
@@ -830,8 +860,8 @@ Studio URL to `http://host.docker.internal:1234/v1`. Set
 `LM_STUDIO_CLEANUP_MODEL` to the model identifier shown by LM Studio for the
 loaded model. To use an LM Studio server elsewhere on the private network, set
 the base URL to that server's private IP and OpenAI-compatible `/v1` path, for
-example `LM_STUDIO_CLEANUP_API_BASE_URL=http://172.25.1.99:11234/v1`. Job
-Logger appends `/chat/completions` to that base URL. If Job Logger is running
+example `LM_STUDIO_CLEANUP_API_BASE_URL=http://172.25.1.99:11234/v1`.
+TicketPilot appends `/chat/completions` to that base URL. If TicketPilot is running
 in Docker, the LM Studio server must be reachable from the app container; keep
 firewall rules tight and do not expose the model server publicly.
 
@@ -897,9 +927,9 @@ Set these variables to enable one-question help answers:
 - `AI_HELP_TEMPERATURE`, default `0.2`
 - `AI_HELP_INSTRUCTIONS`, the server-side support prompt sent before the user's question
 
-Job Logger calls Gemini's OpenAI-compatible chat-completions API from the
-server. Set `GEMINI_API_BASE` to the OpenAI-compatible base URL above; Job
-Logger appends `/chat/completions` when needed and also accepts a full
+TicketPilot calls Gemini's OpenAI-compatible chat-completions API from the
+server. Set `GEMINI_API_BASE` to the OpenAI-compatible base URL above;
+TicketPilot appends `/chat/completions` when needed and also accepts a full
 `.../chat/completions` endpoint without appending it twice. The browser never
 sees the API key. Each answer is stateless: the app does not store help
 questions or answers in the database. The assistant uses bounded context from
@@ -907,7 +937,7 @@ questions or answers in the database. The assistant uses bounded context from
 selected app source to answer end-user support questions. It refuses source
 code, deployment, secret, credential, and internal configuration questions.
 Keep `AI_HELP_INSTRUCTIONS` focused on how the assistant should answer end-user
-Job Logger support questions, and do not put secrets or private deployment
+TicketPilot support questions, and do not put secrets or private deployment
 values in it.
 If Gemini rejects the credentials, confirm the running container was recreated
 with the current key and that the Google AI Studio key has Gemini API access.
@@ -937,26 +967,26 @@ tests or isolated development.
 - `AUTOTASK_SECRET`
 - `AUTOTASK_API_INTEGRATION_CODE`
 
-Job Logger limits concurrent live Autotask REST calls so browser lookups,
+TicketPilot limits concurrent live Autotask REST calls so browser lookups,
 diagnostics, and submissions do not push the tenant past Autotask's thread
 threshold. `AUTOTASK_MAX_CONCURRENT_REQUESTS` defaults to `2` and must be `1`,
-`2`, or `3`. Keep the default unless you know no other Job Logger instance or
+`2`, or `3`. Keep the default unless you know no other TicketPilot instance or
 Autotask integration is sharing the same tenant/API user. Requests wait up to
 `AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS`, defaulting to `30`, for a slot.
 PostgreSQL-backed deployments also coordinate this limiter across app processes
 that share the same database.
 
 Do not set a global `AUTOTASK_RESOURCE_ID`. Each managed web user has a required
-Autotask resource ID on `/users`; Job Logger uses that user-specific resource ID
+Autotask resource ID on `/users`; TicketPilot uses that user-specific resource ID
 for service-call lookup and for `TimeEntries.resourceID` when that user
-submits work. Job Logger does not send Autotask's optional
+submits work. TicketPilot does not send Autotask's optional
 `ImpersonationResourceId` header, so Docker and `.env` files must not define a
 global impersonation resource.
 
 Do not set static role or billing-code IDs. When a reviewed job is submitted,
-Job Logger re-queries the selected ticket and uses that ticket's
+TicketPilot re-queries the selected ticket and uses that ticket's
 `assignedResourceroleID` for `TimeEntries.roleID` when available. If the ticket
-does not return an assigned role, Job Logger first checks whether the submitting
+does not return an assigned role, TicketPilot first checks whether the submitting
 web user is a secondary resource on that ticket and uses that ticket-specific
 `TicketSecondaryResources.roleID`. If no matching secondary resource role
 exists, it uses the ticket's `assignedResourceID` to resolve that resource's
@@ -965,7 +995,7 @@ submitting web user's configured default service-desk role when one has been
 selected on `/users`, then falls back to the submitting web user's default or
 single active service-desk role. The time entry still uses the submitting
 managed user's Autotask resource ID as `TimeEntries.resourceID`. Billing code /
-Work Type is also ticket-driven: Job Logger omits
+Work Type is also ticket-driven: TicketPilot omits
 `TimeEntries.billingCodeID` so Autotask inherits the selected ticket's
 `billingCodeID` on create without requiring separate Allocation Code edit
 permission.
@@ -985,7 +1015,7 @@ shows the stored email, default role ID metadata, and the last successful
 managed-user login time or `Never`. The browser never receives Autotask
 credentials and cannot query Autotask directly.
 
-Autotask ticket status picklist IDs vary by tenant. Job Logger uses the selected
+Autotask ticket status picklist IDs vary by tenant. TicketPilot uses the selected
 local app status to patch `Tickets.status` during time-entry submission and
 submitted **Submit changes** resubmission, so the Autotask API user must be allowed
 to update ticket workflow status. Configure all status IDs:
@@ -1045,7 +1075,7 @@ Autotask contactability check. Live company and ticket queries request
 `MaxRecords=500` and follow Autotask
 pagination links so larger tenants are not limited to the first page of results.
 Pagination is bounded and fails safely instead of silently showing partial
-customer or ticket lists. For POST query pagination, Job Logger follows
+customer or ticket lists. For POST query pagination, TicketPilot follows
 `nextPageUrl` with POST and the original query body because Autotask rejects GET
 follow-up calls for those resources.
 
@@ -1118,7 +1148,7 @@ the local start/end time range such as `4:00pm-5:00pm`, and the associated
 ticket title. Remote and
 On-Site cards use stronger distinct accent colors and badges so scheduled call
 type is easy to scan without wasting mobile screen space.
-Service-call options are filtered by local Job Logger history for the current
+Service-call options are filtered by local TicketPilot history for the current
 managed user: if that user already has a job for the same ticket number with the
 editable local ticket status set to `Complete` or `Follow up`, the service call
 is hidden even when that time entry has not yet been submitted to Autotask. The
@@ -1206,7 +1236,7 @@ through **Submit changes**, which patches the existing `TimeEntries` row
 instead of creating a duplicate entry. For ticket notes, **Submit changes**
 updates the existing `TicketNotes` row with note title, note description,
 append-to-resolution, and ticket status. **Submit changes** also patches
-`Tickets.status` to match the selected Job Logger status, including temporarily
+`Tickets.status` to match the selected TicketPilot status, including temporarily
 moving a previously `Complete` ticket to `In progress` before the external
 record patch when Autotask requires that sequence. Phone-sized workflow cards
 use the same scan order on Review and Work in Progress: Entry type, Work type,
@@ -1218,7 +1248,7 @@ The same submitted detail also has **Delete From Autotask**, which deletes the
 existing Autotask record and returns the local job to review without
 removing the local job record. If Autotask refuses the delete, the job remains
 submitted and the safe failure message is shown in review. The selected detail
-then shows a dialog that can purge the local Job Logger review entry only; that
+then shows a dialog that can purge the local TicketPilot review entry only; that
 fallback warns that the Autotask record may still exist.
 Save, accept/resend, retry, ticket selection, entry-type conversion, and local
 delete cleanup remain blocked for submitted jobs. The local delete action may
@@ -1245,7 +1275,7 @@ local note storage unprefixed.
 
 Ticket `TimeEntries` payloads use the selected ticket's
 `assignedResourceroleID` for `roleID` when available. If Autotask returns the
-ticket without that assigned role, Job Logger first checks
+ticket without that assigned role, TicketPilot first checks
 `TicketSecondaryResources` for the submitting web user's ticket-specific role,
 then uses `Tickets.assignedResourceID` to resolve that resource's default or
 single active service-desk role, then uses the submitting web user's configured
@@ -1258,7 +1288,7 @@ create, which avoids requiring the API resource to have Allocation Code edit
 permission for ticket time entries. Existing `AUTOTASK_ROLE_ID` and
 `AUTOTASK_BILLING_CODE_ID` values in older `.env` files are ignored by the app.
 
-Do not configure a global Autotask impersonation resource. Job Logger uses the
+Do not configure a global Autotask impersonation resource. TicketPilot uses the
 logged-in or owning managed web user's saved Autotask resource ID in
 user-scoped payloads and service-call filters, but live calls do not send the
 optional Autotask `ImpersonationResourceId` header. Super-admin Resource setup
@@ -1329,7 +1359,7 @@ timestamp on the database row. When `CLOUDFLARE_IP_BLOCKING_ENABLED=true` and
 create and remove app-managed Cloudflare zone IP Access Rules for failed-login
 client IPs. Diagnostics can also add a manual Cloudflare IP block with a
 reason. Failed-login row blocks, manual blocks, and automatic blocks are stored
-locally with their reason and use only app-managed Cloudflare rules. Job Logger
+locally with their reason and use only app-managed Cloudflare rules. TicketPilot
 automatically creates a Cloudflare block after
 `CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS` consecutive failed local logins
 from the same trusted enforcement IP and submitted username, defaulting to 5.
@@ -1365,11 +1395,11 @@ latency, backend/driver, migration revision, and connection-pool counters. It
 intentionally hides connection strings, hosts, usernames, passwords, and raw
 database errors.
 
-Job Logger can send best-effort Pushover notifications to an administrator
+TicketPilot can send best-effort Pushover notifications to an administrator
 when monitored app health first degrades, when the active degraded issue set
 changes, and when all monitored checks are restored. Enable this with
 `PUSHOVER_ENABLED=true`, `PUSHOVER_USER_KEY`, and `PUSHOVER_APP_KEY`.
-When `DEV_BUILD=true`, Job Logger suppresses Pushover notifications regardless
+When `DEV_BUILD=true`, TicketPilot suppresses Pushover notifications regardless
 of `PUSHOVER_ENABLED` so dev/test deployments do not alert as production.
 The monitor runs inside the app process at
 `APP_HEALTH_MONITOR_INTERVAL_SECONDS` and uses the same disk, cached Autotask,
@@ -1381,8 +1411,8 @@ against `/health/live` for full unavailability alerts.
 
 App, Nginx, and `cloudflared` operational logs go only to stdout/stderr in both
 Compose and Swarm. Use `docker compose logs app`,
-`docker service logs job_logger_jlapp`,
-`docker service logs job_logger_dev_jldapp`, or the configured container log
+`docker service logs ticket_pilot_tpapp`,
+`docker service logs ticket_pilot_dev_tpdapp`, or the configured container log
 driver for history. `LOG_LEVEL` controls app stdout/stderr verbosity and must
 be one of `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
 
@@ -1400,14 +1430,14 @@ label.
 
 The `/debug` page also includes **Download Full Backup** and **Restore Full
 Backup** controls. Each retained automatic backup also has a per-file
-**Download** button. Backups are sensitive `.json.gz` files containing all Job
-Logger database tables, including managed web-user password hashes and email
+**Download** button. Backups are sensitive `.json.gz` files containing all
+TicketPilot database tables, including managed web-user password hashes and email
 metadata, jobs, sanitized login attempts, submission attempts, and audit events.
 Store backup files
 somewhere private because they contain account, customer, ticket, and
 work-summary history.
 
-To restore, upload a Job Logger full-backup file on `/debug` and type
+To restore, upload a TicketPilot full-backup file on `/debug` and type
 `RESTORE`. Restore validates the archive format, required tables, and columns
 before deleting current app rows. A successful restore replaces the current app
 database contents with the backup contents, then records a new restore audit
@@ -1438,8 +1468,8 @@ result and the `/debug` failed-operation label when diagnosing Autotask HTTP
 500 or permission failures. Some Autotask permission denials are returned as
 HTTP 500 responses, so check the preflight detail before changing credentials.
 
-When Autotask rejects `TimeEntries` or `TicketNotes` creation/update, Job
-Logger surfaces bounded body-level error details when Autotask provides them.
+When Autotask rejects `TimeEntries` or `TicketNotes` creation/update,
+TicketPilot surfaces bounded body-level error details when Autotask provides them.
 This usually identifies the specific missing permission, invalid role, billing
 code, resource, or required field more clearly than a generic HTTP 500 message.
 If the error names ticket status updates or `Tickets.status`, confirm the API
@@ -1500,7 +1530,7 @@ Ticket numbers must use the Autotask format `TYYYYMMDD.####`, for example
 Run local checks with:
 
 ```bash
-python -m compileall job_logger tests
+python -m compileall ticket_pilot tests
 pytest
 ruff check .
 docker compose config

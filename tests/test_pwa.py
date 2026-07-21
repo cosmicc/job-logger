@@ -3,60 +3,25 @@
 from __future__ import annotations
 
 import struct
-import zlib
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
-APP_DARK_ICON_BACKGROUND = (11, 18, 32, 255)
 
 
-def _first_png_pixel_rgba(image_path: Path) -> tuple[int, int, int, int]:
-    """Return the first RGBA pixel from a non-interlaced 8-bit PNG asset."""
+def _png_metadata(image_path: Path) -> tuple[int, int, int, int]:
+    """Return width, height, bit depth, and color type from a PNG asset."""
 
     png_bytes = image_path.read_bytes()
     assert png_bytes.startswith(PNG_SIGNATURE)
-    offset = len(PNG_SIGNATURE)
-    width = 0
-    color_type = 0
-    idat_chunks: list[bytes] = []
-    while offset < len(png_bytes):
-        chunk_length = struct.unpack(">I", png_bytes[offset : offset + 4])[0]
-        chunk_type = png_bytes[offset + 4 : offset + 8]
-        chunk_data = png_bytes[offset + 8 : offset + 8 + chunk_length]
-        offset += 12 + chunk_length
-        if chunk_type == b"IHDR":
-            width, _height, bit_depth, color_type, _compression, _filter, interlace = struct.unpack(">IIBBBBB", chunk_data)
-            assert bit_depth == 8
-            assert color_type == 6
-            assert interlace == 0
-        elif chunk_type == b"IDAT":
-            idat_chunks.append(chunk_data)
-        elif chunk_type == b"IEND":
-            break
-
-    raw_pixels = zlib.decompress(b"".join(idat_chunks))
-    bytes_per_pixel = 4
-    row_length = width * bytes_per_pixel
-    filter_type = raw_pixels[0]
-    scanline = bytearray(raw_pixels[1 : 1 + row_length])
-    if filter_type == 1:
-        for index in range(bytes_per_pixel, row_length):
-            scanline[index] = (scanline[index] + scanline[index - bytes_per_pixel]) & 0xFF
-    elif filter_type == 2:
-        pass
-    elif filter_type == 3:
-        for index in range(bytes_per_pixel, row_length):
-            scanline[index] = (scanline[index] + (scanline[index - bytes_per_pixel] // 2)) & 0xFF
-    elif filter_type == 4:
-        for index in range(bytes_per_pixel, row_length):
-            left = scanline[index - bytes_per_pixel]
-            scanline[index] = (scanline[index] + left) & 0xFF
-    else:
-        assert filter_type == 0
-
-    return tuple(scanline[:4])
+    assert png_bytes[12:16] == b"IHDR"
+    width, height, bit_depth, color_type, _compression, _filter, interlace = struct.unpack(
+        ">IIBBBBB",
+        png_bytes[16:29],
+    )
+    assert interlace == 0
+    return width, height, bit_depth, color_type
 
 
 def test_manifest_exposes_standalone_mobile_app_metadata(client: TestClient) -> None:
@@ -67,15 +32,19 @@ def test_manifest_exposes_standalone_mobile_app_metadata(client: TestClient) -> 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/manifest+json")
     manifest = response.json()
-    assert manifest["name"] == "Job Logger"
+    assert manifest["name"] == "TicketPilot"
     assert manifest["start_url"] == "/home"
     assert manifest["scope"] == "/"
     assert manifest["display"] == "standalone"
     assert manifest["theme_color"] == "#0b1220"
-    icon_sources = {icon["src"] for icon in manifest["icons"]}
-    assert "/static/icons/job-logger-install-icon.svg" in icon_sources
-    assert "/static/icons/job-logger-install-icon-192.png" in icon_sources
-    assert "/static/icons/job-logger-install-icon-512.png" in icon_sources
+    icons_by_size = {icon["sizes"]: icon["src"] for icon in manifest["icons"]}
+    assert icons_by_size == {
+        "128x128": "/static/icons/ticketpilot-app-icon-128.png",
+        "256x256": "/static/icons/ticketpilot-app-icon-256.png",
+        "512x512": "/static/icons/ticketpilot-app-icon-512.png",
+        "1024x1024": "/static/icons/ticketpilot-app-icon-1024.png",
+    }
+    assert all(icon["type"] == "image/png" for icon in manifest["icons"])
     assert all(icon["purpose"] == "any" for icon in manifest["icons"])
 
 
@@ -111,48 +80,45 @@ def test_base_template_registers_pwa_assets(client: TestClient) -> None:
     assert 'name="mobile-web-app-capable" content="yes"' in response.text
     assert 'name="apple-mobile-web-app-capable" content="yes"' in response.text
     assert 'name="apple-mobile-web-app-status-bar-style" content="black-translucent"' in response.text
-    assert 'static/icons/job-logger-install-icon.svg?v=' in response.text
-    assert 'static/icons/job-logger-install-icon-192.png?v=' in response.text
+    assert 'static/icons/ticketpilot-logo-white.svg?v=' in response.text
+    assert 'data-theme-favicon' in response.text
+    assert 'static/icons/ticketpilot-app-icon-256.png?v=' in response.text
     assert 'static/pwa.js' in response.text
 
 
-def test_logo_design_assets_are_source_controlled() -> None:
-    """Logo source files and SVG wrappers should stay available for design reference."""
+def test_brand_assets_are_source_controlled_without_superseded_files() -> None:
+    """Only the approved logo and app-icon source assets should remain."""
 
     repository_root = Path(__file__).resolve().parents[1]
     design_dir = repository_root / "docs" / "design"
-    expected_assets = (
-        "job_logger_icon.png",
-        "job_logger_icon.svg",
-        "job_logger_transparent.png",
-        "job_logger_transparent.svg",
-        "job_logger_fully_transparent.png",
-        "job_logger_fully_transparent.svg",
+    assert {path.name for path in design_dir.iterdir() if path.is_file()} == {
         "color_palette.png",
-    )
+        "theme_palettes.svg",
+    }
 
-    for asset_name in expected_assets:
-        assert (design_dir / asset_name).is_file()
+    static_icon_dir = repository_root / "ticket_pilot" / "static" / "icons"
+    assert {path.name for path in static_icon_dir.iterdir() if path.is_file()} == {
+        "ticketpilot-logo-white.svg",
+        "ticketpilot-logo-grey.svg",
+        "ticketpilot-logo-black.svg",
+        "ticketpilot-app-icon-128.png",
+        "ticketpilot-app-icon-256.png",
+        "ticketpilot-app-icon-512.png",
+        "ticketpilot-app-icon-1024.png",
+    }
 
-    static_icon_dir = repository_root / "job_logger" / "static" / "icons"
-    assert (static_icon_dir / "job-logger-logo-transparent.png").is_file()
-    assert (static_icon_dir / "job-logger-logo-fully-transparent.png").is_file()
 
-
-def test_pwa_install_icons_use_full_frame_icon_format_artwork() -> None:
-    """Home-screen install icons should use the full-frame icon-format artwork."""
+def test_pwa_install_icons_preserve_supplied_source_dimensions() -> None:
+    """Home-screen install icons should retain every supplied source size."""
 
     repository_root = Path(__file__).resolve().parents[1]
-    static_icon_dir = repository_root / "job_logger" / "static" / "icons"
+    static_icon_dir = repository_root / "ticket_pilot" / "static" / "icons"
 
-    icon_svg = (static_icon_dir / "job-logger-install-icon.svg").read_text(encoding="utf-8")
+    for size in (128, 256, 512, 1024):
+        icon_path = static_icon_dir / f"ticketpilot-app-icon-{size}.png"
+        assert _png_metadata(icon_path) == (size, size, 16, 6)
 
-    assert (static_icon_dir / "job-logger-install-icon-192.png").is_file()
-    assert (static_icon_dir / "job-logger-install-icon-512.png").is_file()
-    assert _first_png_pixel_rgba(static_icon_dir / "job-logger-install-icon-192.png") == APP_DARK_ICON_BACKGROUND
-    assert _first_png_pixel_rgba(static_icon_dir / "job-logger-install-icon-512.png") == APP_DARK_ICON_BACKGROUND
-    assert "Job Logger icon-format install icon" in icon_svg
-    assert (
-        "Full-size PWA install icon generated from the original dark-background "
-        "Job Logger icon artwork."
-    ) in icon_svg
+    for variant in ("white", "grey", "black"):
+        logo_source = (static_icon_dir / f"ticketpilot-logo-{variant}.svg").read_text(encoding="utf-8")
+        assert "<svg" in logo_source
+        assert 'viewBox="216 179 837 870"' in logo_source

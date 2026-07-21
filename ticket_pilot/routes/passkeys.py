@@ -1,0 +1,302 @@
+"""WebAuthn passkey routes for managed web-user login."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy.orm import Session
+
+from ticket_pilot.database import get_database_session
+from ticket_pilot.security import (
+    PASSKEY_AUTH_METHOD,
+    WEB_USER_SESSION_KIND,
+    add_flash_message,
+    current_user_kind,
+    current_web_user_id,
+    login_web_user_session,
+    logout_session,
+    public_device_session_enabled,
+    require_authenticated_username,
+    validate_csrf_header,
+    validate_csrf_token,
+)
+from ticket_pilot.services.audit import record_audit_event
+from ticket_pilot.services.login_failures import log_successful_login_attempt, reset_login_failure_counter
+from ticket_pilot.services.login_protection import (
+    current_login_lockout,
+    record_failed_login_attempt_and_maybe_block,
+    record_local_login_lockout,
+)
+from ticket_pilot.services.passkeys import (
+    PasskeyError,
+    begin_passkey_authentication,
+    begin_passkey_registration,
+    delete_passkey_credential,
+    finish_passkey_authentication,
+    finish_passkey_registration,
+)
+from ticket_pilot.services.support_contact import application_settings_from_request, disabled_account_message
+from ticket_pilot.services.users import WebUserError, get_enabled_web_user_by_id_or_raise, mark_web_user_login_succeeded
+
+router = APIRouter(tags=["passkeys"])
+PUBLIC_DEVICE_PASSKEY_SETUP_MESSAGE = "Device sign-in setup is unavailable on public devices."
+
+
+async def _json_payload(request: Request) -> dict[str, Any]:
+    """Return a JSON object body or raise a safe HTTP error."""
+
+    try:
+        payload = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Request body must be valid JSON.") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Request body must be a JSON object.")
+    return payload
+
+
+def _current_passkey_web_user(request: Request, database_session: Session):
+    """Return the enabled managed web user allowed to manage passkeys."""
+
+    require_authenticated_username(request)
+    if current_user_kind(request) != WEB_USER_SESSION_KIND:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managed web-user passkeys are required.")
+    try:
+        return get_enabled_web_user_by_id_or_raise(database_session, current_web_user_id(request))
+    except WebUserError:
+        logout_session(request)
+        raise
+
+
+def _reject_public_device_passkey_setup(request: Request) -> None:
+    """Prevent registering new passkeys from public-device sessions."""
+
+    if public_device_session_enabled(request.session):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PUBLIC_DEVICE_PASSKEY_SETUP_MESSAGE)
+
+
+@router.post("/config/passkeys/options")
+async def passkey_registration_options(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Return browser WebAuthn options for registering a passkey."""
+
+    validate_csrf_header(request)
+    try:
+        _reject_public_device_passkey_setup(request)
+        web_user = _current_passkey_web_user(request, database_session)
+        options = begin_passkey_registration(database_session, request, web_user)
+    except WebUserError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=status.HTTP_403_FORBIDDEN)
+    except (HTTPException, PasskeyError) as exc:
+        status_code = exc.status_code if isinstance(exc, HTTPException) else status.HTTP_400_BAD_REQUEST
+        return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=status_code)
+
+    return JSONResponse({"publicKey": options})
+
+
+@router.post("/config/passkeys/verify")
+async def passkey_registration_verify(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Verify and save a browser-created passkey for the current user."""
+
+    validate_csrf_header(request)
+    actor = "unknown"
+    try:
+        actor = require_authenticated_username(request)
+        _reject_public_device_passkey_setup(request)
+        web_user = _current_passkey_web_user(request, database_session)
+        credential_payload = await _json_payload(request)
+        credential = finish_passkey_registration(database_session, request, web_user, credential_payload)
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="auth.passkey.registered",
+            request=request,
+            details={
+                "web_user_id": web_user.id,
+                "credential_row_id": credential.id,
+                "device_type": credential.device_type,
+                "backed_up": credential.backed_up,
+            },
+        )
+        database_session.commit()
+        return JSONResponse(
+            {
+                "registered": True,
+                "message": "Device sign-in added.",
+                "credential": {
+                    "id": credential.id,
+                    "device_type": credential.device_type,
+                    "backed_up": credential.backed_up,
+                },
+            }
+        )
+    except (HTTPException, PasskeyError, WebUserError) as exc:
+        database_session.rollback()
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="auth.passkey.registration_failed",
+            request=request,
+            details={"error": str(getattr(exc, "detail", exc))},
+        )
+        database_session.commit()
+        status_code = exc.status_code if isinstance(exc, HTTPException) else status.HTTP_400_BAD_REQUEST
+        return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=status_code)
+
+
+@router.post("/config/passkeys/{credential_row_id}/delete")
+async def passkey_delete(
+    credential_row_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Delete a passkey registered to the current managed web user."""
+
+    try:
+        actor = require_authenticated_username(request)
+        web_user = _current_passkey_web_user(request, database_session)
+        form_data = await request.form()
+        validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+        credential = delete_passkey_credential(
+            database_session,
+            web_user_id=web_user.id,
+            credential_row_id=credential_row_id,
+        )
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="auth.passkey.deleted",
+            request=request,
+            details={"web_user_id": web_user.id, "credential_row_id": credential.id},
+        )
+        database_session.commit()
+        add_flash_message(request, "Device sign-in deleted.", "success")
+    except HTTPException:
+        database_session.rollback()
+        raise
+    except (PasskeyError, WebUserError) as exc:
+        database_session.rollback()
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
+
+    return RedirectResponse(url="/config#passkeys", status_code=303)
+
+
+@router.post("/login/passkey/options")
+async def passkey_login_options(request: Request) -> JSONResponse:
+    """Return browser WebAuthn options for passkey login."""
+
+    validate_csrf_header(request)
+    try:
+        options = begin_passkey_authentication(request)
+    except PasskeyError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=status.HTTP_400_BAD_REQUEST)
+    return JSONResponse({"publicKey": options})
+
+
+@router.post("/login/passkey/verify")
+async def passkey_login_verify(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Verify a passkey assertion and create a managed-user session."""
+
+    validate_csrf_header(request)
+    lockout_state = current_login_lockout(
+        database_session,
+        request,
+        submitted_username="passkey",
+    )
+    if lockout_state.locked:
+        record_local_login_lockout(
+            database_session,
+            request,
+            submitted_username="passkey",
+            submitted_password="",
+            lockout_state=lockout_state,
+        )
+        database_session.commit()
+        return JSONResponse(
+            {
+                "detail": "Too many failed device sign-in attempts. Try again later.",
+                "fallback": "password",
+            },
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+
+    try:
+        credential_payload = await _json_payload(request)
+        authentication = finish_passkey_authentication(database_session, request, credential_payload)
+        web_user = authentication.web_user
+        public_device = bool(credential_payload.get("public_device"))
+        reset_login_failure_counter(database_session, request, submitted_username="passkey")
+        reset_login_failure_counter(database_session, request, submitted_username=web_user.username)
+        password_change_required = bool(web_user.password_must_change)
+        mark_web_user_login_succeeded(web_user)
+        login_web_user_session(
+            request,
+            username=web_user.username,
+            web_user_id=web_user.id,
+            authentication_method=PASSKEY_AUTH_METHOD,
+            password_change_required=password_change_required,
+            public_device=public_device,
+        )
+        log_successful_login_attempt(
+            database_session,
+            request,
+            username=web_user.username,
+            user_kind="web_user",
+            web_user_id=web_user.id,
+            authentication_method=PASSKEY_AUTH_METHOD,
+        )
+        add_flash_message(request, "Signed in with device sign-in.", "success")
+        record_audit_event(
+            database_session,
+            actor=web_user.username,
+            action="auth.passkey.login.succeeded",
+            request=request,
+            details={
+                "web_user_id": web_user.id,
+                "credential_row_id": authentication.credential.id,
+                "temporary_credential_change_required": password_change_required,
+                "public_device": public_device,
+            },
+        )
+        database_session.commit()
+        return JSONResponse(
+            {
+                "authenticated": True,
+                "redirect_url": "/config?password_required=1" if password_change_required else "/home",
+            }
+        )
+    except (HTTPException, PasskeyError) as exc:
+        database_session.rollback()
+        error_detail = str(getattr(exc, "detail", exc))
+        response_detail = error_detail
+        if error_detail == "This user account is disabled.":
+            response_detail = disabled_account_message(application_settings_from_request(request))
+        record_audit_event(
+            database_session,
+            actor="passkey",
+            action="auth.passkey.login.failed",
+            request=request,
+            details={"error": error_detail},
+        )
+        record_failed_login_attempt_and_maybe_block(
+            database_session,
+            request,
+            submitted_username="passkey",
+            submitted_password="",
+            reason="passkey_failed",
+        )
+        database_session.commit()
+        status_code = exc.status_code if isinstance(exc, HTTPException) else status.HTTP_400_BAD_REQUEST
+        return JSONResponse(
+            {"detail": response_detail, "fallback": "password"},
+            status_code=status_code,
+        )

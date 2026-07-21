@@ -10,23 +10,23 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from job_logger import database
-from job_logger.config import settings
-from job_logger.main import create_app
-from job_logger.models import (
+from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as_super_admin
+from ticket_pilot import database
+from ticket_pilot.config import settings
+from ticket_pilot.main import create_app
+from ticket_pilot.models import (
     AuditEvent,
     CloudflareIPBlock,
     PasswordResetRequestCounter,
     PasswordResetToken,
     WebUser,
 )
-from job_logger.routes import password_reset as password_reset_routes
-from job_logger.routes import users as users_routes
-from job_logger.services import password_reset as password_reset_service
-from job_logger.services.mail import MailDeliveryResult
-from job_logger.services.password_reset import PASSWORD_RESET_RATE_LIMIT_MESSAGE
-from job_logger.services.users import create_web_user, verify_web_user_password
-from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as_super_admin
+from ticket_pilot.routes import password_reset as password_reset_routes
+from ticket_pilot.routes import users as users_routes
+from ticket_pilot.services import password_reset as password_reset_service
+from ticket_pilot.services.mail import MailDeliveryResult
+from ticket_pilot.services.password_reset import PASSWORD_RESET_RATE_LIMIT_MESSAGE
+from ticket_pilot.services.users import create_web_user, verify_web_user_password
 
 
 def _reset_settings(**overrides):
@@ -35,10 +35,10 @@ def _reset_settings(**overrides):
     base_overrides = {
         "password_reset_enabled": True,
         "password_reset_token_ttl_hours": 24.0,
-        "app_public_base_url": "https://joblogger.example.test",
+        "app_public_base_url": "https://ticketpilot.example.test",
         "mail_enabled": True,
-        "mail_from_email": "joblogger@example.test",
-        "mail_from_name": "Job Logger",
+        "mail_from_email": "ticketpilot@example.test",
+        "mail_from_name": "TicketPilot",
         "mail_smtp_host": "smtp.example.test",
         "mail_smtp_port": 587,
         "mail_smtp_username": None,
@@ -111,7 +111,7 @@ def test_password_reset_request_sends_only_for_one_enabled_matching_email(client
         assert existing_response.headers["location"] == "/forgot-password"
         assert len(sent_messages) == 1
         assert sent_messages[0]["recipient_email"] == "tech@example.test"
-        assert sent_messages[0]["reset_url"].startswith("https://joblogger.example.test/reset-password/")
+        assert sent_messages[0]["reset_url"].startswith("https://ticketpilot.example.test/reset-password/")
 
         missing_response = reset_client.post(
             "/forgot-password",
@@ -119,7 +119,7 @@ def test_password_reset_request_sends_only_for_one_enabled_matching_email(client
             follow_redirects=True,
         )
         assert missing_response.status_code == 200
-        assert "If an enabled Job Logger account exists for that email address" in missing_response.text
+        assert "If an enabled TicketPilot account exists for that email address" in missing_response.text
         assert len(sent_messages) == 1
 
         with database.SessionLocal() as database_session:
@@ -140,7 +140,7 @@ def test_password_reset_request_sends_only_for_one_enabled_matching_email(client
             follow_redirects=True,
         )
         assert duplicate_response.status_code == 200
-        assert "If an enabled Job Logger account exists for that email address" in duplicate_response.text
+        assert "If an enabled TicketPilot account exists for that email address" in duplicate_response.text
         assert len(sent_messages) == 1
 
     with database.SessionLocal() as database_session:
@@ -173,7 +173,7 @@ def test_disabled_users_do_not_receive_password_reset_email(client: TestClient, 
         )
 
     assert response.status_code == 200
-    assert "If an enabled Job Logger account exists for that email address" in response.text
+    assert "If an enabled TicketPilot account exists for that email address" in response.text
     assert sent_messages == []
 
 
@@ -369,7 +369,7 @@ def test_three_unmatched_reset_emails_lock_and_auto_block_the_trusted_ip(
             source=source,
             reason=reason,
             failure_count=failure_count,
-            notes="Job Logger automatic password reset block",
+            notes="TicketPilot automatic password reset block",
         )
         database_session.add(block)
         database_session.flush()
@@ -409,7 +409,7 @@ def test_three_unmatched_reset_emails_lock_and_auto_block_the_trusted_ip(
             follow_redirects=True,
         )
 
-    assert all("If an enabled Job Logger account exists" in response.text for response in responses)
+    assert all("If an enabled TicketPilot account exists" in response.text for response in responses)
     assert PASSWORD_RESET_RATE_LIMIT_MESSAGE in locked_response.text
     assert created_blocks == [
         (
@@ -516,7 +516,7 @@ def test_password_reset_cloudflare_allowlist_prevents_automatic_rule(
                 data={"csrf_token": csrf_token, "email": f"missing-{index}@example.test"},
                 follow_redirects=True,
             )
-            assert "If an enabled Job Logger account exists" in response.text
+            assert "If an enabled TicketPilot account exists" in response.text
 
     with database.SessionLocal() as database_session:
         assert database_session.scalar(select(CloudflareIPBlock)) is None
@@ -570,7 +570,7 @@ def test_turnstile_browser_event_logging_requires_csrf_and_sanitizes_details(cap
         )
         assert missing_csrf_response.status_code == 403
 
-        with caplog.at_level(logging.DEBUG, logger="job_logger.routes.password_reset"):
+        with caplog.at_level(logging.DEBUG, logger="ticket_pilot.routes.password_reset"):
             response = reset_client.post(
                 "/forgot-password/turnstile-event",
                 headers={"X-CSRF-Token": csrf_token},
