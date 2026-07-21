@@ -255,19 +255,6 @@
                 <span class="metric-label readonly-field-title">Ticket name</span>
                 <strong class="readonly-field-value" data-review-ticket-title-display>{{ selected_job.ticket_title or selected_job.ticket_number or "Unassigned Ticket" }}</strong>
                 <div class="ticket-context-actions ticket-context-actions-mobile">
-                  {% if can_modify_selected_job and navigation_app != "none" %}
-                    <button
-                      class="secondary-button ticket-navigation-button is-hidden"
-                      type="button"
-                      data-ticket-navigation-button
-                      data-navigation-url="/review/{{ selected_job.id }}/navigation"
-                      data-navigation-allow-full-web="{{ 'true' if allow_navigation_on_full_web else 'false' }}"
-                      aria-label="Navigate to client"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-5.2 7-13a7 7 0 1 0-14 0c0 7.8 7 13 7 13Z"></path><circle cx="12" cy="9" r="2.5"></circle></svg>
-                      Navigate
-                    </button>
-                  {% endif %}
                   <button
                     class="secondary-button ticket-notes-button is-hidden"
                     type="button"
@@ -362,6 +349,24 @@
               >
               {% if selected_job_submitted %}
                 <input type="hidden" name="entry_type" value="{{ selected_entry_type }}">
+              {% endif %}
+              {% if can_modify_selected_job and navigation_app != "none" %}
+                <div
+                  class="mobile-entry-navigation-row is-destination-hidden{% if is_ticket_note %} is-entry-mode-hidden{% endif %}"
+                  data-mobile-entry-navigation-row
+                >
+                  <button
+                    class="secondary-button ticket-navigation-button is-hidden"
+                    type="button"
+                    data-ticket-navigation-button
+                    data-navigation-url="/review/{{ selected_job.id }}/navigation"
+                    data-navigation-allow-full-web="{{ 'true' if allow_navigation_on_full_web else 'false' }}"
+                    aria-label="Navigate to client"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-5.2 7-13a7 7 0 1 0-14 0c0 7.8 7 13 7 13Z"></path><circle cx="12" cy="9" r="2.5"></circle></svg>
+                    Navigate
+                  </button>
+                </div>
               {% endif %}
               <div class="readonly-field-card review-entry-type-card" aria-label="Entry type">
                 <span class="metric-label readonly-field-title">Entry type</span>

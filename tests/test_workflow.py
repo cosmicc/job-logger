@@ -1657,6 +1657,10 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     desktop_stylesheet_path = Path(__file__).resolve().parents[1] / "job_logger" / "static" / "desktop.css"
     desktop_stylesheet = desktop_stylesheet_path.read_text(encoding="utf-8")
     mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+    mobile_javascript = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_javascript = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "review.js").read_text(encoding="utf-8")
+    navigation_javascript = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "navigation.js").read_text(encoding="utf-8")
 
     assert ".service-call-option-button.service-call-location-remote" in stylesheet
     assert ".service-call-option-button.service-call-location-on_site" in stylesheet
@@ -1893,10 +1897,24 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".form-grid > .review-ticket-number-card {\n  order: 90;\n}" in phone_stylesheet
     assert ".form-grid > .review-ticket-title-card {\n  display: grid;\n  order: 100;\n}" in phone_stylesheet
     assert ".ticket-context-actions-mobile {\n  display: none;\n}" in stylesheet
+    assert ".mobile-entry-navigation-row {\n  display: none;\n}" in stylesheet
     assert ".ticket-context-actions-desktop {\n  display: none;\n}" in phone_stylesheet
     assert ".ticket-context-actions-mobile {\n  display: grid;" in phone_stylesheet
     assert "  grid-template-columns: repeat(2, minmax(0, 1fr));" in phone_stylesheet
-    assert ".ticket-context-actions-mobile .ticket-navigation-button {\n  grid-column: 1 / -1;\n}" in phone_stylesheet
+    assert ".metric-grid > .mobile-entry-navigation-row {\n  order: -80;\n}" in phone_stylesheet
+    assert ".form-grid > .mobile-entry-navigation-row {\n  order: 0;\n}" in phone_stylesheet
+    assert ".mobile-entry-navigation-row.is-destination-hidden," in phone_stylesheet
+    assert ".mobile-entry-navigation-row.is-entry-mode-hidden {\n  display: none;\n}" in phone_stylesheet
+    assert ".mobile-entry-navigation-row .ticket-navigation-button {\n  width: 100%;\n}" in phone_stylesheet
+    assert mobile_template.count("data-mobile-entry-navigation-row") == 1
+    assert review_template.count("data-mobile-entry-navigation-row") == 1
+    assert mobile_template.index("data-mobile-entry-navigation-row") < mobile_template.index('class="metric-card entry-type-card"')
+    assert review_template.index("data-mobile-entry-navigation-row") < review_template.index('class="readonly-field-card review-entry-type-card"')
+    assert 'class="mobile-entry-navigation-row is-destination-hidden{% if is_ticket_note %} is-entry-mode-hidden{% endif %}"' in mobile_template
+    assert 'class="mobile-entry-navigation-row is-destination-hidden{% if is_ticket_note %} is-entry-mode-hidden{% endif %}"' in review_template
+    assert 'mobileNavigationRow.classList.toggle("is-entry-mode-hidden", isTicketNote);' in mobile_javascript
+    assert 'mobileNavigationRow.classList.toggle("is-entry-mode-hidden", isTicketNote);' in review_javascript
+    assert 'mobileNavigationRow.classList.toggle("is-destination-hidden", !buttonAvailable);' in navigation_javascript
     assert ".readonly-field-card.review-ticket-title-card {\n  justify-items: center;\n  text-align: center;\n}" in stylesheet
     assert ".readonly-field-card.review-client-name-card {\n  justify-items: center;\n  text-align: center;\n}" in stylesheet
     assert (

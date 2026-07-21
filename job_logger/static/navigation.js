@@ -135,6 +135,10 @@
       button.dataset.navigationAddress = buttonAvailable ? navigationAddress : "";
       button.classList.toggle("is-hidden", !buttonAvailable);
       button.disabled = !buttonAvailable;
+      const mobileNavigationRow = button.closest("[data-mobile-entry-navigation-row]");
+      if (mobileNavigationRow) {
+        mobileNavigationRow.classList.toggle("is-destination-hidden", !buttonAvailable);
+      }
     });
   }
 

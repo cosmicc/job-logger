@@ -34,8 +34,8 @@ All notable changes to Job Logger are documented in this file.
   above the previously started job.
 - Moved the Config **Device sign-in** card to the bottom of the page after
   Workflow.
-- Changed phone ticket actions to show Navigate on its own row above Ticket
-  notes and Past time entries.
+- Moved the phone Navigate action in Work in Progress and Review to its own
+  full-width row immediately above Entry type, and hid it for ticket notes.
 - Changed navigation availability to use browser device signals instead of
   viewport width, including phones, Android tablets, iPads, iPadOS desktop-style
   user agents, and iPods as mobile devices.

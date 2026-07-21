@@ -705,6 +705,11 @@ function syncReviewEntryMode({syncSummaryPrefix = false} = {}) {
     formElement.classList.toggle("review-form-ticket-note", isTicketNote);
   }
 
+  const mobileNavigationRow = document.querySelector("[data-mobile-entry-navigation-row]");
+  if (mobileNavigationRow) {
+    mobileNavigationRow.classList.toggle("is-entry-mode-hidden", isTicketNote);
+  }
+
   const dateLabel = document.querySelector("[data-review-entry-date-label]");
   if (dateLabel) {
     dateLabel.textContent = isTicketNote ? "Note Date" : "Job date";

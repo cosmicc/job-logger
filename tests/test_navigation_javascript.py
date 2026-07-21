@@ -30,6 +30,7 @@ def test_navigation_script_builds_provider_and_device_specific_urls(tmp_path: Pa
             const script = fs.readFileSync({str(navigation_script_path)!r}, "utf8");
             const windowHandlers = {{}};
             const documentHandlers = {{}};
+            const ticketNavigationButtons = [];
             const browserWindow = {{
               addEventListener(name, handler) {{ windowHandlers[name] = handler; }},
               location: {{href: "", reload() {{}}}},
@@ -37,7 +38,9 @@ def test_navigation_script_builds_provider_and_device_specific_urls(tmp_path: Pa
             }};
             const browserDocument = {{
               addEventListener(name, handler) {{ documentHandlers[name] = handler; }},
-              querySelectorAll() {{ return []; }},
+              querySelectorAll(selector) {{
+                return selector === "[data-ticket-navigation-button]" ? ticketNavigationButtons : [];
+              }},
               visibilityState: "visible",
             }};
             const context = {{
@@ -123,6 +126,34 @@ def test_navigation_script_builds_provider_and_device_specific_urls(tmp_path: Pa
               platform: "iPad",
               maxTouchPoints: 5,
             }}), true);
+
+            let destinationHidden = true;
+            const mobileNavigationRow = {{
+              classList: {{
+                toggle(className, force) {{
+                  if (className === "is-destination-hidden") destinationHidden = force;
+                }},
+              }},
+            }};
+            const ticketNavigationButton = {{
+              classList: {{toggle() {{}}}},
+              closest(selector) {{
+                return selector === "[data-mobile-entry-navigation-row]" ? mobileNavigationRow : null;
+              }},
+              dataset: {{navigationUrl: "/review/job-1/navigation", navigationAllowFullWeb: "true"}},
+              disabled: true,
+            }};
+            ticketNavigationButtons.push(ticketNavigationButton);
+            api.applyDestination("/review/job-1/navigation", {{
+              available: true,
+              navigation_app: "google_maps",
+              navigation_address: address,
+            }});
+            assert.strictEqual(destinationHidden, false);
+            assert.strictEqual(ticketNavigationButton.disabled, false);
+            api.applyDestination("/review/job-1/navigation", {{available: false}});
+            assert.strictEqual(destinationHidden, true);
+            assert.strictEqual(ticketNavigationButton.disabled, true);
 
             assert.strictEqual(api.launch("google_maps", address), false);
             assert.strictEqual(browserWindow.location.href, "");

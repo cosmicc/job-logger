@@ -343,9 +343,9 @@ must also stay hidden on full web browsers unless **Allow navigation on full
 web version** is enabled. Do not request transient ticket destinations from a
 full web browser while that preference is off. Device classification is a
 presentation convenience only and must never authorize a workflow action.
-On phone layouts, place **Navigate** on its own full-width row above the two
-equal-width **Ticket notes** and **Past time entries** buttons so no action is
-pushed outside the viewport.
+On phone layouts, place **Navigate** on its own full-width row immediately
+above the **Entry type** pill card. Show that row only for time entries and
+hide it in ticket-note mode, even when a destination is available.
 
 Selected ticket descriptions on mobile are read-only Autotask context. Long
 descriptions should stay escaped, bounded to an internal scroll area, and

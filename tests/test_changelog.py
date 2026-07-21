@@ -237,7 +237,7 @@ def test_changelog_parser_reads_current_release() -> None:
             "Remote service calls do not open navigation automatically.",
             (
                 "The newest concurrent Work in Progress job now appears first, Device sign-in is the final "
-                "Config card, and phone ticket actions use two compact rows."
+                "Config card, and phone Navigate buttons sit above Entry type only for time entries."
             ),
             (
                 "Phones and tablets now receive navigation without relying on browser window size; full web "

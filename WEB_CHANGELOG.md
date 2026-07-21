@@ -15,7 +15,7 @@ Short release notes shown on the authenticated `/changelog` page.
 
 - Starting an On-Site service call now opens directions after Job Logger confirms the work entry started successfully.
 - Remote service calls do not open navigation automatically.
-- The newest concurrent Work in Progress job now appears first, Device sign-in is the final Config card, and phone ticket actions use two compact rows.
+- The newest concurrent Work in Progress job now appears first, Device sign-in is the final Config card, and phone Navigate buttons sit above Entry type only for time entries.
 - Phones and tablets now receive navigation without relying on browser window size; full web browsers require the separate navigation opt-in.
 
 ### Fixed

@@ -357,6 +357,10 @@ function syncActiveEntryMode(activeJobCard) {
 
   const isTicketNote = activeEntryTypeForCard(activeJobCard) === "ticket_note";
   activeJobCard.classList.toggle("active-job-ticket-note", isTicketNote);
+  const mobileNavigationRow = activeJobCard.querySelector("[data-mobile-entry-navigation-row]");
+  if (mobileNavigationRow) {
+    mobileNavigationRow.classList.toggle("is-entry-mode-hidden", isTicketNote);
+  }
   const dateLabel = activeJobCard.querySelector("[data-entry-date-label]");
   if (dateLabel) {
     dateLabel.textContent = isTicketNote ? "Note Date" : "Job date";

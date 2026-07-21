@@ -1088,9 +1088,9 @@ did not occur are treated as system noise and filtered out. Notes are shown
 newest first with two-line title cards. Past time entries list the
 resource, local start/stop time, and hours, and selecting one shows its summary
 of work. On phones, **Navigate** uses its own full-width row, while **Ticket
-notes** and **Past time entries** share the compact row below it. These actions
-sit under the selected Ticket name on Work in Progress and under Ticket number
-on Review.
+notes** and **Past time entries** share a separate compact row in the selected
+ticket context. Navigate sits immediately above **Entry type** and is shown
+only for time entries; selecting **Ticket note** hides it.
 Long ticket descriptions stay inside a scrollable read-only box instead of
 expanding the mobile page indefinitely; phone-sized layouts cap that visible
 box at about 12 lines, and wider layouts cap it at about 25 lines. On the

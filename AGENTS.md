@@ -750,8 +750,9 @@ name** card with the **Ticket notes** and **Past time entries** buttons split
 across one row above **Ticket description**. On phone-sized layouts, both
 ticket-history buttons must open the same full-screen overlay. Work in
 Progress and Review must place **Navigate** on its own full-width phone row
-above the two equal-width history buttons so all three actions fit without
-horizontal overflow. Work in
+immediately above the **Entry type** pill card. Show that phone row only for
+time entries; ticket-note mode must hide it even when a destination is
+available. Work in
 Progress must keep the **Past time entries** button visible beside **Ticket
 notes** for every active job whose authenticated lookup returns rows,
 including the first active-job card when two jobs are open. On full-browser

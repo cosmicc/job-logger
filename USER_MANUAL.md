@@ -191,9 +191,9 @@ filtered out so this list focuses on useful ticket history.
 
 When Autotask provides an address and navigation is enabled, **Navigate** opens
 directions to the selected ticket's client. The button is available in Work in
-Progress and Review, including after submission. On phones, Navigate uses its
-own row above the Ticket notes and Past time entries buttons so all three
-actions remain easy to tap.
+Progress and Review, including after submission. It is available only for time
+entries. On phones, Navigate uses its own row immediately above the Entry type
+pill card and disappears when Ticket note is selected.
 
 **Summary notes**
 
