@@ -1935,7 +1935,10 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
         && window.JobLoggerNavigation.launch(
           payload.navigation_app,
           payload.navigation_address,
-          {refreshOnReturn: true},
+          {
+            refreshOnReturn: true,
+            allowFullWeb: payload.navigation_allow_full_web,
+          },
         )
       ) {
         return;

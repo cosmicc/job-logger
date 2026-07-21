@@ -16,6 +16,9 @@ All notable changes to Job Logger are documented in this file.
   `.env.example` setting used when a managed user has no office override.
 - Added the scheduled date to service-call cards and **Start** plus **Due by**
   dates to open-ticket cards using Autotask ticket creation and due timestamps.
+- Added the default-off per-user **Allow navigation on full web version**
+  setting and a database migration that safely limits existing users to
+  mobile-only navigation.
 
 ### Changed
 
@@ -33,6 +36,12 @@ All notable changes to Job Logger are documented in this file.
   Workflow.
 - Changed phone ticket actions to show Navigate on its own row above Ticket
   notes and Past time entries.
+- Changed navigation availability to use browser device signals instead of
+  viewport width, including phones, Android tablets, iPads, iPadOS desktop-style
+  user agents, and iPods as mobile devices.
+- Established `window.JobLoggerNavigation.isMobileDevice()` as the shared
+  detector for future mobile-versus-full-web browser behavior so new features
+  do not create conflicting viewport or user-agent checks.
 
 ### Fixed
 
@@ -42,6 +51,9 @@ All notable changes to Job Logger are documented in this file.
   address values when the new preference columns are absent.
 - Fixed Work Duration updates so the label is recalculated from the exact
   visible start and end times after every saved adjustment.
+- Prevented full web browsers from showing navigation controls, requesting
+  transient ticket destinations, or launching automatic On-Site service-call
+  directions unless the user explicitly enables full-web navigation.
 
 ## 1.3.1 - 07.13.2026 - Swarm deployment, storage health, navigation, and password-reset protection
 

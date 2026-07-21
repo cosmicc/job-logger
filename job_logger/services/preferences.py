@@ -21,6 +21,7 @@ from job_logger.security import (
 DEFAULT_THEME = ThemeMode.DARK
 DEFAULT_SUBMIT_FROM_WORK_IN_PROGRESS = False
 DEFAULT_NAVIGATION_APP = NavigationApp.NONE
+DEFAULT_ALLOW_NAVIGATION_ON_FULL_WEB = False
 MAX_NAVIGATION_ADDRESS_LENGTH = 300
 THEME_META_COLORS = {
     ThemeMode.DARK: "#0b1220",
@@ -51,6 +52,7 @@ class NavigationPreferences:
     home_address: str | None
     office_address_override: str | None
     effective_office_address: str | None
+    allow_navigation_on_full_web: bool
 
 
 def normalize_theme(raw_theme: str | None) -> ThemeMode:
@@ -86,6 +88,21 @@ def normalize_navigation_app(raw_navigation_app: str | None) -> NavigationApp:
         return NavigationApp(normalized_app)
     except ValueError as exc:
         raise UserPreferenceError("Select a supported navigation application.") from exc
+
+
+def normalize_allow_navigation_on_full_web(raw_enabled: bool | str | None) -> bool:
+    """Return whether navigation may be exposed in full web browsers."""
+
+    if isinstance(raw_enabled, bool):
+        return raw_enabled
+
+    normalized_enabled = (raw_enabled or "").strip().casefold()
+    if normalized_enabled in {"1", "true", "yes", "on"}:
+        return True
+    if normalized_enabled in {"", "0", "false", "no", "off"}:
+        return False
+
+    raise UserPreferenceError("Allow navigation on full web version must be on or off.")
 
 
 def normalize_navigation_address(raw_address: str | None, *, field_label: str) -> str | None:
@@ -162,11 +179,17 @@ def get_navigation_preferences_for_principal(
     navigation_app = user_preference.navigation_app if user_preference else DEFAULT_NAVIGATION_APP
     home_address = user_preference.home_address if user_preference else None
     office_override = user_preference.office_address if user_preference else None
+    allow_navigation_on_full_web = (
+        bool(user_preference.allow_navigation_on_full_web)
+        if user_preference
+        else DEFAULT_ALLOW_NAVIGATION_ON_FULL_WEB
+    )
     return NavigationPreferences(
         navigation_app=navigation_app,
         home_address=home_address,
         office_address_override=office_override,
         effective_office_address=office_override or application_settings.navigation_office_address or None,
+        allow_navigation_on_full_web=allow_navigation_on_full_web,
     )
 
 
@@ -192,6 +215,7 @@ def _new_user_preference(principal_key: str) -> UserPreference:
         theme=DEFAULT_THEME,
         submit_from_work_in_progress=DEFAULT_SUBMIT_FROM_WORK_IN_PROGRESS,
         navigation_app=DEFAULT_NAVIGATION_APP,
+        allow_navigation_on_full_web=DEFAULT_ALLOW_NAVIGATION_ON_FULL_WEB,
     )
 
 
@@ -238,14 +262,18 @@ def save_navigation_preferences_for_principal(
     navigation_app: str | None,
     home_address: str | None,
     office_address: str | None,
+    allow_navigation_on_full_web: bool | str | None,
 ) -> UserPreference:
     """Validate and persist private navigation settings for one managed user."""
 
     normalized_app = normalize_navigation_app(navigation_app)
     normalized_home = normalize_navigation_address(home_address, field_label="Home address")
     normalized_office = normalize_navigation_address(office_address, field_label="Office address")
+    normalized_allow_full_web = normalize_allow_navigation_on_full_web(allow_navigation_on_full_web)
     if normalized_app != NavigationApp.NONE and normalized_home is None:
         raise UserPreferenceError("Home address is required when navigation is enabled.")
+    if normalized_app == NavigationApp.NONE:
+        normalized_allow_full_web = False
 
     user_preference = get_user_preference(database_session, principal_key)
     if user_preference is None:
@@ -255,4 +283,5 @@ def save_navigation_preferences_for_principal(
     user_preference.navigation_app = normalized_app
     user_preference.home_address = normalized_home
     user_preference.office_address = normalized_office
+    user_preference.allow_navigation_on_full_web = normalized_allow_full_web
     return user_preference

@@ -92,6 +92,9 @@ _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
         "navigation_app": "none",
         "home_address": None,
         "office_address": None,
+        # Full-browser navigation is a separate, explicit opt-in. Legacy
+        # backups restore with navigation limited to mobile devices.
+        "allow_navigation_on_full_web": False,
     },
     "login_failure_counters": {
         # v1.1.5 scoped local lockout counters by username. Older backups had

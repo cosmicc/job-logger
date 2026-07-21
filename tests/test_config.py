@@ -42,11 +42,20 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert "Google Maps" in config_response.text
     assert "Waze" in config_response.text
     assert "Apple Maps" in config_response.text
+    assert "Allow navigation on full web version" in config_response.text
+    assert re.search(r'name="allow_navigation_on_full_web"[^>]+disabled', config_response.text)
     assert "submits the completed entry to Autotask immediately" in config_response.text
     assert "data-direct-submit-option" in config_response.text
     assert "data-direct-submit-state" in config_response.text
     assert "Off" in config_response.text
     assert "data-static-navigation-button" not in authenticated_client.get("/home").text
+    stylesheet = authenticated_client.get("/static/app.css").text
+    assert (
+        ".toggle-setting-card.is-disabled .setting-toggle input {\n"
+        "  cursor: not-allowed;\n"
+        "  opacity: 0;\n"
+        "}"
+    ) in stylesheet
     assert (
         config_response.text.index('id="appearance-heading"')
         < config_response.text.index('id="password-heading"')
@@ -113,6 +122,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
             "navigation_app": "waze",
             "home_address": "",
             "office_address": "",
+            "allow_navigation_on_full_web": "true",
         },
     )
     assert missing_home_response.status_code == 400
@@ -126,30 +136,56 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
             "navigation_app": "waze",
             "home_address": "  10 Home Road\nDetroit, MI 48201  ",
             "office_address": "20 Office Avenue, Detroit, MI 48202",
+            "allow_navigation_on_full_web": "true",
         },
     )
     assert save_response.status_code == 200
     assert save_response.json()["navigation_app"] == "waze"
     assert save_response.json()["home_address_configured"] is True
     assert save_response.json()["office_address_override_configured"] is True
+    assert save_response.json()["allow_navigation_on_full_web"] is True
 
     home_response = authenticated_client.get("/home")
     assert 'data-navigation-app="waze"' in home_response.text
     assert "10 Home Road Detroit, MI 48201" in home_response.text
     assert "20 Office Avenue, Detroit, MI 48202" in home_response.text
+    assert 'data-navigation-allow-full-web="true"' in home_response.text
 
     with database.SessionLocal() as database_session:
         preference = database_session.scalar(select(UserPreference).where(UserPreference.principal_key.like("web_user:%")))
         assert preference is not None
         assert preference.navigation_app == NavigationApp.WAZE
         assert preference.home_address == "10 Home Road Detroit, MI 48201"
+        assert preference.allow_navigation_on_full_web is True
         audit_event = database_session.scalars(
             select(AuditEvent).where(AuditEvent.action == "user.config.updated").order_by(AuditEvent.created_at_utc.desc())
         ).first()
         assert audit_event is not None
         assert audit_event.details["home_address_configured"] is True
+        assert audit_event.details["allow_navigation_on_full_web"] is True
         assert "10 Home Road" not in str(audit_event.details)
         assert "20 Office Avenue" not in str(audit_event.details)
+
+    disable_response = authenticated_client.post(
+        "/config",
+        headers={"Accept": "application/json", "X-CSRF-Token": csrf_token},
+        data={
+            "csrf_token": csrf_token,
+            "navigation_app": "none",
+            "home_address": "10 Home Road Detroit, MI 48201",
+            "office_address": "20 Office Avenue, Detroit, MI 48202",
+            "allow_navigation_on_full_web": "true",
+        },
+    )
+    assert disable_response.status_code == 200
+    assert disable_response.json()["allow_navigation_on_full_web"] is False
+
+    disabled_config_response = authenticated_client.get("/config")
+    assert re.search(
+        r'class="toggle-setting-card is-disabled"[^>]+data-full-web-navigation-setting',
+        disabled_config_response.text,
+    )
+    assert re.search(r'name="allow_navigation_on_full_web"[^>]+disabled', disabled_config_response.text)
 
 
 def test_navigation_office_address_loads_bounded_single_line_value(monkeypatch: pytest.MonkeyPatch) -> None:

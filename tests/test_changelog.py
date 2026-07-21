@@ -229,6 +229,10 @@ def test_changelog_parser_reads_current_release() -> None:
                 "in Work in Progress and Review."
             ),
             "Service calls now show their scheduled date, and open tickets show Start and Due by dates.",
+            (
+                "Config now has a default-off option to allow navigation buttons and automatic directions "
+                "on the full web version."
+            ),
             "Starting an On-Site service call now opens directions after Job Logger confirms the work entry started successfully.",
             "Remote service calls do not open navigation automatically.",
             (
@@ -236,10 +240,15 @@ def test_changelog_parser_reads_current_release() -> None:
                 "Config card, and phone ticket actions use two compact rows."
             ),
             (
+                "Phones and tablets now receive navigation without relying on browser window size; full web "
+                "browsers require the separate navigation opt-in."
+            ),
+            (
                 "Missing Autotask addresses no longer interrupt starting work, and navigation buttons stay "
                 "hidden when no usable destination is available."
             ),
             "Work Duration now stays synchronized with the visible start and end times after 15-minute adjustments.",
+            "Full web browsers no longer show or trigger navigation unless the user explicitly allows it.",
         ),
     )
 

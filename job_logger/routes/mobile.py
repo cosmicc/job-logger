@@ -762,6 +762,7 @@ def home_page(
             navigation_app=navigation_preferences.navigation_app.value,
             navigation_home_address=navigation_preferences.home_address,
             navigation_office_address=navigation_preferences.effective_office_address,
+            allow_navigation_on_full_web=navigation_preferences.allow_navigation_on_full_web,
         ),
     )
 
@@ -1027,6 +1028,7 @@ async def start_work_from_service_call(
                     "navigation_app": navigation_preferences.navigation_app.value,
                     "navigation_address": selected_service_call.navigation_address if should_navigate else None,
                     "navigation_requested": should_navigate,
+                    "navigation_allow_full_web": navigation_preferences.allow_navigation_on_full_web,
                 }
             )
         add_flash_message(request, "Work started from service call.", "success")

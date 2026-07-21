@@ -4007,6 +4007,7 @@ def test_onsite_service_call_starts_before_returning_navigation_destination(
     assert start_response.json()["navigation_requested"] is True
     assert start_response.json()["navigation_app"] == "waze"
     assert start_response.json()["navigation_address"] == "300 Mock On-Site Road, Detroit, MI 48203"
+    assert start_response.json()["navigation_allow_full_web"] is False
 
     with database.SessionLocal() as database_session:
         active_job = get_active_job(database_session)

@@ -233,6 +233,13 @@ class UserPreference(Base):
         nullable=True,
         comment="Optional private user override for the global office destination.",
     )
+    allow_navigation_on_full_web: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Whether navigation controls and automatic launches are allowed on full web browsers.",
+    )
 
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(

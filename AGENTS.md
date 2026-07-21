@@ -188,6 +188,21 @@ time entry directly to Autotask instead of stopping in Review first. The
 per-user navigation setting supports None, Device Default, Google Maps, Waze,
 and Apple Maps. Home address is required only while navigation is enabled.
 Office address is optional and overrides `NAVIGATION_OFFICE_ADDRESS` when set.
+Navigation buttons and automatic On-Site service-call directions are mobile-only
+by default. Phones, tablets, iPads, and iPods count as mobile independently of
+viewport width. **Allow navigation on full web version** is a separate
+default-off per-user preference; disable and grey out that checkbox while
+Navigation is None. Full-browser navigation requires both a configured
+navigation app and this explicit opt-in.
+For every future feature that must distinguish a mobile device from the full
+web version, reuse `window.JobLoggerNavigation.isMobileDevice()` from
+`job_logger/static/navigation.js`; use
+`window.JobLoggerNavigation.isNavigationAllowed()` when the full-web navigation
+preference also applies. Do not add feature-specific viewport-width, user-agent,
+or touch checks elsewhere. Extend the shared detector and
+`tests/test_navigation_javascript.py` when another device case must be covered.
+This classification controls presentation and convenience behavior only and
+must never replace server-side authentication, authorization, or validation.
 Keep home and office addresses out of audit events and logs. Autotask customer
 addresses are transient provider data and must not be stored on Job rows. The
 password-change section on `/config` is the exception: it requires two matching

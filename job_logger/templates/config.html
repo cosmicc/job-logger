@@ -192,6 +192,33 @@
                   </small>
                 </label>
               </div>
+              <label
+                class="toggle-setting-card{% if selected_navigation_app == 'none' %} is-disabled{% endif %}"
+                data-full-web-navigation-setting
+              >
+                <span class="toggle-setting-copy">
+                  <strong>Allow navigation on full web version</strong>
+                  <small>
+                    When this is off, navigation buttons and automatic service-call directions are available only on mobile devices.
+                  </small>
+                </span>
+                <span class="setting-toggle">
+                  <input
+                    type="checkbox"
+                    name="allow_navigation_on_full_web"
+                    value="true"
+                    data-full-web-navigation-option
+                    {% if allow_navigation_on_full_web %}checked{% endif %}
+                    {% if selected_navigation_app == "none" %}disabled{% endif %}
+                  >
+                  <span class="setting-toggle-track" aria-hidden="true">
+                    <span class="setting-toggle-knob"></span>
+                  </span>
+                  <span class="setting-toggle-state" data-full-web-navigation-state>
+                    {% if allow_navigation_on_full_web %}On{% else %}Off{% endif %}
+                  </span>
+                </span>
+              </label>
               <p class="config-privacy-note muted-text">Saved addresses are private user settings and are not included in audit logs.</p>
               <p class="config-save-status muted-text" data-config-status aria-live="polite">Changes save automatically.</p>
             </form>

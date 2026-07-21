@@ -10,6 +10,60 @@
       || (safePlatform === "MacIntel" && Number(maxTouchPoints || 0) > 1);
   }
 
+  function currentDeviceInfo() {
+    return {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      maxTouchPoints: navigator.maxTouchPoints,
+      userAgentDataMobile: navigator.userAgentData?.mobile,
+      primaryPointerCoarse: (
+        typeof window.matchMedia === "function"
+        && window.matchMedia("(pointer: coarse)").matches
+      ),
+    };
+  }
+
+  function isMobileDevice(deviceInfo) {
+    const resolvedDeviceInfo = deviceInfo || currentDeviceInfo();
+    if (resolvedDeviceInfo.userAgentDataMobile === true) {
+      return true;
+    }
+
+    const safeUserAgent = String(resolvedDeviceInfo.userAgent || "");
+    if (
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet|PlayBook|Kindle|Silk/i
+        .test(safeUserAgent)
+    ) {
+      return true;
+    }
+
+    // Some Windows and ChromeOS tablets use a desktop-style user agent. A
+    // touch-capable device whose primary pointer is coarse is treated as a
+    // tablet without confusing ordinary mouse/trackpad desktop sessions.
+    if (
+      Number(resolvedDeviceInfo.maxTouchPoints || 0) > 0
+      && resolvedDeviceInfo.primaryPointerCoarse === true
+    ) {
+      return true;
+    }
+
+    // iPadOS can report a desktop Mac platform. Multiple touch points
+    // distinguish that browser shape without using viewport width.
+    return isAppleMobileDevice(
+      safeUserAgent,
+      resolvedDeviceInfo.platform,
+      resolvedDeviceInfo.maxTouchPoints,
+    );
+  }
+
+  function booleanDataValue(rawValue) {
+    return rawValue === true || String(rawValue || "").trim().toLowerCase() === "true";
+  }
+
+  function isNavigationAllowed(allowFullWeb, deviceInfo) {
+    return isMobileDevice(deviceInfo) || booleanDataValue(allowFullWeb);
+  }
+
   function buildNavigationUrl(navigationApp, address, deviceInfo) {
     const safeAddress = String(address || "").trim();
     if (!safeAddress || navigationApp === "none") {
@@ -30,11 +84,7 @@
       return "";
     }
 
-    const resolvedDeviceInfo = deviceInfo || {
-      userAgent: navigator.userAgent,
-      platform: navigator.platform,
-      maxTouchPoints: navigator.maxTouchPoints,
-    };
+    const resolvedDeviceInfo = deviceInfo || currentDeviceInfo();
     if (isAppleMobileDevice(
       resolvedDeviceInfo.userAgent,
       resolvedDeviceInfo.platform,
@@ -49,11 +99,15 @@
   }
 
   function launch(navigationApp, address, options) {
+    const launchOptions = options || {};
+    if (!isNavigationAllowed(launchOptions.allowFullWeb, launchOptions.deviceInfo)) {
+      return false;
+    }
     const navigationUrl = buildNavigationUrl(navigationApp, address);
     if (!navigationUrl) {
       return false;
     }
-    if (options && options.refreshOnReturn) {
+    if (launchOptions.refreshOnReturn) {
       try {
         sessionStorage.setItem(REFRESH_AFTER_NAVIGATION_KEY, "true");
       } catch (_error) {
@@ -75,10 +129,12 @@
     const navigationAddress = String(payload?.navigation_address || "").trim();
     const available = Boolean(payload?.available !== false && navigationApp !== "none" && navigationAddress);
     buttonsForNavigationUrl(navigationUrl).forEach((button) => {
-      button.dataset.navigationApp = available ? navigationApp : "";
-      button.dataset.navigationAddress = available ? navigationAddress : "";
-      button.classList.toggle("is-hidden", !available);
-      button.disabled = !available;
+      const allowedOnDevice = isNavigationAllowed(button.dataset.navigationAllowFullWeb);
+      const buttonAvailable = available && allowedOnDevice;
+      button.dataset.navigationApp = buttonAvailable ? navigationApp : "";
+      button.dataset.navigationAddress = buttonAvailable ? navigationAddress : "";
+      button.classList.toggle("is-hidden", !buttonAvailable);
+      button.disabled = !buttonAvailable;
     });
   }
 
@@ -99,19 +155,40 @@
     const navigationUrls = new Set();
     document.querySelectorAll("[data-ticket-navigation-button]").forEach((button) => {
       const navigationUrl = button.dataset.navigationUrl || "";
+      const allowedOnDevice = isNavigationAllowed(button.dataset.navigationAllowFullWeb);
+      button.disabled = !allowedOnDevice;
+      if (!allowedOnDevice) {
+        button.classList.add("is-hidden");
+        return;
+      }
       navigationUrls.add(navigationUrl);
       button.addEventListener("click", () => {
-        launch(button.dataset.navigationApp, button.dataset.navigationAddress);
+        launch(button.dataset.navigationApp, button.dataset.navigationAddress, {
+          allowFullWeb: button.dataset.navigationAllowFullWeb,
+        });
       });
     });
     navigationUrls.forEach(refreshDestination);
   }
 
   function initializeStaticButtons() {
+    let hasAvailableButton = false;
     document.querySelectorAll("[data-static-navigation-button]").forEach((button) => {
+      const allowedOnDevice = isNavigationAllowed(button.dataset.navigationAllowFullWeb);
+      button.disabled = !allowedOnDevice;
+      button.classList.toggle("is-hidden", !allowedOnDevice);
+      if (!allowedOnDevice) {
+        return;
+      }
+      hasAvailableButton = true;
       button.addEventListener("click", () => {
-        launch(button.dataset.navigationApp, button.dataset.navigationAddress);
+        launch(button.dataset.navigationApp, button.dataset.navigationAddress, {
+          allowFullWeb: button.dataset.navigationAllowFullWeb,
+        });
       });
+    });
+    document.querySelectorAll("[data-quick-navigation-row]").forEach((row) => {
+      row.classList.toggle("is-hidden", !hasAvailableButton);
     });
   }
 
@@ -131,6 +208,8 @@
     applyDestination,
     buildNavigationUrl,
     isAppleMobileDevice,
+    isMobileDevice,
+    isNavigationAllowed,
     launch,
     refreshDestination,
   };

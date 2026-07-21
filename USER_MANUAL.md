@@ -128,7 +128,9 @@ When navigation is enabled in Config, Work shows quick **Home** and **Office**
 buttons. Office appears only when you or your administrator configured an
 office destination. Starting a service call detected as On-Site opens your
 chosen navigation app after Job Logger confirms the work entry started. Remote
-service calls start without opening navigation.
+service calls start without opening navigation. These navigation actions are
+available on phones and tablets by default. On a full web browser, they appear
+only when **Allow navigation on full web version** is enabled in Config.
 
 ## Work In Progress Fields
 
@@ -359,8 +361,13 @@ Maps**. Home address is required when navigation is enabled. Office address is
 optional; leave it blank to use your organization's office address when one is
 configured. These personal addresses save with your user settings.
 
+**Allow navigation on full web version** is off by default. Leave it off to
+hide navigation buttons and prevent automatic service-call directions in a
+desktop browser. Turn it on to allow those actions on full web browsers as well
+as mobile devices. The option is disabled while Navigation is set to None.
+
 Device Default asks Android to use its registered map handler, uses Apple Maps
-on iPhone or iPad, and opens browser directions on a desktop.
+on iPhone or iPad, and opens browser directions on an opted-in desktop.
 
 ### Workflow
 

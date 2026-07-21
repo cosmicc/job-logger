@@ -264,6 +264,12 @@ it needs several related Autotask entities:
 - `CompanyLocations` for service-call, ticket, and primary company navigation
   destinations.
 
+Ticket and service-call navigation addresses remain transient provider data.
+Browser code must not request or launch them on a full web browser unless the
+managed user has enabled both a navigation app and the default-off **Allow
+navigation on full web version** preference. Phones, tablets, iPads, and iPods
+remain eligible whenever navigation itself is enabled.
+
 The browser must submit only `service_call_ticket_id`, `service_call_date`, and
 CSRF to `POST /jobs/start/service-call`. The route re-reads the provider's
 server-verified list for the selected local date and current managed web user's

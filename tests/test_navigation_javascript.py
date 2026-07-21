@@ -78,6 +78,56 @@ def test_navigation_script_builds_provider_and_device_specific_urls(tmp_path: Pa
               {{userAgent: "Desktop", platform: "Linux", maxTouchPoints: 0}},
             ).startsWith("https://www.google.com/maps/dir/"));
             assert.strictEqual(api.buildNavigationUrl("none", address), "");
+
+            assert.strictEqual(api.isMobileDevice({{
+              userAgent: "Mozilla/5.0 (iPod touch)",
+              platform: "iPod",
+              maxTouchPoints: 5,
+            }}), true);
+            assert.strictEqual(api.isMobileDevice({{
+              userAgent: "Mozilla/5.0 (Linux; Android 14; Pixel Tablet)",
+              platform: "Linux armv8l",
+              maxTouchPoints: 10,
+            }}), true);
+            assert.strictEqual(api.isMobileDevice({{
+              userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)",
+              platform: "MacIntel",
+              maxTouchPoints: 5,
+              userAgentDataMobile: false,
+            }}), true);
+            assert.strictEqual(api.isMobileDevice({{
+              userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+              platform: "Win32",
+              maxTouchPoints: 10,
+              userAgentDataMobile: false,
+              primaryPointerCoarse: true,
+            }}), true);
+            assert.strictEqual(api.isMobileDevice({{
+              userAgent: "Mozilla/5.0 (X11; Linux x86_64)",
+              platform: "Linux x86_64",
+              maxTouchPoints: 0,
+              userAgentDataMobile: false,
+            }}), false);
+            assert.strictEqual(api.isNavigationAllowed(false, {{
+              userAgent: "Desktop",
+              platform: "Linux",
+              maxTouchPoints: 0,
+            }}), false);
+            assert.strictEqual(api.isNavigationAllowed(true, {{
+              userAgent: "Desktop",
+              platform: "Linux",
+              maxTouchPoints: 0,
+            }}), true);
+            assert.strictEqual(api.isNavigationAllowed(false, {{
+              userAgent: "Mozilla/5.0 (iPad)",
+              platform: "iPad",
+              maxTouchPoints: 5,
+            }}), true);
+
+            assert.strictEqual(api.launch("google_maps", address), false);
+            assert.strictEqual(browserWindow.location.href, "");
+            assert.strictEqual(api.launch("google_maps", address, {{allowFullWeb: true}}), true);
+            assert.ok(browserWindow.location.href.startsWith("https://www.google.com/maps/dir/"));
             """
         ),
         encoding="utf-8",

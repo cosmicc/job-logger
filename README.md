@@ -535,9 +535,12 @@ are **None**, **Device Default**, **Google Maps**, **Waze**, and **Apple Maps**.
 Enabling navigation requires a private Home address. Work then shows compact
 Home and Office buttons, and selected ticket context in Work in Progress and
 Review can show **Navigate**. Device Default uses the Android `geo:` handler,
-Apple Maps on iPhone/iPad, and a browser map on desktop. Starting a verified
-On-Site service call opens directions only after the local job commits; Remote
-service calls never launch directions automatically.
+Apple Maps on iPhone/iPad, and a browser map on desktop. Navigation controls
+and automatic On-Site service-call directions are enabled on phones and tablets
+by default. Desktop browsers require the separate default-off **Allow
+navigation on full web version** option. Starting a verified On-Site service
+call opens directions only after the local job commits; Remote service calls
+never launch directions automatically.
 
 Set `NAVIGATION_OFFICE_ADDRESS` to provide the optional deployment-wide Office
 destination. A user may save a private office override, or leave it blank to

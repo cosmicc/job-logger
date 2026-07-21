@@ -941,6 +941,16 @@ small {
   background: var(--surface-muted);
 }
 
+.toggle-setting-card.is-disabled {
+  color: var(--muted);
+  opacity: 0.58;
+}
+
+.toggle-setting-card.is-disabled .setting-toggle input {
+  cursor: not-allowed;
+  opacity: 0;
+}
+
 .toggle-setting-copy {
   display: grid;
   gap: 5px;

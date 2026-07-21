@@ -664,6 +664,7 @@ def _render_review(
             ticket_status_options=_ticket_status_options(),
             show_delete_failure_purge_prompt=show_delete_failure_purge_prompt,
             navigation_app=navigation_preferences.navigation_app.value,
+            allow_navigation_on_full_web=navigation_preferences.allow_navigation_on_full_web,
         ),
     )
 

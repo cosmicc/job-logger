@@ -164,7 +164,10 @@
     const appInput = form.querySelector("[data-navigation-app-option]");
     const homeInput = form.querySelector("[data-navigation-home-address]");
     const officeInput = form.querySelector("[data-navigation-office-address]");
-    if (!appInput || !homeInput || !officeInput) {
+    const allowFullWebInput = form.querySelector("[data-full-web-navigation-option]");
+    const allowFullWebSetting = form.querySelector("[data-full-web-navigation-setting]");
+    const allowFullWebState = form.querySelector("[data-full-web-navigation-state]");
+    if (!appInput || !homeInput || !officeInput || !allowFullWebInput) {
       return;
     }
 
@@ -172,15 +175,27 @@
       navigationApp: appInput.value,
       homeAddress: homeInput.value,
       officeAddress: officeInput.value,
+      allowNavigationOnFullWeb: allowFullWebInput.checked,
     };
     let saveSequence = 0;
 
-    function updateHomeRequirement() {
-      homeInput.required = appInput.value !== "none";
+    function updateNavigationDependencies() {
+      const navigationEnabled = appInput.value !== "none";
+      homeInput.required = navigationEnabled;
+      allowFullWebInput.disabled = !navigationEnabled;
+      if (!navigationEnabled) {
+        allowFullWebInput.checked = false;
+      }
+      if (allowFullWebSetting) {
+        allowFullWebSetting.classList.toggle("is-disabled", !navigationEnabled);
+      }
+      if (allowFullWebState) {
+        allowFullWebState.textContent = allowFullWebInput.checked ? "On" : "Off";
+      }
     }
 
     async function saveNavigationConfig() {
-      updateHomeRequirement();
+      updateNavigationDependencies();
       if (!form.reportValidity()) {
         setStatus(form, "Enter a home address before enabling navigation.", true);
         return;
@@ -189,13 +204,21 @@
       const requestSequence = ++saveSequence;
       setStatus(form, "Saving...", false);
       try {
+        const formData = new FormData(form);
+        // Disabled checkboxes are omitted from FormData. Send an explicit
+        // false value when navigation is off so the server stores the same
+        // state shown by the greyed-out control.
+        formData.set(
+          "allow_navigation_on_full_web",
+          allowFullWebInput.checked ? "true" : "false",
+        );
         const response = await fetch(form.action, {
           method: "POST",
           headers: {
             "Accept": "application/json",
             "X-CSRF-Token": csrfToken(),
           },
-          body: new FormData(form),
+          body: formData,
         });
         const payload = await response.json();
         if (!response.ok) {
@@ -208,7 +231,9 @@
           navigationApp: appInput.value,
           homeAddress: homeInput.value,
           officeAddress: officeInput.value,
+          allowNavigationOnFullWeb: allowFullWebInput.checked,
         };
+        updateNavigationDependencies();
         setStatus(form, payload.message || "Configuration updated.", false);
       } catch (error) {
         if (requestSequence !== saveSequence) {
@@ -217,7 +242,8 @@
         appInput.value = lastSavedValues.navigationApp;
         homeInput.value = lastSavedValues.homeAddress;
         officeInput.value = lastSavedValues.officeAddress;
-        updateHomeRequirement();
+        allowFullWebInput.checked = lastSavedValues.allowNavigationOnFullWeb;
+        updateNavigationDependencies();
         setStatus(form, error.message || "Navigation configuration update failed.", true);
       }
     }
@@ -226,7 +252,8 @@
     appInput.addEventListener("change", saveNavigationConfig);
     homeInput.addEventListener("change", saveNavigationConfig);
     officeInput.addEventListener("change", saveNavigationConfig);
-    updateHomeRequirement();
+    allowFullWebInput.addEventListener("change", saveNavigationConfig);
+    updateNavigationDependencies();
   }
 
   document.querySelectorAll("[data-config-form]").forEach(initializeConfigForm);

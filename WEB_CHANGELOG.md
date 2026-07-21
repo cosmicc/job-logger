@@ -9,17 +9,20 @@ Short release notes shown on the authenticated `/changelog` page.
 - Config now lets each user choose None, Device Default, Google Maps, Waze, or Apple Maps and save private Home and optional Office destinations.
 - Work now has quick Home and Office buttons, and selected tickets can show a Navigate button in Work in Progress and Review.
 - Service calls now show their scheduled date, and open tickets show Start and Due by dates.
+- Config now has a default-off option to allow navigation buttons and automatic directions on the full web version.
 
 ### Changed
 
 - Starting an On-Site service call now opens directions after Job Logger confirms the work entry started successfully.
 - Remote service calls do not open navigation automatically.
 - The newest concurrent Work in Progress job now appears first, Device sign-in is the final Config card, and phone ticket actions use two compact rows.
+- Phones and tablets now receive navigation without relying on browser window size; full web browsers require the separate navigation opt-in.
 
 ### Fixed
 
 - Missing Autotask addresses no longer interrupt starting work, and navigation buttons stay hidden when no usable destination is available.
 - Work Duration now stays synchronized with the visible start and end times after 15-minute adjustments.
+- Full web browsers no longer show or trigger navigation unless the user explicitly allows it.
 
 ## 1.3.1 - 07.13.2026 - Password reset protection, navigation, and recovery reliability
 

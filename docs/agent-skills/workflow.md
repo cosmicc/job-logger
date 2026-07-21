@@ -34,6 +34,15 @@ The work-entry home page is `/home`, implemented by
 The same route is also the full-browser Home and Work in Progress surface.
 The selected mobile or desktop presentation must come from client/browser and
 media behavior, not from separate route names.
+When JavaScript behavior must distinguish mobile devices from the full web
+version, `window.JobLoggerNavigation.isMobileDevice()` in
+`job_logger/static/navigation.js` is the single application detector. Reuse it
+instead of creating feature-local viewport, user-agent, touch, or pointer
+checks. Extend that shared helper and `tests/test_navigation_javascript.py`
+when device coverage changes. Use `isNavigationAllowed()` when the separate
+full-web navigation opt-in is also part of the decision. These helpers are for
+presentation and convenience behavior only, never authentication or
+authorization.
 Use `job_logger/static/desktop.css` for wider browser-only layout improvements
 and leave `job_logger/static/phone.css` unchanged unless the request explicitly
 targets the phone or installed mobile app.
@@ -299,9 +308,14 @@ mode.
 If the managed user enabled navigation and the verified service call is
 detected as On-Site, the JSON start path may return its transient Autotask
 destination only after the local job and audit event commit successfully. The
-browser then opens the configured provider. Remote or unknown service-call
-locations must not auto-launch navigation. A missing destination must not undo
-or hide a successfully started job.
+browser then opens the configured provider on a detected mobile device. Mobile
+device classification must not use viewport width and must include phones,
+tablets, iPads, and iPods, including iPadOS browsers that report a desktop Mac
+platform. A full web browser may open automatic service-call directions only
+when the user's default-off **Allow navigation on full web version** preference
+is enabled. Remote or unknown service-call locations must not auto-launch
+navigation. A missing destination must not undo or hide a successfully started
+job.
 
 The `/home/service-calls` endpoint is only for drawing already-verified
 candidate cards in the browser. Before returning or accepting service-call
@@ -324,7 +338,11 @@ Selected-ticket Work in Progress and Review context may expose a **Navigate**
 button for the owning managed user when navigation is enabled and a server-side
 Autotask lookup returns an address. Submitted jobs keep this read-only
 convenience action. Home and effective Office buttons belong in the compact
-Work summary area and remain hidden when navigation is None.
+Work summary area and remain hidden when navigation is None. Navigation buttons
+must also stay hidden on full web browsers unless **Allow navigation on full
+web version** is enabled. Do not request transient ticket destinations from a
+full web browser while that preference is off. Device classification is a
+presentation convenience only and must never authorize a workflow action.
 On phone layouts, place **Navigate** on its own full-width row above the two
 equal-width **Ticket notes** and **Past time entries** buttons so no action is
 pushed outside the viewport.

@@ -117,13 +117,14 @@
     {% endif %}
 
     {% if navigation_app is defined and navigation_app != "none" and navigation_home_address %}
-      <nav class="quick-navigation-row" aria-label="Quick navigation">
+      <nav class="quick-navigation-row is-hidden" aria-label="Quick navigation" data-quick-navigation-row>
         <button
           class="secondary-button quick-navigation-button"
           type="button"
           data-static-navigation-button
           data-navigation-app="{{ navigation_app }}"
           data-navigation-address="{{ navigation_home_address }}"
+          data-navigation-allow-full-web="{{ 'true' if allow_navigation_on_full_web else 'false' }}"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-8 9 8"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path></svg>
           Home
@@ -135,6 +136,7 @@
             data-static-navigation-button
             data-navigation-app="{{ navigation_app }}"
             data-navigation-address="{{ navigation_office_address }}"
+            data-navigation-allow-full-web="{{ 'true' if allow_navigation_on_full_web else 'false' }}"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5l8-3 8 3v16"></path><path d="M9 9h2"></path><path d="M9 13h2"></path><path d="M9 17h2"></path><path d="M15 9h2"></path><path d="M15 13h2"></path><path d="M15 17h2"></path></svg>
             Office
@@ -440,6 +442,7 @@
                       type="button"
                       data-ticket-navigation-button
                       data-navigation-url="/review/{{ active_job.id }}/navigation"
+                      data-navigation-allow-full-web="{{ 'true' if allow_navigation_on_full_web else 'false' }}"
                       aria-label="Navigate to client"
                     >
                       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-5.2 7-13a7 7 0 1 0-14 0c0 7.8 7 13 7 13Z"></path><circle cx="12" cy="9" r="2.5"></circle></svg>
@@ -501,6 +504,7 @@
                       type="button"
                       data-ticket-navigation-button
                       data-navigation-url="/review/{{ active_job.id }}/navigation"
+                      data-navigation-allow-full-web="{{ 'true' if allow_navigation_on_full_web else 'false' }}"
                       aria-label="Navigate to client"
                     >
                       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-5.2 7-13a7 7 0 1 0-14 0c0 7.8 7 13 7 13Z"></path><circle cx="12" cy="9" r="2.5"></circle></svg>

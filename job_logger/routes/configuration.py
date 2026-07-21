@@ -114,6 +114,7 @@ def config_page(request: Request, database_session: Session = Depends(get_databa
             ],
             navigation_home_address=navigation_preferences.home_address or "",
             navigation_office_address=navigation_preferences.office_address_override or "",
+            allow_navigation_on_full_web=navigation_preferences.allow_navigation_on_full_web,
             global_navigation_office_configured=bool(settings.navigation_office_address),
             passkey_credentials=list_passkey_credentials_for_user(database_session, current_web_user.id),
             password_change_required=password_change_required,
@@ -155,6 +156,7 @@ async def save_config(
                 navigation_app=str(form_data.get("navigation_app", "")),
                 home_address=str(form_data.get("home_address", "")),
                 office_address=str(form_data.get("office_address", "")),
+                allow_navigation_on_full_web=str(form_data.get("allow_navigation_on_full_web", "")),
             )
         record_audit_event(
             database_session,
@@ -168,6 +170,7 @@ async def save_config(
                 "navigation_app": user_preference.navigation_app.value,
                 "home_address_configured": bool(user_preference.home_address),
                 "office_address_override_configured": bool(user_preference.office_address),
+                "allow_navigation_on_full_web": user_preference.allow_navigation_on_full_web,
             },
         )
         database_session.commit()
@@ -180,6 +183,7 @@ async def save_config(
                     "navigation_app": user_preference.navigation_app.value,
                     "home_address_configured": bool(user_preference.home_address),
                     "office_address_override_configured": bool(user_preference.office_address),
+                    "allow_navigation_on_full_web": user_preference.allow_navigation_on_full_web,
                     "message": "Configuration updated.",
                 }
             )
