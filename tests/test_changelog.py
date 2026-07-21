@@ -202,6 +202,7 @@ def test_user_manual_stays_end_user_focused() -> None:
         assert expected_section in manual_text
 
     assert "Submit from Work in Progress" in manual_text
+    assert "Ticket Pilot for Autotask" in manual_text
     assert "Forgot" in manual_text
     assert "reset link" in manual_text
     assert "Human verification is not complete yet" in manual_text
@@ -238,6 +239,14 @@ def test_changelog_parser_reads_current_release() -> None:
             (
                 "Dark themes use the white TicketPilot mark and light themes use the black mark in the full-browser "
                 "header and browser tab."
+            ),
+            (
+                "The formal long application name is now Ticket Pilot for Autotask, reflecting that its work workflow "
+                "relies on Autotask."
+            ),
+            (
+                "Cloudflare Access enforcement now starts off by default and can be enabled after an Access application "
+                "is configured; a paid Cloudflare plan is not required."
             ),
             "Removed stale former-name labels from user-facing application pages and metadata.",
             (

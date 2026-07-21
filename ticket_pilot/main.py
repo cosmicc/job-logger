@@ -274,7 +274,7 @@ def create_app(
 
     configure_logging(application_settings)
     validate_runtime_settings(application_settings)
-    fastapi_app = FastAPI(title="TicketPilot", docs_url=None, redoc_url=None, openapi_url=None)
+    fastapi_app = FastAPI(title="Ticket Pilot for Autotask", docs_url=None, redoc_url=None, openapi_url=None)
     fastapi_app.state.application_settings = application_settings
     fastapi_app.add_exception_handler(StarletteHTTPException, _http_exception_handler)
     fastapi_app.add_exception_handler(OperationalError, _database_exception_handler)

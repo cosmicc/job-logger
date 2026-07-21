@@ -589,6 +589,14 @@ def test_runtime_validation_allows_cloudflare_access_disabled_in_production() ->
     validate_runtime_settings(production_settings)
 
 
+def test_cloudflare_access_header_gate_defaults_disabled(monkeypatch) -> None:
+    """A missing Access setting should retain application login without requiring its header."""
+
+    monkeypatch.delenv("CLOUDFLARE_ACCESS_REQUIRED", raising=False)
+
+    assert load_settings().cloudflare_access_required is False
+
+
 def test_runtime_validation_rejects_production_development_defaults() -> None:
     """Production should reject secrets and database passwords from development examples."""
 
