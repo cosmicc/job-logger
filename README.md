@@ -530,6 +530,24 @@ padding for phone status bars, and disabled page overscroll/bounce behavior.
 The authenticated top navigation remains visible while scrolling on both
 phone-sized and full-browser pages.
 
+Managed users can configure driving navigation on `/config`. Supported choices
+are **None**, **Device Default**, **Google Maps**, **Waze**, and **Apple Maps**.
+Enabling navigation requires a private Home address. Work then shows compact
+Home and Office buttons, and selected ticket context in Work in Progress and
+Review can show **Navigate to Destination**. Device Default uses the Android `geo:` handler,
+Apple Maps on iPhone/iPad, and a browser map on desktop. Navigation controls
+and automatic On-Site service-call directions are enabled on phones and tablets
+by default. Desktop browsers require the separate default-off **Allow
+navigation on full web version** option. Starting a verified On-Site service
+call opens directions only after the local job commits; Remote service calls
+never launch directions automatically.
+
+Set `NAVIGATION_OFFICE_ADDRESS` to provide the optional deployment-wide Office
+destination. A user may save a private office override, or leave it blank to
+use the global value. Customer destinations are resolved transiently from the
+service-call location, ticket location, primary company location, then company
+main address in Autotask; they are not copied into local job or audit records.
+
 The service worker is intentionally network-only. It supports standalone app
 launch behavior but does not cache authenticated pages, job data, Autotask
 responses, transcription data, raw audio, or diagnostics.
@@ -581,6 +599,8 @@ Device sign-in is intentionally a fallback-friendly option. If the browser does
 not support passkeys, the device cancels, or signature verification fails, the
 normal username/password login form remains available above the Device sign-in
 button.
+
+On `/config`, Device sign-in is the final card after Navigation and Workflow.
 The login page also has a default-off **This is a public device** checkbox for
 password sign-in. When selected, Job Logger signs the user out after 15 minutes
 of inactivity and hides new Device sign-in setup prompts for that session. The
@@ -632,8 +652,8 @@ Set these passkey variables for production when needed:
 ## Application Version And Changelog
 
 Job Logger uses source-controlled semantic versioning. The runtime version is
-defined in `job_logger/version.py`, mirrored in `pyproject.toml`, and is
-currently `v1.3.1`. Version history starts at `v1.0.0`.
+defined in `job_logger/version.py`, mirrored in `pyproject.toml` and the root
+`VERSION` file, and is currently `v1.4.0`. Version history starts at `v1.0.0`.
 
 Authenticated pages show a Help button in the shared header. `/help` starts
 with **Ask AI for help**, shows **Operational Status**, then shows the current
@@ -657,7 +677,7 @@ changelog views use the same authenticated session, dark/light theme variables,
 and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the authenticated Help button is yellow
 on desktop and phone layouts, and `/help` shows the current version with `DEV`,
-such as `v1.3.1 DEV`.
+such as `v1.4.0 DEV`.
 
 ## Provider Modes
 
@@ -904,8 +924,9 @@ Diagnostics-authorized users see the specific monitored issue details.
 
 ### Autotask
 
-Autotask is mandatory for normal production use because the app now uses
-Autotask Companies and Tickets to decide which ticket receives time. Production
+Autotask is mandatory for normal production use because the app uses Autotask
+Companies, CompanyLocations, and Tickets for verified ticket and navigation
+context. Production
 must run with `AUTOTASK_PROVIDER=autotask`. The `mock` provider is only for
 tests or isolated development.
 
@@ -1039,9 +1060,10 @@ ticket lookup uses the stored company selection. Saved clients do not auto-load
 tickets when the Work in Progress card renders; click the panel to load them.
 Both mobile and review ticket lookup show the spinner loading state while
 Autotask data is being fetched or a selected ticket is being saved.
-Open-ticket choices show the ticket number, title,
-ticket status, company name, and detected `Remote`, `On-Site`, or `Not
-specified` work-location label from the ticket title and description.
+Open-ticket choices show the ticket number, title, Autotask creation date as
+**Start**, `dueDateTime` as **Due by**, ticket status, company name, and
+detected `Remote`, `On-Site`, or `Not specified` work-location label from the
+ticket title and description.
 Remote/On-Site choices use the same color treatment as service-call cards on
 both Work in Progress and Review.
 Selecting a returned ticket fills the mobile job's hidden ticket number, stores
@@ -1065,8 +1087,12 @@ start with Workflow Rule, and notes with titles that start with Some actions
 did not occur are treated as system noise and filtered out. Notes are shown
 newest first with two-line title cards. Past time entries list the
 resource, local start/stop time, and hours, and selecting one shows its summary
-of work. On phones, these buttons sit under the selected Ticket name on Work in
-Progress and under Ticket number on Review.
+of work. Home, Office, and **Navigate to Destination** use the shared subtle
+blue navigation treatment. On phones, Navigate to Destination uses its own
+full-width row, while **Ticket notes** and **Past time entries** share a
+separate compact row in the selected
+ticket context. Navigate to Destination sits immediately above **Entry type** and is shown
+only for time entries; selecting **Ticket note** hides it.
 Long ticket descriptions stay inside a scrollable read-only box instead of
 expanding the mobile page indefinitely; phone-sized layouts cap that visible
 box at about 12 lines, and wider layouts cap it at about 25 lines. On the
@@ -1087,8 +1113,9 @@ yesterday, and tomorrow are labeled like `Today (Saturday)`;
 other dates show the full month, ordinal day, and weekday, such as
 `June 19th (Friday)`, without the year.
 Each service-call choice shows the client name, the detected `Remote` or
-`On-Site` value from the service-call details text, the local start/end time
-range such as `4:00pm-5:00pm`, and the associated ticket title. Remote and
+`On-Site` value from the service-call details text, its scheduled local date,
+the local start/end time range such as `4:00pm-5:00pm`, and the associated
+ticket title. Remote and
 On-Site cards use stronger distinct accent colors and badges so scheduled call
 type is easy to scan without wasting mobile screen space.
 Service-call options are filtered by local Job Logger history for the current
@@ -1119,10 +1146,12 @@ Work in Progress puts job details beside notes and finish actions for easier
 scanning. Active Work in Progress cards show an editable **Job date** calendar
 with `(Today)`, `(Yesterday)`, or `(Tomorrow)` inside the date box when
 applicable, and changing it saves the selected local work date before Review or
-submission. Other dates show only the selected date. Active cards also use distinct slot
-shading so two active jobs are easier to distinguish. Work in Progress and
-Review start/end time fields open a 15-minute time dropdown centered on the
-currently selected time while still allowing the `-15` and `+15` step buttons.
+submission. Other dates show only the selected date. Active cards also use
+distinct slot shading so two active jobs are easier to distinguish. When two
+jobs are active, the most recently started job appears above the earlier job.
+Work in Progress and Review start/end time fields open a 15-minute time dropdown
+centered on the currently selected time while still allowing the `-15` and `+15`
+step buttons.
 Full-browser Work in Progress and Review detail cards group **Entry type** with
 **Work type**, **Ticket status** with **Job date**, and **Start time** with
 **End time**, with duration centered beneath the time row. Paired full-browser

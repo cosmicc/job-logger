@@ -2172,7 +2172,9 @@ def test_debug_restore_defaults_direct_submit_for_legacy_preference_backups(
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
     for row in payload["tables"]["user_preferences"]:
         row.pop("submit_from_work_in_progress", None)
+        row.pop("allow_navigation_on_full_web", None)
     payload["schema"]["user_preferences"].remove("submit_from_work_in_progress")
+    payload["schema"]["user_preferences"].remove("allow_navigation_on_full_web")
     legacy_backup_content = gzip.compress(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8"),
         mtime=0,
@@ -2201,6 +2203,7 @@ def test_debug_restore_defaults_direct_submit_for_legacy_preference_backups(
         assert restored_preference is not None
         assert restored_preference.theme == ThemeMode.LIGHT
         assert restored_preference.submit_from_work_in_progress is False
+        assert restored_preference.allow_navigation_on_full_web is False
 
 
 def test_debug_restore_defaults_missing_web_session_invalidation_column(

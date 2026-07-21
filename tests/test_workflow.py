@@ -1657,6 +1657,10 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     desktop_stylesheet_path = Path(__file__).resolve().parents[1] / "job_logger" / "static" / "desktop.css"
     desktop_stylesheet = desktop_stylesheet_path.read_text(encoding="utf-8")
     mobile_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (Path(__file__).resolve().parents[1] / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+    mobile_javascript = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_javascript = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "review.js").read_text(encoding="utf-8")
+    navigation_javascript = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "navigation.js").read_text(encoding="utf-8")
 
     assert ".service-call-option-button.service-call-location-remote" in stylesheet
     assert ".service-call-option-button.service-call-location-on_site" in stylesheet
@@ -1893,9 +1897,37 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".form-grid > .review-ticket-number-card {\n  order: 90;\n}" in phone_stylesheet
     assert ".form-grid > .review-ticket-title-card {\n  display: grid;\n  order: 100;\n}" in phone_stylesheet
     assert ".ticket-context-actions-mobile {\n  display: none;\n}" in stylesheet
+    assert ".mobile-entry-navigation-row {\n  display: none;\n}" in stylesheet
     assert ".ticket-context-actions-desktop {\n  display: none;\n}" in phone_stylesheet
-    assert ".ticket-context-actions-mobile {\n  display: flex;" in phone_stylesheet
-    assert "  flex-wrap: nowrap;" in phone_stylesheet
+    assert ".ticket-context-actions-mobile {\n  display: grid;" in phone_stylesheet
+    assert "  grid-template-columns: repeat(2, minmax(0, 1fr));" in phone_stylesheet
+    assert ".metric-grid > .mobile-entry-navigation-row {\n  order: -80;\n}" in phone_stylesheet
+    assert ".form-grid > .mobile-entry-navigation-row {\n  order: 0;\n}" in phone_stylesheet
+    assert ".mobile-entry-navigation-row.is-destination-hidden," in phone_stylesheet
+    assert ".mobile-entry-navigation-row.is-entry-mode-hidden {\n  display: none;\n}" in phone_stylesheet
+    assert ".mobile-entry-navigation-row .ticket-navigation-button {\n  width: 100%;\n}" in phone_stylesheet
+    assert (
+        ".quick-navigation-button,\n"
+        ".ticket-navigation-button {\n"
+        "  border-color: var(--nav-action-border);\n"
+        "  background: var(--nav-action-bg);\n"
+        "  box-shadow: var(--nav-action-shadow);\n"
+        "  color: var(--nav-action);\n"
+        "}"
+    ) in stylesheet
+    assert mobile_template.count("Navigate to Destination") == 2
+    assert review_template.count("Navigate to Destination") == 2
+    assert 'aria-label="Navigate to destination"' in mobile_template
+    assert 'aria-label="Navigate to destination"' in review_template
+    assert mobile_template.count("data-mobile-entry-navigation-row") == 1
+    assert review_template.count("data-mobile-entry-navigation-row") == 1
+    assert mobile_template.index("data-mobile-entry-navigation-row") < mobile_template.index('class="metric-card entry-type-card"')
+    assert review_template.index("data-mobile-entry-navigation-row") < review_template.index('class="readonly-field-card review-entry-type-card"')
+    assert 'class="mobile-entry-navigation-row is-destination-hidden{% if is_ticket_note %} is-entry-mode-hidden{% endif %}"' in mobile_template
+    assert 'class="mobile-entry-navigation-row is-destination-hidden{% if is_ticket_note %} is-entry-mode-hidden{% endif %}"' in review_template
+    assert 'mobileNavigationRow.classList.toggle("is-entry-mode-hidden", isTicketNote);' in mobile_javascript
+    assert 'mobileNavigationRow.classList.toggle("is-entry-mode-hidden", isTicketNote);' in review_javascript
+    assert 'mobileNavigationRow.classList.toggle("is-destination-hidden", !buttonAvailable);' in navigation_javascript
     assert ".readonly-field-card.review-ticket-title-card {\n  justify-items: center;\n  text-align: center;\n}" in stylesheet
     assert ".readonly-field-card.review-client-name-card {\n  justify-items: center;\n  text-align: center;\n}" in stylesheet
     assert (
@@ -2842,6 +2874,8 @@ def test_review_ticket_lookup_returns_open_tickets_for_job_client(authenticated_
     assert response_payload["tickets"][0]["ticket_number"] == "T20260616.0001"
     assert response_payload["tickets"][0]["company_name"] == "Acme Services"
     assert response_payload["tickets"][0]["description"] == "Mock ticket description for Acme Services."
+    assert response_payload["tickets"][0]["start_date"] == "06/16/2026"
+    assert response_payload["tickets"][0]["due_by_date"] == "06/18/2026"
     assert response_payload["tickets"][0]["work_location_label"] == "Remote"
     assert response_payload["tickets"][0]["work_location_class"] == "ticket-location-remote"
 
@@ -3917,6 +3951,7 @@ def test_mobile_service_call_start_populates_active_job(
         "client_name": "Scheduled Service Client",
         "ticket_title": "Mock open ticket for Scheduled Service Client",
         "scheduled_time_range": "12:00pm-1:00pm",
+        "scheduled_date": "06/20/2026",
         "work_location_label": "On-Site",
         "work_location_class": "service-call-location-on_site",
         "ticket_status_label": "New",
@@ -3973,6 +4008,129 @@ def test_mobile_service_call_start_rejects_unlisted_selection(authenticated_clie
 
     with database.SessionLocal() as database_session:
         assert get_active_job(database_session) is None
+
+
+def test_onsite_service_call_starts_before_returning_navigation_destination(
+    authenticated_client: TestClient,
+) -> None:
+    """Configured navigation should launch only after an On-Site job is committed."""
+
+    config_response = authenticated_client.get("/config")
+    csrf_token = extract_csrf_token(config_response.text)
+    navigation_response = authenticated_client.post(
+        "/config",
+        headers={"Accept": "application/json", "X-CSRF-Token": csrf_token},
+        data={
+            "csrf_token": csrf_token,
+            "navigation_app": "waze",
+            "home_address": "10 Home Road, Detroit, MI 48201",
+            "office_address": "",
+        },
+    )
+    assert navigation_response.status_code == 200
+
+    start_response = authenticated_client.post(
+        "/jobs/start/service-call",
+        headers={"Accept": "application/json"},
+        data={"csrf_token": csrf_token, "service_call_ticket_id": "6101", "service_call_date": "2026-06-20"},
+    )
+    assert start_response.status_code == 200
+    assert start_response.json()["navigation_requested"] is True
+    assert start_response.json()["navigation_app"] == "waze"
+    assert start_response.json()["navigation_address"] == "300 Mock On-Site Road, Detroit, MI 48203"
+    assert start_response.json()["navigation_allow_full_web"] is False
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+        audit_event = database_session.query(AuditEvent).filter_by(action="job.started").one()
+        assert "Mock On-Site Road" not in str(audit_event.details)
+
+    destination_response = authenticated_client.get(f"/review/{active_job_id}/navigation")
+    assert destination_response.status_code == 200
+    assert destination_response.json() == {
+        "available": True,
+        "navigation_app": "waze",
+        "navigation_address": "200 Mock Boulevard, Detroit, MI 48202",
+    }
+
+
+def test_remote_service_call_does_not_request_automatic_navigation(
+    authenticated_client: TestClient,
+) -> None:
+    """Remote service calls should start normally without launching navigation."""
+
+    config_response = authenticated_client.get("/config")
+    csrf_token = extract_csrf_token(config_response.text)
+    authenticated_client.post(
+        "/config",
+        headers={"Accept": "application/json", "X-CSRF-Token": csrf_token},
+        data={
+            "csrf_token": csrf_token,
+            "navigation_app": "google_maps",
+            "home_address": "10 Home Road, Detroit, MI 48201",
+            "office_address": "",
+        },
+    )
+    start_response = authenticated_client.post(
+        "/jobs/start/service-call",
+        headers={"Accept": "application/json"},
+        data={"csrf_token": csrf_token, "service_call_ticket_id": "6102", "service_call_date": "2026-06-20"},
+    )
+    assert start_response.status_code == 200
+    assert start_response.json()["navigation_requested"] is False
+    assert start_response.json()["navigation_address"] is None
+
+
+def test_regular_ticket_selection_returns_configured_navigation_destination(
+    authenticated_client: TestClient,
+) -> None:
+    """A selected regular ticket should immediately make its Navigate action available."""
+
+    config_response = authenticated_client.get("/config")
+    csrf_token = extract_csrf_token(config_response.text)
+    authenticated_client.post(
+        "/config",
+        headers={"Accept": "application/json", "X-CSRF-Token": csrf_token},
+        data={
+            "csrf_token": csrf_token,
+            "navigation_app": "apple_maps",
+            "home_address": "10 Home Road, Detroit, MI 48201",
+            "office_address": "",
+        },
+    )
+    authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={"csrf_token": csrf_token, "client_name": "Acme Services", "autotask_company_id": "1001"},
+        follow_redirects=False,
+    )
+    select_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": "T20260616.0002"},
+    )
+    assert select_response.status_code == 200
+    assert select_response.json()["navigation_app"] == "apple_maps"
+    assert select_response.json()["navigation_address"] == "200 Mock Boulevard, Detroit, MI 48202"
+
+    home_response = authenticated_client.get("/home")
+    assert f'data-navigation-url="/review/{active_job_id}/navigation"' in home_response.text
+
+
+def test_ticket_navigation_destination_requires_managed_user_authentication(client: TestClient) -> None:
+    """Anonymous callers must not receive customer navigation destinations."""
+
+    response = client.get("/review/not-a-job/navigation", headers={"Accept": "application/json"})
+
+    assert response.status_code == 401
+    assert response.json()["available"] is False
 
 
 def test_complete_and_follow_up_local_tickets_filter_service_call_options(
@@ -4879,3 +5037,36 @@ def test_mobile_allows_two_active_jobs(authenticated_client: TestClient) -> None
         assert active_slots == {1, 2}
         assert all(job.client_name is None for job in active_jobs)
         assert all(job.ticket_number is None for job in active_jobs)
+
+
+def test_mobile_renders_the_newest_active_job_first(authenticated_client: TestClient) -> None:
+    """The newest concurrent job should appear above the earlier active job."""
+
+    mobile_page_response = authenticated_client.get("/home")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    assert authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    ).status_code == 303
+    assert authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    ).status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_jobs = database_session.query(Job).where(Job.status == JobStatus.ACTIVE).all()
+        jobs_by_slot = {job.job_slot: job for job in active_jobs}
+        older_job = jobs_by_slot[1]
+        newer_job = jobs_by_slot[2]
+        older_job.created_at_utc = datetime(2026, 6, 16, 12, 0)
+        newer_job.created_at_utc = datetime(2026, 6, 16, 12, 5)
+        database_session.commit()
+        older_job_id = older_job.id
+        newer_job_id = newer_job.id
+
+    rendered_home = authenticated_client.get("/home").text
+    assert rendered_home.index(f'data-active-job-card="{newer_job_id}"') < rendered_home.index(
+        f'data-active-job-card="{older_job_id}"'
+    )

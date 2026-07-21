@@ -840,6 +840,17 @@ small {
   gap: 10px;
 }
 
+.navigation-address-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.config-privacy-note {
+  margin: 0;
+  font-size: 12px;
+}
+
 .theme-choice-card {
   position: relative;
   display: flex;
@@ -928,6 +939,16 @@ small {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-muted);
+}
+
+.toggle-setting-card.is-disabled {
+  color: var(--muted);
+  opacity: 0.58;
+}
+
+.toggle-setting-card.is-disabled .setting-toggle input {
+  cursor: not-allowed;
+  opacity: 0;
 }
 
 .toggle-setting-copy {
@@ -1581,6 +1602,7 @@ a:focus-visible {
 .service-call-time-range,
 .ticket-option-number,
 .ticket-option-title,
+.ticket-option-dates,
 .ticket-option-meta {
   overflow-wrap: anywhere;
   font-size: 14px;
@@ -1603,6 +1625,12 @@ a:focus-visible {
 
 .ticket-option-meta {
   color: var(--muted);
+}
+
+.ticket-option-dates {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
 }
 
 .service-call-location-badge,
@@ -2091,7 +2119,12 @@ a:focus-visible {
   display: none;
 }
 
-.ticket-notes-button {
+.mobile-entry-navigation-row {
+  display: none;
+}
+
+.ticket-notes-button,
+.ticket-navigation-button {
   min-height: 34px;
   padding: 6px 10px;
   gap: 6px;
@@ -2099,7 +2132,8 @@ a:focus-visible {
   white-space: nowrap;
 }
 
-.ticket-notes-button svg {
+.ticket-notes-button svg,
+.ticket-navigation-button svg {
   width: 16px;
   height: 16px;
 }
@@ -2926,6 +2960,40 @@ td a {
   color: var(--text);
   font-size: 13px;
   font-weight: 850;
+}
+
+.quick-navigation-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 150px));
+  justify-content: center;
+  gap: 8px;
+  margin: 4px auto 10px;
+}
+
+.quick-navigation-button {
+  min-height: 38px;
+  justify-content: center;
+}
+
+.quick-navigation-button,
+.ticket-navigation-button {
+  border-color: var(--nav-action-border);
+  background: var(--nav-action-bg);
+  box-shadow: var(--nav-action-shadow);
+  color: var(--nav-action);
+}
+
+.quick-navigation-button:hover,
+.ticket-navigation-button:hover {
+  border-color: var(--nav-action-hover);
+  background: rgba(59, 130, 246, 0.24);
+  box-shadow: var(--button-hover-shadow);
+  color: var(--nav-action-hover);
+}
+
+.quick-navigation-button svg {
+  width: 17px;
+  height: 17px;
 }
 
 .review-pagination {
@@ -5352,8 +5420,14 @@ td a {
   .user-edit-grid,
   .add-user-fields-grid,
   .theme-card-grid,
+  .navigation-address-grid,
   .password-field-grid {
     grid-template-columns: 1fr;
+  }
+
+  .quick-navigation-row {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .users-page-actions,

@@ -192,6 +192,15 @@ def format_local_date(timestamp: datetime | None) -> str:
     return to_local(timestamp).date().isoformat()
 
 
+def format_local_date_display(timestamp: datetime | None) -> str:
+    """Format a timestamp as a concise user-facing local calendar date."""
+
+    if timestamp is None:
+        return ""
+
+    return to_local(timestamp).strftime("%m/%d/%Y")
+
+
 def format_weekday_name(value: date | datetime | str | None) -> str:
     """Return the weekday name for a local date value shown beside date inputs."""
 

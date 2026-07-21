@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from job_logger.config import Settings, settings
-from job_logger.enums import ThemeMode
+from job_logger.enums import NavigationApp, ThemeMode
 from job_logger.models import UserPreference
 from job_logger.security import (
     WEB_USER_SESSION_KIND,
@@ -20,6 +20,9 @@ from job_logger.security import (
 
 DEFAULT_THEME = ThemeMode.DARK
 DEFAULT_SUBMIT_FROM_WORK_IN_PROGRESS = False
+DEFAULT_NAVIGATION_APP = NavigationApp.NONE
+DEFAULT_ALLOW_NAVIGATION_ON_FULL_WEB = False
+MAX_NAVIGATION_ADDRESS_LENGTH = 300
 THEME_META_COLORS = {
     ThemeMode.DARK: "#0b1220",
     ThemeMode.LIGHT: "#f6f8fb",
@@ -39,6 +42,17 @@ class PreferencePrincipal:
 
     # label is safe text for the configuration page.
     label: str
+
+
+@dataclass(frozen=True)
+class NavigationPreferences:
+    """Resolved private navigation settings for one managed user."""
+
+    navigation_app: NavigationApp
+    home_address: str | None
+    office_address_override: str | None
+    effective_office_address: str | None
+    allow_navigation_on_full_web: bool
 
 
 def normalize_theme(raw_theme: str | None) -> ThemeMode:
@@ -66,6 +80,44 @@ def normalize_submit_from_work_in_progress(raw_enabled: bool | str | None) -> bo
     raise UserPreferenceError("Submit from Work in Progress must be on or off.")
 
 
+def normalize_navigation_app(raw_navigation_app: str | None) -> NavigationApp:
+    """Return a supported navigation application key."""
+
+    normalized_app = (raw_navigation_app or DEFAULT_NAVIGATION_APP.value).strip().lower()
+    try:
+        return NavigationApp(normalized_app)
+    except ValueError as exc:
+        raise UserPreferenceError("Select a supported navigation application.") from exc
+
+
+def normalize_allow_navigation_on_full_web(raw_enabled: bool | str | None) -> bool:
+    """Return whether navigation may be exposed in full web browsers."""
+
+    if isinstance(raw_enabled, bool):
+        return raw_enabled
+
+    normalized_enabled = (raw_enabled or "").strip().casefold()
+    if normalized_enabled in {"1", "true", "yes", "on"}:
+        return True
+    if normalized_enabled in {"", "0", "false", "no", "off"}:
+        return False
+
+    raise UserPreferenceError("Allow navigation on full web version must be on or off.")
+
+
+def normalize_navigation_address(raw_address: str | None, *, field_label: str) -> str | None:
+    """Return bounded single-line navigation text without control characters."""
+
+    normalized_address = " ".join((raw_address or "").split())
+    if not normalized_address:
+        return None
+    if len(normalized_address) > MAX_NAVIGATION_ADDRESS_LENGTH:
+        raise UserPreferenceError(
+            f"{field_label} must be {MAX_NAVIGATION_ADDRESS_LENGTH} characters or fewer."
+        )
+    return normalized_address
+
+
 def preference_principal_from_session(
     session: Mapping[str, object],
     application_settings: Settings = settings,
@@ -84,6 +136,12 @@ def preference_principal_from_session(
 def get_user_preference(database_session: Session, principal_key: str) -> UserPreference | None:
     """Return saved preferences for one authenticated principal."""
 
+    # A single autosave request may update more than one preference group
+    # before the new row is flushed. Reuse that pending row so the unique
+    # principal key is never inserted twice.
+    for pending_object in database_session.new:
+        if isinstance(pending_object, UserPreference) and pending_object.principal_key == principal_key:
+            return pending_object
     return database_session.scalar(select(UserPreference).where(UserPreference.principal_key == principal_key))
 
 
@@ -110,6 +168,31 @@ def get_submit_from_work_in_progress_for_principal(database_session: Session, pr
     return bool(user_preference.submit_from_work_in_progress)
 
 
+def get_navigation_preferences_for_principal(
+    database_session: Session,
+    principal_key: str | None,
+    application_settings: Settings = settings,
+) -> NavigationPreferences:
+    """Return one user's navigation settings with the office fallback resolved."""
+
+    user_preference = get_user_preference(database_session, principal_key) if principal_key else None
+    navigation_app = user_preference.navigation_app if user_preference else DEFAULT_NAVIGATION_APP
+    home_address = user_preference.home_address if user_preference else None
+    office_override = user_preference.office_address if user_preference else None
+    allow_navigation_on_full_web = (
+        bool(user_preference.allow_navigation_on_full_web)
+        if user_preference
+        else DEFAULT_ALLOW_NAVIGATION_ON_FULL_WEB
+    )
+    return NavigationPreferences(
+        navigation_app=navigation_app,
+        home_address=home_address,
+        office_address_override=office_override,
+        effective_office_address=office_override or application_settings.navigation_office_address or None,
+        allow_navigation_on_full_web=allow_navigation_on_full_web,
+    )
+
+
 def get_theme_for_session(database_session: Session, session: Mapping[str, object]) -> ThemeMode:
     """Return the saved theme for the current authenticated session."""
 
@@ -131,6 +214,8 @@ def _new_user_preference(principal_key: str) -> UserPreference:
         principal_key=principal_key,
         theme=DEFAULT_THEME,
         submit_from_work_in_progress=DEFAULT_SUBMIT_FROM_WORK_IN_PROGRESS,
+        navigation_app=DEFAULT_NAVIGATION_APP,
+        allow_navigation_on_full_web=DEFAULT_ALLOW_NAVIGATION_ON_FULL_WEB,
     )
 
 
@@ -168,3 +253,35 @@ def save_theme_for_principal(
     """Persist one authenticated principal's theme setting."""
 
     return save_preferences_for_principal(database_session, principal_key=principal_key, theme=theme)
+
+
+def save_navigation_preferences_for_principal(
+    database_session: Session,
+    *,
+    principal_key: str,
+    navigation_app: str | None,
+    home_address: str | None,
+    office_address: str | None,
+    allow_navigation_on_full_web: bool | str | None,
+) -> UserPreference:
+    """Validate and persist private navigation settings for one managed user."""
+
+    normalized_app = normalize_navigation_app(navigation_app)
+    normalized_home = normalize_navigation_address(home_address, field_label="Home address")
+    normalized_office = normalize_navigation_address(office_address, field_label="Office address")
+    normalized_allow_full_web = normalize_allow_navigation_on_full_web(allow_navigation_on_full_web)
+    if normalized_app != NavigationApp.NONE and normalized_home is None:
+        raise UserPreferenceError("Home address is required when navigation is enabled.")
+    if normalized_app == NavigationApp.NONE:
+        normalized_allow_full_web = False
+
+    user_preference = get_user_preference(database_session, principal_key)
+    if user_preference is None:
+        user_preference = _new_user_preference(principal_key)
+        database_session.add(user_preference)
+
+    user_preference.navigation_app = normalized_app
+    user_preference.home_address = normalized_home
+    user_preference.office_address = normalized_office
+    user_preference.allow_navigation_on_full_web = normalized_allow_full_web
+    return user_preference

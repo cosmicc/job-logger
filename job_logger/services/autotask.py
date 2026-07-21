@@ -38,6 +38,7 @@ MAX_SERVICE_DESK_ROLE_NAME_LENGTH = 200
 MAX_SERVICE_CALL_LOOKUP_RESULTS = 25
 MAX_SERVICE_CALL_NAME_LENGTH = 240
 MAX_SERVICE_CALL_DETAIL_LENGTH = 2000
+MAX_NAVIGATION_ADDRESS_LENGTH = 500
 MAX_TICKET_NOTE_LOOKUP_RESULTS = 100
 MAX_TICKET_NOTE_TITLE_LENGTH = 250
 MAX_TICKET_NOTE_BODY_LENGTH = 12000
@@ -266,7 +267,7 @@ _OPEN_TICKET_SELECTION_CACHE: dict[tuple[str, str, int | None], _AutotaskCacheEn
 # _SERVICE_CALL_SELECTION_CACHE stores today's rendered service-call options
 # keyed by tenant URL, resource, and local-day UTC bounds. It contains only
 # non-secret ticket and company metadata already safe for the authenticated UI.
-_SERVICE_CALL_SELECTION_CACHE: dict[tuple[str, int, str, str], _AutotaskCacheEntry] = {}
+_SERVICE_CALL_SELECTION_CACHE: dict[tuple[str, int, str, str, bool], _AutotaskCacheEntry] = {}
 
 def _get_cached_value(cache_store: dict[Any, _AutotaskCacheEntry], cache_key: Any) -> Any | None:
     """Return a defensive copy of a cached value when its 15-minute TTL is valid."""
@@ -412,6 +413,12 @@ class AutotaskTicketOption:
     # company_name is included because client-name searches can match more than one company.
     company_name: str
 
+    # created_at_utc is Tickets.createDate, presented to users as the ticket Start date.
+    created_at_utc: datetime | None = None
+
+    # due_at_utc is Tickets.dueDateTime, presented to users as the Due by date.
+    due_at_utc: datetime | None = None
+
     # detected_work_location is inferred from safe ticket title/description text
     # and then ticket source as a fallback; it is not an authorization source.
     detected_work_location: WorkLocation | None = None
@@ -421,6 +428,10 @@ class AutotaskTicketOption:
 
     # status_id is the Autotask ticket status picklist value when returned.
     status_id: int | None = None
+
+    # navigation_address is transient Autotask context. It must not be stored
+    # on a Job, copied into audit events, or written to application logs.
+    navigation_address: str | None = None
 
 
 @dataclass(frozen=True)
@@ -583,6 +594,9 @@ class AutotaskServiceCallOption:
     start_datetime_utc: datetime | None
     end_datetime_utc: datetime | None
 
+    # navigation_address follows service-call, ticket, then company priority.
+    navigation_address: str | None = None
+
 
 class AutotaskSubmissionError(RuntimeError):
     """Raised for configuration or remote Autotask failures."""
@@ -660,6 +674,17 @@ class BaseAutotaskProvider:
 
         raise NotImplementedError
 
+    def get_ticket_navigation_address(
+        self,
+        ticket_number: str,
+        autotask_company_id: int,
+        *,
+        resource_id: int | None = None,
+    ) -> str | None:
+        """Return a transient navigation destination for one verified ticket."""
+
+        raise NotImplementedError
+
     def list_ticket_notes(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketNote]:
         """Return safe read-only notes for one selected Autotask ticket."""
 
@@ -695,6 +720,8 @@ class BaseAutotaskProvider:
         resource_id: int,
         current_time_utc: datetime | None = None,
         local_service_date: date | None = None,
+        *,
+        include_navigation: bool = False,
     ) -> list[AutotaskServiceCallOption]:
         """Return service calls for one resource on a selected local date."""
 
@@ -843,6 +870,22 @@ def _safe_optional_resource_text(raw_text: Any, max_length: int = MAX_RESOURCE_N
         return None
 
     return safe_text[:max_length]
+
+
+def _format_navigation_address(record: dict[str, Any] | None) -> str | None:
+    """Return one bounded, single-line address from a trusted Autotask record."""
+
+    if not record:
+        return None
+    address_line_1 = " ".join(str(record.get("address1") or "").split())
+    address_line_2 = " ".join(str(record.get("address2") or "").split())
+    city = " ".join(str(record.get("city") or "").split())
+    state = " ".join(str(record.get("state") or "").split())
+    postal_code = " ".join(str(record.get("postalCode") or "").split())
+    region_and_postal_code = " ".join(part for part in (state, postal_code) if part)
+    address_parts = [address_line_1, address_line_2, city, region_and_postal_code]
+    address = ", ".join(address_part for address_part in address_parts if address_part)
+    return address[:MAX_NAVIGATION_ADDRESS_LENGTH] or None
 
 
 def _safe_optional_ticket_note_text(raw_text: Any, max_length: int) -> str | None:
@@ -1241,9 +1284,12 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 description=f"Mock ticket description for {safe_client_name}.",
                 status_label="In Progress",
                 company_name=safe_client_name,
+                created_at_utc=datetime(2026, 6, 16, 12, 0, tzinfo=UTC),
+                due_at_utc=datetime(2026, 6, 18, 21, 0, tzinfo=UTC),
                 detected_work_location=WorkLocation.REMOTE,
                 work_location_label=WORK_LOCATION_DISPLAY_LABELS[WorkLocation.REMOTE],
                 status_id=1,
+                navigation_address="100 Mock Avenue, Detroit, MI 48201",
             ),
             AutotaskTicketOption(
                 ticket_number="T20260616.0002",
@@ -1251,11 +1297,28 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 description=f"Mock follow-up description for {safe_client_name}.",
                 status_label="Follow Up",
                 company_name=safe_client_name,
+                created_at_utc=datetime(2026, 6, 17, 12, 0, tzinfo=UTC),
+                due_at_utc=datetime(2026, 6, 20, 21, 0, tzinfo=UTC),
                 detected_work_location=WorkLocation.ON_SITE,
                 work_location_label=WORK_LOCATION_DISPLAY_LABELS[WorkLocation.ON_SITE],
                 status_id=4,
+                navigation_address="200 Mock Boulevard, Detroit, MI 48202",
             ),
         ]
+
+    def get_ticket_navigation_address(
+        self,
+        ticket_number: str,
+        autotask_company_id: int,
+        *,
+        resource_id: int | None = None,
+    ) -> str | None:
+        """Return a deterministic private destination for local testing."""
+
+        safe_ticket_number = ticket_number.strip().upper()
+        if not safe_ticket_number or autotask_company_id <= 0:
+            raise AutotaskSubmissionError("A verified ticket and client are required for navigation.")
+        return "200 Mock Boulevard, Detroit, MI 48202"
 
     def list_ticket_notes(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketNote]:
         """Return deterministic ticket notes for local overlay testing."""
@@ -1394,6 +1457,8 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         resource_id: int,
         current_time_utc: datetime | None = None,
         local_service_date: date | None = None,
+        *,
+        include_navigation: bool = False,
     ) -> list[AutotaskServiceCallOption]:
         """Return deterministic service-call options for local mobile testing."""
 
@@ -1424,6 +1489,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 autotask_company_id=1001,
                 start_datetime_utc=first_start_utc,
                 end_datetime_utc=first_end_utc,
+                navigation_address="300 Mock On-Site Road, Detroit, MI 48203",
             ),
             AutotaskServiceCallOption(
                 service_call_id=6002,
@@ -1440,6 +1506,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 autotask_company_id=1001,
                 start_datetime_utc=second_start_utc,
                 end_datetime_utc=second_end_utc,
+                navigation_address="400 Mock Remote Road, Detroit, MI 48204",
             ),
         ]
 
@@ -1539,7 +1606,8 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         resource_id: int,
         local_day_start_utc: datetime,
         local_day_end_utc: datetime,
-    ) -> tuple[str, int, str, str]:
+        include_navigation: bool,
+    ) -> tuple[str, int, str, str, bool]:
         """Return the cache key for a selected-day service-call start list."""
 
         return (
@@ -1547,6 +1615,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             resource_id,
             format_autotask_datetime(local_day_start_utc),
             format_autotask_datetime(local_day_end_utc),
+            include_navigation,
         )
 
     def _raise_for_safe_response(self, response: httpx.Response, action_description: str) -> None:
@@ -1687,7 +1756,14 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Return service calls whose scheduled start falls within the local day."""
 
         query_payload = {
-            "IncludeFields": ["id", "description", "startDateTime", "endDateTime", "companyID"],
+            "IncludeFields": [
+                "id",
+                "description",
+                "startDateTime",
+                "endDateTime",
+                "companyID",
+                "companylocationID",
+            ],
             "filter": [
                 {
                     "op": "gte",
@@ -1781,7 +1857,16 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         ticket_records_by_id: dict[int, dict[str, Any]] = {}
         for ticket_id_chunk in _chunked_autotask_ids(ticket_ids):
             query_payload = {
-                "IncludeFields": ["id", "ticketNumber", "title", "description", "companyID", "status", "source"],
+                "IncludeFields": [
+                    "id",
+                    "ticketNumber",
+                    "title",
+                    "description",
+                    "companyID",
+                    "companylocationID",
+                    "status",
+                    "source",
+                ],
                 "filter": [
                     {
                         "op": "in",
@@ -1822,7 +1907,16 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         for company_id_chunk in _chunked_autotask_ids(missing_company_ids):
             query_payload = {
-                "IncludeFields": ["id", "companyName", "isActive"],
+                "IncludeFields": [
+                    "id",
+                    "companyName",
+                    "isActive",
+                    "address1",
+                    "address2",
+                    "city",
+                    "state",
+                    "postalCode",
+                ],
                 "filter": [
                     {
                         "op": "in",
@@ -1851,6 +1945,81 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return company_records_by_id
 
+    def _query_company_locations_by_ids(
+        self,
+        client: httpx.Client,
+        location_ids: list[int],
+    ) -> dict[int, dict[str, Any]]:
+        """Return active company locations keyed by Autotask location ID."""
+
+        location_records_by_id: dict[int, dict[str, Any]] = {}
+        for location_id_chunk in _chunked_autotask_ids(location_ids):
+            query_payload = {
+                "IncludeFields": [
+                    "id",
+                    "companyID",
+                    "isActive",
+                    "address1",
+                    "address2",
+                    "city",
+                    "state",
+                    "postalCode",
+                ],
+                "filter": [{"op": "in", "field": "id", "value": location_id_chunk}],
+            }
+            location_records = self._query_paginated_items(
+                client,
+                endpoint_path="/CompanyLocations/query",
+                query_payload=query_payload,
+                action_description="Autotask company location lookup",
+            )
+            for location_record in location_records:
+                location_id = _coerce_positive_autotask_id(location_record.get("id"))
+                if location_id is None or not location_record.get("isActive", True):
+                    continue
+                location_records_by_id[location_id] = location_record
+        return location_records_by_id
+
+    def _query_primary_company_locations(
+        self,
+        client: httpx.Client,
+        company_ids: list[int],
+    ) -> dict[int, dict[str, Any]]:
+        """Return active primary locations keyed by their owning company ID."""
+
+        primary_locations_by_company_id: dict[int, dict[str, Any]] = {}
+        for company_id_chunk in _chunked_autotask_ids(company_ids):
+            query_payload = {
+                "IncludeFields": [
+                    "id",
+                    "companyID",
+                    "isActive",
+                    "isPrimary",
+                    "address1",
+                    "address2",
+                    "city",
+                    "state",
+                    "postalCode",
+                ],
+                "filter": [
+                    {"op": "in", "field": "companyID", "value": company_id_chunk},
+                    {"op": "eq", "field": "isPrimary", "value": True},
+                    {"op": "eq", "field": "isActive", "value": True},
+                ],
+            }
+            location_records = self._query_paginated_items(
+                client,
+                endpoint_path="/CompanyLocations/query",
+                query_payload=query_payload,
+                action_description="Autotask primary company location lookup",
+            )
+            for location_record in location_records:
+                company_id = _coerce_positive_autotask_id(location_record.get("companyID"))
+                if company_id is None or not location_record.get("isActive", True):
+                    continue
+                primary_locations_by_company_id.setdefault(company_id, location_record)
+        return primary_locations_by_company_id
+
     def _build_service_call_options(
         self,
         *,
@@ -1859,6 +2028,8 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         service_call_ticket_resource_records: list[dict[str, Any]],
         ticket_records_by_id: dict[int, dict[str, Any]],
         company_records_by_id: dict[int, dict[str, Any]],
+        location_records_by_id: dict[int, dict[str, Any]],
+        primary_locations_by_company_id: dict[int, dict[str, Any]],
         status_labels: dict[int, str],
         source_labels: dict[int, str],
     ) -> list[AutotaskServiceCallOption]:
@@ -1943,6 +2114,24 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     120,
                 )
                 ticket_description = _safe_service_call_text(ticket_record.get("description"), "", 8000) or None
+                service_call_location_id = _coerce_positive_autotask_id(
+                    service_call_record.get("companylocationID")
+                )
+                ticket_location_id = _coerce_positive_autotask_id(ticket_record.get("companylocationID"))
+                navigation_address = None
+                for location_id in (service_call_location_id, ticket_location_id):
+                    location_record = location_records_by_id.get(location_id or 0)
+                    if (
+                        location_record is not None
+                        and _coerce_positive_autotask_id(location_record.get("companyID")) == company_id
+                    ):
+                        navigation_address = _format_navigation_address(location_record)
+                    if navigation_address:
+                        break
+                if navigation_address is None:
+                    navigation_address = _format_navigation_address(primary_locations_by_company_id.get(company_id))
+                if navigation_address is None:
+                    navigation_address = _format_navigation_address(company_record)
                 detected_work_location = detect_work_location_from_text_or_ticket_source(
                     service_call_details,
                     _ticket_source_label(ticket_record, source_labels),
@@ -1963,6 +2152,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                         autotask_company_id=company_id,
                         start_datetime_utc=start_datetime_utc,
                         end_datetime_utc=end_datetime_utc,
+                        navigation_address=navigation_address,
                     )
                 )
                 if len(service_call_options) >= MAX_SERVICE_CALL_LOOKUP_RESULTS:
@@ -2005,6 +2195,16 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             endpoint_path="/Companies/query",
             query_payload=query_payload,
             action_description="Autotask company connectivity query",
+        )
+
+    def _query_company_locations_for_connectivity(self, client: httpx.Client) -> None:
+        """Confirm navigation may read CompanyLocations without exposing data."""
+
+        self._query_single_page_for_connectivity(
+            client,
+            endpoint_path="/CompanyLocations/query",
+            query_payload={"filter": [{"op": "exist", "field": "id"}]},
+            action_description="Autotask company location connectivity query",
         )
 
     def _query_single_page_for_connectivity(
@@ -2114,6 +2314,9 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             with self._client(timeout_seconds=10.0) as client:
                 self._query_companies_for_connectivity(client)
                 checked_operations.append("companies")
+                failed_operation = "company locations"
+                self._query_company_locations_for_connectivity(client)
+                checked_operations.append("company locations")
                 failed_operation = "ticket status metadata"
                 self._query_ticket_status_labels(client)
                 checked_operations.append("ticket status metadata")
@@ -2133,7 +2336,10 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         return AutotaskConnectivityResult(
             provider=self.provider_name,
             available=True,
-            summary="Autotask API connection succeeded for company lookup, ticket status metadata, and ticket lookup.",
+            summary=(
+                "Autotask API connection succeeded for company lookup, company locations, "
+                "ticket status metadata, and ticket lookup."
+            ),
             tips=("Autotask is available for starting new jobs.",),
             checked_operations=tuple(checked_operations),
         )
@@ -2436,7 +2642,18 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             )
 
         query_payload = {
-            "IncludeFields": ["id", "ticketNumber", "title", "description", "status", "completedDate", "source"],
+            "IncludeFields": [
+                "id",
+                "ticketNumber",
+                "title",
+                "description",
+                "status",
+                "completedDate",
+                "createDate",
+                "dueDateTime",
+                "source",
+                "companylocationID",
+            ],
             "filter": ticket_filters,
         }
         return self._query_paginated_items(
@@ -2505,6 +2722,8 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     description=ticket_description,
                     status_label=status_labels.get(status_id, str(raw_status_id or "Unknown")),
                     company_name=company_name,
+                    created_at_utc=_parse_autotask_datetime(ticket.get("createDate")),
+                    due_at_utc=_parse_autotask_datetime(ticket.get("dueDateTime")),
                     detected_work_location=detected_work_location,
                     work_location_label=work_location_label_for_detection(detected_work_location),
                     status_id=status_id if status_id >= 0 else None,
@@ -2850,6 +3069,60 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return selected_ticket_options
 
+    def get_ticket_navigation_address(
+        self,
+        ticket_number: str,
+        autotask_company_id: int,
+        *,
+        resource_id: int | None = None,
+    ) -> str | None:
+        """Resolve ticket-location then company-main address without persisting it."""
+
+        safe_ticket_number = ticket_number.strip().upper()
+        if not safe_ticket_number or autotask_company_id <= 0:
+            raise AutotaskSubmissionError("A verified ticket and client are required for navigation.")
+
+        with self._client() as client:
+            query_payload = {
+                "IncludeFields": ["id", "ticketNumber", "companyID", "companylocationID"],
+                "filter": [{"op": "eq", "field": "ticketNumber", "value": safe_ticket_number}],
+            }
+            tickets = self._query_paginated_items(
+                client,
+                endpoint_path="/Tickets/query",
+                query_payload=query_payload,
+                action_description="Autotask ticket navigation lookup",
+                max_records=1,
+                follow_pagination=False,
+            )
+            if not tickets:
+                raise AutotaskSubmissionError("The selected Autotask ticket is no longer available.")
+
+            ticket = tickets[0]
+            if _coerce_positive_autotask_id(ticket.get("companyID")) != autotask_company_id:
+                raise AutotaskSubmissionError("The selected ticket no longer belongs to the saved client.")
+
+            ticket_location_id = _coerce_positive_autotask_id(ticket.get("companylocationID"))
+            location_records = self._query_company_locations_by_ids(
+                client,
+                [ticket_location_id] if ticket_location_id is not None else [],
+            )
+            location_record = location_records.get(ticket_location_id or 0)
+            if (
+                location_record is not None
+                and _coerce_positive_autotask_id(location_record.get("companyID")) == autotask_company_id
+            ):
+                navigation_address = _format_navigation_address(location_record)
+                if navigation_address:
+                    return navigation_address
+
+            primary_location = self._query_primary_company_locations(client, [autotask_company_id]).get(
+                autotask_company_id
+            )
+            return _format_navigation_address(primary_location) or _format_navigation_address(
+                self._query_company_by_id(client, autotask_company_id)
+            )
+
     def list_ticket_notes(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketNote]:
         """Return safe read-only TicketNotes rows for one selected ticket number."""
 
@@ -2977,6 +3250,8 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         resource_id: int,
         current_time_utc: datetime | None = None,
         local_service_date: date | None = None,
+        *,
+        include_navigation: bool = False,
     ) -> list[AutotaskServiceCallOption]:
         """Return service calls assigned to one managed user's resource for a local date."""
 
@@ -2986,7 +3261,12 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         safe_current_time_utc = ensure_utc(current_time_utc or now_utc())
         selected_local_date = local_service_date or local_date_for(safe_current_time_utc)
         local_day_start_utc, local_day_end_utc = local_day_bounds_utc(selected_local_date)
-        cache_key = self._service_call_selection_cache_key(resource_id, local_day_start_utc, local_day_end_utc)
+        cache_key = self._service_call_selection_cache_key(
+            resource_id,
+            local_day_start_utc,
+            local_day_end_utc,
+            include_navigation,
+        )
         cached_service_call_options = _get_cached_value(_SERVICE_CALL_SELECTION_CACHE, cache_key)
         if isinstance(cached_service_call_options, list):
             return cached_service_call_options[:MAX_SERVICE_CALL_LOOKUP_RESULTS]
@@ -3066,6 +3346,24 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 client,
                 company_ids,
             )
+            location_ids = [
+                location_id
+                for source_record in [*service_call_records, *ticket_records_by_id.values()]
+                if (location_id := _coerce_positive_autotask_id(source_record.get("companylocationID")))
+                is not None
+            ]
+            location_records_by_id: dict[int, dict[str, Any]] = {}
+            primary_locations_by_company_id: dict[int, dict[str, Any]] = {}
+            if include_navigation:
+                try:
+                    location_records_by_id = self._query_company_locations_by_ids(client, location_ids)
+                    primary_locations_by_company_id = self._query_primary_company_locations(client, company_ids)
+                except AutotaskSubmissionError:
+                    # Navigation is a convenience after job creation. Missing
+                    # location permission or a transient location failure must
+                    # not block the verified service-call start workflow.
+                    location_records_by_id = {}
+                    primary_locations_by_company_id = {}
             status_labels = self._query_ticket_status_labels(client)
             source_labels = self._query_ticket_source_labels_without_blocking_lookup(client)
             service_call_options = self._build_service_call_options(
@@ -3074,6 +3372,8 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 service_call_ticket_resource_records=service_call_ticket_resource_records,
                 ticket_records_by_id=ticket_records_by_id,
                 company_records_by_id=company_records_by_id,
+                location_records_by_id=location_records_by_id,
+                primary_locations_by_company_id=primary_locations_by_company_id,
                 status_labels=status_labels,
                 source_labels=source_labels,
             )[:MAX_SERVICE_CALL_LOOKUP_RESULTS]

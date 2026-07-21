@@ -10,7 +10,7 @@ from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, ForeignKey, Index, I
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from job_logger.database import Base
-from job_logger.enums import EntryType, JobStatus, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
+from job_logger.enums import EntryType, JobStatus, NavigationApp, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
 
 
 def utc_now() -> datetime:
@@ -25,7 +25,14 @@ def uuid_string() -> str:
     return str(uuid.uuid4())
 
 
-def enum_column(enum_type: type[Any], length: int, comment: str) -> Mapped[Any]:
+def enum_column(
+    enum_type: type[Any],
+    length: int,
+    comment: str,
+    *,
+    default: Any | None = None,
+    server_default: str | None = None,
+) -> Mapped[Any]:
     """Create a non-native enum column with readable string values."""
 
     return mapped_column(
@@ -37,6 +44,8 @@ def enum_column(enum_type: type[Any], length: int, comment: str) -> Mapped[Any]:
         ),
         nullable=False,
         comment=comment,
+        default=default,
+        server_default=server_default,
     )
 
 
@@ -203,6 +212,33 @@ class UserPreference(Base):
         default=False,
         server_default="false",
         comment="Whether ending work submits directly to Autotask instead of stopping in review.",
+    )
+
+    # Navigation is opt-in. Addresses are user-controlled private configuration
+    # and must never be copied into audit events or application logs.
+    navigation_app: Mapped[NavigationApp] = enum_column(
+        NavigationApp,
+        32,
+        "Preferred navigation application.",
+        default=NavigationApp.NONE,
+        server_default=NavigationApp.NONE.value,
+    )
+    home_address: Mapped[str | None] = mapped_column(
+        String(300),
+        nullable=True,
+        comment="Private user home navigation destination.",
+    )
+    office_address: Mapped[str | None] = mapped_column(
+        String(300),
+        nullable=True,
+        comment="Optional private user override for the global office destination.",
+    )
+    allow_navigation_on_full_web: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Whether navigation controls and automatic launches are allowed on full web browsers.",
     )
 
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

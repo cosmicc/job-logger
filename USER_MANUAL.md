@@ -118,10 +118,19 @@ hours. Ticket notes do not add to these totals because they do not record start
 and end times.
 
 Select **Start Work** to create a Work in Progress card. Job Logger supports up
-to two active work records at the same time.
+to two active work records at the same time. When two are active, the most
+recently started record appears above the earlier record.
 
 Each Work in Progress card belongs to your user account. Other users do not use
 your active cards.
+
+When navigation is enabled in Config, Work shows quick **Home** and **Office**
+buttons. Office appears only when you or your administrator configured an
+office destination. Starting a service call detected as On-Site opens your
+chosen navigation app after Job Logger confirms the work entry started. Remote
+service calls start without opening navigation. These navigation actions are
+available on phones and tablets by default. On a full web browser, they appear
+only when **Allow navigation on full web version** is enabled in Config.
 
 ## Work In Progress Fields
 
@@ -168,8 +177,10 @@ selected, the client becomes read-only for that work record.
 **Ticket number** and **Ticket name**
 
 After selecting a verified client, load that client's open tickets and select
-the correct ticket. Job Logger saves the selected ticket number, title, and
-description. The ticket identity becomes read-only after selection.
+the correct ticket. Each choice includes the ticket's **Start** date and
+**Due by** date when Autotask provides them. Job Logger saves the selected
+ticket number, title, and description. The ticket identity becomes read-only
+after selection.
 
 **Ticket notes** and **Past time entries**
 
@@ -177,6 +188,14 @@ When available, these buttons open read-only Autotask context for the selected
 ticket. **Ticket notes** shows ticket-note history. **Past time entries** shows
 prior time entries for the ticket. Some Autotask-generated system notes are
 filtered out so this list focuses on useful ticket history.
+
+When Autotask provides an address and navigation is enabled, **Navigate to Destination** opens
+directions to the selected ticket's client. The button is available in Work in
+Progress and Review, including after submission. It is available only for time
+entries. Home, Office, and Navigate to Destination use a subtle blue shade so
+they stand out from surrounding controls. On phones, Navigate to Destination
+uses its own row immediately above the Entry type pill card and disappears when
+Ticket note is selected.
 
 **Summary notes**
 
@@ -337,9 +356,20 @@ not save automatically because they require explicit confirmation.
 When Job Logger says you are using a temporary password, Config shows only the
 password-change step until the new password is saved.
 
-### Device Sign-In
+### Navigation
 
-Set up or delete device sign-in credentials for your account.
+Choose **None**, **Device Default**, **Google Maps**, **Waze**, or **Apple
+Maps**. Home address is required when navigation is enabled. Office address is
+optional; leave it blank to use your organization's office address when one is
+configured. These personal addresses save with your user settings.
+
+**Allow navigation on full web version** is off by default. Leave it off to
+hide navigation buttons and prevent automatic service-call directions in a
+desktop browser. Turn it on to allow those actions on full web browsers as well
+as mobile devices. The option is disabled while Navigation is set to None.
+
+Device Default asks Android to use its registered map handler, uses Apple Maps
+on iPhone or iPad, and opens browser directions on an opted-in desktop.
 
 ### Workflow
 
@@ -353,6 +383,11 @@ in Progress card.
 Use the default off setting when you want to review and edit every completed
 record before Autotask submission. Turn it on when you trust the Work in
 Progress fields and want fewer steps.
+
+### Device Sign-In
+
+The final Config card lets you set up or delete device sign-in credentials for
+your account.
 
 ## Help And Changelog
 

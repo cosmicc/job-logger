@@ -34,6 +34,15 @@ The work-entry home page is `/home`, implemented by
 The same route is also the full-browser Home and Work in Progress surface.
 The selected mobile or desktop presentation must come from client/browser and
 media behavior, not from separate route names.
+When JavaScript behavior must distinguish mobile devices from the full web
+version, `window.JobLoggerNavigation.isMobileDevice()` in
+`job_logger/static/navigation.js` is the single application detector. Reuse it
+instead of creating feature-local viewport, user-agent, touch, or pointer
+checks. Extend that shared helper and `tests/test_navigation_javascript.py`
+when device coverage changes. Use `isNavigationAllowed()` when the separate
+full-web navigation opt-in is also part of the decision. These helpers are for
+presentation and convenience behavior only, never authentication or
+authorization.
 Use `job_logger/static/desktop.css` for wider browser-only layout improvements
 and leave `job_logger/static/phone.css` unchanged unless the request explicitly
 targets the phone or installed mobile app.
@@ -82,9 +91,9 @@ Destructive red controls must stay red on hover, using a brighter red instead
 of falling back to a neutral dark hover.
 When `DEV_BUILD=true`, the shared authenticated desktop and mobile headers show
 the Help button in yellow, while the full-browser header version label under
-the Job Logger title appends `-DEV`, such as `v1.3.1-DEV`. Keep a small but
+the Job Logger title appends `-DEV`, such as `v1.4.0-DEV`. Keep a small but
 visible gap between the title and header version label. The `/help` page shows
-the current version with `DEV`, such as `v1.3.1 DEV`. Keep the Help icon
+the current version with `DEV`, such as `v1.4.0 DEV`. Keep the Help icon
 compact so it does not crowd the mobile navigation icons.
 When cached app health is degraded, every authenticated user sees an exclamation
 status button in the top bar that links to `/help#operational-status`. Use
@@ -287,13 +296,26 @@ Service-call options are provided by
 which derives Remote/On-Site from the service-call details text. The resource ID
 must come from the enabled managed web user, not config or browser input. Each
 rendered card should stay compact and show the client name, Remote/On-Site
-label, local start/end time range, and associated ticket title, with different
+label, scheduled local date, local start/end time range, and associated ticket
+title, with different
 Remote and On-Site coloring for quick scanning. Use the specific
 `.service-call-option-button.service-call-location-*` styling hooks so these
 cards do not regress to the generic grey button treatment. Clicking a service
 call starts an active job with the associated ticket number, ticket title,
 bounded ticket description, client name, company ID, and detected work-location
 mode.
+
+If the managed user enabled navigation and the verified service call is
+detected as On-Site, the JSON start path may return its transient Autotask
+destination only after the local job and audit event commit successfully. The
+browser then opens the configured provider on a detected mobile device. Mobile
+device classification must not use viewport width and must include phones,
+tablets, iPads, and iPods, including iPadOS browsers that report a desktop Mac
+platform. A full web browser may open automatic service-call directions only
+when the user's default-off **Allow navigation on full web version** preference
+is enabled. Remote or unknown service-call locations must not auto-launch
+navigation. A missing destination must not undo or hide a successfully started
+job.
 
 The `/home/service-calls` endpoint is only for drawing already-verified
 candidate cards in the browser. Before returning or accepting service-call
@@ -311,6 +333,21 @@ status. Mobile forms that navigate or redirect, including start, service-call
 start, end, rounded-start adjustment, and active delete, should show the shared
 loading overlay once a submit is accepted so slow Autotask lookups do not look
 like ignored taps.
+
+Selected-ticket Work in Progress and Review context may expose a **Navigate to
+Destination** button for the owning managed user when navigation is enabled and a server-side
+Autotask lookup returns an address. Submitted jobs keep this read-only
+convenience action. Home and effective Office buttons belong in the compact
+Work summary area and remain hidden when navigation is None. Navigation buttons
+must also stay hidden on full web browsers unless **Allow navigation on full
+web version** is enabled. Do not request transient ticket destinations from a
+full web browser while that preference is off. Device classification is a
+presentation convenience only and must never authorize a workflow action.
+Home, Office, and Navigate to Destination controls use the shared subtle blue
+navigation-button treatment. On phone layouts, place **Navigate to Destination**
+on its own full-width row immediately
+above the **Entry type** pill card. Show that row only for time entries and
+hide it in ticket-note mode, even when a destination is available.
 
 Selected ticket descriptions on mobile are read-only Autotask context. Long
 descriptions should stay escaped, bounded to an internal scroll area, and
@@ -338,7 +375,8 @@ In the active mobile card, the destructive mobile discard action is labeled
 **End Work**, **End Note**, or the direct-submit variant to keep the Work in
 Progress actions compact.
 When two active jobs are present, their Work in Progress panels should use
-distinct slot shading. In full-browser layout, keep End Work/Delete directly
+distinct slot shading and render the most recently started job first. In
+full-browser layout, keep End Work/Delete directly
 under the Record/AI Cleanup row and place recording or AI cleanup status below
 all action buttons.
 Status chips shown in review, user management, and diagnostics should use the

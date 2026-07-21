@@ -149,6 +149,10 @@
   order: -70;
 }
 
+.metric-grid > .mobile-entry-navigation-row {
+  order: -80;
+}
+
 .metric-grid > .work-location-card {
   order: -60;
 }
@@ -175,6 +179,10 @@
 
 .form-grid > .review-entry-type-card {
   order: 10;
+}
+
+.form-grid > .mobile-entry-navigation-row {
+  order: 0;
 }
 
 .form-grid > .review-work-location-card {
@@ -516,20 +524,34 @@
 }
 
 .ticket-context-actions-mobile {
-  display: flex;
-  flex-wrap: nowrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-top: 8px;
   width: 100%;
 }
 
-.ticket-context-actions-mobile .ticket-notes-button {
-  flex: 1 1 0;
+.ticket-context-actions-mobile .ticket-notes-button,
+.mobile-entry-navigation-row .ticket-navigation-button {
   justify-content: center;
   min-width: 0;
   padding-left: 8px;
   padding-right: 8px;
+}
+
+.mobile-entry-navigation-row {
+  display: flex;
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.mobile-entry-navigation-row.is-destination-hidden,
+.mobile-entry-navigation-row.is-entry-mode-hidden {
+  display: none;
+}
+
+.mobile-entry-navigation-row .ticket-navigation-button {
+  width: 100%;
 }
 
 .ticket-notes-overlay {

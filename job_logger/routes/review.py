@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from job_logger.config import settings
 from job_logger.database import get_database_session
-from job_logger.enums import EntryType, JobStatus, TicketStatus
+from job_logger.enums import EntryType, JobStatus, NavigationApp, TicketStatus
 from job_logger.models import AuditEvent
 from job_logger.security import (
     add_flash_message,
@@ -63,10 +63,15 @@ from job_logger.services.jobs import (
     validate_review_fields,
     verify_autotask_client_selection,
 )
+from job_logger.services.preferences import (
+    get_navigation_preferences_for_principal,
+    preference_principal_from_session,
+)
 from job_logger.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
 from job_logger.time_utils import (
     format_duration_minutes,
     format_local_date,
+    format_local_date_display,
     format_local_display,
     format_local_time,
     format_rounded_duration_label,
@@ -266,6 +271,8 @@ def review_ticket_options(
                     "status_label": ticket_option.status_label,
                     "status_id": ticket_option.status_id,
                     "company_name": ticket_option.company_name,
+                    "start_date": format_local_date_display(ticket_option.created_at_utc),
+                    "due_by_date": format_local_date_display(ticket_option.due_at_utc),
                     "work_location_label": ticket_option.work_location_label,
                     "work_location_class": _ticket_option_location_class(ticket_option),
                 }
@@ -626,6 +633,11 @@ def _render_review(
     except JobWorkflowError:
         return RedirectResponse(url="/review", status_code=303)
     show_delete_failure_purge_prompt = _submitted_delete_failure_purge_available(request, selected_job)
+    preference_principal = preference_principal_from_session(request.session)
+    navigation_preferences = get_navigation_preferences_for_principal(
+        database_session,
+        preference_principal.key if preference_principal else None,
+    )
 
     return templates.TemplateResponse(
         request,
@@ -651,8 +663,52 @@ def _render_review(
             audit_events=audit_events,
             ticket_status_options=_ticket_status_options(),
             show_delete_failure_purge_prompt=show_delete_failure_purge_prompt,
+            navigation_app=navigation_preferences.navigation_app.value,
+            allow_navigation_on_full_web=navigation_preferences.allow_navigation_on_full_web,
         ),
     )
+
+
+@router.get("/{job_id}/navigation")
+def review_navigation_destination(
+    job_id: str,
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Return a transient Autotask navigation destination to the owning user."""
+
+    try:
+        web_user = _current_enabled_web_user(request, database_session)
+        job = get_job_or_raise(database_session, job_id)
+        ensure_job_owned_by_web_user(job, web_user.id)
+        preference_principal = preference_principal_from_session(request.session)
+        navigation_preferences = get_navigation_preferences_for_principal(
+            database_session,
+            preference_principal.key if preference_principal else None,
+        )
+        if navigation_preferences.navigation_app == NavigationApp.NONE:
+            return JSONResponse({"available": False, "navigation_app": NavigationApp.NONE.value})
+        if not job.ticket_number or job.autotask_company_id is None:
+            return JSONResponse(
+                {"available": False, "navigation_app": navigation_preferences.navigation_app.value}
+            )
+
+        navigation_address = get_autotask_provider().get_ticket_navigation_address(
+            job.ticket_number,
+            job.autotask_company_id,
+            resource_id=web_user.autotask_resource_id,
+        )
+        return JSONResponse(
+            {
+                "available": bool(navigation_address),
+                "navigation_app": navigation_preferences.navigation_app.value,
+                "navigation_address": navigation_address,
+            }
+        )
+    except HTTPException as exc:
+        return JSONResponse({"detail": str(exc.detail), "available": False}, status_code=exc.status_code)
+    except (AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
+        return JSONResponse({"detail": str(getattr(exc, "detail", exc)), "available": False}, status_code=400)
 
 
 @router.post("/{job_id}/save")
@@ -1177,15 +1233,32 @@ async def select_review_ticket(
         database_session.rollback()
         return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
 
-    return JSONResponse(
-        {
+    preference_principal = preference_principal_from_session(request.session)
+    navigation_preferences = get_navigation_preferences_for_principal(
+        database_session,
+        preference_principal.key if preference_principal else None,
+    )
+    response_payload = {
             "ticket_number": job.ticket_number,
             "ticket_title": job.ticket_title,
             "ticket_description": job.ticket_description,
             "ticket_status": job.ticket_status.value if job.ticket_status else None,
             "ticket_status_label": selected_ticket_option.status_label,
-        }
-    )
+    }
+    if navigation_preferences.navigation_app != NavigationApp.NONE:
+        try:
+            navigation_address = get_autotask_provider().get_ticket_navigation_address(
+                job.ticket_number,
+                job.autotask_company_id,
+                resource_id=web_user.autotask_resource_id,
+            )
+        except AutotaskSubmissionError:
+            navigation_address = None
+        response_payload.update(
+            navigation_app=navigation_preferences.navigation_app.value,
+            navigation_address=navigation_address,
+        )
+    return JSONResponse(response_payload)
 
 
 @router.post("/{job_id}/purge")

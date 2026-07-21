@@ -235,8 +235,8 @@ requirements so users can fix validation failures before submitting. It must
 clear the temporary-password flag after a successful change. Never log, audit,
 or flash the raw submitted password.
 The `/config` page should keep its cards ordered as **Appearance**,
-**Password**, **Device sign-in**, then **Workflow** so routine password and
-passkey controls appear before the optional direct-submit workflow preference.
+**Password**, **Navigation**, **Workflow**, then **Device sign-in** so passkey
+setup remains the final card on the page.
 
 Disabling a managed web user from `/users` must invalidate that user's existing
 signed sessions and preserve the row. Keeping a disabled row lets the login
@@ -570,6 +570,15 @@ detail, clamp long note-card titles to two visible lines, and show time-entry
 resource/range metadata in list cards while keeping summary notes in the
 selected detail pane. Do not expose raw Autotask responses, credentials, or
 direct provider URLs to browser JavaScript.
+
+Navigation destinations are sensitive location data. Store only bounded
+single-line home and optional office values in the owning user's preference
+row. Never include raw home, office, ticket, service-call, company-location, or
+company-main addresses in audit details or application logs. Ticket and
+service-call destinations must be resolved through authenticated, owner-checked
+server routes and returned only as the one bounded address required for the
+current launch. Do not store customer addresses on Job rows or expose raw
+Autotask location records.
 
 Autotask service-call starts must also be server verified. The mobile browser
 may submit only the service-call ticket association ID and CSRF token; the

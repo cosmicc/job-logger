@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 
+from job_logger.config import settings
 from job_logger.database import get_database_session
-from job_logger.enums import ThemeMode
+from job_logger.enums import NavigationApp, ThemeMode
 from job_logger.models import WebUser
 from job_logger.security import (
     SESSION_PASSWORD_CHANGE_REQUIRED_KEY,
@@ -27,9 +28,11 @@ from job_logger.services.passkeys import list_passkey_credentials_for_user
 from job_logger.services.preferences import (
     THEME_META_COLORS,
     UserPreferenceError,
+    get_navigation_preferences_for_principal,
     get_submit_from_work_in_progress_for_principal,
     get_theme_for_principal,
     preference_principal_from_session,
+    save_navigation_preferences_for_principal,
     save_preferences_for_principal,
 )
 from job_logger.services.users import WebUserError, change_web_user_password, get_enabled_web_user_by_id_or_raise
@@ -80,6 +83,7 @@ def config_page(request: Request, database_session: Session = Depends(get_databa
 
     current_theme = get_theme_for_principal(database_session, principal.key)
     submit_from_work_in_progress = get_submit_from_work_in_progress_for_principal(database_session, principal.key)
+    navigation_preferences = get_navigation_preferences_for_principal(database_session, principal.key)
     current_web_user = _current_config_web_user(request, database_session)
     password_change_required = bool(
         request.session.get(SESSION_PASSWORD_CHANGE_REQUIRED_KEY)
@@ -100,6 +104,18 @@ def config_page(request: Request, database_session: Session = Depends(get_databa
                 (ThemeMode.LIGHT.value, "Light"),
             ],
             submit_from_work_in_progress=submit_from_work_in_progress,
+            selected_navigation_app=navigation_preferences.navigation_app.value,
+            navigation_app_options=[
+                (NavigationApp.NONE.value, "None"),
+                (NavigationApp.DEVICE_DEFAULT.value, "Device Default"),
+                (NavigationApp.GOOGLE_MAPS.value, "Google Maps"),
+                (NavigationApp.WAZE.value, "Waze"),
+                (NavigationApp.APPLE_MAPS.value, "Apple Maps"),
+            ],
+            navigation_home_address=navigation_preferences.home_address or "",
+            navigation_office_address=navigation_preferences.office_address_override or "",
+            allow_navigation_on_full_web=navigation_preferences.allow_navigation_on_full_web,
+            global_navigation_office_configured=bool(settings.navigation_office_address),
             passkey_credentials=list_passkey_credentials_for_user(database_session, current_web_user.id),
             password_change_required=password_change_required,
             public_device_session=public_device_session_enabled(request.session),
@@ -126,12 +142,22 @@ async def save_config(
             if "submit_from_work_in_progress" in form_data
             else None
         )
+        navigation_fields_submitted = "navigation_app" in form_data
         user_preference = save_preferences_for_principal(
             database_session,
             principal_key=principal.key,
             theme=submitted_theme,
             submit_from_work_in_progress=submitted_submit_from_work_in_progress,
         )
+        if navigation_fields_submitted:
+            user_preference = save_navigation_preferences_for_principal(
+                database_session,
+                principal_key=principal.key,
+                navigation_app=str(form_data.get("navigation_app", "")),
+                home_address=str(form_data.get("home_address", "")),
+                office_address=str(form_data.get("office_address", "")),
+                allow_navigation_on_full_web=str(form_data.get("allow_navigation_on_full_web", "")),
+            )
         record_audit_event(
             database_session,
             actor=actor,
@@ -141,6 +167,10 @@ async def save_config(
                 "principal_key": principal.key,
                 "theme": user_preference.theme.value,
                 "submit_from_work_in_progress": user_preference.submit_from_work_in_progress,
+                "navigation_app": user_preference.navigation_app.value,
+                "home_address_configured": bool(user_preference.home_address),
+                "office_address_override_configured": bool(user_preference.office_address),
+                "allow_navigation_on_full_web": user_preference.allow_navigation_on_full_web,
             },
         )
         database_session.commit()
@@ -150,6 +180,10 @@ async def save_config(
                     "theme": user_preference.theme.value,
                     "theme_color": THEME_META_COLORS[user_preference.theme],
                     "submit_from_work_in_progress": user_preference.submit_from_work_in_progress,
+                    "navigation_app": user_preference.navigation_app.value,
+                    "home_address_configured": bool(user_preference.home_address),
+                    "office_address_override_configured": bool(user_preference.office_address),
+                    "allow_navigation_on_full_web": user_preference.allow_navigation_on_full_web,
                     "message": "Configuration updated.",
                 }
             )

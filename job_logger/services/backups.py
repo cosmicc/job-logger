@@ -87,6 +87,14 @@ _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
         # v1.1.0 added this preference as default-off. Older full backups should
         # restore into the safer review-first workflow instead of being rejected.
         "submit_from_work_in_progress": False,
+        # v1.4.0 added opt-in navigation. Legacy backups restore with it
+        # disabled and with no private home or office address saved.
+        "navigation_app": "none",
+        "home_address": None,
+        "office_address": None,
+        # Full-browser navigation is a separate, explicit opt-in. Legacy
+        # backups restore with navigation limited to mobile devices.
+        "allow_navigation_on_full_web": False,
     },
     "login_failure_counters": {
         # v1.1.5 scoped local lockout counters by username. Older backups had

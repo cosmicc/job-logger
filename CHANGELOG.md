@@ -2,6 +2,60 @@
 
 All notable changes to Job Logger are documented in this file.
 
+## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations
+
+### Added
+
+- Added per-user navigation choices for None, Device Default, Google Maps,
+  Waze, and Apple Maps, with a required home destination while navigation is
+  enabled and an optional private office override.
+- Added compact Home and Office navigation buttons on Work and a **Navigate to
+  Destination** button for selected tickets in Work in Progress and Review,
+  including submitted jobs.
+- Added `NAVIGATION_OFFICE_ADDRESS` as an optional Docker, Swarm, and
+  `.env.example` setting used when a managed user has no office override.
+- Added the scheduled date to service-call cards and **Start** plus **Due by**
+  dates to open-ticket cards using Autotask ticket creation and due timestamps.
+- Added the default-off per-user **Allow navigation on full web version**
+  setting and a database migration that safely limits existing users to
+  mobile-only navigation.
+
+### Changed
+
+- Advanced the source-controlled dev runtime version to `v1.4.0`, including
+  package metadata, the root `VERSION` file, and the PWA service worker version.
+- Changed On-Site service-call starts to commit the new local job first and
+  then open the configured navigation app. Remote service calls never launch
+  navigation automatically.
+- Added server-side Autotask address resolution in service-call location,
+  ticket location, primary company location, then company main-address order.
+  Customer destinations remain transient and are not stored on local jobs.
+- Changed concurrent Work in Progress ordering so the newest active job appears
+  above the previously started job.
+- Moved the Config **Device sign-in** card to the bottom of the page after
+  Workflow.
+- Moved the phone **Navigate to Destination** action in Work in Progress and
+  Review to its own full-width row immediately above Entry type, hid it for
+  ticket notes, and gave it plus Home and Office a subtle blue treatment.
+- Changed navigation availability to use browser device signals instead of
+  viewport width, including phones, Android tablets, iPads, iPadOS desktop-style
+  user agents, and iPods as mobile devices.
+- Established `window.JobLoggerNavigation.isMobileDevice()` as the shared
+  detector for future mobile-versus-full-web browser behavior so new features
+  do not create conflicting viewport or user-agent checks.
+
+### Fixed
+
+- Kept missing customer or office addresses from blocking job creation and hid
+  unavailable navigation actions instead of launching an empty destination.
+- Preserved older backups by restoring navigation disabled with no private
+  address values when the new preference columns are absent.
+- Fixed Work Duration updates so the label is recalculated from the exact
+  visible start and end times after every saved adjustment.
+- Prevented full web browsers from showing navigation controls, requesting
+  transient ticket destinations, or launching automatic On-Site service-call
+  directions unless the user explicitly enables full-web navigation.
+
 ## 1.3.1 - 07.13.2026 - Swarm deployment, storage health, navigation, and password-reset protection
 
 ### Added

@@ -146,6 +146,121 @@
         </section>
 
         {% if not password_change_required %}
+          <section class="edit-panel config-panel" aria-labelledby="navigation-heading">
+            <div class="panel-title-row">
+              <div>
+                <h2 id="navigation-heading">Navigation</h2>
+                <p class="muted-text">Choose how Job Logger opens directions and save your quick destinations.</p>
+              </div>
+            </div>
+            <form method="post" action="/config" class="stack-form config-form" data-navigation-config-form>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <label>
+                <span>Navigation app</span>
+                <select name="navigation_app" data-navigation-app-option>
+                  {% for option_value, option_label in navigation_app_options %}
+                    <option value="{{ option_value }}" {% if selected_navigation_app == option_value %}selected{% endif %}>{{ option_label }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <div class="navigation-address-grid">
+                <label>
+                  <span>Home address</span>
+                  <input
+                    name="home_address"
+                    type="text"
+                    maxlength="300"
+                    autocomplete="street-address"
+                    value="{{ navigation_home_address }}"
+                    data-navigation-home-address
+                    {% if selected_navigation_app != "none" %}required{% endif %}
+                  >
+                  <small class="muted-text">Required while navigation is enabled.</small>
+                </label>
+                <label>
+                  <span>Office address override</span>
+                  <input
+                    name="office_address"
+                    type="text"
+                    maxlength="300"
+                    autocomplete="street-address"
+                    value="{{ navigation_office_address }}"
+                    data-navigation-office-address
+                  >
+                  <small class="muted-text">
+                    Optional.{% if global_navigation_office_configured %} Leave blank to use the globally configured office.{% else %} No global office is configured.{% endif %}
+                  </small>
+                </label>
+              </div>
+              <label
+                class="toggle-setting-card{% if selected_navigation_app == 'none' %} is-disabled{% endif %}"
+                data-full-web-navigation-setting
+              >
+                <span class="toggle-setting-copy">
+                  <strong>Allow navigation on full web version</strong>
+                  <small>
+                    When this is off, navigation buttons and automatic service-call directions are available only on mobile devices.
+                  </small>
+                </span>
+                <span class="setting-toggle">
+                  <input
+                    type="checkbox"
+                    name="allow_navigation_on_full_web"
+                    value="true"
+                    data-full-web-navigation-option
+                    {% if allow_navigation_on_full_web %}checked{% endif %}
+                    {% if selected_navigation_app == "none" %}disabled{% endif %}
+                  >
+                  <span class="setting-toggle-track" aria-hidden="true">
+                    <span class="setting-toggle-knob"></span>
+                  </span>
+                  <span class="setting-toggle-state" data-full-web-navigation-state>
+                    {% if allow_navigation_on_full_web %}On{% else %}Off{% endif %}
+                  </span>
+                </span>
+              </label>
+              <p class="config-privacy-note muted-text">Saved addresses are private user settings and are not included in audit logs.</p>
+              <p class="config-save-status muted-text" data-config-status aria-live="polite">Changes save automatically.</p>
+            </form>
+          </section>
+
+          <section class="edit-panel config-panel" aria-labelledby="workflow-heading">
+            <div class="panel-title-row">
+              <div>
+                <h2 id="workflow-heading">Workflow</h2>
+                <p class="muted-text">Choose how completed work entries move to Autotask.</p>
+              </div>
+            </div>
+            <form method="post" action="/config" class="stack-form config-form" data-config-form>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <label class="toggle-setting-card">
+                <span class="toggle-setting-copy">
+                  <strong>Submit from Work in Progress</strong>
+                  <small>
+                    When this is on, the Work in Progress finish button submits the completed entry to Autotask immediately.
+                    When it is off, finishing work sends the entry to Review before Autotask submission.
+                  </small>
+                </span>
+                <span class="setting-toggle">
+                  <input
+                    type="checkbox"
+                    name="submit_from_work_in_progress"
+                    value="true"
+                    data-direct-submit-option
+                    {% if submit_from_work_in_progress %}checked{% endif %}
+                  >
+                  <span class="setting-toggle-track" aria-hidden="true">
+                    <span class="setting-toggle-knob"></span>
+                  </span>
+                  <span class="setting-toggle-state" data-direct-submit-state>
+                    {% if submit_from_work_in_progress %}On{% else %}Off{% endif %}
+                  </span>
+                </span>
+              </label>
+              <p class="config-save-status muted-text" data-config-status aria-live="polite">Changes save automatically.</p>
+            </form>
+          </section>
+
           <section id="passkeys" class="edit-panel config-panel passkey-config-panel" aria-labelledby="passkeys-heading" data-passkey-register-panel>
             <div class="panel-title-row">
               <div>
@@ -195,45 +310,6 @@
             {% else %}
               <p class="muted-text">No device sign-ins have been added for this account.</p>
             {% endif %}
-          </section>
-        {% endif %}
-
-        {% if not password_change_required %}
-          <section class="edit-panel config-panel" aria-labelledby="workflow-heading">
-            <div class="panel-title-row">
-              <div>
-                <h2 id="workflow-heading">Workflow</h2>
-                <p class="muted-text">Choose how completed work entries move to Autotask.</p>
-              </div>
-            </div>
-            <form method="post" action="/config" class="stack-form config-form" data-config-form>
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <label class="toggle-setting-card">
-                <span class="toggle-setting-copy">
-                  <strong>Submit from Work in Progress</strong>
-                  <small>
-                    When this is on, the Work in Progress finish button submits the completed entry to Autotask immediately.
-                    When it is off, finishing work sends the entry to Review before Autotask submission.
-                  </small>
-                </span>
-                <span class="setting-toggle">
-                  <input
-                    type="checkbox"
-                    name="submit_from_work_in_progress"
-                    value="true"
-                    data-direct-submit-option
-                    {% if submit_from_work_in_progress %}checked{% endif %}
-                  >
-                  <span class="setting-toggle-track" aria-hidden="true">
-                    <span class="setting-toggle-knob"></span>
-                  </span>
-                  <span class="setting-toggle-state" data-direct-submit-state>
-                    {% if submit_from_work_in_progress %}On{% else %}Off{% endif %}
-                  </span>
-                </span>
-              </label>
-              <p class="config-save-status muted-text" data-config-status aria-live="polite">Changes save automatically.</p>
-            </form>
           </section>
         {% endif %}
       </div>
