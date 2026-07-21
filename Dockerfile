@@ -14,7 +14,7 @@ RUN groupadd --gid 1000 appuser \
     && chown -R appuser:appuser /models /data
 
 COPY pyproject.toml README.md WEB_CHANGELOG.md /app/
-COPY job_logger /app/job_logger
+COPY ticket_pilot /app/ticket_pilot
 COPY migrations /app/migrations
 COPY alembic.ini /app/alembic.ini
 COPY docker/entrypoint.sh /app/docker/entrypoint.sh

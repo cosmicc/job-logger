@@ -7,7 +7,7 @@ services:
     # transcription is the memory-heavy path in this service.
     mem_limit: ${FASTER_WHISPER_MEMORY_LIMIT:-8g}
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-job_logger}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-job_logger}}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://${POSTGRES_USER:-ticket_pilot}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-ticket_pilot}}
       DATABASE_CONNECT_TIMEOUT_SECONDS: ${DATABASE_CONNECT_TIMEOUT_SECONDS:-5}
       DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
       DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-10}
@@ -44,8 +44,8 @@ services:
       PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD: ${PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD:-3}
       APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-}
       MAIL_ENABLED: ${MAIL_ENABLED:-false}
-      MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-joblogger@example.com}
-      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Job Logger}
+      MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-ticketpilot@example.com}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-TicketPilot}
       MAIL_MODE: ${MAIL_MODE:-smtp}
       MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-}
       MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:-587}
@@ -65,7 +65,7 @@ services:
       PUSHOVER_APP_KEY: ${PUSHOVER_APP_KEY:-}
       PUSHOVER_API_URL: ${PUSHOVER_API_URL:-https://api.pushover.net/1/messages.json}
       PUSHOVER_TIMEOUT_SECONDS: ${PUSHOVER_TIMEOUT_SECONDS:-10}
-      WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-Job Logger}
+      WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-TicketPilot}
       WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-}
       WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-}
       TRANSCRIPTION_PROVIDER: ${TRANSCRIPTION_PROVIDER:-mock}
@@ -190,8 +190,8 @@ services:
       - local-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-job_logger}
-      POSTGRES_USER: ${POSTGRES_USER:-job_logger}
+      POSTGRES_DB: ${POSTGRES_DB:-ticket_pilot}
+      POSTGRES_USER: ${POSTGRES_USER:-ticket_pilot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
     volumes:
       # Keep PostgreSQL data persistent across container rebuilds/recreates.

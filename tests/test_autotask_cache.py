@@ -12,11 +12,11 @@ from typing import Any
 import httpx
 import pytest
 
-from job_logger.config import settings
-from job_logger.enums import EntryType, JobStatus, TicketStatus, WorkLocation
-from job_logger.models import Job
-from job_logger.services import system_health
-from job_logger.services.autotask import (
+from ticket_pilot.config import settings
+from ticket_pilot.enums import EntryType, JobStatus, TicketStatus, WorkLocation
+from ticket_pilot.models import Job
+from ticket_pilot.services import system_health
+from ticket_pilot.services.autotask import (
     _COMPANY_ID_CACHE,
     _COMPANY_SEARCH_CACHE,
     _OPEN_TICKET_SELECTION_CACHE,
@@ -31,7 +31,7 @@ from job_logger.services.autotask import (
     filter_displayable_ticket_notes,
     split_autotask_summary_notes,
 )
-from job_logger.services.autotask import (
+from ticket_pilot.services.autotask import (
     test_autotask_connectivity as run_autotask_connectivity,
 )
 
@@ -1949,7 +1949,7 @@ def test_debug_connectivity_check_runs_fresh_provider_check(monkeypatch: pytest.
     fake_provider = FakeConnectivityProvider()
     provider_settings = _live_test_provider().application_settings
 
-    monkeypatch.setattr("job_logger.services.autotask.get_autotask_provider", lambda application_settings: fake_provider)
+    monkeypatch.setattr("ticket_pilot.services.autotask.get_autotask_provider", lambda application_settings: fake_provider)
 
     first_debug_result = run_autotask_connectivity(provider_settings)
     second_debug_result = run_autotask_connectivity(provider_settings)

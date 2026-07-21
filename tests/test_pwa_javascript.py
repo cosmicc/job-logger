@@ -14,7 +14,7 @@ def test_pwa_script_registers_worker_without_mobile_close_handler(tmp_path: Path
     """The PWA script should not intercept mobile logout buttons."""
 
     repository_root = Path(__file__).resolve().parents[1]
-    pwa_script_path = repository_root / "job_logger" / "static" / "pwa.js"
+    pwa_script_path = repository_root / "ticket_pilot" / "static" / "pwa.js"
     pwa_script = pwa_script_path.read_text(encoding="utf-8")
 
     assert "data-close-app-button" not in pwa_script
@@ -36,6 +36,33 @@ def test_pwa_script_registers_worker_without_mobile_close_handler(tmp_path: Path
             const pwaScript = fs.readFileSync({str(pwa_script_path)!r}, "utf8");
             const registrations = [];
             let loadHandler = null;
+            function brandingElement() {{
+              return {{
+                dataset: {{
+                  logoWhite: "/static/icons/ticketpilot-logo-white.svg",
+                  logoGrey: "/static/icons/ticketpilot-logo-grey.svg",
+                  logoBlack: "/static/icons/ticketpilot-logo-black.svg",
+                }},
+                attributes: {{}},
+                setAttribute(name, value) {{
+                  this.attributes[name] = value;
+                }},
+              }};
+            }}
+            const headerLogo = brandingElement();
+            const favicon = brandingElement();
+            const document = {{
+              documentElement: {{classList: ["theme-dark"]}},
+              querySelectorAll(selector) {{
+                if (selector === "[data-theme-logo]") {{
+                  return [headerLogo];
+                }}
+                if (selector === "[data-theme-favicon]") {{
+                  return [favicon];
+                }}
+                return [];
+              }},
+            }};
             const browserWindow = {{
               addEventListener(eventName, handler) {{
                 if (eventName === "load") {{
@@ -55,10 +82,23 @@ def test_pwa_script_registers_worker_without_mobile_close_handler(tmp_path: Path
                   }},
                 }},
               }},
+              document,
               window: browserWindow,
             }};
 
             vm.runInNewContext(pwaScript, browserContext, {{filename: "pwa.js"}});
+
+            assert.strictEqual(headerLogo.attributes.src, "/static/icons/ticketpilot-logo-white.svg");
+            assert.strictEqual(favicon.attributes.href, "/static/icons/ticketpilot-logo-white.svg");
+            assert.strictEqual(browserWindow.TicketPilotBranding.logoVariant("light-sage"), "black");
+            assert.strictEqual(browserWindow.TicketPilotBranding.logoVariant("dark-plum"), "white");
+            assert.strictEqual(browserWindow.TicketPilotBranding.logoVariant("unexpected"), "grey");
+            browserWindow.TicketPilotBranding.applyTheme("light-sky");
+            assert.strictEqual(headerLogo.attributes.src, "/static/icons/ticketpilot-logo-black.svg");
+            assert.strictEqual(favicon.attributes.href, "/static/icons/ticketpilot-logo-black.svg");
+            browserWindow.TicketPilotBranding.applyTheme("unexpected");
+            assert.strictEqual(headerLogo.attributes.src, "/static/icons/ticketpilot-logo-grey.svg");
+            assert.strictEqual(favicon.attributes.href, "/static/icons/ticketpilot-logo-grey.svg");
 
             assert.strictEqual(typeof loadHandler, "function");
             loadHandler();

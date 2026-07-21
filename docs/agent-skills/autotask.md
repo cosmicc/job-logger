@@ -1,4 +1,4 @@
-# Job Logger Agent Skill: Autotask Integration
+# TicketPilot Agent Skill: Autotask Integration
 
 Read this file before changing Autotask configuration, company lookup, ticket
 lookup, connectivity checks, ticket status handling, submission payloads, or
@@ -58,7 +58,7 @@ user-scoped features.
 
 ## Provider Location
 
-All Autotask behavior belongs in `job_logger/services/autotask.py`.
+All Autotask behavior belongs in `ticket_pilot/services/autotask.py`.
 
 Do not put direct Autotask HTTP calls in routes, templates, or browser
 JavaScript. Routes should call the provider/service interface and return safe
@@ -252,7 +252,7 @@ separate trust boundary. The browser may ask for another local date through
 `/home/service-calls?date=YYYY-MM-DD`; the resource ID still comes only from
 the authenticated managed web user.
 
-Service-call lookup must stay inside `job_logger/services/autotask.py` because
+Service-call lookup must stay inside `ticket_pilot/services/autotask.py` because
 it needs several related Autotask entities:
 
 - `ServiceCalls` for scheduled call details in the selected local date bounds.
@@ -273,7 +273,7 @@ remain eligible whenever navigation itself is enabled.
 The browser must submit only `service_call_ticket_id`, `service_call_date`, and
 CSRF to `POST /jobs/start/service-call`. The route re-reads the provider's
 server-verified list for the selected local date and current managed web user's
-resource, filters out tickets that already have a local Job Logger job for that
+resource, filters out tickets that already have a local TicketPilot job for that
 user with ticket status Complete or Follow up, and only then creates a job.
 Apply the same local Complete/Follow up filter to `/home/service-calls`
 responses; this is local workflow state and should not be pushed into the
@@ -304,8 +304,8 @@ lets the user manager search Autotask Resources while creating or editing
 managed web users and returns safe fields such as resource ID, first name, last
 name, display name, and email when available.
 
-Resource lookup must stay inside `job_logger/services/autotask.py`. Browser
-JavaScript may call Job Logger's authenticated endpoint, but it must never call
+Resource lookup must stay inside `ticket_pilot/services/autotask.py`. Browser
+JavaScript may call TicketPilot's authenticated endpoint, but it must never call
 Autotask directly or receive Autotask credentials. Autotask formats resource
 names as `Last, First`; the provider should accept either `First Last` or
 `Last, First`, query `Resources/query` with bounded first-name and last-name
@@ -465,7 +465,7 @@ Ticket `TicketNotes` creation must query the selected `Tickets` row by
 `ticketNumber` to get `ticketID`. The payload must use the local note title as
 `title`, the unprefixed note description as `description`, the configured
 customer-visible publish value, the default ticket-note type value, and the
-local append-to-resolution setting. Job Logger ticket notes must never be
+local append-to-resolution setting. TicketPilot ticket notes must never be
 internal. Ticket-note submission and submitted-note updates do not require or
 send start time, end time, hours worked, work location, role ID, billing code,
 or time-entry type.
@@ -505,7 +505,7 @@ record, then moved to the selected final status after the record patch when
 needed. **Delete From Autotask** deletes `TimeEntries/{id}` or
 `TicketNotes/{id}` and returns the local job to review only after Autotask
 confirms the delete. If the delete fails, the selected review detail may offer
-a session-scoped, local-only purge fallback that removes the Job Logger row
+a session-scoped, local-only purge fallback that removes the TicketPilot row
 while warning that the Autotask record may still exist. If either action fails,
 keep local state aligned with the last known successful Autotask state and
 store only safe error details.

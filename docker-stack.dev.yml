@@ -1,6 +1,6 @@
 services:
-  jldapp:
-    image: ${JOB_LOGGER_APP_IMAGE:?Set JOB_LOGGER_APP_IMAGE to a private GHCR dev app image}
+  tpdapp:
+    image: ${TICKET_PILOT_APP_IMAGE:?Set TICKET_PILOT_APP_IMAGE to a private GHCR dev app image}
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the remote PostgreSQL URL}
       DATABASE_CONNECT_TIMEOUT_SECONDS: ${DATABASE_CONNECT_TIMEOUT_SECONDS:-5}
@@ -39,8 +39,8 @@ services:
       PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD: ${PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD:-3}
       APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-}
       MAIL_ENABLED: ${MAIL_ENABLED:-false}
-      MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-joblogger@example.com}
-      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Job Logger}
+      MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-ticketpilot@example.com}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-TicketPilot}
       MAIL_MODE: ${MAIL_MODE:-smtp}
       MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-}
       MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:-587}
@@ -60,7 +60,7 @@ services:
       PUSHOVER_APP_KEY: ${PUSHOVER_APP_KEY:-}
       PUSHOVER_API_URL: ${PUSHOVER_API_URL:-https://api.pushover.net/1/messages.json}
       PUSHOVER_TIMEOUT_SECONDS: ${PUSHOVER_TIMEOUT_SECONDS:-10}
-      WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-Job Logger}
+      WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-TicketPilot}
       WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-}
       WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-}
       TRANSCRIPTION_PROVIDER: ${TRANSCRIPTION_PROVIDER:-mock}
@@ -121,13 +121,13 @@ services:
       AUTOTASK_STATUS_COMPLETE_ID: ${AUTOTASK_STATUS_COMPLETE_ID:-}
     volumes:
       - type: bind
-        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger-dev}/backups
+        source: ${TICKET_PILOT_SWARM_STORAGE_PATH:-/mnt/swarm-storage/ticket-pilot-dev}/backups
         target: /data/backups
       - type: bind
-        source: ${JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger-dev}/models/faster-whisper
+        source: ${TICKET_PILOT_SWARM_STORAGE_PATH:-/mnt/swarm-storage/ticket-pilot-dev}/models/faster-whisper
         target: /models/faster-whisper
     networks:
-      - job_logger
+      - ticket_pilot
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3).read()\""]
       interval: 30s
@@ -142,19 +142,19 @@ services:
         order: start-first
         failure_action: rollback
 
-  jldnginx:
-    image: ${JOB_LOGGER_NGINX_IMAGE:?Set JOB_LOGGER_NGINX_IMAGE to a private GHCR dev nginx image}
+  tpdnginx:
+    image: ${TICKET_PILOT_NGINX_IMAGE:?Set TICKET_PILOT_NGINX_IMAGE to a private GHCR dev nginx image}
     environment:
-      APP_UPSTREAM_HOST: jldapp
+      APP_UPSTREAM_HOST: tpdapp
       # Swarm keeps Nginx private to the overlay. Configure the remotely
-      # managed tunnel origin as http://jldnginx:<HTTP_PORT>.
+      # managed tunnel origin as http://tpdnginx:<HTTP_PORT>.
       NGINX_LISTEN_PORT: ${HTTP_PORT:-80}
       NGINX_ACCESS_LOG: ${NGINX_ACCESS_LOG:-/dev/stdout}
       NGINX_ERROR_LOG: ${NGINX_ERROR_LOG:-/dev/stderr warn}
       NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-12m}
       NGINX_RESTORE_MAX_BODY_SIZE: ${NGINX_RESTORE_MAX_BODY_SIZE:-250m}
     networks:
-      - job_logger
+      - ticket_pilot
     healthcheck:
       test: ["CMD-SHELL", "[ -f /var/run/nginx.pid ] && kill -0 \"$$(cat /var/run/nginx.pid)\""]
       interval: 30s
@@ -173,7 +173,7 @@ services:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN}
       TUNNEL_LOGLEVEL: ${CLOUDFLARED_LOG_LEVEL:-info}
     networks:
-      - job_logger
+      - ticket_pilot
     deploy:
       replicas: 2
       placement:
@@ -189,5 +189,5 @@ services:
         order: stop-first
 
 networks:
-  job_logger:
+  ticket_pilot:
     driver: overlay

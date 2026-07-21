@@ -6,9 +6,9 @@ from typing import Any
 
 import pytest
 
-import job_logger.services.ai_cleanup as ai_cleanup
-from job_logger.config import load_settings
-from job_logger.services.ai_cleanup import AiCleanupContext, AiCleanupError, cleanup_summary_text
+import ticket_pilot.services.ai_cleanup as ai_cleanup
+from ticket_pilot.config import load_settings
+from ticket_pilot.services.ai_cleanup import AiCleanupContext, AiCleanupError, cleanup_summary_text
 
 
 def test_ai_cleanup_requires_enabled_configuration(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -1,0 +1,731 @@
+"""Portable full-data backup and restore helpers for TicketPilot."""
+
+from __future__ import annotations
+
+import asyncio
+import gzip
+import json
+import logging
+import os
+import threading
+import uuid
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
+from enum import Enum as PythonEnum
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from sqlalchemy import insert, select, text
+from sqlalchemy.orm import Session
+from sqlalchemy.sql.schema import Column, Table
+from sqlalchemy.sql.sqltypes import Date, DateTime, Integer, Numeric
+from sqlalchemy.sql.sqltypes import Enum as SqlEnum
+
+from ticket_pilot import database
+from ticket_pilot.models import Base
+from ticket_pilot.services.audit import record_audit_event
+from ticket_pilot.time_utils import local_date_for
+
+if TYPE_CHECKING:
+    from ticket_pilot.config import Settings
+
+logger = logging.getLogger(__name__)
+
+BACKUP_FORMAT = "ticket_pilot.full_backup"
+BACKUP_VERSION = 1
+BACKUP_MEDIA_TYPE = "application/gzip"
+BACKUP_TABLES = tuple(Base.metadata.sorted_tables)
+BACKUP_TABLE_NAMES = tuple(table.name for table in BACKUP_TABLES)
+AUTOMATIC_BACKUP_FILENAME_PREFIX = "ticket-pilot-auto-backup-"
+AUTOMATIC_BACKUP_FILENAME_SUFFIX = ".json.gz"
+AUTOMATIC_BACKUP_INTERVAL_SECONDS = 60 * 60
+AUTOMATIC_BACKUP_TRIGGER_SCHEDULED = "scheduled"
+AUTOMATIC_BACKUP_TRIGGER_STARTUP = "startup"
+AUTOMATIC_BACKUP_TRIGGERS = {
+    AUTOMATIC_BACKUP_TRIGGER_SCHEDULED,
+    AUTOMATIC_BACKUP_TRIGGER_STARTUP,
+}
+AUTOMATIC_HOURLY_BACKUPS_TO_KEEP = 6
+AUTOMATIC_DAILY_BACKUP_DAYS_TO_KEEP = 3
+_BACKUP_RESTORE_LOCK = threading.RLock()
+_BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
+    "jobs": {
+        # v1.2.0 added ticket-note mode. Older backups restore as the original
+        # time-entry workflow with append-to-resolution enabled by default.
+        "entry_type": "time_entry",
+        "note_title": None,
+        "append_to_resolution": True,
+        # v1.1.5 added server-backed AI cleanup undo state. Older full backups
+        # restore with no pending cleanup revert available.
+        "ai_cleanup_original_summary": None,
+        "ai_cleanup_pending_summary": None,
+        "ai_cleanup_source": None,
+        "ai_cleanup_at_utc": None,
+    },
+    "web_users": {
+        # v1.1.1 added an optional explicit Autotask service-desk role fallback.
+        # Older full backups should restore without forcing a role selection.
+        "autotask_default_service_desk_role_id": None,
+        # v1.1.0 added per-user session invalidation. Older full backups should
+        # restore without forcing users out immediately.
+        "sessions_invalidated_at_utc": None,
+        # v1.1.3 added a display-only last-login timestamp. Older full backups
+        # should restore with the account shown as never logged in.
+        "last_login_at_utc": None,
+        # v1.1.5 added Diagnostics admin grants. Older backups must restore
+        # with managed users lacking that elevated debug capability.
+        "is_admin": False,
+        # v1.2.3 added temporary-password enforcement for newly created or
+        # reset accounts. Older backups should not unexpectedly force changes.
+        "password_must_change": False,
+        # v1.3.0 added hidden account archival for deleted users that still
+        # own jobs. Older backups restore all managed users as visible.
+        "archived_at_utc": None,
+    },
+    "user_preferences": {
+        # v1.1.0 added this preference as default-off. Older full backups should
+        # restore into the safer review-first workflow instead of being rejected.
+        "submit_from_work_in_progress": False,
+        # v1.4.0 added opt-in navigation. Legacy backups restore with it
+        # disabled and with no private home or office address saved.
+        "navigation_app": "none",
+        "home_address": None,
+        "office_address": None,
+        # Full-browser navigation is a separate, explicit opt-in. Legacy
+        # backups restore with navigation limited to mobile devices.
+        "allow_navigation_on_full_web": False,
+    },
+    "login_failure_counters": {
+        # v1.1.5 scoped local lockout counters by username. Older backups had
+        # at most one counter per IP, so the empty username preserves restore
+        # compatibility without granting an active user-specific lockout.
+        "username": "",
+    },
+}
+_BACKWARD_COMPATIBLE_EMPTY_TABLES = {
+    # v1.1.0 added passkeys after full backup support. Older backups should
+    # restore with no passkeys instead of blocking recovery.
+    "webauthn_credentials",
+    # v1.1.3 added app-managed Cloudflare login-block state after full backup
+    # support. Older backups restore with no counters or blocks.
+    "cloudflare_ip_blocks",
+    "login_failure_counters",
+    # v1.2.0 moved login-attempt diagnostics from files into the database.
+    # Older backups restore with an empty login-attempt history.
+    "login_attempts",
+}
+
+
+class BackupValidationError(ValueError):
+    """Raised when an uploaded backup is not a valid TicketPilot backup."""
+
+
+@dataclass(frozen=True)
+class FullBackup:
+    """Downloadable backup content and the row counts it contains."""
+
+    filename: str
+    content: bytes
+    table_counts: dict[str, int]
+
+    @property
+    def total_rows(self) -> int:
+        """Return the total number of rows included in the backup."""
+
+        return sum(self.table_counts.values())
+
+
+@dataclass(frozen=True)
+class RestoreSummary:
+    """Summary of rows restored from a validated backup."""
+
+    table_counts: dict[str, int]
+
+    @property
+    def total_rows(self) -> int:
+        """Return the total number of restored rows."""
+
+        return sum(self.table_counts.values())
+
+
+@dataclass(frozen=True)
+class AutomaticBackupFile:
+    """One automatic backup file available for diagnostics restore."""
+
+    filename: str
+    path: Path
+    created_at_utc: datetime
+    size_bytes: int
+
+
+@dataclass(frozen=True)
+class AutomaticBackupResult:
+    """Result of creating one automatic backup and pruning old files."""
+
+    backup_file: AutomaticBackupFile
+    deleted_filenames: tuple[str, ...]
+
+
+def full_backup_filename(now: datetime | None = None) -> str:
+    """Return a timestamped backup filename safe for browser downloads."""
+
+    current_dt = (now or datetime.now(UTC)).astimezone(UTC)
+    timestamp = current_dt.strftime("%Y%m%d-%H%M%SZ")
+    return f"ticket-pilot-full-backup-{timestamp}.json.gz"
+
+
+def automatic_backup_filename(now: datetime | None = None) -> str:
+    """Return a timestamped automatic backup filename safe for filesystem use."""
+
+    current_dt = (now or datetime.now(UTC)).astimezone(UTC)
+    timestamp = current_dt.strftime("%Y%m%d-%H%M%SZ")
+    return f"{AUTOMATIC_BACKUP_FILENAME_PREFIX}{timestamp}{AUTOMATIC_BACKUP_FILENAME_SUFFIX}"
+
+
+def create_full_backup(database_session: Session, *, now: datetime | None = None) -> FullBackup:
+    """Create a gzip-compressed JSON snapshot of every application data table."""
+
+    current_dt = (now or datetime.now(UTC)).astimezone(UTC)
+    table_payloads: dict[str, list[dict[str, Any]]] = {}
+    table_counts: dict[str, int] = {}
+
+    with _BACKUP_RESTORE_LOCK:
+        for table in BACKUP_TABLES:
+            rows = [_serialize_row(table, row) for row in database_session.execute(_select_table(table)).mappings()]
+            table_payloads[table.name] = rows
+            table_counts[table.name] = len(rows)
+
+    payload = {
+        "format": BACKUP_FORMAT,
+        "version": BACKUP_VERSION,
+        "created_at": current_dt.isoformat(),
+        "tables": table_payloads,
+        "table_counts": table_counts,
+        "schema": {
+            table.name: [column.name for column in table.columns]
+            for table in BACKUP_TABLES
+        },
+    }
+    raw_content = json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return FullBackup(
+        filename=full_backup_filename(current_dt),
+        content=gzip.compress(raw_content, mtime=0),
+        table_counts=table_counts,
+    )
+
+
+def list_automatic_backup_files(backup_directory: str | Path) -> tuple[AutomaticBackupFile, ...]:
+    """Return available automatic backups newest-first, ignoring unknown files."""
+
+    directory = Path(backup_directory)
+    try:
+        entries = tuple(directory.iterdir())
+    except FileNotFoundError:
+        return ()
+    except OSError:
+        logger.exception("Could not list automatic backup directory path=%s", directory)
+        return ()
+
+    backup_files: list[AutomaticBackupFile] = []
+    for entry in entries:
+        backup_file = _automatic_backup_file_from_path(entry)
+        if backup_file is not None:
+            backup_files.append(backup_file)
+
+    return tuple(sorted(backup_files, key=lambda item: item.created_at_utc, reverse=True))
+
+
+def create_automatic_backup(
+    database_session: Session,
+    backup_directory: str | Path,
+    *,
+    now: datetime | None = None,
+) -> AutomaticBackupResult:
+    """Write one full-data automatic backup file and purge expired backups."""
+
+    current_dt = (now or datetime.now(UTC)).astimezone(UTC)
+    directory = _ensure_private_backup_directory(Path(backup_directory))
+    backup = create_full_backup(database_session, now=current_dt)
+    backup_path = directory / automatic_backup_filename(current_dt)
+    _write_private_file_atomically(backup_path, backup.content)
+    backup_file = _automatic_backup_file_from_path(backup_path)
+    if backup_file is None:
+        raise BackupValidationError("Automatic backup could not be verified after writing.")
+
+    deleted_filenames = prune_automatic_backups(directory, now=current_dt)
+    return AutomaticBackupResult(backup_file=backup_file, deleted_filenames=deleted_filenames)
+
+
+def prune_automatic_backups(
+    backup_directory: str | Path,
+    *,
+    now: datetime | None = None,
+) -> tuple[str, ...]:
+    """Delete automatic backup files outside the hourly and daily retention windows."""
+
+    current_dt = (now or datetime.now(UTC)).astimezone(UTC)
+    backup_files = list_automatic_backup_files(backup_directory)
+    retained_filenames = _retained_automatic_backup_filenames(backup_files, current_dt)
+    deleted_filenames: list[str] = []
+
+    for backup_file in backup_files:
+        if backup_file.filename in retained_filenames:
+            continue
+        try:
+            backup_file.path.unlink()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            logger.exception("Could not delete expired automatic backup path=%s", backup_file.path)
+            continue
+        deleted_filenames.append(backup_file.filename)
+
+    return tuple(deleted_filenames)
+
+
+def read_automatic_backup_content(
+    backup_directory: str | Path,
+    filename: str,
+    *,
+    max_bytes: int,
+) -> bytes:
+    """Read a named automatic backup after strict filename and size checks."""
+
+    safe_filename = filename.strip()
+    _validate_automatic_backup_filename(safe_filename)
+    backup_path = Path(backup_directory) / safe_filename
+    if backup_path.is_symlink():
+        raise BackupValidationError("Automatic backup file is not a regular file.")
+    try:
+        stat_result = backup_path.stat()
+    except FileNotFoundError as exc:
+        raise BackupValidationError("Automatic backup file was not found.") from exc
+    if not backup_path.is_file():
+        raise BackupValidationError("Automatic backup file is not a regular file.")
+    if stat_result.st_size > max_bytes:
+        raise BackupValidationError("Automatic backup file is larger than the restore limit.")
+
+    try:
+        return backup_path.read_bytes()
+    except OSError as exc:
+        raise BackupValidationError("Automatic backup file could not be read.") from exc
+
+
+def run_automatic_backup_once(
+    application_settings: Settings,
+    *,
+    trigger: str = AUTOMATIC_BACKUP_TRIGGER_SCHEDULED,
+) -> AutomaticBackupResult:
+    """Create one automatic backup using an isolated database session."""
+
+    if trigger not in AUTOMATIC_BACKUP_TRIGGERS:
+        raise ValueError(f"Unsupported automatic backup trigger: {trigger}")
+
+    with database.SessionLocal() as database_session:
+        result = create_automatic_backup(
+            database_session,
+            application_settings.automatic_backup_dir,
+        )
+        record_audit_event(
+            database_session,
+            actor="system",
+            action="debug.automatic_backup.created",
+            details={
+                "filename": result.backup_file.filename,
+                "trigger": trigger,
+                "size_bytes": result.backup_file.size_bytes,
+                "deleted_filenames": list(result.deleted_filenames),
+            },
+        )
+        database_session.commit()
+
+    logger.info(
+        "Created automatic TicketPilot backup filename=%s trigger=%s size_bytes=%s deleted=%s",
+        result.backup_file.filename,
+        trigger,
+        result.backup_file.size_bytes,
+        len(result.deleted_filenames),
+    )
+    return result
+
+
+async def automatic_backup_scheduler(application_settings: Settings) -> None:
+    """Run automatic full-data backups until the application shuts down."""
+
+    trigger = AUTOMATIC_BACKUP_TRIGGER_STARTUP
+    while True:
+        try:
+            await asyncio.to_thread(
+                run_automatic_backup_once,
+                application_settings,
+                trigger=trigger,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Automatic TicketPilot backup failed")
+
+        trigger = AUTOMATIC_BACKUP_TRIGGER_SCHEDULED
+        await asyncio.sleep(AUTOMATIC_BACKUP_INTERVAL_SECONDS)
+
+
+def restore_full_backup(database_session: Session, content: bytes) -> RestoreSummary:
+    """Replace all application table rows with data from a validated backup."""
+
+    rows_by_table = _validated_table_rows(_load_backup_payload(content))
+    table_counts = {table.name: len(rows_by_table[table.name]) for table in BACKUP_TABLES}
+
+    with _BACKUP_RESTORE_LOCK:
+        try:
+            _lock_postgresql_tables(database_session)
+            for table in reversed(BACKUP_TABLES):
+                database_session.execute(table.delete().execution_options(synchronize_session=False))
+            for table in BACKUP_TABLES:
+                rows = rows_by_table[table.name]
+                if rows:
+                    database_session.execute(insert(table), rows)
+            _reset_postgresql_sequences(database_session)
+            database_session.commit()
+        except Exception:
+            database_session.rollback()
+            raise
+
+    logger.warning(
+        "Restored full TicketPilot backup tables=%s total_rows=%s",
+        len(table_counts),
+        sum(table_counts.values()),
+    )
+    return RestoreSummary(table_counts=table_counts)
+
+
+def _automatic_backup_file_from_path(path: Path) -> AutomaticBackupFile | None:
+    """Return metadata for a valid automatic backup path or None for non-matches."""
+
+    if path.is_symlink() or not path.is_file():
+        return None
+    created_at_utc = _parse_automatic_backup_datetime(path.name)
+    if created_at_utc is None:
+        return None
+    try:
+        stat_result = path.stat()
+    except OSError:
+        logger.exception("Could not stat automatic backup path=%s", path)
+        return None
+
+    return AutomaticBackupFile(
+        filename=path.name,
+        path=path,
+        created_at_utc=created_at_utc,
+        size_bytes=stat_result.st_size,
+    )
+
+
+def _parse_automatic_backup_datetime(filename: str) -> datetime | None:
+    """Parse a UTC timestamp from an automatic backup filename."""
+
+    if not filename.startswith(AUTOMATIC_BACKUP_FILENAME_PREFIX):
+        return None
+    if not filename.endswith(AUTOMATIC_BACKUP_FILENAME_SUFFIX):
+        return None
+
+    timestamp_text = filename[
+        len(AUTOMATIC_BACKUP_FILENAME_PREFIX) : -len(AUTOMATIC_BACKUP_FILENAME_SUFFIX)
+    ]
+    try:
+        return datetime.strptime(timestamp_text, "%Y%m%d-%H%M%SZ").replace(tzinfo=UTC)
+    except ValueError:
+        return None
+
+
+def _validate_automatic_backup_filename(filename: str) -> None:
+    """Reject traversal, hidden paths, and non-automatic backup filenames."""
+
+    if not filename or Path(filename).name != filename:
+        raise BackupValidationError("Automatic backup filename is not valid.")
+    if _parse_automatic_backup_datetime(filename) is None:
+        raise BackupValidationError("Automatic backup filename is not valid.")
+
+
+def _ensure_private_backup_directory(backup_directory: Path) -> Path:
+    """Create the automatic backup directory with owner-only permissions when possible."""
+
+    backup_directory.mkdir(parents=True, exist_ok=True)
+    try:
+        backup_directory.chmod(0o700)
+    except OSError:
+        logger.warning("Could not set automatic backup directory permissions path=%s", backup_directory)
+    return backup_directory
+
+
+def _write_private_file_atomically(destination: Path, content: bytes) -> None:
+    """Write backup bytes through a 0600 temporary file before atomic replace."""
+
+    temporary_path = destination.with_name(f".{destination.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+    file_descriptor: int | None = None
+    try:
+        file_descriptor = os.open(temporary_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(file_descriptor, "wb") as temporary_file:
+            file_descriptor = None
+            temporary_file.write(content)
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+        os.replace(temporary_path, destination)
+        try:
+            destination.chmod(0o600)
+        except OSError:
+            logger.warning("Could not set automatic backup file permissions path=%s", destination)
+    except FileExistsError as exc:
+        raise BackupValidationError("Temporary automatic backup file already exists.") from exc
+    finally:
+        if file_descriptor is not None:
+            os.close(file_descriptor)
+        try:
+            temporary_path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("Could not remove temporary automatic backup path=%s", temporary_path)
+
+
+def _retained_automatic_backup_filenames(
+    backup_files: tuple[AutomaticBackupFile, ...],
+    current_dt: datetime,
+) -> set[str]:
+    """Return filenames protected by hourly and local daily retention rules."""
+
+    retained_filenames = {
+        backup_file.filename
+        for backup_file in backup_files[:AUTOMATIC_HOURLY_BACKUPS_TO_KEEP]
+    }
+    current_local_date = local_date_for(current_dt)
+    retained_daily_dates = {
+        current_local_date - timedelta(days=day_offset)
+        for day_offset in range(AUTOMATIC_DAILY_BACKUP_DAYS_TO_KEEP)
+    }
+    daily_kept_dates: set[date] = set()
+    for backup_file in backup_files:
+        backup_local_date = local_date_for(backup_file.created_at_utc)
+        if backup_local_date not in retained_daily_dates or backup_local_date in daily_kept_dates:
+            continue
+        retained_filenames.add(backup_file.filename)
+        daily_kept_dates.add(backup_local_date)
+
+    return retained_filenames
+
+
+def _select_table(table: Table):
+    """Build a deterministic select statement for one table."""
+
+    statement = select(table)
+    primary_key_columns = list(table.primary_key.columns)
+    if primary_key_columns:
+        statement = statement.order_by(*(column.asc() for column in primary_key_columns))
+    return statement
+
+
+def _serialize_row(table: Table, row: dict[str, Any]) -> dict[str, Any]:
+    """Return a JSON-safe mapping for one SQLAlchemy row."""
+
+    return {
+        column.name: _serialize_value(column, row[column.name])
+        for column in table.columns
+    }
+
+
+def _serialize_value(column: Column, value: Any) -> Any:
+    """Return a JSON-safe representation of one database value."""
+
+    if value is None:
+        return None
+    if isinstance(value, PythonEnum):
+        return value.value
+    if isinstance(column.type, DateTime):
+        if not isinstance(value, datetime):
+            raise BackupValidationError(f"Column {column.table.name}.{column.name} expected datetime.")
+        return value.isoformat()
+    if isinstance(column.type, Date):
+        if not isinstance(value, date):
+            raise BackupValidationError(f"Column {column.table.name}.{column.name} expected date.")
+        return value.isoformat()
+    if isinstance(column.type, Numeric):
+        return str(value)
+    return value
+
+
+def _load_backup_payload(content: bytes) -> dict[str, Any]:
+    """Decode and validate the backup envelope before table validation."""
+
+    if not content:
+        raise BackupValidationError("Backup file is empty.")
+    try:
+        raw_content = gzip.decompress(content)
+    except OSError:
+        raw_content = content
+
+    try:
+        payload = json.loads(raw_content.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise BackupValidationError("Backup file is not valid UTF-8 JSON.") from exc
+    except json.JSONDecodeError as exc:
+        raise BackupValidationError("Backup file is not valid JSON.") from exc
+
+    if not isinstance(payload, dict):
+        raise BackupValidationError("Backup root must be a JSON object.")
+    if payload.get("format") != BACKUP_FORMAT:
+        raise BackupValidationError("Backup format is not supported.")
+    if payload.get("version") != BACKUP_VERSION:
+        raise BackupValidationError("Backup version is not supported.")
+    return payload
+
+
+def _validated_table_rows(payload: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    """Return table rows after validating required tables and columns."""
+
+    tables_payload = payload.get("tables")
+    if not isinstance(tables_payload, dict):
+        raise BackupValidationError("Backup does not contain a tables object.")
+
+    missing_tables = set(BACKUP_TABLE_NAMES) - set(tables_payload)
+    unsupported_missing_tables = missing_tables - _BACKWARD_COMPATIBLE_EMPTY_TABLES
+    if unsupported_missing_tables:
+        missing = ", ".join(sorted(unsupported_missing_tables))
+        raise BackupValidationError(f"Backup is missing required tables: {missing}.")
+
+    rows_by_table: dict[str, list[dict[str, Any]]] = {}
+    for table in BACKUP_TABLES:
+        raw_rows = tables_payload.get(table.name, [])
+        if not isinstance(raw_rows, list):
+            raise BackupValidationError(f"Backup table {table.name} must be a list.")
+        rows_by_table[table.name] = [
+            _validated_row(table, row, index)
+            for index, row in enumerate(raw_rows, start=1)
+        ]
+    return rows_by_table
+
+
+def _validated_row(table: Table, row: Any, index: int) -> dict[str, Any]:
+    """Validate one backup row and convert typed values for insertion."""
+
+    if not isinstance(row, dict):
+        raise BackupValidationError(f"Backup table {table.name} row {index} must be an object.")
+
+    row = dict(row)
+    expected_columns = {column.name for column in table.columns}
+    actual_columns = set(row)
+    unexpected_columns = actual_columns - expected_columns
+    if unexpected_columns:
+        columns = ", ".join(sorted(unexpected_columns))
+        raise BackupValidationError(f"Backup table {table.name} row {index} has unexpected columns: {columns}.")
+    missing_columns = expected_columns - actual_columns
+    if missing_columns:
+        compatible_defaults = _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS.get(table.name, {})
+        for column_name in sorted(missing_columns & set(compatible_defaults)):
+            row[column_name] = compatible_defaults[column_name]
+        actual_columns = set(row)
+        missing_columns = expected_columns - actual_columns
+    if missing_columns:
+        columns = ", ".join(sorted(missing_columns))
+        raise BackupValidationError(f"Backup table {table.name} row {index} is missing columns: {columns}.")
+
+    return {
+        column.name: _deserialize_value(column, row[column.name])
+        for column in table.columns
+    }
+
+
+def _deserialize_value(column: Column, value: Any) -> Any:
+    """Convert one JSON backup value into a SQLAlchemy-compatible value."""
+
+    if value is None:
+        return None
+    if isinstance(column.type, SqlEnum) and column.type.enum_class is not None:
+        if not isinstance(value, str):
+            raise BackupValidationError(f"Column {column.table.name}.{column.name} must be an enum string.")
+        try:
+            return column.type.enum_class(value)
+        except ValueError as exc:
+            raise BackupValidationError(f"Column {column.table.name}.{column.name} has an invalid enum value.") from exc
+    if isinstance(column.type, DateTime):
+        if not isinstance(value, str):
+            raise BackupValidationError(f"Column {column.table.name}.{column.name} must be an ISO datetime string.")
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise BackupValidationError(f"Column {column.table.name}.{column.name} has an invalid datetime.") from exc
+    if isinstance(column.type, Date):
+        if not isinstance(value, str):
+            raise BackupValidationError(f"Column {column.table.name}.{column.name} must be an ISO date string.")
+        try:
+            return date.fromisoformat(value)
+        except ValueError as exc:
+            raise BackupValidationError(f"Column {column.table.name}.{column.name} has an invalid date.") from exc
+    if isinstance(column.type, Numeric):
+        try:
+            return Decimal(str(value))
+        except Exception as exc:
+            raise BackupValidationError(f"Column {column.table.name}.{column.name} has an invalid decimal value.") from exc
+    return value
+
+
+def _lock_postgresql_tables(database_session: Session) -> None:
+    """Take a short exclusive lock during restore on PostgreSQL deployments."""
+
+    bind = database_session.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+
+    preparer = bind.dialect.identifier_preparer
+    table_names = ", ".join(_quoted_table_name(table, preparer) for table in BACKUP_TABLES)
+    database_session.execute(text(f"LOCK TABLE {table_names} IN ACCESS EXCLUSIVE MODE"))
+
+
+def _quoted_table_name(table: Table, preparer) -> str:
+    """Return a dialect-quoted table name for PostgreSQL lock statements."""
+
+    if table.schema:
+        return f"{preparer.quote_schema(table.schema)}.{preparer.quote(table.name)}"
+    return preparer.quote(table.name)
+
+
+def _reset_postgresql_sequences(database_session: Session) -> None:
+    """Reset integer primary-key sequences after bulk restore."""
+
+    bind = database_session.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+
+    for table in BACKUP_TABLES:
+        integer_primary_keys = [
+            column
+            for column in table.primary_key.columns
+            if column.autoincrement and isinstance(column.type, Integer)
+        ]
+        if len(integer_primary_keys) != 1:
+            continue
+
+        column = integer_primary_keys[0]
+        sequence_name = database_session.scalar(
+            text("SELECT pg_get_serial_sequence(:table_name, :column_name)"),
+            {
+                "table_name": table.name,
+                "column_name": column.name,
+            },
+        )
+        if not sequence_name:
+            continue
+
+        max_value = database_session.scalar(select(column).order_by(column.desc()).limit(1))
+        if max_value is None:
+            database_session.execute(
+                text("SELECT setval(CAST(:sequence_name AS regclass), 1, false)"),
+                {"sequence_name": sequence_name},
+            )
+        else:
+            database_session.execute(
+                text("SELECT setval(CAST(:sequence_name AS regclass), :value, true)"),
+                {"sequence_name": sequence_name, "value": int(max_value)},
+            )

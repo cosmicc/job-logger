@@ -9,7 +9,7 @@ SWARM_FILE = Path(__file__).resolve().parents[1] / "docker-stack.yml"
 DEV_SWARM_FILE = Path(__file__).resolve().parents[1] / "docker-stack.dev.yml"
 ENV_EXAMPLE_FILE = Path(__file__).resolve().parents[1] / ".env.example"
 README_FILE = Path(__file__).resolve().parents[1] / "README.md"
-EXTERNAL_NGINX_FILE = Path(__file__).resolve().parents[1] / "docs/external-nginx-job-logger.conf"
+EXTERNAL_NGINX_FILE = Path(__file__).resolve().parents[1] / "docs/external-nginx-ticket-pilot.conf"
 
 
 def test_compose_does_not_gate_stack_creation_on_health_conditions() -> None:
@@ -100,7 +100,7 @@ def test_compose_and_swarm_expose_password_reset_settings() -> None:
         ) in deployment_text
         assert "APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-}" in deployment_text
         assert "MAIL_ENABLED: ${MAIL_ENABLED:-false}" in deployment_text
-        assert "MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-joblogger@example.com}" in deployment_text
+        assert "MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-ticketpilot@example.com}" in deployment_text
         assert "MAIL_MODE: ${MAIL_MODE:-smtp}" in deployment_text
         assert "MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-}" in deployment_text
         assert "MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:-587}" in deployment_text
@@ -112,7 +112,7 @@ def test_compose_and_swarm_expose_password_reset_settings() -> None:
 
     assert "PASSWORD_RESET_ENABLED=false" in env_example_text
     assert "PASSWORD_RESET_FAILED_ATTEMPTS_BLOCK_THRESHOLD=3" in env_example_text
-    assert "APP_PUBLIC_BASE_URL=https://joblogger.example.com" in env_example_text
+    assert "APP_PUBLIC_BASE_URL=https://ticketpilot.example.com" in env_example_text
     assert "MAIL_ENABLED=false" in env_example_text
     assert "MAIL_MODE=smtp" in env_example_text
     assert "MAIL_SMTP2GO_API_KEY=" in env_example_text
@@ -131,7 +131,7 @@ def test_compose_requires_app_and_database_secrets() -> None:
     assert "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}" in compose_text
     assert "development-only-change-me" not in compose_text
     assert "APP_PASSWORD: ${APP_PASSWORD:-admin}" not in compose_text
-    assert "job_logger_password" not in compose_text
+    assert "ticket_pilot_password" not in compose_text
     assert "APP_SESSION_COOKIE_SECURE: ${APP_SESSION_COOKIE_SECURE:-true}" in compose_text
     assert "CLOUDFLARE_ACCESS_REQUIRED: ${CLOUDFLARE_ACCESS_REQUIRED:-true}" in compose_text
 
@@ -275,19 +275,19 @@ def test_env_example_documents_compose_and_swarm_contracts() -> None:
     assert "For a remote PostgreSQL server, remove `local-db`" in env_example_text
     assert "For an external nginx and" in env_example_text
     assert "remove `bundled-edge`" in env_example_text
-    assert "JOB_LOGGER_APP_IMAGE=ghcr.io/cosmicc/job-logger-app:1.3.1" in env_example_text
-    assert "JOB_LOGGER_NGINX_IMAGE=ghcr.io/cosmicc/job-logger-nginx:1.3.1" in env_example_text
-    assert "JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger" in env_example_text
-    assert "JOB_LOGGER_APP_IMAGE=ghcr.io/cosmicc/job-logger-app:dev" in env_example_text
-    assert "JOB_LOGGER_NGINX_IMAGE=ghcr.io/cosmicc/job-logger-nginx:dev" in env_example_text
-    assert "JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger-dev" in env_example_text
+    assert "TICKET_PILOT_APP_IMAGE=ghcr.io/cosmicc/ticket-pilot-app:2.0.0" in env_example_text
+    assert "TICKET_PILOT_NGINX_IMAGE=ghcr.io/cosmicc/ticket-pilot-nginx:2.0.0" in env_example_text
+    assert "TICKET_PILOT_SWARM_STORAGE_PATH=/mnt/swarm-storage/ticket-pilot" in env_example_text
+    assert "TICKET_PILOT_APP_IMAGE=ghcr.io/cosmicc/ticket-pilot-app:dev" in env_example_text
+    assert "TICKET_PILOT_NGINX_IMAGE=ghcr.io/cosmicc/ticket-pilot-nginx:dev" in env_example_text
+    assert "TICKET_PILOT_SWARM_STORAGE_PATH=/mnt/swarm-storage/ticket-pilot-dev" in env_example_text
     assert "failed to read /data/compose/1/stack.env: line 1: key cannot contain a space" in readme_text
     assert "plain `KEY=value` lines only" in readme_text
     assert "DATABASE_URL=" in env_example_text
     assert "DATABASE_POOL_RECYCLE_SECONDS=1800" in env_example_text
     assert "LOG_DIR=" not in env_example_text
     assert "CLOUDFLARED_LOG_FILE=" not in env_example_text
-    assert "JOB_LOGGER_BUNDLED_EDGE_REPLICAS=" not in env_example_text
+    assert "TICKET_PILOT_BUNDLED_EDGE_REPLICAS=" not in env_example_text
     assert "HOST_LOG_DIR=" not in env_example_text
     assert "LOGIN_FAILURE_LOG_PATH=" not in env_example_text
     assert "LOGIN_SUCCESS_LOG_PATH=" not in env_example_text
@@ -360,14 +360,14 @@ def test_production_swarm_stack_uses_production_names_and_storage() -> None:
 
     _assert_common_swarm_contract(
         swarm_text,
-        app_service="jlapp",
-        nginx_service="jlnginx",
+        app_service="tpapp",
+        nginx_service="tpnginx",
     )
-    assert "image: ${JOB_LOGGER_APP_IMAGE" in swarm_text
-    assert "image: ${JOB_LOGGER_NGINX_IMAGE" in swarm_text
+    assert "image: ${TICKET_PILOT_APP_IMAGE" in swarm_text
+    assert "image: ${TICKET_PILOT_NGINX_IMAGE" in swarm_text
     assert "APP_ENV: ${APP_ENV:-production}" in swarm_text
     assert "DEV_BUILD: ${DEV_BUILD:-false}" in swarm_text
-    assert "JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger" in swarm_text
+    assert "TICKET_PILOT_SWARM_STORAGE_PATH:-/mnt/swarm-storage/ticket-pilot" in swarm_text
 
 
 def test_dev_swarm_stack_uses_dev_names_images_and_storage() -> None:
@@ -377,15 +377,15 @@ def test_dev_swarm_stack_uses_dev_names_images_and_storage() -> None:
 
     _assert_common_swarm_contract(
         swarm_text,
-        app_service="jldapp",
-        nginx_service="jldnginx",
+        app_service="tpdapp",
+        nginx_service="tpdnginx",
     )
-    assert "image: ${JOB_LOGGER_APP_IMAGE" in swarm_text
-    assert "image: ${JOB_LOGGER_NGINX_IMAGE" in swarm_text
+    assert "image: ${TICKET_PILOT_APP_IMAGE" in swarm_text
+    assert "image: ${TICKET_PILOT_NGINX_IMAGE" in swarm_text
     assert "APP_ENV: ${APP_ENV:-development}" in swarm_text
     assert "DEV_BUILD: ${DEV_BUILD:-true}" in swarm_text
     assert (
-        "JOB_LOGGER_SWARM_STORAGE_PATH:-/mnt/swarm-storage/job-logger-dev"
+        "TICKET_PILOT_SWARM_STORAGE_PATH:-/mnt/swarm-storage/ticket-pilot-dev"
         in swarm_text
     )
     assert not (SWARM_FILE.parent / "docker-swarm.yml").exists()
@@ -399,21 +399,21 @@ def test_readme_documents_compose_edge_and_swarm_deployment() -> None:
 
     assert "COMPOSE_PROFILES=local-db,bundled-edge" in readme_text
     assert "COMPOSE_PROFILES=local-db" in readme_text
-    assert "JOB_LOGGER_APP_IMAGE=ghcr.io/cosmicc/job-logger-app:1.3.1" in readme_text
-    assert "JOB_LOGGER_NGINX_IMAGE=ghcr.io/cosmicc/job-logger-nginx:1.3.1" in readme_text
-    assert "JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger" in readme_text
-    assert "JOB_LOGGER_APP_IMAGE=ghcr.io/cosmicc/job-logger-app:dev" in readme_text
-    assert "JOB_LOGGER_NGINX_IMAGE=ghcr.io/cosmicc/job-logger-nginx:dev" in readme_text
-    assert "JOB_LOGGER_SWARM_STORAGE_PATH=/mnt/swarm-storage/job-logger-dev" in readme_text
+    assert "TICKET_PILOT_APP_IMAGE=ghcr.io/cosmicc/ticket-pilot-app:2.0.0" in readme_text
+    assert "TICKET_PILOT_NGINX_IMAGE=ghcr.io/cosmicc/ticket-pilot-nginx:2.0.0" in readme_text
+    assert "TICKET_PILOT_SWARM_STORAGE_PATH=/mnt/swarm-storage/ticket-pilot" in readme_text
+    assert "TICKET_PILOT_APP_IMAGE=ghcr.io/cosmicc/ticket-pilot-app:dev" in readme_text
+    assert "TICKET_PILOT_NGINX_IMAGE=ghcr.io/cosmicc/ticket-pilot-nginx:dev" in readme_text
+    assert "TICKET_PILOT_SWARM_STORAGE_PATH=/mnt/swarm-storage/ticket-pilot-dev" in readme_text
     assert "docker stack deploy --with-registry-auth" in readme_text
-    assert "http://jlnginx:80" in readme_text
-    assert "http://jldnginx:80" in readme_text
+    assert "http://tpnginx:80" in readme_text
+    assert "http://tpdnginx:80" in readme_text
     assert "two `cloudflared` replicas" in readme_text
     assert "models/faster-whisper/" in readme_text
-    assert "docs/external-nginx-job-logger.conf" in readme_text
-    assert "proxy to `http://jlapp:8000`" in readme_text
-    assert "use `jldapp` for dev" in readme_text
-    assert "proxy_pass http://jlapp:8000" in external_nginx_text
+    assert "docs/external-nginx-ticket-pilot.conf" in readme_text
+    assert "proxy to `http://tpapp:8000`" in readme_text
+    assert "use `tpdapp` for dev" in readme_text
+    assert "proxy_pass http://tpapp:8000" in external_nginx_text
 
 
 def test_github_workflow_publishes_branch_specific_swarm_images() -> None:
@@ -424,8 +424,8 @@ def test_github_workflow_publishes_branch_specific_swarm_images() -> None:
     ).read_text(encoding="utf-8")
 
     assert "branches:\n      - dev\n      - main" in workflow_text
-    assert "ghcr.io/cosmicc/job-logger-app" in workflow_text
-    assert "ghcr.io/cosmicc/job-logger-nginx" in workflow_text
+    assert "ghcr.io/cosmicc/ticket-pilot-app" in workflow_text
+    assert "ghcr.io/cosmicc/ticket-pilot-nginx" in workflow_text
     assert "type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}" in workflow_text
     assert "type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}" in workflow_text
     assert "type=raw,value=${{ steps.version.outputs.version }},enable=${{ github.ref == 'refs/heads/main' }}" in workflow_text

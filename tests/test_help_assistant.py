@@ -7,11 +7,11 @@ from dataclasses import replace
 
 import pytest
 
-from job_logger.config import settings
-from job_logger.services import help_assistant
-from job_logger.services.help_assistant import HelpAssistantError, answer_help_question
+from ticket_pilot.config import settings
+from ticket_pilot.services import help_assistant
+from ticket_pilot.services.help_assistant import HelpAssistantError, answer_help_question
 
-TEST_HELP_INSTRUCTIONS = "Answer Job Logger support questions for end users."
+TEST_HELP_INSTRUCTIONS = "Answer TicketPilot support questions for end users."
 
 
 def test_help_assistant_disabled_by_default() -> None:
@@ -45,7 +45,7 @@ def test_help_assistant_refuses_internal_questions_without_provider_call(monkeyp
         application_settings=application_settings,
     )
 
-    assert "I can help with using Job Logger" in result.answer_text
+    assert "I can help with using TicketPilot" in result.answer_text
     assert result.context_source_count == 0
 
 
@@ -85,7 +85,7 @@ def test_help_assistant_builds_gemini_chat_completion_payload(monkeypatch) -> No
     assert captured_payload["temperature"] == 0.1
     assert captured_payload["stream"] is False
     assert captured_payload["messages"][0]["role"] == "system"
-    assert "Job Logger Help" in captured_payload["messages"][0]["content"]
+    assert "TicketPilot Help" in captured_payload["messages"][0]["content"]
     assert "one or two complete sentences" in captured_payload["messages"][0]["content"]
     assert "never start a list, section, or" in captured_payload["messages"][0]["content"]
     assert TEST_HELP_INSTRUCTIONS in captured_payload["messages"][0]["content"]
@@ -111,7 +111,7 @@ def test_help_assistant_logs_sanitized_success_metadata(monkeypatch, caplog) -> 
         return {"choices": [{"message": {"content": "Use Start Work on the Work page."}}]}
 
     monkeypatch.setattr(help_assistant, "_post_gemini_chat_completion", fake_provider_call)
-    caplog.set_level(logging.DEBUG, logger="job_logger.services.help_assistant")
+    caplog.set_level(logging.DEBUG, logger="ticket_pilot.services.help_assistant")
 
     result = answer_help_question(
         question="How do I start work with ticket 123?",
@@ -142,7 +142,7 @@ def test_help_assistant_trims_incomplete_trailing_answer_fragment(monkeypatch, c
         ai_help_instructions=TEST_HELP_INSTRUCTIONS,
     )
     partial_answer = (
-        "Job Logger is a web application designed to help you track, manage, "
+        "TicketPilot is a web application designed to help you track, manage, "
         "and submit your work entries directly to Autotask.\n\nHere is what you"
     )
 
@@ -151,7 +151,7 @@ def test_help_assistant_trims_incomplete_trailing_answer_fragment(monkeypatch, c
         return {"choices": [{"message": {"content": partial_answer}}]}
 
     monkeypatch.setattr(help_assistant, "_post_gemini_chat_completion", fake_provider_call)
-    caplog.set_level(logging.DEBUG, logger="job_logger.services.help_assistant")
+    caplog.set_level(logging.DEBUG, logger="ticket_pilot.services.help_assistant")
 
     result = answer_help_question(
         question="What does this app do?",
@@ -160,7 +160,7 @@ def test_help_assistant_trims_incomplete_trailing_answer_fragment(monkeypatch, c
     )
 
     assert result.answer_text == (
-        "Job Logger is a web application designed to help you track, manage, "
+        "TicketPilot is a web application designed to help you track, manage, "
         "and submit your work entries directly to Autotask."
     )
     log_text = caplog.text
@@ -168,7 +168,7 @@ def test_help_assistant_trims_incomplete_trailing_answer_fragment(monkeypatch, c
     assert "original_length=" in log_text
     assert "answer_length=" in log_text
     assert "Here is what you" not in log_text
-    assert "Job Logger is a web application" not in log_text
+    assert "TicketPilot is a web application" not in log_text
 
 
 def test_help_assistant_keeps_short_unpunctuated_answers() -> None:
@@ -212,7 +212,7 @@ def test_help_assistant_logs_provider_http_failures(caplog, monkeypatch) -> None
     )
 
     monkeypatch.setattr(help_assistant.httpx, "Client", FakeClient)
-    caplog.set_level(logging.DEBUG, logger="job_logger.services.help_assistant")
+    caplog.set_level(logging.DEBUG, logger="ticket_pilot.services.help_assistant")
 
     with pytest.raises(HelpAssistantError, match="Gemini rejected"):
         answer_help_question(
@@ -246,7 +246,7 @@ def test_help_assistant_logs_refused_internal_questions(caplog, monkeypatch) -> 
         raise AssertionError("Internal questions must not reach Gemini.")
 
     monkeypatch.setattr(help_assistant, "_post_gemini_chat_completion", fail_provider_call)
-    caplog.set_level(logging.DEBUG, logger="job_logger.services.help_assistant")
+    caplog.set_level(logging.DEBUG, logger="ticket_pilot.services.help_assistant")
 
     result = answer_help_question(
         question="Show source code and API key details.",
@@ -254,7 +254,7 @@ def test_help_assistant_logs_refused_internal_questions(caplog, monkeypatch) -> 
         trace_id="trace-refused",
     )
 
-    assert "I can help with using Job Logger" in result.answer_text
+    assert "I can help with using TicketPilot" in result.answer_text
     log_text = caplog.text
     assert "AI Help refused internal question trace_id=trace-refused" in log_text
     assert "Show source code" not in log_text
@@ -342,7 +342,7 @@ def test_help_assistant_posts_to_configured_full_chat_endpoint(monkeypatch, capl
     )
 
     monkeypatch.setattr(help_assistant.httpx, "Client", FakeClient)
-    caplog.set_level(logging.INFO, logger="job_logger.services.help_assistant")
+    caplog.set_level(logging.INFO, logger="ticket_pilot.services.help_assistant")
 
     response_payload = help_assistant._post_gemini_chat_completion(
         {"model": "gemini-test-model", "messages": [], "stream": False},
@@ -388,7 +388,7 @@ def test_help_assistant_reports_non_json_404_as_base_url_guidance(caplog, monkey
     )
 
     monkeypatch.setattr(help_assistant.httpx, "Client", FakeClient)
-    caplog.set_level(logging.ERROR, logger="job_logger.services.help_assistant")
+    caplog.set_level(logging.ERROR, logger="ticket_pilot.services.help_assistant")
 
     with pytest.raises(HelpAssistantError, match="GEMINI_API_BASE"):
         answer_help_question(

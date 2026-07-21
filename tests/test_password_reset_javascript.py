@@ -18,7 +18,7 @@ def test_password_reset_turnstile_renders_explicit_widget(tmp_path: Path) -> Non
         pytest.skip("Node.js is required to execute password-reset.js.")
 
     repository_root = Path(__file__).resolve().parents[1]
-    password_reset_script_path = repository_root / "job_logger" / "static" / "password-reset.js"
+    password_reset_script_path = repository_root / "ticket_pilot" / "static" / "password-reset.js"
     harness_path = tmp_path / "password_reset_turnstile_test.js"
     harness_path.write_text(
         textwrap.dedent(
@@ -104,12 +104,12 @@ def test_password_reset_turnstile_renders_explicit_widget(tmp_path: Path) -> Non
               window: browserWindow,
             }}, {{filename: "password-reset.js"}});
 
-            assert.strictEqual(browserWindow.jobLoggerTurnstileReady, undefined);
-            assert.strictEqual(typeof browserWindow.jobLoggerTurnstileSuccess, "function");
-            assert.strictEqual(typeof browserWindow.jobLoggerTurnstileError, "function");
-            assert.strictEqual(typeof browserWindow.jobLoggerTurnstileExpired, "function");
-            assert.strictEqual(typeof browserWindow.jobLoggerTurnstileTimeout, "function");
-            assert.strictEqual(typeof browserWindow.jobLoggerTurnstileUnsupported, "function");
+            assert.strictEqual(browserWindow.ticketPilotTurnstileReady, undefined);
+            assert.strictEqual(typeof browserWindow.ticketPilotTurnstileSuccess, "function");
+            assert.strictEqual(typeof browserWindow.ticketPilotTurnstileError, "function");
+            assert.strictEqual(typeof browserWindow.ticketPilotTurnstileExpired, "function");
+            assert.strictEqual(typeof browserWindow.ticketPilotTurnstileTimeout, "function");
+            assert.strictEqual(typeof browserWindow.ticketPilotTurnstileUnsupported, "function");
             assert.strictEqual(formElement.dataset.turnstileGuardAttached, "true");
             assert.strictEqual(apiScriptElement.dataset.turnstileListenersAttached, "true");
             assert.strictEqual(renderCalls.length, 1);
@@ -126,12 +126,12 @@ def test_password_reset_turnstile_renders_explicit_widget(tmp_path: Path) -> Non
             assert.strictEqual(submitButton.disabled, true);
             assert.strictEqual(statusElement.textContent, "Complete human verification before sending the reset link.");
 
-            browserWindow.jobLoggerTurnstileSuccess("token-value");
+            browserWindow.ticketPilotTurnstileSuccess("token-value");
 
             assert.strictEqual(submitButton.disabled, false);
             assert.strictEqual(statusElement.textContent, "Human verification complete.");
 
-            browserWindow.jobLoggerTurnstileExpired();
+            browserWindow.ticketPilotTurnstileExpired();
 
             assert.strictEqual(submitButton.disabled, true);
             assert.strictEqual(statusElement.textContent, "Human verification expired. Complete it again before sending the reset link.");
@@ -159,7 +159,7 @@ def test_password_reset_turnstile_retries_api_script_load_failure(tmp_path: Path
         pytest.skip("Node.js is required to execute password-reset.js.")
 
     repository_root = Path(__file__).resolve().parents[1]
-    password_reset_script_path = repository_root / "job_logger" / "static" / "password-reset.js"
+    password_reset_script_path = repository_root / "ticket_pilot" / "static" / "password-reset.js"
     harness_path = tmp_path / "password_reset_turnstile_retry_test.js"
     harness_path.write_text(
         textwrap.dedent(

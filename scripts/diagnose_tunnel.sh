@@ -38,7 +38,7 @@ get_non_secret_setting() {
 HTTP_PORT="$(get_non_secret_setting "HTTP_PORT" "11030")"
 CLOUDFLARE_TUNNEL_TOKEN="$(get_non_secret_setting "CLOUDFLARE_TUNNEL_TOKEN" "")"
 
-printf '%s\n' "Job Logger tunnel diagnostics"
+printf '%s\n' "TicketPilot tunnel diagnostics"
 printf '%s\n' "============================="
 
 printf '\n%s\n' "1. Docker Compose service state"

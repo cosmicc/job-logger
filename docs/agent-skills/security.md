@@ -1,4 +1,4 @@
-# Job Logger Agent Skill: Security
+# TicketPilot Agent Skill: Security
 
 Read this file before changing authentication, sessions, Cloudflare Access,
 CSRF, audit logging, diagnostics, file uploads, transcription, Docker runtime
@@ -20,9 +20,9 @@ choices for security decisions. The server remains authoritative.
 
 ## Authentication And Sessions
 
-Authentication routes live in `job_logger/routes/auth.py`. Managed-user
-password reset routes live in `job_logger/routes/password_reset.py`.
-Managed-user passkey routes live in `job_logger/routes/passkeys.py`.
+Authentication routes live in `ticket_pilot/routes/auth.py`. Managed-user
+password reset routes live in `ticket_pilot/routes/password_reset.py`.
+Managed-user passkey routes live in `ticket_pilot/routes/passkeys.py`.
 
 `APP_USERNAME` and `APP_PASSWORD` authenticate only the config super admin. That
 account can manage `/users`, view all review jobs, use diagnostics, and run
@@ -43,7 +43,7 @@ The `/users` add form has a default-on **Send welcome email** option for new
 managed users. Send it only to the stored managed-user email address, use
 `APP_PUBLIC_BASE_URL` for the app link, include the username, temporary-password
 change instruction, mobile install steps, Device sign-in guidance, and
-`ADMIN_CONTACT_EMAIL` when configured, call the app **Autotask Job Logger**, and
+`ADMIN_CONTACT_EMAIL` when configured, call the app **TicketPilot**, and
 never include the temporary password.
 Welcome email delivery must be non-blocking for user creation. Audit only safe
 metadata such as user ID, username, provider, whether an email was saved, and
@@ -61,8 +61,8 @@ Managed-user passwords must be at least 8 characters and include lowercase,
 uppercase, number, and symbol characters. Enforce that rule server-side before
 hashing; browser validation is only a usability aid. Passwords created or reset
 by the config super admin are temporary. On the next managed-user sign-in,
-`job_logger/session_timeout.py` and
-`job_logger/services/session_control.py` must allow only `GET /config`,
+`ticket_pilot/session_timeout.py` and
+`ticket_pilot/services/session_control.py` must allow only `GET /config`,
 `POST /config/password`, and logout until `/config/password` successfully
 changes the password and clears `web_users.password_must_change`.
 `ADMIN_CONTACT_EMAIL` is an optional Docker/env support contact. Show it only
@@ -125,7 +125,7 @@ raw tokens, emails, reset URLs, cookies, secrets, site keys, and API keys are
 not.
 
 Local authenticated sessions must expire after `APP_SESSION_TIMEOUT_HOURS`.
-`job_logger/session_timeout.py` enforces the server-side timestamp check, and
+`ticket_pilot/session_timeout.py` enforces the server-side timestamp check, and
 Starlette session cookies use the same configured lifetime. Every successful
 password or passkey login must stamp the session with the authentication time
 and method so stale signed cookies cannot remain valid past the configured
@@ -133,7 +133,7 @@ timeout. Successful managed-user password and passkey login also stamp
 `web_users.last_login_at_utc` for the super-admin user list; this metadata is
 informational and must not replace session timeout or invalidation checks.
 Managed web-user sessions can also be invalidated by a per-user UTC cutoff in
-the `web_users` row. `job_logger/services/session_control.py` owns that cutoff
+the `web_users` row. `ticket_pilot/services/session_control.py` owns that cutoff
 logic. Disabling one user or using the Diagnostics **Log out web users** action
 must clear old managed-user cookies on the next request without signing out the
 config super admin.
@@ -249,7 +249,7 @@ blocked if an old signed session or passkey credential appears. When
 `ADMIN_CONTACT_EMAIL` is configured, disabled-account explanations should
 include the configured email address.
 
-Application setup in `job_logger/main.py` configures:
+Application setup in `ticket_pilot/main.py` configures:
 
 - Signed server-side session cookie behavior through Starlette sessions.
 - Server-side session timeout checks through `SessionTimeoutMiddleware`.
@@ -384,7 +384,7 @@ notes are source-controlled metadata. The web changelog must come from concise
 AI Help is an external AI integration for authenticated end-user support. Keep
 `GEMINI_API_KEY` in runtime environment or secrets, never in source control.
 Use `AI_HELP_INSTRUCTIONS` for the server-side setup prompt that tells Gemini
-how to answer Job Logger support questions before the user's question is sent.
+how to answer TicketPilot support questions before the user's question is sent.
 Do not put secrets, private URLs, or environment-specific credentials in that
 prompt. The `/help/ask` route must require local authentication and a CSRF
 header, cap submitted question and instruction length, send only bounded local
@@ -404,7 +404,7 @@ prompts, provider request bodies, local source context, or answers.
 
 ## Audit Requirements
 
-Important actions must record audit events through `job_logger/services/audit.py`.
+Important actions must record audit events through `ticket_pilot/services/audit.py`.
 
 Audit-worthy actions include:
 
@@ -514,8 +514,8 @@ Source logo assets and palette references belong in `docs/design/`. The
 palette reference is documentation only; do not expose private deployment data
 through app-shell icon assets.
 
-The root-scoped service worker exists only so mobile devices can launch Job
-Logger in standalone app mode. It must remain network-only and must not cache
+The root-scoped service worker exists only so mobile devices can launch
+TicketPilot in standalone app mode. It must remain network-only and must not cache
 authenticated pages, session-bound responses, job records, Autotask lookup
 results, transcription responses, raw audio, CSRF tokens, or diagnostic output.
 
@@ -627,7 +627,7 @@ exist.
 
 The `/debug` full backup and restore actions are the supported whole-app data
 export/import path. They must remain limited to Diagnostics-authorized users
-and CSRF-protected. Backup files contain all Job Logger database rows,
+and CSRF-protected. Backup files contain all TicketPilot database rows,
 including managed web-user password hashes and customer/work history, and
 should be treated as sensitive. Restore must validate backup format, version,
 required tables, and expected columns before deleting current rows, must use the
@@ -644,7 +644,7 @@ The scheduler writes one startup file and then hourly files under
 `AUTOMATIC_BACKUP_DIR`, defaulting to `/data/backups` in Docker. Keep the
 backup directory private: files must be written through owner-only temporary
 files when possible. Swarm binds `/data/backups` to `backups/` under the
-environment-specific `JOB_LOGGER_SWARM_STORAGE_PATH` shared NFS root. Retained
+environment-specific `TICKET_PILOT_SWARM_STORAGE_PATH` shared NFS root. Retained
 backups are available after task rescheduling,
 directory listings and downloads must be Diagnostics-authorized only, selected
 download or restore filenames must be strictly validated instead of trusting
@@ -679,16 +679,16 @@ Normalize plain `postgresql://` and `postgres://` URLs to the installed psycopg
 connections bounded with the documented pool and timeout settings.
 Swarm deployment must use prebuilt private GHCR images, a remote PostgreSQL
 `DATABASE_URL`, and overlay networking. Production uses `docker-stack.yml`,
-`jlapp`, `jlnginx`, production-tag image variable values, and
-`http://jlnginx:<HTTP_PORT>`. Dev uses `docker-stack.dev.yml`, `jldapp`,
-`jldnginx`, dev-tag values in the same per-stack image variables, and
-`http://jldnginx:<HTTP_PORT>`.
+`tpapp`, `tpnginx`, production-tag image variable values, and
+`http://tpnginx:<HTTP_PORT>`. Dev uses `docker-stack.dev.yml`, `tpdapp`,
+`tpdnginx`, dev-tag values in the same per-stack image variables, and
+`http://tpdnginx:<HTTP_PORT>`.
 `HTTP_PORT` controls the private Nginx listener and defaults to `80`; do not
 publish it through the Swarm routing mesh because that would expose Nginx on
 node interfaces. Run two `cloudflared` replicas per stack with
-`max_replicas_per_node: 1`. Per-stack `JOB_LOGGER_SWARM_STORAGE_PATH` defaults
-to `/mnt/swarm-storage/job-logger` in production and
-`/mnt/swarm-storage/job-logger-dev` in dev. Both are already mounted on every
+`max_replicas_per_node: 1`. Per-stack `TICKET_PILOT_SWARM_STORAGE_PATH` defaults
+to `/mnt/swarm-storage/ticket-pilot` in production and
+`/mnt/swarm-storage/ticket-pilot-dev` in dev. Both are already mounted on every
 node and must hold only automatic backups and the faster-whisper model cache.
 Do not run deployment-time `chown` or `chmod`, and do not add a PostgreSQL
 service unless the operator explicitly requests a separate persistent Swarm
@@ -707,12 +707,12 @@ authenticated browser actions required by those pages. Keep API-style,
 generated schema/documentation, and public health paths blocked at nginx:
 `/api`, `/openapi.json`, `/docs`, `/redoc`, `/nginx-health`, and `/health/*`.
 Container health checks should use private Docker networking instead. Common
-nginx-generated 4xx and 5xx responses should use internal app-styled Job Logger
+nginx-generated 4xx and 5xx responses should use internal app-styled TicketPilot
 web service error pages and must not expose stock server branding. Full restore
 uploads may have a larger nginx body limit, but that limit must stay scoped to
 `/debug/restore`.
 Browser navigation to app-generated HTTP errors, including missing FastAPI
-routes, should also render app-styled Job Logger error pages. Those pages must
+routes, should also render app-styled TicketPilot error pages. Those pages must
 derive the **Back to Login** or **Back to Work** action from the current signed
 app session, and JSON/API clients that explicitly request JSON should keep
 receiving JSON error bodies.
@@ -734,7 +734,7 @@ and mirror the bundled nginx security behavior: blocked API/schema/docs/health
 paths, sanitized `X-Forwarded-For` and `X-Real-IP`, forwarded HTTPS scheme
 preservation, the audio WebSocket route, the scoped `/debug/restore` body
 limit, and app-styled proxy error pages. Use
-`docs/external-nginx-job-logger.conf` as the maintained sample. The Cloudflare
+`docs/external-nginx-ticket-pilot.conf` as the maintained sample. The Cloudflare
 Tunnel public hostname should be recorded through `WEBAUTHN_ORIGIN` when the
 app needs the browser-facing URL, especially for passkeys.
 

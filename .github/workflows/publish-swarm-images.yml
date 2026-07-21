@@ -6,7 +6,7 @@ on:
       - dev
       - main
     paths:
-      - "job_logger/**"
+      - "ticket_pilot/**"
       - "migrations/**"
       - "docker/**"
       - "Dockerfile"
@@ -25,7 +25,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: job-logger-swarm-images-${{ github.ref }}
+  group: ticket-pilot-swarm-images-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -38,9 +38,9 @@ jobs:
 
       - name: Render Docker stack
         env:
-          JOB_LOGGER_APP_IMAGE: ghcr.io/cosmicc/job-logger-app:validation
-          JOB_LOGGER_NGINX_IMAGE: ghcr.io/cosmicc/job-logger-nginx:validation
-          DATABASE_URL: postgresql+psycopg://job_logger:validation@postgres.example.test:5432/job_logger
+          TICKET_PILOT_APP_IMAGE: ghcr.io/cosmicc/ticket-pilot-app:validation
+          TICKET_PILOT_NGINX_IMAGE: ghcr.io/cosmicc/ticket-pilot-nginx:validation
+          DATABASE_URL: postgresql+psycopg://ticket_pilot:validation@postgres.example.test:5432/ticket_pilot
           APP_SECRET_KEY: validation-secret-key
           APP_PASSWORD: validation-password
           CLOUDFLARE_TUNNEL_TOKEN: validation-tunnel-token
@@ -60,12 +60,12 @@ jobs:
           - component: app
             context: .
             dockerfile: ./Dockerfile
-            image: ghcr.io/cosmicc/job-logger-app
+            image: ghcr.io/cosmicc/ticket-pilot-app
 
           - component: nginx
             context: ./docker/nginx
             dockerfile: ./docker/nginx/Dockerfile
-            image: ghcr.io/cosmicc/job-logger-nginx
+            image: ghcr.io/cosmicc/ticket-pilot-nginx
 
     steps:
       - name: Check out repository

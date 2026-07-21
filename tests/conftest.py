@@ -1,4 +1,4 @@
-"""Shared pytest setup for the Job Logger app."""
+"""Shared pytest setup for the TicketPilot app."""
 
 from __future__ import annotations
 
@@ -32,8 +32,8 @@ os.environ["APP_HEALTH_DISK_WARNING_FREE_MB"] = "1000"
 os.environ["APP_HEALTH_DISK_CRITICAL_FREE_MB"] = "250"
 os.environ["APP_PUBLIC_BASE_URL"] = ""
 os.environ["MAIL_ENABLED"] = "false"
-os.environ["MAIL_FROM_EMAIL"] = "joblogger@example.com"
-os.environ["MAIL_FROM_NAME"] = "Job Logger"
+os.environ["MAIL_FROM_EMAIL"] = "ticketpilot@example.com"
+os.environ["MAIL_FROM_NAME"] = "TicketPilot"
 os.environ["MAIL_MODE"] = "smtp"
 os.environ["MAIL_SMTP_HOST"] = ""
 os.environ["MAIL_SMTP_PORT"] = "587"
@@ -48,20 +48,20 @@ os.environ["TURNSTILE_SITE_KEY"] = ""
 os.environ["TURNSTILE_SECRET_KEY"] = ""
 os.environ["TURNSTILE_VERIFY_URL"] = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 os.environ["TURNSTILE_TIMEOUT_SECONDS"] = "10"
-os.environ["WEBAUTHN_RP_NAME"] = "Job Logger Test"
+os.environ["WEBAUTHN_RP_NAME"] = "TicketPilot Test"
 os.environ["WEBAUTHN_RP_ID"] = "testserver"
 os.environ["WEBAUTHN_ORIGIN"] = "http://testserver"
 os.environ["DATABASE_URL"] = "sqlite+pysqlite://"
 os.environ["TRANSCRIPTION_PROVIDER"] = "mock"
 os.environ["AUTOTASK_PROVIDER"] = "mock"
 os.environ["AUTOMATIC_BACKUPS_ENABLED"] = "false"
-os.environ["AUTOMATIC_BACKUP_DIR"] = "/tmp/job-logger-test-automatic-backups"
+os.environ["AUTOMATIC_BACKUP_DIR"] = "/tmp/ticket-pilot-test-automatic-backups"
 
-from job_logger import database  # noqa: E402
-from job_logger.database import Base  # noqa: E402
-from job_logger.main import create_app  # noqa: E402
-from job_logger.services.system_health import reset_cached_autotask_health  # noqa: E402
-from job_logger.services.users import create_web_user  # noqa: E402
+from ticket_pilot import database  # noqa: E402
+from ticket_pilot.database import Base  # noqa: E402
+from ticket_pilot.main import create_app  # noqa: E402
+from ticket_pilot.services.system_health import reset_cached_autotask_health  # noqa: E402
+from ticket_pilot.services.users import create_web_user  # noqa: E402
 
 TEST_WEB_USER_PASSWORD = "Test-password1!"
 
