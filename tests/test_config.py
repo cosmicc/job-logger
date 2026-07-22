@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -76,7 +77,8 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert re.search(r'name="theme"[^>]+value="dark"[^>]+checked', config_response.text)
     for theme_value, theme_label in (
         ("dark", "Default Dark"),
-        ("dark-slate", "Slate Dark"),
+        ("dark-midnight", "Midnight Black"),
+        ("dark-graphite", "Graphite Dark"),
         ("dark-forest", "Forest Dark"),
         ("dark-plum", "Plum Dark"),
         ("light", "Default Light"),
@@ -129,7 +131,8 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     (
         ("light-sage", "#f5f7f1"),
         ("light-sky", "#f2f7fb"),
-        ("dark-slate", "#111827"),
+        ("dark-midnight", "#030508"),
+        ("dark-graphite", "#17191d"),
         ("dark-forest", "#0d1914"),
         ("dark-plum", "#1a1220"),
     ),
@@ -154,6 +157,29 @@ def test_config_autosaves_additional_visual_themes(
     assert save_response.json()["theme"] == theme_value
     assert save_response.json()["theme_color"] == theme_color
     assert f'class="theme-{theme_value}"' in authenticated_client.get("/home").text
+
+
+def test_theme_highlights_color_navigation_icons_and_ordinary_buttons() -> None:
+    """Shared theme highlights should color navigation and neutral buttons."""
+
+    stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert "html.theme-dark-midnight {" in stylesheet
+    assert "html.theme-dark-graphite {" in stylesheet
+    assert "--accent: #6699e8;" in stylesheet
+    assert "--accent: #f2b84b;" in stylesheet
+    assert "--nav-action: var(--accent);" in stylesheet
+    assert "--nav-action-bg: var(--accent-soft);" in stylesheet
+    assert "background: var(--nav-action-bg-hover);" in stylesheet
+    assert (
+        ".secondary-button {\n"
+        "  border-color: var(--accent-border);\n"
+        "  background: var(--accent-soft);\n"
+        "  color: var(--accent);\n"
+        "}"
+    ) in stylesheet
 
 
 def test_navigation_preferences_require_home_and_do_not_audit_addresses(

@@ -614,6 +614,10 @@ def _validated_row(table: Table, row: Any, index: int) -> dict[str, Any]:
         raise BackupValidationError(f"Backup table {table.name} row {index} must be an object.")
 
     row = dict(row)
+    # Version 2.0.0 replaced Slate Dark with Midnight Black. Normalize that
+    # non-sensitive preference so pre-change full backups remain restorable.
+    if table.name == "user_preferences" and row.get("theme") == "dark-slate":
+        row["theme"] = "dark-midnight"
     expected_columns = {column.name for column in table.columns}
     actual_columns = set(row)
     unexpected_columns = actual_columns - expected_columns

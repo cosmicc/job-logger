@@ -46,7 +46,8 @@ class ThemeMode(StrEnum):
     LIGHT = "light"
     LIGHT_SAGE = "light-sage"
     LIGHT_SKY = "light-sky"
-    DARK_SLATE = "dark-slate"
+    DARK_MIDNIGHT = "dark-midnight"
+    DARK_GRAPHITE = "dark-graphite"
     DARK_FOREST = "dark-forest"
     DARK_PLUM = "dark-plum"
 

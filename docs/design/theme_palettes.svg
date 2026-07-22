@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="780" viewBox="0 0 1200 780" role="img" aria-labelledby="title description">
   <title id="title">TicketPilot selectable theme palettes</title>
-  <desc id="description">Seven comfortable interface palettes: three light themes and four dark themes.</desc>
+  <desc id="description">Eight comfortable interface palettes: three light themes and five dark themes.</desc>
   <rect width="1200" height="780" fill="#eef2f6"/>
   <text x="64" y="68" fill="#132033" font-family="Inter, Segoe UI, sans-serif" font-size="34" font-weight="700">TicketPilot Theme Palettes</text>
-  <text x="64" y="104" fill="#617089" font-family="Inter, Segoe UI, sans-serif" font-size="18">Three light themes and four dark themes · Version 2.0.0</text>
+  <text x="64" y="104" fill="#617089" font-family="Inter, Segoe UI, sans-serif" font-size="18">Three light themes and five dark themes · Version 2.0.0</text>
 
   <g font-family="Inter, Segoe UI, sans-serif">
     <g transform="translate(64 142)">
@@ -39,14 +39,22 @@
       <rect x="324" y="78" width="136" height="26" rx="7" fill="#2dd4bf"/>
     </g>
     <g transform="translate(64 442)">
-      <rect width="510" height="126" rx="12" fill="#182235" stroke="#394b65"/>
-      <text x="24" y="34" fill="#e7edf5" font-size="20" font-weight="700">Slate Dark</text>
-      <text x="24" y="58" fill="#a7b4c7" font-size="14">Graphite and blue</text>
-      <rect x="24" y="78" width="136" height="26" rx="7" fill="#111827" stroke="#394b65"/>
-      <rect x="174" y="78" width="136" height="26" rx="7" fill="#243248" stroke="#394b65"/>
-      <rect x="324" y="78" width="136" height="26" rx="7" fill="#62a8e5"/>
+      <rect width="510" height="126" rx="12" fill="#0e141b" stroke="#29394d"/>
+      <text x="24" y="34" fill="#edf4ff" font-size="20" font-weight="700">Midnight Black</text>
+      <text x="24" y="58" fill="#9cabbf" font-size="14">Black and navy blue</text>
+      <rect x="24" y="78" width="136" height="26" rx="7" fill="#030508" stroke="#29394d"/>
+      <rect x="174" y="78" width="136" height="26" rx="7" fill="#18222e" stroke="#29394d"/>
+      <rect x="324" y="78" width="136" height="26" rx="7" fill="#6699e8"/>
     </g>
     <g transform="translate(626 442)">
+      <rect width="510" height="126" rx="12" fill="#22252a" stroke="#474c54"/>
+      <text x="24" y="34" fill="#f1f2f3" font-size="20" font-weight="700">Graphite Dark</text>
+      <text x="24" y="58" fill="#b3b6bb" font-size="14">Charcoal and amber</text>
+      <rect x="24" y="78" width="136" height="26" rx="7" fill="#17191d" stroke="#474c54"/>
+      <rect x="174" y="78" width="136" height="26" rx="7" fill="#2d3137" stroke="#474c54"/>
+      <rect x="324" y="78" width="136" height="26" rx="7" fill="#f2b84b"/>
+    </g>
+    <g transform="translate(64 592)">
       <rect width="510" height="126" rx="12" fill="#14241d" stroke="#345344"/>
       <text x="24" y="34" fill="#e4eee8" font-size="20" font-weight="700">Forest Dark</text>
       <text x="24" y="58" fill="#9fb2a5" font-size="14">Evergreen and sage</text>
@@ -54,7 +62,7 @@
       <rect x="174" y="78" width="136" height="26" rx="7" fill="#20352b" stroke="#345344"/>
       <rect x="324" y="78" width="136" height="26" rx="7" fill="#7fc29a"/>
     </g>
-    <g transform="translate(345 592)">
+    <g transform="translate(626 592)">
       <rect width="510" height="126" rx="12" fill="#261a2d" stroke="#554062"/>
       <text x="24" y="34" fill="#eee7f1" font-size="20" font-weight="700">Plum Dark</text>
       <text x="24" y="58" fill="#b5a5bd" font-size="14">Aubergine and lavender</text>

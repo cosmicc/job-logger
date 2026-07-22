@@ -6,7 +6,10 @@
     "theme-light",
     "theme-light-sage",
     "theme-light-sky",
+    // Remove the former Slate class if an open Config tab spans the deployment.
     "theme-dark-slate",
+    "theme-dark-midnight",
+    "theme-dark-graphite",
     "theme-dark-forest",
     "theme-dark-plum",
   ];

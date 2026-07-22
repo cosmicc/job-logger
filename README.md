@@ -133,9 +133,11 @@ Autotask REST API references used by this app:
 8. Managed web users can open `/config` to choose their visual theme and how
    finished Work in Progress entries are submitted. Default Dark is selected
    initially, and changes save and apply immediately without a Save button.
-   Config offers three light and four dark palettes, shown in the maintained
+   Config offers three light and five dark palettes, shown in the maintained
    [theme palette reference](docs/design/theme_palettes.svg), and the chosen
-   theme applies to mobile and web pages for that login only. The **Submit from Work in Progress** workflow
+   theme applies to mobile and web pages for that login only. Navigation icons
+   and ordinary buttons follow the selected theme's highlight color while
+   status and destructive actions retain their established colors. The **Submit from Work in Progress** workflow
    option is not a workflow availability toggle. It is off by default; when
    enabled, ending work submits the completed time entry or ticket note to
    Autotask immediately instead of requiring Review first. The same page
@@ -389,8 +391,9 @@ production stack environments separate, including `DATABASE_URL`,
 to `80`. Set the matching Cloudflare Tunnel origin to `http://tpdnginx:80` for
 dev or `http://tpnginx:80` for production. If you change `HTTP_PORT`, change the
 corresponding tunnel origin port too. The port is intentionally not published
-through the Swarm routing mesh. Both stacks run two `cloudflared` replicas with
-at most one per node, so at least two eligible nodes are required.
+through the Swarm routing mesh. The production stack runs two `cloudflared`
+replicas with at most one per node, so production requires at least two eligible
+nodes. The dev stack runs one connector replica to keep test deployments small.
 
 Before deployment, mount both selected NFS roots on every eligible node and
 ensure each has these existing writable subdirectories:

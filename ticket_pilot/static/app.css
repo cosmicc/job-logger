@@ -8,6 +8,9 @@
   --accent: #2dd4bf;
   --accent-strong: #14b8a6;
   --accent-hover: #5eead4;
+  --accent-soft: rgba(45, 212, 191, 0.15);
+  --accent-soft-hover: rgba(45, 212, 191, 0.24);
+  --accent-border: rgba(45, 212, 191, 0.5);
   --warning: #f59e0b;
   --warning-hover: #fbbf24;
   --warning-soft: rgba(245, 158, 11, 0.16);
@@ -31,10 +34,11 @@
   --ai-action: #3b82f6;
   --ai-action-hover: #60a5fa;
   --ai-action-text: #f8fbff;
-  --nav-action: #60a5fa;
-  --nav-action-hover: #93c5fd;
-  --nav-action-bg: rgba(37, 99, 235, 0.18);
-  --nav-action-border: rgba(96, 165, 250, 0.54);
+  --nav-action: var(--accent);
+  --nav-action-hover: var(--accent-hover);
+  --nav-action-bg: var(--accent-soft);
+  --nav-action-bg-hover: var(--accent-soft-hover);
+  --nav-action-border: var(--accent-border);
   --nav-action-shadow: 0 2px 0 rgba(3, 7, 18, 0.42), 0 9px 18px rgba(3, 7, 18, 0.18);
   --pressed-shadow: inset 0 2px 7px rgba(3, 7, 18, 0.42);
   --control-track: rgba(11, 18, 32, 0.58);
@@ -68,6 +72,9 @@ html.theme-light-sky {
   --accent: #0f766e;
   --accent-strong: #0d9488;
   --accent-hover: #14b8a6;
+  --accent-soft: rgba(15, 118, 110, 0.1);
+  --accent-soft-hover: rgba(15, 118, 110, 0.17);
+  --accent-border: rgba(15, 118, 110, 0.38);
   --warning: #b45309;
   --warning-hover: #d97706;
   --warning-soft: rgba(180, 83, 9, 0.14);
@@ -91,10 +98,6 @@ html.theme-light-sky {
   --ai-action: #2563eb;
   --ai-action-hover: #1d4ed8;
   --ai-action-text: #ffffff;
-  --nav-action: #1d4ed8;
-  --nav-action-hover: #1e40af;
-  --nav-action-bg: rgba(37, 99, 235, 0.11);
-  --nav-action-border: rgba(37, 99, 235, 0.34);
   --nav-action-shadow: 0 2px 0 rgba(15, 23, 42, 0.13), 0 9px 18px rgba(15, 23, 42, 0.08);
   --pressed-shadow: inset 0 2px 7px rgba(15, 23, 42, 0.18);
   --control-track: rgba(226, 232, 240, 0.86);
@@ -125,6 +128,9 @@ html.theme-light-sage {
   --accent: #557a5b;
   --accent-strong: #3f6848;
   --accent-hover: #739679;
+  --accent-soft: rgba(85, 122, 91, 0.11);
+  --accent-soft-hover: rgba(85, 122, 91, 0.18);
+  --accent-border: rgba(85, 122, 91, 0.4);
   --focus-ring: rgba(85, 122, 91, 0.34);
   --control-track: rgba(224, 231, 218, 0.9);
   --service-call-remote-tail: rgba(238, 247, 240, 0.96);
@@ -146,6 +152,9 @@ html.theme-light-sky {
   --accent: #356f9f;
   --accent-strong: #285d87;
   --accent-hover: #5188b5;
+  --accent-soft: rgba(53, 111, 159, 0.11);
+  --accent-soft-hover: rgba(53, 111, 159, 0.19);
+  --accent-border: rgba(53, 111, 159, 0.4);
   --focus-ring: rgba(53, 111, 159, 0.34);
   --control-track: rgba(220, 233, 243, 0.9);
   --service-call-remote-tail: rgba(235, 246, 252, 0.96);
@@ -157,25 +166,58 @@ html.theme-light-sky {
   --code-text: #27445c;
 }
 
-html.theme-dark-slate {
-  --background: #111827;
-  --surface: #182235;
-  --surface-muted: #243248;
-  --text: #e7edf5;
-  --muted: #a7b4c7;
-  --border: #394b65;
-  --accent: #62a8e5;
-  --accent-strong: #4291d4;
-  --accent-hover: #83bbeb;
-  --focus-ring: rgba(98, 168, 229, 0.42);
-  --control-track: rgba(17, 24, 39, 0.64);
-  --service-call-remote-tail: rgba(24, 34, 53, 0.92);
-  --service-call-remote-tail-hover: rgba(36, 50, 72, 0.97);
-  --location-badge-bg: rgba(17, 24, 39, 0.64);
-  --review-row-selected: rgba(98, 168, 229, 0.14);
-  --ticket-option-hover: rgba(98, 168, 229, 0.13);
-  --code-background: #0b1220;
-  --code-text: #d7e8f8;
+html.theme-dark-midnight {
+  --background: #030508;
+  --surface: #0e141b;
+  --surface-muted: #18222e;
+  --text: #edf4ff;
+  --muted: #9cabbf;
+  --border: #29394d;
+  --accent: #6699e8;
+  --accent-strong: #4f83d1;
+  --accent-hover: #8ab2ef;
+  --accent-soft: rgba(102, 153, 232, 0.16);
+  --accent-soft-hover: rgba(102, 153, 232, 0.26);
+  --accent-border: rgba(102, 153, 232, 0.54);
+  --focus-ring: rgba(102, 153, 232, 0.46);
+  --on-accent: #07111f;
+  --control-track: rgba(3, 5, 8, 0.72);
+  --service-call-remote-tail: rgba(14, 20, 27, 0.94);
+  --service-call-remote-tail-hover: rgba(24, 34, 46, 0.98);
+  --service-call-onsite-tail: rgba(20, 18, 15, 0.94);
+  --service-call-onsite-tail-hover: rgba(38, 31, 20, 0.98);
+  --location-badge-bg: rgba(3, 5, 8, 0.72);
+  --review-row-selected: rgba(102, 153, 232, 0.16);
+  --ticket-option-hover: rgba(102, 153, 232, 0.14);
+  --code-background: #010204;
+  --code-text: #d8e8ff;
+}
+
+html.theme-dark-graphite {
+  --background: #17191d;
+  --surface: #22252a;
+  --surface-muted: #2d3137;
+  --text: #f1f2f3;
+  --muted: #b3b6bb;
+  --border: #474c54;
+  --accent: #f2b84b;
+  --accent-strong: #d99a26;
+  --accent-hover: #ffd071;
+  --accent-soft: rgba(242, 184, 75, 0.14);
+  --accent-soft-hover: rgba(242, 184, 75, 0.24);
+  --accent-border: rgba(242, 184, 75, 0.52);
+  --focus-ring: rgba(242, 184, 75, 0.44);
+  --on-accent: #211600;
+  --control-track: rgba(23, 25, 29, 0.72);
+  --service-call-remote-tail: rgba(34, 37, 42, 0.94);
+  --service-call-remote-tail-hover: rgba(45, 49, 55, 0.98);
+  --service-call-onsite-tail: rgba(42, 38, 30, 0.94);
+  --service-call-onsite-tail-hover: rgba(58, 49, 32, 0.98);
+  --location-badge-bg: rgba(23, 25, 29, 0.72);
+  --review-row-selected: rgba(242, 184, 75, 0.15);
+  --ticket-option-hover: rgba(242, 184, 75, 0.13);
+  --code-background: #101216;
+  --code-text: #f4dfb8;
 }
 
 html.theme-dark-forest {
@@ -188,6 +230,9 @@ html.theme-dark-forest {
   --accent: #7fc29a;
   --accent-strong: #62aa7e;
   --accent-hover: #9bd1ad;
+  --accent-soft: rgba(127, 194, 154, 0.14);
+  --accent-soft-hover: rgba(127, 194, 154, 0.23);
+  --accent-border: rgba(127, 194, 154, 0.48);
   --focus-ring: rgba(127, 194, 154, 0.42);
   --control-track: rgba(13, 25, 20, 0.66);
   --service-call-remote-tail: rgba(20, 36, 29, 0.92);
@@ -211,6 +256,9 @@ html.theme-dark-plum {
   --accent: #c49ad7;
   --accent-strong: #ac7cc2;
   --accent-hover: #d6b5e3;
+  --accent-soft: rgba(196, 154, 215, 0.14);
+  --accent-soft-hover: rgba(196, 154, 215, 0.23);
+  --accent-border: rgba(196, 154, 215, 0.48);
   --focus-ring: rgba(196, 154, 215, 0.42);
   --control-track: rgba(26, 18, 32, 0.66);
   --service-call-remote-tail: rgba(38, 26, 45, 0.92);
@@ -443,7 +491,7 @@ svg {
 .top-nav a:hover,
 .desktop-help-link:hover {
   border-color: var(--nav-action-hover);
-  background: rgba(59, 130, 246, 0.24);
+  background: var(--nav-action-bg-hover);
   box-shadow: var(--button-hover-shadow);
   color: var(--nav-action-hover);
 }
@@ -486,11 +534,17 @@ svg {
   font-weight: 650;
 }
 
+.secondary-link-button {
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .text-link:hover,
 .secondary-link-button:hover {
-  background: var(--surface-muted);
+  background: var(--accent-soft-hover);
   box-shadow: var(--button-hover-shadow);
-  color: var(--text);
+  color: var(--accent-hover);
 }
 
 .logout-form {
@@ -502,11 +556,11 @@ svg {
   width: 40px;
   height: 40px;
   place-items: center;
-  border: 1px solid var(--border);
+  border: 1px solid var(--accent-border);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--accent-soft);
   box-shadow: var(--nav-action-shadow);
-  color: var(--muted);
+  color: var(--accent);
   transform-origin: center;
   transition:
     transform 0.08s ease,
@@ -541,7 +595,7 @@ svg {
 
 .desktop-logout-button:hover {
   border-color: var(--nav-action-hover);
-  background: rgba(59, 130, 246, 0.24);
+  background: var(--nav-action-bg-hover);
   box-shadow: var(--button-hover-shadow);
   color: var(--nav-action-hover);
 }
@@ -605,7 +659,7 @@ svg {
 
 .mobile-nav-action:not(.health-alert-button):hover {
   border-color: var(--nav-action-hover);
-  background: rgba(59, 130, 246, 0.24);
+  background: var(--nav-action-bg-hover);
   box-shadow: var(--button-hover-shadow);
   color: var(--nav-action-hover);
 }
@@ -625,7 +679,7 @@ svg {
 
 .mobile-logout-action:hover {
   border-color: var(--nav-action-hover);
-  background: rgba(59, 130, 246, 0.24);
+  background: var(--nav-action-bg-hover);
   color: var(--nav-action-hover);
 }
 
@@ -1048,9 +1102,12 @@ small {
 .theme-choice-card-light-sky .theme-palette-preview i:nth-child(1) { background: #f2f7fb; }
 .theme-choice-card-light-sky .theme-palette-preview i:nth-child(2) { background: #ffffff; }
 .theme-choice-card-light-sky .theme-palette-preview i:nth-child(3) { background: #356f9f; }
-.theme-choice-card-dark-slate .theme-palette-preview i:nth-child(1) { background: #111827; }
-.theme-choice-card-dark-slate .theme-palette-preview i:nth-child(2) { background: #243248; }
-.theme-choice-card-dark-slate .theme-palette-preview i:nth-child(3) { background: #62a8e5; }
+.theme-choice-card-dark-midnight .theme-palette-preview i:nth-child(1) { background: #030508; }
+.theme-choice-card-dark-midnight .theme-palette-preview i:nth-child(2) { background: #18222e; }
+.theme-choice-card-dark-midnight .theme-palette-preview i:nth-child(3) { background: #6699e8; }
+.theme-choice-card-dark-graphite .theme-palette-preview i:nth-child(1) { background: #17191d; }
+.theme-choice-card-dark-graphite .theme-palette-preview i:nth-child(2) { background: #2d3137; }
+.theme-choice-card-dark-graphite .theme-palette-preview i:nth-child(3) { background: #f2b84b; }
 .theme-choice-card-dark-forest .theme-palette-preview i:nth-child(1) { background: #0d1914; }
 .theme-choice-card-dark-forest .theme-palette-preview i:nth-child(2) { background: #20352b; }
 .theme-choice-card-dark-forest .theme-palette-preview i:nth-child(3) { background: #7fc29a; }
@@ -1471,16 +1528,24 @@ a:focus-visible {
 }
 
 .secondary-button {
-  border-color: var(--border);
-  background: var(--surface);
-  color: var(--text);
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .secondary-button:hover {
-  border-color: var(--accent);
-  background: var(--surface-muted);
+  border-color: var(--accent-hover);
+  background: var(--accent-soft-hover);
   box-shadow: var(--button-hover-shadow);
-  color: var(--text);
+  color: var(--accent-hover);
+}
+
+.secondary-button:disabled,
+.icon-button:disabled {
+  border-color: var(--border);
+  background: var(--surface-muted);
+  box-shadow: none;
+  color: var(--muted);
 }
 
 .company-search-results,
@@ -3142,7 +3207,7 @@ td a {
 .quick-navigation-button:hover,
 .ticket-navigation-button:hover {
   border-color: var(--nav-action-hover);
-  background: rgba(59, 130, 246, 0.24);
+  background: var(--nav-action-bg-hover);
   box-shadow: var(--button-hover-shadow);
   color: var(--nav-action-hover);
 }
@@ -5119,7 +5184,7 @@ td a {
 
 .help-changelog-button:hover {
   border-color: var(--nav-action-hover);
-  background: rgba(59, 130, 246, 0.24);
+  background: var(--nav-action-bg-hover);
   box-shadow: var(--button-hover-shadow);
   color: var(--nav-action-hover);
 }

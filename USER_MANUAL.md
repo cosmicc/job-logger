@@ -359,8 +359,9 @@ change them.
 ### Appearance
 
 Choose from **Default Light**, **Sage Light**, **Sky Light**, **Default Dark**,
-**Slate Dark**, **Forest Dark**, or **Plum Dark**. The choice applies to your
-signed-in pages. Default Dark is selected initially.
+**Midnight Black**, **Graphite Dark**, **Forest Dark**, or **Plum Dark**. The
+choice applies to your signed-in pages, including the highlight color used by
+navigation icons and ordinary buttons. Default Dark is selected initially.
 
 On a full browser, Config uses a wide two-column card layout. On phones, the
 same cards remain stacked in the documented order.

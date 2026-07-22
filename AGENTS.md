@@ -184,7 +184,7 @@ registered passkeys.
 
 Managed web users may change per-login configuration on `/config`. Per-user
 configuration is database-backed, defaults to Default Dark, saves immediately
-when an option changes, and supports all seven defined visual themes for
+when an option changes, and supports all eight defined visual themes for
 authenticated mobile and web pages. It also supports the default-off **Submit
 from Work in Progress** option. When enabled, ending an active job submits the
 time entry directly to Autotask instead of stopping in Review first. The
@@ -653,12 +653,16 @@ of the **Job date** card; keep that label prominent enough to read quickly.
 
 Managed web-user pages must respect the current user's saved theme preference.
 Default Dark is the initial theme. Config must expose Default Light, Sage Light,
-Sky Light, Default Dark, Slate Dark, Forest Dark, and Plum Dark for a total of
-three light and four dark palettes. Every theme must cover mobile, review, user
+Sky Light, Default Dark, Midnight Black, Graphite Dark, Forest Dark, and Plum
+Dark for a total of three light and five dark palettes. Midnight Black replaces
+Slate Dark, and existing Slate Dark preferences migrate to Midnight Black.
+Every theme must cover mobile, review, user
 management, config, debug, and login surfaces through shared CSS variables
 instead of separate unaudited template branches. Super-admin pages always use
 Default Dark. `docs/design/theme_palettes.svg` is the maintained reference for
-all seven theme palettes.
+all eight theme palettes. Navigation icons and ordinary buttons use the active
+theme highlight color; established destructive, success, warning, AI, status,
+and disabled-control colors retain their semantic meaning.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
 must mark the Help navigation button in yellow so dev instances are visually
 distinct from production without adding a separate pill. Full-browser
@@ -893,7 +897,8 @@ origin. Dev Swarm deployment uses `docker-stack.dev.yml`, the `tpdapp` and
 and `http://tpdnginx:<HTTP_PORT>`. `HTTP_PORT` defaults to the private overlay
 port `80`; do not publish it through the Swarm routing mesh because Swarm cannot
 restrict a published port to loopback.
-Run two `cloudflared` replicas with at most one replica per node in each stack.
+Run two `cloudflared` replicas with at most one replica per node in production.
+The dev stack uses one `cloudflared` replica for the smaller test deployment.
 The per-stack `TICKET_PILOT_SWARM_STORAGE_PATH` defaults to
 `/mnt/swarm-storage/ticket-pilot` in production and
 `/mnt/swarm-storage/ticket-pilot-dev` in dev. Both NFS roots are mounted on every
@@ -1099,7 +1104,7 @@ The application is a FastAPI project under `ticket_pilot/`.
   Resource lookup, active service-desk role lookup, and session invalidation
   when accounts are disabled or archived.
 - `ticket_pilot/routes/configuration.py` handles authenticated managed-web-user
-  configuration such as immediate seven-palette theme selection and explicit
+  configuration such as immediate eight-palette theme selection and explicit
   managed-user password changes.
 - `ticket_pilot/routes/changelog.py` handles authenticated `/changelog` release
   history used by the Help page's **version changelog** overlay and by direct
@@ -1207,7 +1212,7 @@ The normal workflow is:
    password or passkey login, or `Never`, plus a green/red key icon for whether
    Device sign-in passkeys are registered. The first visible managed web user
    claims any existing unowned jobs from earlier single-user installs.
-3. A managed web user may open `/config` to choose among three light and four
+3. A managed web user may open `/config` to choose among three light and five
    dark themes for their own login, enable the default-off **Submit from Work in Progress**
    option, change their password, and add or delete passkeys. If the account is
    using a temporary super-admin-created or reset password, `/config` shows only

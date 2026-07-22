@@ -28,7 +28,8 @@ THEME_META_COLORS = {
     ThemeMode.LIGHT: "#f6f8fb",
     ThemeMode.LIGHT_SAGE: "#f5f7f1",
     ThemeMode.LIGHT_SKY: "#f2f7fb",
-    ThemeMode.DARK_SLATE: "#111827",
+    ThemeMode.DARK_MIDNIGHT: "#030508",
+    ThemeMode.DARK_GRAPHITE: "#17191d",
     ThemeMode.DARK_FOREST: "#0d1914",
     ThemeMode.DARK_PLUM: "#1a1220",
 }
@@ -52,11 +53,18 @@ class ThemeOption:
 THEME_OPTIONS = (
     ThemeOption(ThemeMode.DARK.value, "Default Dark", "Navy and teal", "dark", THEME_META_COLORS[ThemeMode.DARK]),
     ThemeOption(
-        ThemeMode.DARK_SLATE.value,
-        "Slate Dark",
-        "Graphite and blue",
+        ThemeMode.DARK_MIDNIGHT.value,
+        "Midnight Black",
+        "Black and navy blue",
         "dark",
-        THEME_META_COLORS[ThemeMode.DARK_SLATE],
+        THEME_META_COLORS[ThemeMode.DARK_MIDNIGHT],
+    ),
+    ThemeOption(
+        ThemeMode.DARK_GRAPHITE.value,
+        "Graphite Dark",
+        "Charcoal and amber",
+        "dark",
+        THEME_META_COLORS[ThemeMode.DARK_GRAPHITE],
     ),
     ThemeOption(
         ThemeMode.DARK_FOREST.value,

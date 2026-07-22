@@ -2148,16 +2148,16 @@ def test_debug_full_backup_download_and_restore_round_trip(super_admin_client: T
         assert "debug.full_backup.downloaded" not in actions
 
 
-def test_debug_restore_defaults_direct_submit_for_legacy_preference_backups(
+def test_debug_restore_normalizes_legacy_theme_and_defaults_missing_preferences(
     super_admin_client: TestClient,
 ) -> None:
-    """Restore v1.0.2 preference rows by defaulting the v1.1.0 workflow option off."""
+    """Restore legacy preference rows with the current theme and safe defaults."""
 
     with database.SessionLocal() as database_session:
         database_session.add(
             UserPreference(
                 principal_key="web_user:legacy-direct-submit-test",
-                theme=ThemeMode.LIGHT,
+                theme=ThemeMode.DARK_MIDNIGHT,
                 submit_from_work_in_progress=True,
             )
         )
@@ -2171,6 +2171,7 @@ def test_debug_restore_defaults_direct_submit_for_legacy_preference_backups(
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
     for row in payload["tables"]["user_preferences"]:
+        row["theme"] = "dark-slate"
         row.pop("submit_from_work_in_progress", None)
         row.pop("allow_navigation_on_full_web", None)
     payload["schema"]["user_preferences"].remove("submit_from_work_in_progress")
@@ -2201,7 +2202,7 @@ def test_debug_restore_defaults_direct_submit_for_legacy_preference_backups(
             select(UserPreference).where(UserPreference.principal_key == "web_user:legacy-direct-submit-test")
         )
         assert restored_preference is not None
-        assert restored_preference.theme == ThemeMode.LIGHT
+        assert restored_preference.theme == ThemeMode.DARK_MIDNIGHT
         assert restored_preference.submit_from_work_in_progress is False
         assert restored_preference.allow_navigation_on_full_web is False
 

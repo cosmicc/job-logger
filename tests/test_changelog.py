@@ -225,7 +225,10 @@ def test_changelog_parser_reads_current_release() -> None:
         title=CURRENT_WEB_TITLE,
         changes=(
             "TicketPilot is now the application name across the web interface and installed app.",
-            "Config now offers three comfortable light themes and four dark themes.",
+            (
+                "Config now offers three comfortable light themes and five dark themes, including Midnight Black "
+                "and amber-accented Graphite Dark."
+            ),
             "TicketPilot now uses its new logo and new high-resolution installed-app icon.",
             "Account emails, Help content, and user documentation now use the TicketPilot name.",
             (
@@ -239,6 +242,10 @@ def test_changelog_parser_reads_current_release() -> None:
             (
                 "Dark themes use the white TicketPilot mark and light themes use the black mark in the full-browser "
                 "header and browser tab."
+            ),
+            (
+                "Navigation icons and ordinary buttons now use the selected theme's highlight color while "
+                "action-specific colors remain easy to recognize."
             ),
             (
                 "The formal long application name is now Ticket Pilot for Autotask, reflecting that its work workflow "

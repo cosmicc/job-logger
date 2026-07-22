@@ -324,6 +324,7 @@ def _assert_common_swarm_contract(
     *,
     app_service: str,
     nginx_service: str,
+    cloudflared_replicas: int,
 ) -> None:
     """Check security and availability rules shared by both Swarm stacks."""
 
@@ -340,7 +341,7 @@ def _assert_common_swarm_contract(
     assert f"APP_UPSTREAM_HOST: {app_service}" in nginx_block
     assert "NGINX_LISTEN_PORT: ${HTTP_PORT:-80}" in nginx_block
     assert "replicas: 1" in nginx_block
-    assert "replicas: 2" in cloudflared_block
+    assert f"replicas: {cloudflared_replicas}" in cloudflared_block
     assert "max_replicas_per_node: 1" in cloudflared_block
     assert "parallelism: 1" in cloudflared_block
     assert "order: stop-first" in cloudflared_block
@@ -378,6 +379,7 @@ def test_production_swarm_stack_uses_production_names_and_storage() -> None:
         swarm_text,
         app_service="tpapp",
         nginx_service="tpnginx",
+        cloudflared_replicas=2,
     )
     assert "image: ${TICKET_PILOT_APP_IMAGE" in swarm_text
     assert "image: ${TICKET_PILOT_NGINX_IMAGE" in swarm_text
@@ -395,6 +397,7 @@ def test_dev_swarm_stack_uses_dev_names_images_and_storage() -> None:
         swarm_text,
         app_service="tpdapp",
         nginx_service="tpdnginx",
+        cloudflared_replicas=1,
     )
     assert "image: ${TICKET_PILOT_APP_IMAGE" in swarm_text
     assert "image: ${TICKET_PILOT_NGINX_IMAGE" in swarm_text
@@ -424,7 +427,8 @@ def test_readme_documents_compose_edge_and_swarm_deployment() -> None:
     assert "docker stack deploy --with-registry-auth" in readme_text
     assert "http://tpnginx:80" in readme_text
     assert "http://tpdnginx:80" in readme_text
-    assert "two `cloudflared` replicas" in readme_text
+    assert "production stack runs two `cloudflared`" in readme_text
+    assert "dev stack runs one connector replica" in readme_text
     assert "models/faster-whisper/" in readme_text
     assert "docs/external-nginx-ticket-pilot.conf" in readme_text
     assert "proxy to `http://tpapp:8000`" in readme_text

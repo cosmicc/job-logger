@@ -8,9 +8,10 @@ All notable changes to TicketPilot are documented in this file.
 
 - Added TicketPilot-branded application metadata, install assets, browser
   namespace, Python package namespace, and deployment identifiers.
-- Added Sage Light and Sky Light palettes plus Slate Dark, Forest Dark, and
-  Plum Dark palettes, bringing Config to three light and four dark choices.
-- Added a checked-in seven-theme palette reference for future visual work.
+- Added Sage Light and Sky Light palettes plus Midnight Black, Graphite Dark,
+  Forest Dark, and Plum Dark palettes, bringing Config to three light and five
+  dark choices.
+- Added a checked-in eight-theme palette reference for future visual work.
 - Added the supplied white, grey, and black TicketPilot SVG logo sources and
   the supplied 128, 256, 512, and 1024 pixel installed-app icon sources.
 
@@ -45,6 +46,10 @@ All notable changes to TicketPilot are documented in this file.
 - Defaulted optional Cloudflare Access header enforcement to off across Compose,
   Swarm, and the environment example. A free Cloudflare account is sufficient
   for the bundled Tunnel and optional Access deployment within free-plan limits.
+- Changed navigation icons and ordinary buttons to use each selected theme's
+  highlight color while preserving established semantic action colors.
+- Replaced Slate Dark with the darker Midnight Black palette and safely migrated
+  existing Slate Dark preferences and legacy backup values to Midnight Black.
 
 ### Fixed
 
@@ -56,7 +61,9 @@ All notable changes to TicketPilot are documented in this file.
   after a Remote or On-Site change.
 - Removed all superseded logo, install-icon, and maskable-icon assets.
 - Removed the superseded single-theme `docs/design/color_palette.png` reference;
-  the seven-theme SVG is now the only maintained palette reference.
+  the eight-theme SVG is now the only maintained palette reference.
+- Aligned the dev Swarm regression test and deployment documentation with its
+  intentional single `cloudflared` replica while retaining two in production.
 
 ## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations
 
