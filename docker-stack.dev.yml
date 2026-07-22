@@ -175,7 +175,7 @@ services:
     networks:
       - ticket_pilot
     deploy:
-      replicas: 2
+      replicas: 1
       placement:
         max_replicas_per_node: 1
       restart_policy:
