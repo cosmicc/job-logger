@@ -114,6 +114,41 @@
   margin-top: 8px;
 }
 
+.review-shell .review-hours-summary-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.review-shell .review-hours-summary {
+  min-width: 0;
+  align-content: center;
+  gap: 2px;
+  padding: 7px 3px;
+  text-align: center;
+}
+
+.review-shell .review-hours-summary .metric-label {
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.review-shell .review-hours-summary strong {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.review-shell .review-hours-full-value {
+  display: none;
+}
+
+.review-shell .review-hours-compact-value {
+  display: block;
+}
+
 .mobile-shell > .active-jobs-stack > .work-panel:first-child {
   margin-top: 0;
 }
@@ -140,8 +175,7 @@
 .button-grid,
 .user-edit-grid,
 .add-user-fields-grid,
-.theme-card-grid,
-.password-field-grid {
+  .password-field-grid {
   grid-template-columns: 1fr;
 }
 

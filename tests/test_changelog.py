@@ -263,6 +263,14 @@ def test_changelog_parser_reads_current_release() -> None:
                 "The login page now uses a neutral black, white, and grey appearance independently from your signed-in "
                 "appearance choices."
             ),
+            (
+                "Background selection on Config is now a dropdown with three round palette samples for every choice."
+            ),
+            (
+                "Review now begins with its summary cards directly below navigation, and phones keep all three cards "
+                "on one row with shorter hour and minute labels."
+            ),
+            "Config now identifies the active account with its full name and username.",
             "Removed stale former-name labels from user-facing application pages and metadata.",
             (
                 "Help and Config now begin closer to the navigation bar without redundant page titles or blank space."

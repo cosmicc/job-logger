@@ -1126,7 +1126,8 @@ def test_submitted_review_page_allows_controlled_entry_edits(authenticated_clien
     review_html = review_page_response.text
 
     assert review_page_response.status_code == 200
-    assert "Work Review" in review_html
+    assert "Work Review" not in review_html
+    assert "Edit recorded work, accept reviewed jobs" not in review_html
     assert "Job review" not in review_html
     assert "Submitted Autotask entry" in review_html
     assert "Autotask time entry:" not in review_html
@@ -1805,7 +1806,6 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".centered-field-label" in stylesheet
     assert ".review-detail-heading-row" in stylesheet
     assert ".review-work-location-card" in stylesheet
-    assert ".review-shell > .review-header" in stylesheet
     assert "justify-content: flex-start;" in stylesheet
     assert (
         ".review-form .form-grid {\n"
@@ -4373,7 +4373,11 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
     assert 'class="review-hours-summary-row" aria-label="Time-entry hours worked"' in first_page_html
     assert 'aria-label="Hours worked this week"' in first_page_html
     assert 'aria-label="Time entries not submitted to Autotask"' in first_page_html
+    assert first_page_html.count('class="review-hours-compact-value" aria-label="5.5 Hours"') == 2
+    assert first_page_html.count("5.5h") == 2
     assert re.search(r'<span class="metric-label">Unsubmitted</span>\s*<strong>11</strong>', first_page_html)
+    assert "Work Review" not in first_page_html
+    assert "Edit recorded work, accept reviewed jobs" not in first_page_html
     assert "Day hours" in first_page_html
     assert "Week hours" in first_page_html
     assert "Page 1 of 2" in first_page_html
@@ -4417,6 +4421,16 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
     ) in stylesheet
     assert "  padding: 5px 10px;\n  border: 1px solid var(--border);" in stylesheet
     assert "  background: var(--surface-strong);" in stylesheet
+    phone_stylesheet = (
+        Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "phone.css"
+    ).read_text(encoding="utf-8")
+    assert (
+        ".review-shell .review-hours-summary-row {\n"
+        "  display: grid;\n"
+        "  grid-template-columns: repeat(3, minmax(0, 1fr));"
+    ) in phone_stylesheet
+    assert ".review-shell .review-hours-full-value {\n  display: none;\n}" in phone_stylesheet
+    assert ".review-shell .review-hours-compact-value {\n  display: block;\n}" in phone_stylesheet
 
 
 def test_unsubmitted_time_entry_count_includes_only_actionable_autotask_work() -> None:

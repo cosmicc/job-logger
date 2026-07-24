@@ -102,6 +102,8 @@ def config_page(request: Request, database_session: Session = Depends(get_databa
             request,
             database_session=database_session,
             config_principal_label=principal.label,
+            config_user_full_name=current_web_user.full_name,
+            config_username=current_web_user.username,
             selected_theme=current_theme.value,
             theme_options=THEME_OPTIONS,
             selected_highlight_color=current_highlight_color.value,

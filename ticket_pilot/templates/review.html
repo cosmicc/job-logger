@@ -12,28 +12,28 @@
   </div>
 
   <section class="review-shell">
-    <div class="review-header">
-      <div>
-        <h1>Work Review</h1>
-        <p class="muted-text">Edit recorded work, accept reviewed jobs, and submit approved time to Autotask.</p>
-      </div>
-      {% if today_work_hours_label or week_work_hours_label %}
-        <div class="review-hours-summary-row" aria-label="Time-entry hours worked">
-          <div class="review-hours-summary" aria-label="Hours worked today">
-            <span class="metric-label">Today</span>
-            <strong>{{ today_work_hours_label }}</strong>
-          </div>
-          <div class="review-hours-summary" aria-label="Hours worked this week">
-            <span class="metric-label">Week</span>
-            <strong>{{ week_work_hours_label }}</strong>
-          </div>
-          <div class="review-hours-summary" aria-label="Time entries not submitted to Autotask">
-            <span class="metric-label">Unsubmitted</span>
-            <strong>{{ unsubmitted_time_entry_count }}</strong>
-          </div>
+    {% if today_work_hours_label or week_work_hours_label %}
+      <div class="review-hours-summary-row" aria-label="Time-entry hours worked">
+        <div class="review-hours-summary" aria-label="Hours worked today">
+          <span class="metric-label">Today</span>
+          <strong class="review-hours-full-value">{{ today_work_hours_label }}</strong>
+          <strong class="review-hours-compact-value" aria-label="{{ today_work_hours_label }}">
+            {{ today_work_hours_compact_label }}
+          </strong>
         </div>
-      {% endif %}
-    </div>
+        <div class="review-hours-summary" aria-label="Hours worked this week">
+          <span class="metric-label">Week</span>
+          <strong class="review-hours-full-value">{{ week_work_hours_label }}</strong>
+          <strong class="review-hours-compact-value" aria-label="{{ week_work_hours_label }}">
+            {{ week_work_hours_compact_label }}
+          </strong>
+        </div>
+        <div class="review-hours-summary" aria-label="Time entries not submitted to Autotask">
+          <span class="metric-label">Unsubmitted</span>
+          <strong>{{ unsubmitted_time_entry_count }}</strong>
+        </div>
+      </div>
+    {% endif %}
 
     <div class="review-layout">
       <section class="table-panel" aria-label="Recorded jobs">

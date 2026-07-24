@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 
 from ticket_pilot.time_utils import (
     enforce_minimum_rounded_end,
+    format_compact_duration_minutes,
     format_duration_minutes,
     format_job_date_display,
     format_job_date_label,
@@ -20,6 +21,17 @@ from ticket_pilot.time_utils import (
     round_to_nearest_quarter_hour,
     to_local,
 )
+
+
+def test_format_compact_duration_minutes_abbreviates_mobile_summary_values() -> None:
+    """Phone summaries should use short minute and decimal-hour labels."""
+
+    assert format_compact_duration_minutes(None) == ""
+    assert format_compact_duration_minutes(0) == ""
+    assert format_compact_duration_minutes(15) == "15m"
+    assert format_compact_duration_minutes(60) == "1h"
+    assert format_compact_duration_minutes(75) == "1.25h"
+    assert format_compact_duration_minutes(330) == "5.5h"
 
 
 def test_round_to_nearest_quarter_hour_rounds_forward() -> None:

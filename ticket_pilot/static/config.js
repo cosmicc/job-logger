@@ -73,6 +73,22 @@
     return form.querySelector("input[name='highlight_color']:checked");
   }
 
+  function updateThemeDropdown(form, themeInput) {
+    const currentLabel = form.querySelector("[data-theme-current-label]");
+    const currentPalette = form.querySelector(".theme-background-summary .theme-palette-dots");
+    if (currentLabel) {
+      currentLabel.textContent = themeInput.dataset.themeLabel || themeInput.value;
+    }
+    if (currentPalette) {
+      Array.from(currentPalette.classList).forEach((className) => {
+        if (className.startsWith("theme-palette-dots-")) {
+          currentPalette.classList.remove(className);
+        }
+      });
+      currentPalette.classList.add(`theme-palette-dots-${themeInput.value}`);
+    }
+  }
+
   function updateHighlightDropdown(form, highlightInput) {
     const currentLabel = form.querySelector("[data-highlight-current-label]");
     const currentSwatch = form.querySelector(".highlight-color-summary .highlight-color-swatch");
@@ -113,6 +129,7 @@
 
     if (themeInput) {
       applyTheme(themeInput.value, themeInput.dataset.themeColor || "");
+      updateThemeDropdown(form, themeInput);
     }
     if (highlightInput) {
       applyHighlight(highlightInput.value);
@@ -172,6 +189,7 @@
             fallbackInput.value,
             fallbackInput.dataset.themeColor || "",
           );
+          updateThemeDropdown(form, fallbackInput);
         }
       }
       if (highlightInput) {
@@ -212,6 +230,11 @@
 
         const previousThemeInput = currentThemeInput;
         currentThemeInput = themeInput;
+        updateThemeDropdown(form, themeInput);
+        const themeDropdown = form.querySelector("[data-theme-dropdown]");
+        if (themeDropdown) {
+          themeDropdown.open = false;
+        }
         const result = await saveConfig(form, {
           themeInput,
           previousThemeInput,

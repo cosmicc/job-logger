@@ -138,6 +138,19 @@ def format_duration_minutes(duration_minutes: int | None) -> str:
     return f"{hours_text} Hours"
 
 
+def format_compact_duration_minutes(duration_minutes: int | None) -> str:
+    """Return an abbreviated duration label for space-constrained summaries."""
+
+    if duration_minutes is None or duration_minutes <= 0:
+        return ""
+
+    if duration_minutes < 60:
+        return f"{duration_minutes}m"
+
+    hours_text = f"{duration_minutes / 60:.2f}".rstrip("0").rstrip(".")
+    return f"{hours_text}h"
+
+
 def format_rounded_duration_label(rounded_start_utc: datetime | None, rounded_end_utc: datetime | None) -> str:
     """Return the display duration between two rounded UTC timestamps."""
 

@@ -604,9 +604,10 @@ Both the blank and one-active-job concurrent start panels must use this same
 full-browser two-column treatment: a smaller single-line title and Start Work
 control on the left, with Service calls on the right. The Help page must begin
 with its first card without a redundant Support/Help page heading. Config must
-begin with the compact **Settings for &lt;user&gt;** line, omit a separate Config
-heading, use the full desktop content width with paired cards where practical,
-and retain one-card-per-row stacking on phones.
+begin with the compact **User Settings for &lt;full name&gt;
+(&lt;username&gt;)** line, omit a separate Config heading, use the full desktop
+content width with paired cards where practical, and retain one-card-per-row
+stacking on phones.
 When no service calls are available for a selected day, the full-browser
 empty-state message should be centered. Phone spacing should remain governed by
 the shared/mobile CSS.
@@ -663,10 +664,12 @@ Managed web-user pages must respect the current user's saved background and
 highlight preferences. Default Dark with Teal is the initial appearance.
 Config exposes Default Light, Sage Light, Sky Light, Default Dark, Midnight
 Black, Graphite Dark, Forest Dark, and Plum Dark as three light and five dark
-background profiles. It separately exposes Teal, Sage, Sky Blue, Blue, Indigo,
-Amber, Orange, Mint, Lavender, and Rose in a dropdown with a visible color
-sample for every option. Midnight Black replaces Slate Dark, and migrations
-must preserve the effective highlight of older saved themes and backups.
+background profiles in a dropdown whose selected value and every option show
+three round swatches for that background's page, surface, and muted-surface
+colors. It separately exposes Teal, Sage, Sky Blue, Blue, Indigo, Amber,
+Orange, Mint, Lavender, and Rose in a dropdown with a visible color sample for
+every option. Midnight Black replaces Slate Dark, and migrations must preserve
+the effective highlight of older saved themes and backups.
 Every background/highlight combination must cover mobile, review, user
 management, Config, Diagnostics, and login surfaces through shared CSS
 variables instead of separate unaudited template branches. Super-admin pages
@@ -743,10 +746,13 @@ job date, and local work week. Ticket notes do not contribute to hour totals.
 The Work page and Review page should also show time-entry hours worked today
 and this week, including `0 Hours` when no time-entry work has been recorded.
 Work should show those values as a centered, compact, discreet boxed summary
-rather than full metric cards. Review should show Today, Week, and Unsubmitted
-as same-sized metric cards near the top of the page. Unsubmitted counts only
-time-entry jobs in Active, Ready for Review, or Submission Failed status;
-ticket notes, rejected jobs, and successfully submitted jobs do not count.
+rather than full metric cards. Review must omit the page title and description
+so its Today, Week, and Unsubmitted cards begin just below the navigation bar.
+On phones those three same-sized cards must fit on one row and use abbreviated
+duration values such as `15m`, `1h`, or `1.25h`; full-browser cards retain the
+complete duration labels. Unsubmitted counts only time-entry jobs in Active,
+Ready for Review, or Submission Failed status; ticket notes, rejected jobs,
+and successfully submitted jobs do not count.
 Managed users see only their own count, while the config super admin sees the
 count across all owners in the same review scope. The summary
 textarea for time entries must show the complete Autotask summary that will be

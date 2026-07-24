@@ -61,6 +61,13 @@ All notable changes to TicketPilot are documented in this file.
   `TicketPilot - Time Entry` for Work.
 - Changed the public login page to a dedicated black, white, and grey palette
   that is independent from every authenticated background and highlight choice.
+- Changed Config background selection from a card grid to a compact dropdown
+  whose selected value and every option show three round palette swatches.
+- Removed the Review page title and description so its summary cards begin just
+  below navigation, and compacted all three cards into one abbreviated row on
+  phones.
+- Changed the Config intro to identify the active managed account as
+  `User Settings for Full Name (username)`.
 
 ### Fixed
 

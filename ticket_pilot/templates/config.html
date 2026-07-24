@@ -8,7 +8,7 @@
       {% if password_change_required %}
         Change the temporary password for {{ config_principal_label }}.
       {% else %}
-        Settings for {{ config_principal_label }}.
+        User Settings for {{ config_user_full_name }} ({{ config_username }})
       {% endif %}
     </p>
 
@@ -35,46 +35,48 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <fieldset class="segmented-fieldset theme-card-fieldset">
                 <legend>Background</legend>
-                <div class="theme-option-grid theme-card-grid" role="radiogroup" aria-label="Background">
-                  {% for option in theme_options %}
-                    <label class="theme-choice-card theme-choice-card-{{ option.value }}">
-                      <input
-                        type="radio"
-                        name="theme"
-                        value="{{ option.value }}"
-                        data-theme-option
-                        data-theme-color="{{ option.meta_color }}"
-                        {% if selected_theme == option.value %}checked{% endif %}
-                      >
-                      <span class="theme-choice-icon" aria-hidden="true">
-                        {% if option.family == "light" %}
-                          <svg viewBox="0 0 24 24">
-                            <circle cx="12" cy="12" r="4"></circle>
-                            <path d="M12 2v2"></path>
-                            <path d="M12 20v2"></path>
-                            <path d="m4.93 4.93 1.41 1.41"></path>
-                            <path d="m17.66 17.66 1.41 1.41"></path>
-                            <path d="M2 12h2"></path>
-                            <path d="M20 12h2"></path>
-                            <path d="m6.34 17.66-1.41 1.41"></path>
-                            <path d="m19.07 4.93-1.41 1.41"></path>
-                          </svg>
-                        {% else %}
-                          <svg viewBox="0 0 24 24">
-                            <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8Z"></path>
-                          </svg>
-                        {% endif %}
-                      </span>
-                      <span class="theme-choice-copy">
-                        <strong>{{ option.label }}</strong>
-                        <small>{{ option.description }}</small>
-                        <span class="theme-palette-preview" aria-hidden="true">
+                <details class="theme-background-dropdown" data-theme-dropdown>
+                  <summary class="theme-background-summary">
+                    {% for option in theme_options %}
+                      {% if selected_theme == option.value %}
+                        <span class="theme-background-current">
+                          <span class="theme-palette-dots theme-palette-dots-{{ option.value }}" aria-hidden="true">
+                            <i></i><i></i><i></i>
+                          </span>
+                          <span data-theme-current-label>{{ option.label }}</span>
+                        </span>
+                      {% endif %}
+                    {% endfor %}
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m7 10 5 5 5-5"></path>
+                    </svg>
+                  </summary>
+                  <div class="theme-background-menu" role="radiogroup" aria-label="Background">
+                    {% for option in theme_options %}
+                      <label class="theme-background-option">
+                        <input
+                          type="radio"
+                          name="theme"
+                          value="{{ option.value }}"
+                          data-theme-option
+                          data-theme-color="{{ option.meta_color }}"
+                          data-theme-label="{{ option.label }}"
+                          {% if selected_theme == option.value %}checked{% endif %}
+                        >
+                        <span class="theme-palette-dots theme-palette-dots-{{ option.value }}" aria-hidden="true">
                           <i></i><i></i><i></i>
                         </span>
-                      </span>
-                    </label>
-                  {% endfor %}
-                </div>
+                        <span class="theme-background-option-copy">
+                          <strong>{{ option.label }}</strong>
+                          <small>{{ option.description }}</small>
+                        </span>
+                        <svg class="theme-background-check" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m5 12 4 4L19 6"></path>
+                        </svg>
+                      </label>
+                    {% endfor %}
+                  </div>
+                </details>
               </fieldset>
               <fieldset class="segmented-fieldset highlight-color-fieldset">
                 <legend>Highlight color</legend>

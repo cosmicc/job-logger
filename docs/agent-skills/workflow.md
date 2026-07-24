@@ -582,11 +582,14 @@ Review supports:
   including `0 Hours` when no time-entry work exists for those periods.
 - Showing Today and Week time-entry hours as a compact boxed summary near the
   top of Work without turning it into full metric cards.
-- Showing equal Today, Week, and Unsubmitted cards near the top of Review.
-  Unsubmitted counts time entries in Active, Ready for Review, or Submission
-  Failed status only. Exclude ticket notes, rejected jobs, and successfully
-  submitted jobs. Managed users use their owner-scoped job list; the config
-  super admin uses the all-owner review list.
+- Starting Review with equal Today, Week, and Unsubmitted cards directly below
+  the navigation bar, without a page title or description. On phones all three
+  cards stay on one row and abbreviate durations as `15m`, `1h`, or `1.25h`;
+  full-browser cards keep complete duration labels. Unsubmitted counts time
+  entries in Active, Ready for Review, or Submission Failed status only.
+  Exclude ticket notes, rejected jobs, and successfully submitted jobs.
+  Managed users use their owner-scoped job list; the config super admin uses
+  the all-owner review list.
 - Keeping full-browser Work start panels compact, with the Service calls title
   visually raised above the date picker while the date picker, list, and
   empty-state message remain tightly arranged. Phone spacing stays controlled

@@ -134,10 +134,13 @@ Autotask REST API references used by this app:
    highlight color and control how
    finished Work in Progress entries are submitted. Default Dark is selected
    initially, and changes save and apply immediately without a Save button.
+   The page identifies the managed account with its full name and username.
    Config offers three light and five dark background profiles plus ten
    independent highlight colors, shown in the maintained
    [theme palette reference](docs/design/theme_palettes.svg), and the chosen
-   combination applies to mobile and web pages for that login only. Highlight
+   combination applies to mobile and web pages for that login only. The
+   background dropdown previews each option with three round palette swatches,
+   while the separate highlight dropdown shows one color sample. Highlight
    shades adjust automatically for readable contrast on light or dark
    backgrounds. Navigation icons and ordinary buttons follow the selected
    highlight color while
@@ -1523,12 +1526,14 @@ Work in Progress and Review detail show that rounded duration as centered labels
 like `15 Minutes`, `1 Hour`, or `1.25 Hours`.
 Work shows centered compact boxed total time-entry hours worked today and this
 week.
-Review shows Today, Week, and Unsubmitted metric cards, lists jobs newest-first,
-10 rows per page, and includes day-hours and week-hours columns for each job
-owner/date. Unsubmitted counts time entries in Active, Ready for Review, or
-Submission Failed status. Managed users see their own count, while the config
-super admin sees the all-owner review scope. Ticket notes do not add to hour
-totals or the unsubmitted count.
+Review starts directly below navigation with Today, Week, and Unsubmitted
+metric cards and no redundant page heading. On phones all three cards fit on
+one row with abbreviated durations; full-browser cards retain complete labels.
+Review lists jobs newest-first, 10 rows per page, and includes day-hours and
+week-hours columns for each job owner/date. Unsubmitted counts time entries in
+Active, Ready for Review, or Submission Failed status. Managed users see their
+own count, while the config super admin sees the all-owner review scope. Ticket
+notes do not add to hour totals or the unsubmitted count.
 Time entries also enforce work-location minimums: Remote work must be at least
 15 rounded minutes, and On-Site work must be at least 1 rounded hour. Ticket
 notes do not use start and end times, so these minimums do not apply to notes.

@@ -24,6 +24,9 @@ Short release notes shown on the authenticated `/changelog` page.
 - Work now uses `/work` as its browser URL while old `/home` bookmarks continue to work.
 - Browser tab titles now put TicketPilot first, such as `TicketPilot - Time Entry`.
 - The login page now uses a neutral black, white, and grey appearance independently from your signed-in appearance choices.
+- Background selection on Config is now a dropdown with three round palette samples for every choice.
+- Review now begins with its summary cards directly below navigation, and phones keep all three cards on one row with shorter hour and minute labels.
+- Config now identifies the active account with its full name and username.
 
 ### Fixed
 

@@ -284,8 +284,10 @@ actions instead.
 
 ## Review Page
 
-The Review page lists your completed, failed, and submitted records, newest
-first, with 10 records per page.
+The Review page starts with Today, Week, and Unsubmitted cards directly below
+the navigation bar, then lists your completed, failed, and submitted records
+newest first, with 10 records per page. On a phone, all three summary cards fit
+on one row and abbreviate duration values, such as `15m`, `1h`, or `1.25h`.
 
 Use Review to:
 
@@ -360,14 +362,16 @@ record should not be submitted.
 ## Config Page
 
 Config stores your personal settings. Most options save immediately when you
-change them.
+change them. The page identifies the active account as **User Settings for
+Full Name (username)** above the settings cards.
 
 ### Appearance
 
-Choose a background from **Default Light**, **Sage Light**, **Sky Light**,
-**Default Dark**, **Midnight Black**, **Graphite Dark**, **Forest Dark**, or
-**Plum Dark**. Then independently choose one of ten highlight colors from the
-dropdown; every option includes a visible color sample. TicketPilot
+Choose a background from the dropdown: **Default Light**, **Sage Light**,
+**Sky Light**, **Default Dark**, **Midnight Black**, **Graphite Dark**,
+**Forest Dark**, or **Plum Dark**. Every background option displays three round
+palette samples. Then independently choose one of ten highlight colors from
+its dropdown; every option includes a visible color sample. TicketPilot
 automatically uses an adjusted shade for readable contrast on light and dark
 backgrounds. The combination applies to your signed-in pages, including
 navigation icons and ordinary buttons. Default Dark with Teal is selected

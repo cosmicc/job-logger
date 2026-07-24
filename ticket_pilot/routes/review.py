@@ -70,6 +70,7 @@ from ticket_pilot.services.preferences import (
 )
 from ticket_pilot.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
 from ticket_pilot.time_utils import (
+    format_compact_duration_minutes,
     format_duration_minutes,
     format_local_date,
     format_local_date_display,
@@ -651,6 +652,8 @@ def _render_review(
             selected_job=selected_job,
             today_work_hours_label=format_duration_minutes(today_total_minutes) or "0 Hours",
             week_work_hours_label=format_duration_minutes(week_total_minutes) or "0 Hours",
+            today_work_hours_compact_label=format_compact_duration_minutes(today_total_minutes) or "0h",
+            week_work_hours_compact_label=format_compact_duration_minutes(week_total_minutes) or "0h",
             unsubmitted_time_entry_count=count_unsubmitted_time_entries(all_jobs),
             job_hour_totals=job_hour_totals,
             selected_job_submitted=(

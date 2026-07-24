@@ -26,11 +26,15 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert config_response.status_code == 200
     assert 'class="theme-dark highlight-teal"' in config_response.text
     assert 'class="config-layout"' in config_response.text
-    assert 'class="theme-option-grid theme-card-grid"' in config_response.text
+    assert 'class="theme-background-dropdown"' in config_response.text
+    assert 'role="radiogroup" aria-label="Background"' in config_response.text
+    assert 'class="theme-palette-dots theme-palette-dots-dark"' in config_response.text
+    assert 'data-theme-current-label>Default Dark</span>' in config_response.text
     assert 'class="highlight-color-dropdown"' in config_response.text
     assert 'role="radiogroup" aria-label="Highlight color"' in config_response.text
     assert "<h1>Config</h1>" not in config_response.text
-    assert "Settings for tech." in config_response.text
+    assert "User Settings for Test Technician (tech)" in config_response.text
+    assert "Settings for tech." not in config_response.text
     assert 'class="muted-text config-page-intro"' in config_response.text
     assert 'class="edit-panel config-panel config-appearance-panel config-grid-full"' in config_response.text
     assert 'action="/config/password"' in config_response.text
@@ -96,6 +100,8 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
         ("light-sky", "Sky Light"),
     ):
         assert f'value="{theme_value}"' in config_response.text
+        assert f'data-theme-label="{theme_label}"' in config_response.text
+        assert f'theme-palette-dots-{theme_value}' in config_response.text
         assert theme_label in config_response.text
     for highlight_value, highlight_label in (
         ("teal", "Teal"),
