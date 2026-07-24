@@ -151,6 +151,11 @@ button state. When selected for password sign-in, the session gets a 15-minute
 inactivity timeout, suppresses the Home Device sign-in setup prompt, and must
 reject new passkey registration while keeping normal authentication, CSRF,
 disabled-user, and configured session-timeout enforcement intact.
+The public login template must replace authenticated theme classes with the
+dedicated `login-neutral` class and a neutral browser theme color. Keep every
+login background, surface, control, focus state, and feedback color within the
+black, white, and grey palette so managed-user appearance preferences never
+affect authentication.
 
 Managed web-user passkeys are optional login credentials. The config super
 admin must not register or use passkeys. Passkey registration is available only

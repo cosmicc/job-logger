@@ -59,6 +59,8 @@ All notable changes to TicketPilot are documented in this file.
   URL while retaining `/debug` compatibility.
 - Standardized browser titles in the `TicketPilot - Page` order, including
   `TicketPilot - Time Entry` for Work.
+- Changed the public login page to a dedicated black, white, and grey palette
+  that is independent from every authenticated background and highlight choice.
 
 ### Fixed
 
@@ -75,6 +77,8 @@ All notable changes to TicketPilot are documented in this file.
   intentional single `cloudflared` replica while retaining two in production.
 - Preserved the effective highlight color when migrating existing theme
   preferences or restoring backups created before independent highlights.
+- Prevented authenticated theme and highlight classes from reaching the public
+  login page, including its controls, focus states, and feedback messages.
 
 ## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations
 

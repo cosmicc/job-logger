@@ -259,6 +259,10 @@ def test_changelog_parser_reads_current_release() -> None:
             ),
             "Work now uses `/work` as its browser URL while old `/home` bookmarks continue to work.",
             "Browser tab titles now put TicketPilot first, such as `TicketPilot - Time Entry`.",
+            (
+                "The login page now uses a neutral black, white, and grey appearance independently from your signed-in "
+                "appearance choices."
+            ),
             "Removed stale former-name labels from user-facing application pages and metadata.",
             (
                 "Help and Config now begin closer to the navigation bar without redundant page titles or blank space."
@@ -271,6 +275,7 @@ def test_changelog_parser_reads_current_release() -> None:
                 "Existing saved appearances keep their familiar highlight when upgraded to the new independent "
                 "color setting."
             ),
+            "Signed-in background and highlight choices no longer affect the login page.",
         ),
     )
 

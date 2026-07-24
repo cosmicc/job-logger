@@ -23,7 +23,9 @@ pages also work from a full browser.
 ## Signing In
 
 Open the TicketPilot URL provided by your organization. Sign in with your
-username and password.
+username and password. The login page always uses a neutral black, white, and
+grey appearance; your saved background and highlight choices apply only after
+you sign in.
 
 If you are signing in on a shared or public device, check **This is a public
 device** before signing in. TicketPilot signs out public-device sessions after

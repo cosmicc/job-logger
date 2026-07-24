@@ -639,7 +639,9 @@ The config super-admin account still signs in with `APP_USERNAME` and
 or with registered device sign-in. The app labels this feature **Device
 sign-in** because the underlying passkey can use a phone, browser profile,
 security key, fingerprint, Face ID, PIN, pattern, or another local unlock
-method. Device sign-in can be set up from `/config` after a normal password
+method. The public login page always uses a neutral black, white, and grey
+appearance independent of managed-user background and highlight settings.
+Device sign-in can be set up from `/config` after a normal password
 login. On phone-sized layouts, the `/work` page prompts managed users without a
 registered credential only once after each successful login, while `/config`
 always keeps setup available. TicketPilot stores only the public credential ID,

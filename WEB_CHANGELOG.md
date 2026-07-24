@@ -23,6 +23,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Cloudflare Access enforcement now starts off by default and can be enabled after an Access application is configured; a paid Cloudflare plan is not required.
 - Work now uses `/work` as its browser URL while old `/home` bookmarks continue to work.
 - Browser tab titles now put TicketPilot first, such as `TicketPilot - Time Entry`.
+- The login page now uses a neutral black, white, and grey appearance independently from your signed-in appearance choices.
 
 ### Fixed
 
@@ -31,6 +32,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Work Duration now updates immediately when a work-type change normalizes the active stop time.
 - Removed the former logo and app-icon artwork so browsers no longer discover stale branding assets.
 - Existing saved appearances keep their familiar highlight when upgraded to the new independent color setting.
+- Signed-in background and highlight choices no longer affect the login page.
 
 ## 1.4.0 - 07.20.2026 - Navigation apps and quick destinations
 

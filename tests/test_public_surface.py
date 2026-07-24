@@ -33,12 +33,32 @@ class UnavailableDatabaseMonitor:
 
 
 def test_login_browser_title_starts_with_ticketpilot(client: TestClient) -> None:
-    """Public browser titles should put the application name first."""
+    """Login should use the application-first title and neutral public palette."""
 
     response = client.get("/login")
+    stylesheet = client.get("/static/app.css").text
 
     assert response.status_code == 200
     assert "<title>TicketPilot - Login</title>" in response.text
+    assert '<html lang="en" class="login-neutral">' in response.text
+    assert '<body class="login-neutral">' in response.text
+    assert '<meta name="theme-color" content="#090909">' in response.text
+    assert 'class="theme-' not in response.text
+    assert 'class="highlight-' not in response.text
+    assert (
+        "html.login-neutral {\n"
+        "  --background: #090909;\n"
+        "  --surface: #171717;\n"
+        "  --surface-muted: #262626;\n"
+        "  --surface-strong: rgba(255, 255, 255, 0.07);\n"
+        "  --text: #f5f5f5;\n"
+        "  --muted: #b8b8b8;\n"
+        "  --border: #4a4a4a;"
+    ) in stylesheet
+    assert "  --accent: #f5f5f5;" in stylesheet
+    assert "  --accent-hover: #ffffff;" in stylesheet
+    assert "  --danger: #dedede;" in stylesheet
+    assert "  --success: #e8e8e8;" in stylesheet
 
 
 def test_anonymous_sensitive_pages_redirect_to_login(client: TestClient) -> None:

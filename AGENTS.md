@@ -726,7 +726,9 @@ right-side Help/logout actions; the phone icon joins the compact left-side
 route group so Help can stay immediately beside logout. Do not run live
 Autotask probes while rendering a page.
 The unauthenticated login page should not show a top app icon or wordmark above
-the sign-in form.
+the sign-in form. It must use its own neutral black, white, and grey palette,
+including controls, focus states, and feedback messages, without inheriting or
+applying any authenticated background or highlight theme.
 
 The standard review interface must work well on a full computer screen.
 
