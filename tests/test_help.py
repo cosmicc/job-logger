@@ -219,7 +219,7 @@ def test_super_admin_can_view_help(super_admin_client: TestClient) -> None:
     response = super_admin_client.get("/help")
 
     assert response.status_code == 200
-    assert 'class="theme-dark"' in response.text
+    assert 'class="theme-dark highlight-teal"' in response.text
     assert "<h1>Help</h1>" not in response.text
 
 

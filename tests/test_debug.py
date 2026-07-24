@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from tests.conftest import extract_csrf_token, login_as_super_admin, login_as_web_user
 from ticket_pilot import database
 from ticket_pilot.config import settings
-from ticket_pilot.enums import JobStatus, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
+from ticket_pilot.enums import HighlightColor, JobStatus, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
 from ticket_pilot.models import (
     AuditEvent,
     CloudflareIPBlock,
@@ -135,32 +135,65 @@ def test_application_version_matches_package_metadata() -> None:
 def test_debug_route_requires_login(client: TestClient) -> None:
     """Anonymous users should be redirected to login for debug diagnostics."""
 
-    response = client.get("/debug", follow_redirects=False)
+    response = client.get("/diagnostics", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/login"
+
+
+def test_legacy_debug_namespace_redirects_page_and_keeps_action_aliases(
+    super_admin_client: TestClient,
+) -> None:
+    """Old Diagnostics URLs should remain usable while the page URL is canonical."""
+
+    page_response = super_admin_client.get("/debug?success_page=2", follow_redirects=False)
+    log_response = super_admin_client.get("/debug/logs/login-successes")
+    registered_paths = {
+        route.path
+        for diagnostics_router in (debug_routes.router, debug_routes.legacy_router)
+        for route in diagnostics_router.routes
+    }
+
+    assert page_response.status_code == 308
+    assert page_response.headers["location"] == "/diagnostics?success_page=2"
+    assert log_response.status_code == 200
+    for suffix in (
+        "/logs/login-failures",
+        "/logs/login-successes",
+        "/login-failures/hide",
+        "/cloudflare-blocks/block",
+        "/cloudflare-blocks/unblock",
+        "/backup",
+        "/restore",
+        "/automatic-backups/restore",
+        "/automatic-backups/download",
+        "/autotask/test",
+        "/sessions/logout-web-users",
+    ):
+        assert f"/diagnostics{suffix}" in registered_paths
+        assert f"/debug{suffix}" in registered_paths
 
 
 def test_debug_routes_require_debug_access(client: TestClient) -> None:
     """Ordinary managed web users must not see or access debug diagnostics."""
 
     login_as_web_user(client)
-    mobile_response = client.get("/home")
+    mobile_response = client.get("/work")
     assert mobile_response.status_code == 200
-    assert 'href="/debug"' not in mobile_response.text
+    assert 'href="/diagnostics"' not in mobile_response.text
 
     forbidden_routes = (
-        ("GET", "/debug"),
-        ("GET", "/debug/logs/login-failures"),
-        ("GET", "/debug/logs/login-successes"),
-        ("POST", "/debug/autotask/test"),
-        ("POST", "/debug/sessions/logout-web-users"),
-        ("POST", "/debug/login-failures/hide"),
-        ("POST", "/debug/cloudflare-blocks/block"),
-        ("POST", "/debug/cloudflare-blocks/unblock"),
-        ("POST", "/debug/backup"),
-        ("POST", "/debug/restore"),
-        ("POST", "/debug/automatic-backups/download"),
-        ("POST", "/debug/automatic-backups/restore"),
+        ("GET", "/diagnostics"),
+        ("GET", "/diagnostics/logs/login-failures"),
+        ("GET", "/diagnostics/logs/login-successes"),
+        ("POST", "/diagnostics/autotask/test"),
+        ("POST", "/diagnostics/sessions/logout-web-users"),
+        ("POST", "/diagnostics/login-failures/hide"),
+        ("POST", "/diagnostics/cloudflare-blocks/block"),
+        ("POST", "/diagnostics/cloudflare-blocks/unblock"),
+        ("POST", "/diagnostics/backup"),
+        ("POST", "/diagnostics/restore"),
+        ("POST", "/diagnostics/automatic-backups/download"),
+        ("POST", "/diagnostics/automatic-backups/restore"),
     )
     for method, path in forbidden_routes:
         response = client.request(method, path, follow_redirects=False)
@@ -169,8 +202,8 @@ def test_debug_routes_require_debug_access(client: TestClient) -> None:
     login_as_super_admin(client)
     users_response = client.get("/users")
     assert users_response.status_code == 200
-    assert 'href="/debug"' in users_response.text
-    debug_response = client.get("/debug")
+    assert 'href="/diagnostics"' in users_response.text
+    debug_response = client.get("/diagnostics")
     assert debug_response.status_code == 200
     assert 'class="secondary-link-button" href="/review"' not in debug_response.text
 
@@ -185,9 +218,9 @@ def test_managed_admin_can_use_debug_without_super_admin_permissions(client: Tes
         database_session.commit()
 
     login_as_web_user(client)
-    home_response = client.get("/home")
+    home_response = client.get("/work")
     assert home_response.status_code == 200
-    assert 'href="/debug"' in home_response.text
+    assert 'href="/diagnostics"' in home_response.text
     assert "<span>Diag</span>" in home_response.text
     assert ">Debug</a>" not in home_response.text
     assert 'data-mobile-debug-link' in home_response.text
@@ -196,19 +229,19 @@ def test_managed_admin_can_use_debug_without_super_admin_permissions(client: Tes
     assert 'href="/config"' in home_response.text
     assert 'data-mobile-config-link' in home_response.text
 
-    debug_response = client.get("/debug")
+    debug_response = client.get("/diagnostics")
     assert debug_response.status_code == 200
     assert "Session controls" in debug_response.text
     assert "Managed admins are included because they are managed web users." in debug_response.text
 
     csrf_token = extract_csrf_token(debug_response.text)
     autotask_response = client.post(
-        "/debug/autotask/test",
+        "/diagnostics/autotask/test",
         data={"csrf_token": csrf_token},
         follow_redirects=False,
     )
     assert autotask_response.status_code == 303
-    assert autotask_response.headers["location"] == "/debug"
+    assert autotask_response.headers["location"] == "/diagnostics"
 
     with database.SessionLocal() as database_session:
         audit_event = database_session.scalar(
@@ -222,11 +255,11 @@ def test_debug_can_force_managed_web_users_to_sign_in_again(client: TestClient) 
     """The diagnostics page should invalidate only managed web-user sessions."""
 
     login_as_web_user(client)
-    assert client.get("/home").status_code == 200
+    assert client.get("/work").status_code == 200
 
     with TestClient(client.app) as admin_client:
         login_as_super_admin(admin_client)
-        debug_response = admin_client.get("/debug")
+        debug_response = admin_client.get("/diagnostics")
         assert debug_response.status_code == 200
         assert "Session controls" in debug_response.text
         assert 'id="session-controls" class="table-panel session-controls-card"' in debug_response.text
@@ -234,18 +267,18 @@ def test_debug_can_force_managed_web_users_to_sign_in_again(client: TestClient) 
         assert "Log out web users" in debug_response.text
         csrf_token = extract_csrf_token(debug_response.text)
         logout_response = admin_client.post(
-            "/debug/sessions/logout-web-users",
+            "/diagnostics/sessions/logout-web-users",
             data={"csrf_token": csrf_token},
             follow_redirects=False,
         )
         assert logout_response.status_code == 303
-        assert logout_response.headers["location"] == "/debug#session-controls"
+        assert logout_response.headers["location"] == "/diagnostics#session-controls"
 
-        admin_still_signed_in_response = admin_client.get("/debug")
+        admin_still_signed_in_response = admin_client.get("/diagnostics")
         assert admin_still_signed_in_response.status_code == 200
         assert "Signed out 1 web users. They must sign in again." in admin_still_signed_in_response.text
 
-    web_home_response = client.get("/home", follow_redirects=False)
+    web_home_response = client.get("/work", follow_redirects=False)
     assert web_home_response.status_code == 303
     assert web_home_response.headers["location"] == "/login"
 
@@ -253,7 +286,7 @@ def test_debug_can_force_managed_web_users_to_sign_in_again(client: TestClient) 
     assert "Your session was signed out by an administrator. Sign in again." in login_response.text
 
     login_as_web_user(client)
-    assert client.get("/home").status_code == 200
+    assert client.get("/work").status_code == 200
 
     with database.SessionLocal() as database_session:
         user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
@@ -291,7 +324,7 @@ def test_debug_page_shows_disk_space_monitor(super_admin_client: TestClient, mon
     )
     monkeypatch.setattr(debug_routes, "_collect_disk_usage_snapshot", lambda: snapshot)
 
-    response = super_admin_client.get("/debug")
+    response = super_admin_client.get("/diagnostics")
 
     assert response.status_code == 200
     assert 'id="disk-space"' in response.text
@@ -310,7 +343,7 @@ def test_debug_page_shows_disk_space_monitor(super_admin_client: TestClient, mon
 def test_debug_page_shows_database_connectivity_card(super_admin_client: TestClient) -> None:
     """Diagnostics should show safe database status and pool details."""
 
-    response = super_admin_client.get("/debug")
+    response = super_admin_client.get("/diagnostics")
 
     assert response.status_code == 200
     assert 'id="database-health"' in response.text
@@ -534,7 +567,7 @@ def test_debug_page_explains_unavailable_storage_without_usage_meter(
     )
     monkeypatch.setattr(debug_routes, "_collect_disk_usage_snapshot", lambda: unavailable_snapshot)
 
-    response = super_admin_client.get("/debug")
+    response = super_admin_client.get("/diagnostics")
 
     assert response.status_code == 200
     assert "Storage unavailable" in response.text
@@ -764,7 +797,7 @@ def test_app_health_snapshot_includes_active_login_lockout(super_admin_client: T
         )
         database_session.commit()
 
-    response = super_admin_client.get("/debug")
+    response = super_admin_client.get("/diagnostics")
 
     assert response.status_code == 200
     assert "diagnostics-health-banner-warning" in response.text
@@ -889,7 +922,7 @@ def test_cached_health_alert_is_visible_to_all_authenticated_users(client: TestC
     )
 
     login_as_web_user(client)
-    non_admin_response = client.get("/home")
+    non_admin_response = client.get("/work")
     assert non_admin_response.status_code == 200
     assert "has-health-alert" in non_admin_response.text
     assert 'data-health-alert-button' in non_admin_response.text
@@ -899,7 +932,7 @@ def test_cached_health_alert_is_visible_to_all_authenticated_users(client: TestC
     assert 'data-mobile-health-alert-link' in non_admin_response.text
     assert 'href="/help#operational-status"' in non_admin_response.text
     assert "health-alert-button-critical" in non_admin_response.text
-    assert 'href="/debug"' not in non_admin_response.text
+    assert 'href="/diagnostics"' not in non_admin_response.text
     assert 'role="img"' not in non_admin_response.text
     assert 'aria-label="View operational status: application health is critical."' in non_admin_response.text
     assert "Autotask API needs attention" not in non_admin_response.text
@@ -915,7 +948,7 @@ def test_cached_health_alert_is_visible_to_all_authenticated_users(client: TestC
     assert 'data-mobile-health-alert-link' in admin_response.text
     assert 'href="/help#operational-status"' in admin_response.text
     assert "health-alert-button-critical" in admin_response.text
-    assert 'href="/debug"' in admin_response.text
+    assert 'href="/diagnostics"' in admin_response.text
     assert "View operational status: application health is critical." in admin_response.text
 
     system_health.record_autotask_api_failure(
@@ -943,7 +976,7 @@ def test_warning_health_alert_uses_warning_link_style(authenticated_client: Test
     )
     monkeypatch.setattr(system_health, "collect_disk_usage_snapshot", lambda: warning_disk_snapshot)
 
-    response = authenticated_client.get("/home")
+    response = authenticated_client.get("/work")
 
     assert response.status_code == 200
     assert "has-health-alert" in response.text
@@ -969,7 +1002,7 @@ def test_managed_admin_sees_same_cached_health_alert_link(client: TestClient) ->
     )
 
     login_as_web_user(client)
-    response = client.get("/home")
+    response = client.get("/work")
 
     assert response.status_code == 200
     assert "has-health-alert" in response.text
@@ -979,7 +1012,7 @@ def test_managed_admin_sees_same_cached_health_alert_link(client: TestClient) ->
     assert 'data-desktop-health-alert-link' in response.text
     assert 'data-mobile-health-alert-link' in response.text
     assert 'href="/help#operational-status"' in response.text
-    assert 'href="/debug"' in response.text
+    assert 'href="/diagnostics"' in response.text
 
 
 def test_openapi_schema_route_is_disabled(client: TestClient) -> None:
@@ -1057,7 +1090,7 @@ def test_failed_login_writes_sanitized_database_row_and_debug_window(client: Tes
         assert success_attempt.authentication_method == "password"
         assert "test-password" not in " ".join(str(value) for value in vars(success_attempt).values())
 
-    debug_response = client.get("/debug")
+    debug_response = client.get("/diagnostics")
     assert debug_response.status_code == 200
     assert "Successful logins" in debug_response.text
     assert "Login failures" in debug_response.text
@@ -1084,7 +1117,7 @@ def test_failed_login_writes_sanitized_database_row_and_debug_window(client: Tes
     assert "LOGIN_SUCCESS_LOG_PATH" not in debug_response.text
     assert failed_password not in debug_response.text
 
-    download_response = client.get("/debug/logs/login-failures")
+    download_response = client.get("/diagnostics/logs/login-failures")
     assert download_response.status_code == 200
     assert "web_login_failed" in download_response.text
     assert "ticket-pilot-login-failures.jsonl" in download_response.headers["content-disposition"]
@@ -1094,7 +1127,7 @@ def test_failed_login_writes_sanitized_database_row_and_debug_window(client: Tes
     assert log_payload["username"] == "bad-user"
     assert log_payload["created_at_utc"]
 
-    success_download_response = client.get("/debug/logs/login-successes")
+    success_download_response = client.get("/diagnostics/logs/login-successes")
     assert success_download_response.status_code == 200
     assert "web_login_succeeded" in success_download_response.text
     assert "ticket-pilot-login-successes.jsonl" in success_download_response.headers["content-disposition"]
@@ -1103,7 +1136,7 @@ def test_failed_login_writes_sanitized_database_row_and_debug_window(client: Tes
     entry_id_match = re.search(r'name="entry_id" value="([a-f0-9-]{36})"', debug_response.text)
     assert entry_id_match is not None
     hide_response = client.post(
-        "/debug/login-failures/hide",
+        "/diagnostics/login-failures/hide",
         data={
             "csrf_token": extract_csrf_token(debug_response.text),
             "entry_id": entry_id_match.group(1),
@@ -1113,11 +1146,11 @@ def test_failed_login_writes_sanitized_database_row_and_debug_window(client: Tes
         follow_redirects=False,
     )
     assert hide_response.status_code == 303
-    assert hide_response.headers["location"] == "/debug#login-failures"
+    assert hide_response.headers["location"] == "/diagnostics#login-failures"
 
-    hidden_debug_response = client.get("/debug")
+    hidden_debug_response = client.get("/diagnostics")
     assert "bad-user" not in hidden_debug_response.text
-    hidden_download_payload = json.loads(client.get("/debug/logs/login-failures").text.strip())
+    hidden_download_payload = json.loads(client.get("/diagnostics/logs/login-failures").text.strip())
     assert hidden_download_payload["username"] == "bad-user"
     assert hidden_download_payload["hidden_from_debug"] is True
     assert hidden_download_payload["created_at_utc"] == log_payload["created_at_utc"]
@@ -1335,7 +1368,7 @@ def test_cloudflare_auto_block_uses_enforcement_ip_not_display_xff(
         assert latest_failure.enforcement_client_ip == "198.51.100.70"
 
     login_as_super_admin(client)
-    debug_response = client.get("/debug")
+    debug_response = client.get("/diagnostics")
     assert debug_response.status_code == 200
     assert 'name="ip_address" value="198.51.100.70"' in debug_response.text
     assert 'name="ip_address" value="203.0.113.250"' not in debug_response.text
@@ -1538,13 +1571,13 @@ def test_debug_cloudflare_block_buttons_create_and_remove_app_managed_block(
     monkeypatch.setattr(debug_routes, "create_app_cloudflare_block", fake_create_app_cloudflare_block)
     monkeypatch.setattr(debug_routes, "remove_app_cloudflare_block", fake_remove_app_cloudflare_block)
 
-    initial_response = client.get("/debug")
+    initial_response = client.get("/diagnostics")
     assert initial_response.status_code == 200
     assert 'aria-label="Block IP at Cloudflare"' in initial_response.text
     assert 'class="cloudflare-manual-block-form"' in initial_response.text
     assert 'name="reason"' in initial_response.text
     block_response = client.post(
-        "/debug/cloudflare-blocks/block",
+        "/diagnostics/cloudflare-blocks/block",
         data={
             "csrf_token": extract_csrf_token(initial_response.text),
             "ip_address": "203.0.113.20",
@@ -1554,7 +1587,7 @@ def test_debug_cloudflare_block_buttons_create_and_remove_app_managed_block(
         follow_redirects=False,
     )
     assert block_response.status_code == 303
-    assert block_response.headers["location"] == "/debug#login-failures"
+    assert block_response.headers["location"] == "/diagnostics#login-failures"
     assert created_blocks == [
         ("203.0.113.20", "Diagnostics failed-login row block: invalid credentials for bad-user")
     ]
@@ -1571,26 +1604,26 @@ def test_debug_cloudflare_block_buttons_create_and_remove_app_managed_block(
         assert audit_event is not None
         assert audit_event.details["reason"] == "Diagnostics failed-login row block: invalid credentials for bad-user"
 
-    blocked_response = client.get("/debug")
+    blocked_response = client.get("/diagnostics")
     assert "Cloudflare Blocked IPs" in blocked_response.text
     assert "cf-manual-rule-1" in blocked_response.text
     assert "Diagnostics failed-login row block: invalid credentials for bad-user" in blocked_response.text
     assert 'aria-label="Unblock IP at Cloudflare"' in blocked_response.text
 
     unblock_response = client.post(
-        "/debug/cloudflare-blocks/unblock",
+        "/diagnostics/cloudflare-blocks/unblock",
         data={"csrf_token": extract_csrf_token(blocked_response.text), "ip_address": "203.0.113.20"},
         follow_redirects=False,
     )
     assert unblock_response.status_code == 303
-    assert unblock_response.headers["location"] == "/debug#cloudflare-blocked-ips"
+    assert unblock_response.headers["location"] == "/diagnostics#cloudflare-blocked-ips"
     assert deleted_rule_ids == ["cf-manual-rule-1"]
     with database.SessionLocal() as database_session:
         assert database_session.scalar(select(CloudflareIPBlock)) is None
 
-    manual_debug_response = client.get("/debug")
+    manual_debug_response = client.get("/diagnostics")
     manual_block_response = client.post(
-        "/debug/cloudflare-blocks/block",
+        "/diagnostics/cloudflare-blocks/block",
         data={
             "csrf_token": extract_csrf_token(manual_debug_response.text),
             "ip_address": "203.0.113.21",
@@ -1600,7 +1633,7 @@ def test_debug_cloudflare_block_buttons_create_and_remove_app_managed_block(
         follow_redirects=False,
     )
     assert manual_block_response.status_code == 303
-    assert manual_block_response.headers["location"] == "/debug#cloudflare-blocked-ips"
+    assert manual_block_response.headers["location"] == "/diagnostics#cloudflare-blocked-ips"
     assert created_blocks[-1] == ("203.0.113.21", "Operator reported credential stuffing")
     with database.SessionLocal() as database_session:
         block = database_session.scalar(select(CloudflareIPBlock))
@@ -1658,7 +1691,7 @@ def test_debug_login_pagination(super_admin_client: TestClient) -> None:
             )
         database_session.commit()
 
-    debug_response = super_admin_client.get("/debug?success_page=2&failure_page=2")
+    debug_response = super_admin_client.get("/diagnostics?success_page=2&failure_page=2")
     assert debug_response.status_code == 200
     assert "12 retained, 7 per page" in debug_response.text
     assert "Page 2 of 2" in debug_response.text
@@ -1750,7 +1783,7 @@ def test_debug_paginates_cloudflare_blocked_ips(super_admin_client: TestClient) 
             )
         database_session.commit()
 
-    debug_response = super_admin_client.get("/debug?cloudflare_blocks_page=2")
+    debug_response = super_admin_client.get("/diagnostics?cloudflare_blocks_page=2")
 
     assert debug_response.status_code == 200
     assert "Cloudflare Blocked IPs" in debug_response.text
@@ -1790,7 +1823,7 @@ def test_debug_paginates_autotask_submission_attempts(super_admin_client: TestCl
             )
         database_session.commit()
 
-    debug_response = super_admin_client.get("/debug?attempt_page=2")
+    debug_response = super_admin_client.get("/diagnostics?attempt_page=2")
 
     assert debug_response.status_code == 200
     assert "Autotask submission attempts" in debug_response.text
@@ -1812,7 +1845,7 @@ def test_debug_paginates_autotask_submission_attempts(super_admin_client: TestCl
 def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -> None:
     """Authenticated users should see submission attempts and connection diagnostics."""
 
-    start_page_response = authenticated_client.get("/home")
+    start_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(start_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -1883,9 +1916,9 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
         attempt_display_timestamp = format_local_display(attempts[0].created_at_utc)
 
     login_as_super_admin(authenticated_client)
-    debug_response = authenticated_client.get("/debug")
+    debug_response = authenticated_client.get("/diagnostics")
     assert debug_response.status_code == 200
-    assert "Diagnostics - TicketPilot" in debug_response.text
+    assert "TicketPilot - Diagnostics" in debug_response.text
     assert "<h1>Diagnostics</h1>" in debug_response.text
     assert (
         "Monitor storage, database connectivity, login activity, Cloudflare blocks, "
@@ -1929,17 +1962,17 @@ def test_debug_route_shows_autotask_attempts(authenticated_client: TestClient) -
 def test_debug_route_tests_autotask_api(super_admin_client: TestClient) -> None:
     """The debug page can run the safe Autotask API connectivity check."""
 
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     debug_csrf_token = extract_csrf_token(debug_page_response.text)
 
     test_response = super_admin_client.post(
-        "/debug/autotask/test",
+        "/diagnostics/autotask/test",
         data={"csrf_token": debug_csrf_token},
         follow_redirects=False,
     )
     assert test_response.status_code == 303
 
-    debug_result_response = super_admin_client.get("/debug")
+    debug_result_response = super_admin_client.get("/diagnostics")
 
     assert debug_result_response.status_code == 200
     assert "Last Autotask API test" in debug_result_response.text
@@ -2001,7 +2034,7 @@ def test_debug_lists_and_restores_automatic_backups(super_admin_client: TestClie
         AUTOMATIC_BACKUP_FILENAME_PREFIX
     ).removesuffix(AUTOMATIC_BACKUP_FILENAME_SUFFIX)
 
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     assert debug_page_response.status_code == 200
     assert "Automatic database backups" in debug_page_response.text
     assert 'class="review-header automatic-backup-header"' in debug_page_response.text
@@ -2014,8 +2047,8 @@ def test_debug_lists_and_restores_automatic_backups(super_admin_client: TestClie
     assert '<div class="debug-scroll-table-wrap automatic-backup-table-wrap">' in debug_page_response.text
     assert "<th>Source</th>" in debug_page_response.text
     assert "Startup" in debug_page_response.text
-    assert '/debug/automatic-backups/download' in debug_page_response.text
-    assert '/debug/automatic-backups/restore' in debug_page_response.text
+    assert '/diagnostics/automatic-backups/download' in debug_page_response.text
+    assert '/diagnostics/automatic-backups/restore' in debug_page_response.text
     csrf_token = extract_csrf_token(debug_page_response.text)
 
     with database.SessionLocal() as database_session:
@@ -2030,7 +2063,7 @@ def test_debug_lists_and_restores_automatic_backups(super_admin_client: TestClie
 
     temporary_job_id = _add_temporary_job()
     restore_response = super_admin_client.post(
-        "/debug/automatic-backups/restore",
+        "/diagnostics/automatic-backups/restore",
         data={
             "csrf_token": csrf_token,
             "filename": backup_result.backup_file.filename,
@@ -2040,9 +2073,9 @@ def test_debug_lists_and_restores_automatic_backups(super_admin_client: TestClie
     )
 
     assert restore_response.status_code == 303
-    assert restore_response.headers["location"] == "/debug#automatic-backups"
+    assert restore_response.headers["location"] == "/diagnostics#automatic-backups"
 
-    restored_page_response = super_admin_client.get("/debug")
+    restored_page_response = super_admin_client.get("/diagnostics")
     assert restored_page_response.status_code == 200
     assert "Automatic backup restore completed." in restored_page_response.text
     with database.SessionLocal() as database_session:
@@ -2066,10 +2099,10 @@ def test_debug_downloads_automatic_backup(super_admin_client: TestClient) -> Non
             now=datetime(2026, 6, 20, 16, 0, tzinfo=UTC),
         )
 
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     csrf_token = extract_csrf_token(debug_page_response.text)
     download_response = super_admin_client.post(
-        "/debug/automatic-backups/download",
+        "/diagnostics/automatic-backups/download",
         data={"csrf_token": csrf_token, "filename": backup_result.backup_file.filename},
     )
 
@@ -2093,13 +2126,13 @@ def test_debug_full_backup_download_and_restore_round_trip(super_admin_client: T
 
     original_job_id = _seed_full_backup_data()
 
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     assert debug_page_response.status_code == 200
     assert "Full data backup" in debug_page_response.text
     csrf_token = extract_csrf_token(debug_page_response.text)
 
     backup_response = super_admin_client.post(
-        "/debug/backup",
+        "/diagnostics/backup",
         data={"csrf_token": csrf_token},
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
@@ -2116,10 +2149,10 @@ def test_debug_full_backup_download_and_restore_round_trip(super_admin_client: T
 
     temporary_job_id = _add_temporary_job()
 
-    restore_page_response = super_admin_client.get("/debug")
+    restore_page_response = super_admin_client.get("/diagnostics")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
     restore_response = super_admin_client.post(
-        "/debug/restore",
+        "/diagnostics/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
@@ -2131,9 +2164,9 @@ def test_debug_full_backup_download_and_restore_round_trip(super_admin_client: T
         follow_redirects=False,
     )
     assert restore_response.status_code == 303
-    assert restore_response.headers["location"] == "/debug#full-backup"
+    assert restore_response.headers["location"] == "/diagnostics#full-backup"
 
-    restored_page_response = super_admin_client.get("/debug")
+    restored_page_response = super_admin_client.get("/diagnostics")
     assert restored_page_response.status_code == 200
     assert "Full data restore completed." in restored_page_response.text
 
@@ -2163,17 +2196,19 @@ def test_debug_restore_normalizes_legacy_theme_and_defaults_missing_preferences(
         )
         database_session.commit()
 
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     csrf_token = extract_csrf_token(debug_page_response.text)
     backup_response = super_admin_client.post(
-        "/debug/backup",
+        "/diagnostics/backup",
         data={"csrf_token": csrf_token},
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
     for row in payload["tables"]["user_preferences"]:
         row["theme"] = "dark-slate"
+        row.pop("highlight_color", None)
         row.pop("submit_from_work_in_progress", None)
         row.pop("allow_navigation_on_full_web", None)
+    payload["schema"]["user_preferences"].remove("highlight_color")
     payload["schema"]["user_preferences"].remove("submit_from_work_in_progress")
     payload["schema"]["user_preferences"].remove("allow_navigation_on_full_web")
     legacy_backup_content = gzip.compress(
@@ -2181,10 +2216,10 @@ def test_debug_restore_normalizes_legacy_theme_and_defaults_missing_preferences(
         mtime=0,
     )
 
-    restore_page_response = super_admin_client.get("/debug")
+    restore_page_response = super_admin_client.get("/diagnostics")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
     restore_response = super_admin_client.post(
-        "/debug/restore",
+        "/diagnostics/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
@@ -2203,6 +2238,7 @@ def test_debug_restore_normalizes_legacy_theme_and_defaults_missing_preferences(
         )
         assert restored_preference is not None
         assert restored_preference.theme == ThemeMode.DARK_MIDNIGHT
+        assert restored_preference.highlight_color == HighlightColor.BLUE
         assert restored_preference.submit_from_work_in_progress is False
         assert restored_preference.allow_navigation_on_full_web is False
 
@@ -2219,10 +2255,10 @@ def test_debug_restore_defaults_missing_web_session_invalidation_column(
         user.sessions_invalidated_at_utc = invalidation_time
         database_session.commit()
 
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     csrf_token = extract_csrf_token(debug_page_response.text)
     backup_response = super_admin_client.post(
-        "/debug/backup",
+        "/diagnostics/backup",
         data={"csrf_token": csrf_token},
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
@@ -2234,10 +2270,10 @@ def test_debug_restore_defaults_missing_web_session_invalidation_column(
         mtime=0,
     )
 
-    restore_page_response = super_admin_client.get("/debug")
+    restore_page_response = super_admin_client.get("/diagnostics")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
     restore_response = super_admin_client.post(
-        "/debug/restore",
+        "/diagnostics/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
@@ -2267,10 +2303,10 @@ def test_debug_restore_defaults_missing_web_user_default_role_column(
         user.autotask_default_service_desk_role_id = 8
         database_session.commit()
 
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     csrf_token = extract_csrf_token(debug_page_response.text)
     backup_response = super_admin_client.post(
-        "/debug/backup",
+        "/diagnostics/backup",
         data={"csrf_token": csrf_token},
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
@@ -2282,10 +2318,10 @@ def test_debug_restore_defaults_missing_web_user_default_role_column(
         mtime=0,
     )
 
-    restore_page_response = super_admin_client.get("/debug")
+    restore_page_response = super_admin_client.get("/diagnostics")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
     restore_response = super_admin_client.post(
-        "/debug/restore",
+        "/diagnostics/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
@@ -2316,10 +2352,10 @@ def test_debug_restore_defaults_missing_web_user_last_login_column(
         user.last_login_at_utc = last_login_at_utc
         database_session.commit()
 
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     csrf_token = extract_csrf_token(debug_page_response.text)
     backup_response = super_admin_client.post(
-        "/debug/backup",
+        "/diagnostics/backup",
         data={"csrf_token": csrf_token},
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
@@ -2331,10 +2367,10 @@ def test_debug_restore_defaults_missing_web_user_last_login_column(
         mtime=0,
     )
 
-    restore_page_response = super_admin_client.get("/debug")
+    restore_page_response = super_admin_client.get("/diagnostics")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
     restore_response = super_admin_client.post(
-        "/debug/restore",
+        "/diagnostics/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
@@ -2364,10 +2400,10 @@ def test_debug_restore_defaults_missing_web_user_admin_column(
         user.is_admin = True
         database_session.commit()
 
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     csrf_token = extract_csrf_token(debug_page_response.text)
     backup_response = super_admin_client.post(
-        "/debug/backup",
+        "/diagnostics/backup",
         data={"csrf_token": csrf_token},
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
@@ -2379,10 +2415,10 @@ def test_debug_restore_defaults_missing_web_user_admin_column(
         mtime=0,
     )
 
-    restore_page_response = super_admin_client.get("/debug")
+    restore_page_response = super_admin_client.get("/diagnostics")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
     restore_response = super_admin_client.post(
-        "/debug/restore",
+        "/diagnostics/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
@@ -2412,10 +2448,10 @@ def test_debug_restore_defaults_missing_web_user_password_change_column(
         user.password_must_change = True
         database_session.commit()
 
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     csrf_token = extract_csrf_token(debug_page_response.text)
     backup_response = super_admin_client.post(
-        "/debug/backup",
+        "/diagnostics/backup",
         data={"csrf_token": csrf_token},
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
@@ -2427,10 +2463,10 @@ def test_debug_restore_defaults_missing_web_user_password_change_column(
         mtime=0,
     )
 
-    restore_page_response = super_admin_client.get("/debug")
+    restore_page_response = super_admin_client.get("/diagnostics")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
     restore_response = super_admin_client.post(
-        "/debug/restore",
+        "/diagnostics/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
@@ -2461,10 +2497,10 @@ def test_debug_restore_defaults_missing_web_user_archive_column(
         user.archived_at_utc = archived_at_utc
         database_session.commit()
 
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     csrf_token = extract_csrf_token(debug_page_response.text)
     backup_response = super_admin_client.post(
-        "/debug/backup",
+        "/diagnostics/backup",
         data={"csrf_token": csrf_token},
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
@@ -2476,10 +2512,10 @@ def test_debug_restore_defaults_missing_web_user_archive_column(
         mtime=0,
     )
 
-    restore_page_response = super_admin_client.get("/debug")
+    restore_page_response = super_admin_client.get("/diagnostics")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
     restore_response = super_admin_client.post(
-        "/debug/restore",
+        "/diagnostics/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
@@ -2504,10 +2540,10 @@ def test_debug_restore_defaults_missing_ai_cleanup_revert_columns(
     """Restore backups that predate server-backed AI cleanup undo fields."""
 
     original_job_id = _seed_full_backup_data()
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     csrf_token = extract_csrf_token(debug_page_response.text)
     backup_response = super_admin_client.post(
-        "/debug/backup",
+        "/diagnostics/backup",
         data={"csrf_token": csrf_token},
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
@@ -2525,10 +2561,10 @@ def test_debug_restore_defaults_missing_ai_cleanup_revert_columns(
         mtime=0,
     )
 
-    restore_page_response = super_admin_client.get("/debug")
+    restore_page_response = super_admin_client.get("/diagnostics")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
     restore_response = super_admin_client.post(
-        "/debug/restore",
+        "/diagnostics/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
@@ -2556,10 +2592,10 @@ def test_debug_restore_defaults_missing_passkey_table_to_empty(
     """Restore backups that predate passkey support with no registered passkeys."""
 
     _seed_full_backup_data()
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     csrf_token = extract_csrf_token(debug_page_response.text)
     backup_response = super_admin_client.post(
-        "/debug/backup",
+        "/diagnostics/backup",
         data={"csrf_token": csrf_token},
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
@@ -2570,10 +2606,10 @@ def test_debug_restore_defaults_missing_passkey_table_to_empty(
         mtime=0,
     )
 
-    restore_page_response = super_admin_client.get("/debug")
+    restore_page_response = super_admin_client.get("/diagnostics")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
     restore_response = super_admin_client.post(
-        "/debug/restore",
+        "/diagnostics/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
@@ -2632,10 +2668,10 @@ def test_debug_restore_defaults_missing_cloudflare_security_tables_to_empty(
         )
         database_session.commit()
 
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     csrf_token = extract_csrf_token(debug_page_response.text)
     backup_response = super_admin_client.post(
-        "/debug/backup",
+        "/diagnostics/backup",
         data={"csrf_token": csrf_token},
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
@@ -2648,10 +2684,10 @@ def test_debug_restore_defaults_missing_cloudflare_security_tables_to_empty(
         mtime=0,
     )
 
-    restore_page_response = super_admin_client.get("/debug")
+    restore_page_response = super_admin_client.get("/diagnostics")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
     restore_response = super_admin_client.post(
-        "/debug/restore",
+        "/diagnostics/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
@@ -2687,10 +2723,10 @@ def test_debug_restore_defaults_missing_login_counter_username(
         )
         database_session.commit()
 
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     csrf_token = extract_csrf_token(debug_page_response.text)
     backup_response = super_admin_client.post(
-        "/debug/backup",
+        "/diagnostics/backup",
         data={"csrf_token": csrf_token},
     )
     payload = json.loads(gzip.decompress(backup_response.content).decode("utf-8"))
@@ -2702,10 +2738,10 @@ def test_debug_restore_defaults_missing_login_counter_username(
         mtime=0,
     )
 
-    restore_page_response = super_admin_client.get("/debug")
+    restore_page_response = super_admin_client.get("/diagnostics")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
     restore_response = super_admin_client.post(
-        "/debug/restore",
+        "/diagnostics/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "RESTORE"},
         files={
             "backup_file": (
@@ -2731,15 +2767,15 @@ def test_debug_restore_requires_confirmation(super_admin_client: TestClient) -> 
     """Restore must not replace data unless the operator types RESTORE."""
 
     _seed_full_backup_data()
-    debug_page_response = super_admin_client.get("/debug")
+    debug_page_response = super_admin_client.get("/diagnostics")
     csrf_token = extract_csrf_token(debug_page_response.text)
-    backup_response = super_admin_client.post("/debug/backup", data={"csrf_token": csrf_token})
+    backup_response = super_admin_client.post("/diagnostics/backup", data={"csrf_token": csrf_token})
     temporary_job_id = _add_temporary_job()
 
-    restore_page_response = super_admin_client.get("/debug")
+    restore_page_response = super_admin_client.get("/diagnostics")
     restore_csrf_token = extract_csrf_token(restore_page_response.text)
     restore_response = super_admin_client.post(
-        "/debug/restore",
+        "/diagnostics/restore",
         data={"csrf_token": restore_csrf_token, "confirmation": "restore"},
         files={
             "backup_file": (
@@ -2752,19 +2788,19 @@ def test_debug_restore_requires_confirmation(super_admin_client: TestClient) -> 
     )
 
     assert restore_response.status_code == 303
-    assert restore_response.headers["location"] == "/debug#full-backup"
+    assert restore_response.headers["location"] == "/diagnostics#full-backup"
     with database.SessionLocal() as database_session:
         assert database_session.scalar(select(func.count(Job.id))) == 2
         assert database_session.get(Job, temporary_job_id) is not None
 
-    result_page_response = super_admin_client.get("/debug")
+    result_page_response = super_admin_client.get("/diagnostics")
     assert "Type RESTORE to confirm full data restore." in result_page_response.text
 
 
 def test_debug_backup_download_requires_csrf(super_admin_client: TestClient) -> None:
     """Full backup downloads are sensitive and require CSRF protection."""
 
-    response = super_admin_client.post("/debug/backup", data={}, follow_redirects=False)
+    response = super_admin_client.post("/diagnostics/backup", data={}, follow_redirects=False)
 
     assert response.status_code == 403
 
@@ -2773,7 +2809,7 @@ def test_debug_automatic_backup_download_requires_csrf(super_admin_client: TestC
     """Automatic backup downloads are sensitive and require CSRF protection."""
 
     response = super_admin_client.post(
-        "/debug/automatic-backups/download",
+        "/diagnostics/automatic-backups/download",
         data={"filename": automatic_backup_filename(datetime(2026, 6, 20, 16, 0, tzinfo=UTC))},
         follow_redirects=False,
     )

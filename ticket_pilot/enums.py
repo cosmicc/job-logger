@@ -40,7 +40,7 @@ class WorkLocation(StrEnum):
 
 
 class ThemeMode(StrEnum):
-    """Supported per-user visual themes."""
+    """Supported per-user background and surface profiles."""
 
     DARK = "dark"
     LIGHT = "light"
@@ -50,6 +50,21 @@ class ThemeMode(StrEnum):
     DARK_GRAPHITE = "dark-graphite"
     DARK_FOREST = "dark-forest"
     DARK_PLUM = "dark-plum"
+
+
+class HighlightColor(StrEnum):
+    """Supported per-user highlight color families."""
+
+    TEAL = "teal"
+    SAGE = "sage"
+    SKY = "sky"
+    BLUE = "blue"
+    INDIGO = "indigo"
+    AMBER = "amber"
+    ORANGE = "orange"
+    MINT = "mint"
+    LAVENDER = "lavender"
+    ROSE = "rose"
 
 
 class NavigationApp(StrEnum):

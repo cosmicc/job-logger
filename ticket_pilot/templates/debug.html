@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Diagnostics - TicketPilot{% endblock %}
+{% block title %}TicketPilot - Diagnostics{% endblock %}
 
 {% block content %}
   <section class="debug-shell">
@@ -181,7 +181,7 @@
               Managed admins are included because they are managed web users.
             </p>
           </div>
-          <form method="post" action="/debug/sessions/logout-web-users" class="debug-test-form session-controls-form">
+          <form method="post" action="/diagnostics/sessions/logout-web-users" class="debug-test-form session-controls-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="secondary-button danger-button" type="submit">Log out web users</button>
           </form>
@@ -196,7 +196,7 @@
           <p class="muted-text">
             Newest database records first, {{ login_successes.total_records }} retained, {{ login_attempt_page_size }} per page.
           </p>
-          <a class="secondary-link-button" href="/debug/logs/login-successes">Download JSONL</a>
+          <a class="secondary-link-button" href="/diagnostics/logs/login-successes">Download JSONL</a>
         </div>
 
         {% if login_successes.records %}
@@ -306,13 +306,13 @@
 
           <nav class="debug-pagination" aria-label="Successful login pages">
             {% if login_successes.previous_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.previous_page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.page }}#login-successes">Previous</a>
+              <a class="secondary-link-button" href="/diagnostics?success_page={{ login_successes.previous_page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.page }}#login-successes">Previous</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Previous</span>
             {% endif %}
             <span class="muted-text">Page {{ login_successes.page }} of {{ login_successes.total_pages }}</span>
             {% if login_successes.next_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.next_page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.page }}#login-successes">Next</a>
+              <a class="secondary-link-button" href="/diagnostics?success_page={{ login_successes.next_page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.page }}#login-successes">Next</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Next</span>
             {% endif %}
@@ -330,7 +330,7 @@
           <p class="muted-text">
             Newest database records first, {{ login_failures.total_records }} retained, {{ login_attempt_page_size }} per page.
           </p>
-          <a class="secondary-link-button" href="/debug/logs/login-failures">Download JSONL</a>
+          <a class="secondary-link-button" href="/diagnostics/logs/login-failures">Download JSONL</a>
         </div>
 
         {% if login_failures.records %}
@@ -362,7 +362,7 @@
                     </td>
                     <td>
                       <div class="login-row-actions" aria-label="Actions for failed login from {{ failure.client_ip }}">
-                        <form method="post" action="/debug/login-failures/hide">
+                        <form method="post" action="/diagnostics/login-failures/hide">
                           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                           <input type="hidden" name="entry_id" value="{{ failure.entry_id }}">
                           <input type="hidden" name="client_ip" value="{{ failure.client_ip }}">
@@ -378,7 +378,7 @@
                           </button>
                         </form>
                         {% if ip_status and ip_status.blocked %}
-                          <form method="post" action="/debug/cloudflare-blocks/unblock">
+                          <form method="post" action="/diagnostics/cloudflare-blocks/unblock">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <input type="hidden" name="ip_address" value="{{ ip_status.ip_address }}">
                             <button
@@ -395,7 +395,7 @@
                             </button>
                           </form>
                         {% else %}
-                          <form method="post" action="/debug/cloudflare-blocks/block">
+                          <form method="post" action="/diagnostics/cloudflare-blocks/block">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <input type="hidden" name="ip_address" value="{{ ip_status.ip_address if ip_status else failure.client_ip }}">
                             <input type="hidden" name="reason" value="Diagnostics failed-login row block: {{ failure.reason.replace('_', ' ') }} for {{ failure.username or 'blank username' }}">
@@ -518,13 +518,13 @@
 
           <nav class="debug-pagination" aria-label="Failed login pages">
             {% if login_failures.previous_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.previous_page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.page }}#login-failures">Previous</a>
+              <a class="secondary-link-button" href="/diagnostics?success_page={{ login_successes.page }}&failure_page={{ login_failures.previous_page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.page }}#login-failures">Previous</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Previous</span>
             {% endif %}
             <span class="muted-text">Page {{ login_failures.page }} of {{ login_failures.total_pages }}</span>
             {% if login_failures.next_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.next_page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.page }}#login-failures">Next</a>
+              <a class="secondary-link-button" href="/diagnostics?success_page={{ login_successes.page }}&failure_page={{ login_failures.next_page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.page }}#login-failures">Next</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Next</span>
             {% endif %}
@@ -548,7 +548,7 @@
           <p class="muted-text">Cloudflare IP blocking is not fully configured.</p>
         {% endif %}
 
-        <form class="cloudflare-manual-block-form" method="post" action="/debug/cloudflare-blocks/block">
+        <form class="cloudflare-manual-block-form" method="post" action="/diagnostics/cloudflare-blocks/block">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="redirect_fragment" value="cloudflare-blocked-ips">
           <label>
@@ -601,7 +601,7 @@
                     <td class="login-time-cell">{{ block.created_at_display }}</td>
                     <td class="login-cloudflare-rule-cell" title="{{ block.cloudflare_rule_id }}">{{ block.cloudflare_rule_id }}</td>
                     <td>
-                      <form method="post" action="/debug/cloudflare-blocks/unblock">
+                      <form method="post" action="/diagnostics/cloudflare-blocks/unblock">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <input type="hidden" name="ip_address" value="{{ block.ip_address }}">
                         <button
@@ -629,13 +629,13 @@
 
           <nav class="debug-pagination" aria-label="Cloudflare blocked IP pages">
             {% if cloudflare_ip_blocks_page.previous_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.previous_page }}&attempt_page={{ submission_attempts_page.page }}#cloudflare-blocked-ips">Previous</a>
+              <a class="secondary-link-button" href="/diagnostics?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.previous_page }}&attempt_page={{ submission_attempts_page.page }}#cloudflare-blocked-ips">Previous</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Previous</span>
             {% endif %}
             <span class="muted-text">Page {{ cloudflare_ip_blocks_page.page }} of {{ cloudflare_ip_blocks_page.total_pages }}</span>
             {% if cloudflare_ip_blocks_page.next_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.next_page }}&attempt_page={{ submission_attempts_page.page }}#cloudflare-blocked-ips">Next</a>
+              <a class="secondary-link-button" href="/diagnostics?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.next_page }}&attempt_page={{ submission_attempts_page.page }}#cloudflare-blocked-ips">Next</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Next</span>
             {% endif %}
@@ -695,13 +695,13 @@
 
           <nav class="debug-pagination" aria-label="Autotask submission attempt pages">
             {% if submission_attempts_page.previous_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.previous_page }}#autotask-submission-attempts">Previous</a>
+              <a class="secondary-link-button" href="/diagnostics?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.previous_page }}#autotask-submission-attempts">Previous</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Previous</span>
             {% endif %}
             <span class="muted-text">Page {{ submission_attempts_page.page }} of {{ submission_attempts_page.total_pages }}</span>
             {% if submission_attempts_page.next_page %}
-              <a class="secondary-link-button" href="/debug?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.next_page }}#autotask-submission-attempts">Next</a>
+              <a class="secondary-link-button" href="/diagnostics?success_page={{ login_successes.page }}&failure_page={{ login_failures.page }}&cloudflare_blocks_page={{ cloudflare_ip_blocks_page.page }}&attempt_page={{ submission_attempts_page.next_page }}#autotask-submission-attempts">Next</a>
             {% else %}
               <span class="secondary-link-button disabled-link">Next</span>
             {% endif %}
@@ -731,7 +731,7 @@
           <h2>Autotask configuration snapshot</h2>
           <form
             method="post"
-            action="/debug/autotask/test"
+            action="/diagnostics/autotask/test"
             class="debug-test-form"
           >
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -822,7 +822,7 @@
             <h2>Full data backup</h2>
             <p class="muted-text">Download or restore all TicketPilot database tables.</p>
           </div>
-          <form method="post" action="/debug/backup" class="debug-test-form">
+          <form method="post" action="/diagnostics/backup" class="debug-test-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="secondary-button" type="submit">Download Full Backup</button>
           </form>
@@ -830,7 +830,7 @@
 
         <form
           method="post"
-          action="/debug/restore"
+          action="/diagnostics/restore"
           enctype="multipart/form-data"
           class="backup-restore-form"
         >
@@ -935,14 +935,14 @@
                     </td>
                     <td>{{ backup.size_display }}</td>
                     <td>
-                      <form method="post" action="/debug/automatic-backups/download" class="automatic-backup-action-form">
+                      <form method="post" action="/diagnostics/automatic-backups/download" class="automatic-backup-action-form">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <input type="hidden" name="filename" value="{{ backup.filename }}">
                         <button class="secondary-button" type="submit">Download</button>
                       </form>
                     </td>
                     <td>
-                      <form method="post" action="/debug/automatic-backups/restore" class="automatic-backup-restore-form">
+                      <form method="post" action="/diagnostics/automatic-backups/restore" class="automatic-backup-restore-form">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <input type="hidden" name="filename" value="{{ backup.filename }}">
                         <label class="sr-only" for="restore-confirmation-{{ loop.index }}">Confirmation</label>

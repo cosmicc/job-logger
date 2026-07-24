@@ -14,7 +14,7 @@ from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as,
 from ticket_pilot import database
 from ticket_pilot.config import load_settings, settings
 from ticket_pilot.database import create_database_engine, normalize_database_url
-from ticket_pilot.enums import NavigationApp, ThemeMode
+from ticket_pilot.enums import HighlightColor, NavigationApp, ThemeMode
 from ticket_pilot.main import create_app, validate_runtime_settings
 from ticket_pilot.models import AuditEvent, UserPreference, WebUser
 
@@ -24,9 +24,11 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
 
     config_response = authenticated_client.get("/config")
     assert config_response.status_code == 200
-    assert 'class="theme-dark"' in config_response.text
+    assert 'class="theme-dark highlight-teal"' in config_response.text
     assert 'class="config-layout"' in config_response.text
     assert 'class="theme-option-grid theme-card-grid"' in config_response.text
+    assert 'class="highlight-color-dropdown"' in config_response.text
+    assert 'role="radiogroup" aria-label="Highlight color"' in config_response.text
     assert "<h1>Config</h1>" not in config_response.text
     assert "Settings for tech." in config_response.text
     assert 'class="muted-text config-page-intro"' in config_response.text
@@ -53,8 +55,15 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert "data-direct-submit-option" in config_response.text
     assert "data-direct-submit-state" in config_response.text
     assert "Off" in config_response.text
-    assert "data-static-navigation-button" not in authenticated_client.get("/home").text
+    assert "data-static-navigation-button" not in authenticated_client.get("/work").text
     stylesheet = authenticated_client.get("/static/app.css").text
+    assert (
+        ".edit-panel.config-appearance-panel {\n"
+        "  position: relative;\n"
+        "  z-index: 2;\n"
+        "  overflow: visible;\n"
+        "}"
+    ) in stylesheet
     assert (
         ".toggle-setting-card.is-disabled .setting-toggle input {\n"
         "  cursor: not-allowed;\n"
@@ -75,6 +84,7 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert "data-config-current-theme" not in config_response.text
     assert "data-config-theme-summary" not in config_response.text
     assert re.search(r'name="theme"[^>]+value="dark"[^>]+checked', config_response.text)
+    assert re.search(r'name="highlight_color"[^>]+value="teal"[^>]+checked', config_response.text)
     for theme_value, theme_label in (
         ("dark", "Default Dark"),
         ("dark-midnight", "Midnight Black"),
@@ -87,6 +97,21 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     ):
         assert f'value="{theme_value}"' in config_response.text
         assert theme_label in config_response.text
+    for highlight_value, highlight_label in (
+        ("teal", "Teal"),
+        ("sage", "Sage"),
+        ("sky", "Sky Blue"),
+        ("blue", "Blue"),
+        ("indigo", "Indigo"),
+        ("amber", "Amber"),
+        ("orange", "Orange"),
+        ("mint", "Mint"),
+        ("lavender", "Lavender"),
+        ("rose", "Rose"),
+    ):
+        assert f'value="{highlight_value}"' in config_response.text
+        assert f'highlight-color-swatch-{highlight_value}' in config_response.text
+        assert highlight_label in config_response.text
 
     csrf_token = extract_csrf_token(config_response.text)
     save_response = authenticated_client.post(
@@ -97,6 +122,7 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     )
     assert save_response.status_code == 200
     assert save_response.json()["theme"] == "light"
+    assert save_response.json()["highlight_color"] == "teal"
     assert save_response.json()["theme_color"] == "#f6f8fb"
     assert save_response.json()["submit_from_work_in_progress"] is False
 
@@ -108,12 +134,13 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     )
     assert workflow_response.status_code == 200
     assert workflow_response.json()["theme"] == "light"
+    assert workflow_response.json()["highlight_color"] == "teal"
     assert workflow_response.json()["submit_from_work_in_progress"] is True
 
     updated_config_response = authenticated_client.get("/config")
-    mobile_response = authenticated_client.get("/home")
-    assert 'class="theme-light"' in updated_config_response.text
-    assert 'class="theme-light"' in mobile_response.text
+    mobile_response = authenticated_client.get("/work")
+    assert 'class="theme-light highlight-teal"' in updated_config_response.text
+    assert 'class="theme-light highlight-teal"' in mobile_response.text
     assert 'src="/static/icons/ticketpilot-logo-black.svg?v=' in updated_config_response.text
     assert 'href="/static/icons/ticketpilot-logo-black.svg?v=' in updated_config_response.text
     assert re.search(r'name="theme"[^>]+value="light"[^>]+checked', updated_config_response.text)
@@ -123,7 +150,61 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
         preference = database_session.scalar(select(UserPreference).where(UserPreference.principal_key.like("web_user:%")))
         assert preference is not None
         assert preference.theme == ThemeMode.LIGHT
+        assert preference.highlight_color == HighlightColor.TEAL
         assert preference.submit_from_work_in_progress is True
+
+
+def test_config_autosaves_highlight_independently_from_background(
+    authenticated_client: TestClient,
+) -> None:
+    """Changing either appearance choice should preserve the other preference."""
+
+    config_response = authenticated_client.get("/config")
+    csrf_token = extract_csrf_token(config_response.text)
+
+    highlight_response = authenticated_client.post(
+        "/config",
+        headers={"Accept": "application/json", "X-CSRF-Token": csrf_token},
+        data={"csrf_token": csrf_token, "highlight_color": "amber"},
+    )
+    assert highlight_response.status_code == 200
+    assert highlight_response.json()["theme"] == "dark"
+    assert highlight_response.json()["highlight_color"] == "amber"
+
+    theme_response = authenticated_client.post(
+        "/config",
+        headers={"Accept": "application/json", "X-CSRF-Token": csrf_token},
+        data={"csrf_token": csrf_token, "theme": "light-sky"},
+    )
+    assert theme_response.status_code == 200
+    assert theme_response.json()["theme"] == "light-sky"
+    assert theme_response.json()["highlight_color"] == "amber"
+
+    rendered_response = authenticated_client.get("/work")
+    assert 'class="theme-light-sky highlight-amber"' in rendered_response.text
+
+    with database.SessionLocal() as database_session:
+        preference = database_session.scalar(
+            select(UserPreference).where(UserPreference.principal_key.like("web_user:%"))
+        )
+        assert preference is not None
+        assert preference.theme == ThemeMode.LIGHT_SKY
+        assert preference.highlight_color == HighlightColor.AMBER
+
+
+def test_config_rejects_unknown_highlight_color(authenticated_client: TestClient) -> None:
+    """Highlight autosave must validate the server-side allowlist."""
+
+    config_response = authenticated_client.get("/config")
+    csrf_token = extract_csrf_token(config_response.text)
+    response = authenticated_client.post(
+        "/config",
+        headers={"Accept": "application/json", "X-CSRF-Token": csrf_token},
+        data={"csrf_token": csrf_token, "highlight_color": "unsafe-custom-color"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Select a supported highlight color."
 
 
 @pytest.mark.parametrize(
@@ -156,18 +237,19 @@ def test_config_autosaves_additional_visual_themes(
     assert save_response.status_code == 200
     assert save_response.json()["theme"] == theme_value
     assert save_response.json()["theme_color"] == theme_color
-    assert f'class="theme-{theme_value}"' in authenticated_client.get("/home").text
+    assert f'class="theme-{theme_value} highlight-teal"' in authenticated_client.get("/work").text
 
 
 def test_theme_highlights_color_navigation_icons_and_ordinary_buttons() -> None:
-    """Shared theme highlights should color navigation and neutral buttons."""
+    """Independent highlight profiles should color navigation and neutral buttons."""
 
     stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css").read_text(
         encoding="utf-8"
     )
 
-    assert "html.theme-dark-midnight {" in stylesheet
-    assert "html.theme-dark-graphite {" in stylesheet
+    assert "html.highlight-blue {" in stylesheet
+    assert "html.highlight-amber {" in stylesheet
+    assert "html:is(.theme-light, .theme-light-sage, .theme-light-sky).highlight-amber {" in stylesheet
     assert "--accent: #6699e8;" in stylesheet
     assert "--accent: #f2b84b;" in stylesheet
     assert "--nav-action: var(--accent);" in stylesheet
@@ -220,7 +302,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
     assert save_response.json()["office_address_override_configured"] is True
     assert save_response.json()["allow_navigation_on_full_web"] is True
 
-    home_response = authenticated_client.get("/home")
+    home_response = authenticated_client.get("/work")
     assert 'data-navigation-app="waze"' in home_response.text
     assert "10 Home Road Detroit, MI 48201" in home_response.text
     assert "20 Office Avenue, Detroit, MI 48202" in home_response.text
@@ -714,9 +796,9 @@ def test_super_admin_has_no_config_menu_or_theme_preferences(client: TestClient)
     assert users_response.status_code == 200
     assert 'href="/config"' not in users_response.text
     assert 'data-mobile-config-link' not in users_response.text
-    assert 'class="theme-dark"' in users_response.text
+    assert 'class="theme-dark highlight-teal"' in users_response.text
 
-    mobile_response = client.get("/home")
+    mobile_response = client.get("/work")
     assert 'data-mobile-config-link' not in mobile_response.text
 
     admin_config_response = client.get("/config")
@@ -754,11 +836,11 @@ def test_super_admin_has_no_config_menu_or_theme_preferences(client: TestClient)
         follow_redirects=False,
     )
     assert passkey_delete_response.status_code == 403
-    assert 'class="theme-dark"' in client.get("/users").text
+    assert 'class="theme-dark highlight-teal"' in client.get("/users").text
 
     login_as_web_user(client)
     user_config_response = client.get("/config")
-    assert 'class="theme-dark"' in user_config_response.text
+    assert 'class="theme-dark highlight-teal"' in user_config_response.text
 
     with database.SessionLocal() as database_session:
         admin_preference = database_session.scalar(select(UserPreference).where(UserPreference.principal_key == "super_admin:admin"))
@@ -814,4 +896,4 @@ def test_web_user_can_change_password_from_config(authenticated_client: TestClie
         assert new_password not in str(audit_event.details)
 
     login_as(authenticated_client, username="tech", password=new_password)
-    assert authenticated_client.get("/home").status_code == 200
+    assert authenticated_client.get("/work").status_code == 200

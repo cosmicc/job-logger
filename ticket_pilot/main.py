@@ -214,7 +214,7 @@ async def _http_exception_handler(request: Request, exc: StarletteHTTPException)
             error_code=status_code,
             error_title=HTML_ERROR_TITLES.get(status_code, "Request error"),
             error_message=HTML_ERROR_MESSAGES.get(status_code, "TicketPilot could not complete that request."),
-            back_link_href="/home" if authenticated else "/login",
+            back_link_href="/work" if authenticated else "/login",
             back_link_label="Back to Work" if authenticated else "Back to Login",
         ),
         status_code=status_code,
@@ -395,6 +395,7 @@ def create_app(
     fastapi_app.include_router(changelog.router)
     fastapi_app.include_router(help.router)
     fastapi_app.include_router(debug.router)
+    fastapi_app.include_router(debug.legacy_router)
     fastapi_app.include_router(review.router)
     return fastapi_app
 

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="theme-{{ current_theme|default('dark') }}">
+<html lang="en" class="theme-{{ current_theme|default('dark') }} highlight-{{ current_highlight_color|default('teal') }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -18,11 +18,11 @@
     <link rel="stylesheet" href="/static/desktop.css?v={{ static_asset_version }}" media="(min-width: 701px)">
     <script src="/static/pwa.js?v={{ static_asset_version }}" defer></script>
   </head>
-  <body class="theme-{{ current_theme|default('dark') }}">
+  <body class="theme-{{ current_theme|default('dark') }} highlight-{{ current_highlight_color|default('teal') }}">
     {% if current_username %}
       <header class="app-header{% if app_health_degraded %} has-health-alert{% endif %}">
         <div class="desktop-header-left">
-          <a class="brand" href="/home" aria-label="TicketPilot home">
+          <a class="brand" href="/work" aria-label="TicketPilot work page">
             <img class="brand-icon" src="/static/icons/ticketpilot-logo-{{ brand_logo_variant|default('grey') }}.svg?v={{ static_asset_version }}" alt="" width="34" height="34" aria-hidden="true" data-theme-logo data-logo-white="/static/icons/ticketpilot-logo-white.svg?v={{ static_asset_version }}" data-logo-grey="/static/icons/ticketpilot-logo-grey.svg?v={{ static_asset_version }}" data-logo-black="/static/icons/ticketpilot-logo-black.svg?v={{ static_asset_version }}">
             <span class="brand-text-stack">
               <span class="brand-title">TicketPilot</span>
@@ -43,7 +43,7 @@
         {% endif %}
         <nav class="top-nav" aria-label="Primary navigation">
           {% if not current_is_super_admin %}
-            <a href="/home">
+            <a href="/work">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path>
                 <path d="M9 5a3 3 0 0 1 6 0"></path>
@@ -83,7 +83,7 @@
             </a>
           {% endif %}
           {% if current_can_access_debug %}
-            <a href="/debug">
+            <a href="/diagnostics">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a6 6 0 0 1-7.9 7.9l-5.6 5.6a2.1 2.1 0 0 1-3-3l5.6-5.6a6 6 0 0 1 7.9-7.9l-3.1 3.1Z"></path>
               </svg>
@@ -93,7 +93,7 @@
         </nav>
         <nav class="mobile-nav-actions mobile-nav-left" aria-label="Mobile navigation">
           {% if not current_is_super_admin %}
-            <a class="icon-button mobile-nav-action" href="/home" title="Work" aria-label="Work" data-mobile-home-link>
+            <a class="icon-button mobile-nav-action" href="/work" title="Work" aria-label="Work" data-mobile-home-link>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path>
                 <path d="M9 5a3 3 0 0 1 6 0"></path>
@@ -146,7 +146,7 @@
             </a>
           {% endif %}
           {% if current_can_access_debug %}
-            <a class="icon-button mobile-nav-action mobile-debug-action" href="/debug" title="Diagnostics" aria-label="Diagnostics" data-mobile-debug-link>
+            <a class="icon-button mobile-nav-action mobile-debug-action" href="/diagnostics" title="Diagnostics" aria-label="Diagnostics" data-mobile-debug-link>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a6 6 0 0 1-7.9 7.9l-5.6 5.6a2.1 2.1 0 0 1-3-3l5.6-5.6a6 6 0 0 1 7.9-7.9l-3.1 3.1Z"></path>
               </svg>

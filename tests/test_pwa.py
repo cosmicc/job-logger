@@ -35,7 +35,8 @@ def test_manifest_exposes_standalone_mobile_app_metadata(client: TestClient) -> 
     manifest = response.json()
     assert manifest["name"] == "Ticket Pilot for Autotask"
     assert manifest["short_name"] == "TicketPilot"
-    assert manifest["start_url"] == "/home"
+    assert manifest["id"] == "/work"
+    assert manifest["start_url"] == "/work"
     assert manifest["scope"] == "/"
     assert manifest["display"] == "standalone"
     assert manifest["theme_color"] == "#0b1220"

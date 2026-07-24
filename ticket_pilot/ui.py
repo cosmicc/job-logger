@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from ticket_pilot import time_utils
 from ticket_pilot.config import settings
-from ticket_pilot.enums import ThemeMode
+from ticket_pilot.enums import HighlightColor, ThemeMode
 from ticket_pilot.security import (
     csrf_token,
     current_user_kind,
@@ -21,7 +21,11 @@ from ticket_pilot.security import (
     pop_flash_messages,
     session_has_debug_access,
 )
-from ticket_pilot.services.preferences import THEME_META_COLORS, get_theme_for_session
+from ticket_pilot.services.preferences import (
+    THEME_META_COLORS,
+    get_highlight_color_for_session,
+    get_theme_for_session,
+)
 from ticket_pilot.services.system_health import AppHealthSnapshot, collect_app_health_snapshot
 from ticket_pilot.version import APP_VERSION
 
@@ -63,8 +67,10 @@ def template_context(
 
     application_settings = getattr(request.app.state, "application_settings", settings)
     current_theme = ThemeMode.DARK
+    current_highlight_color = HighlightColor.TEAL
     if database_session is not None and current_username(request):
         current_theme = get_theme_for_session(database_session, request.session)
+        current_highlight_color = get_highlight_color_for_session(database_session, request.session)
     current_can_access_debug = False
     app_health_snapshot = AppHealthSnapshot(issues=())
     if database_session is not None and current_username(request):
@@ -82,6 +88,7 @@ def template_context(
         "app_health_degraded": app_health_snapshot.degraded,
         "app_health_alert_label": app_health_snapshot.alert_label,
         "current_theme": current_theme.value,
+        "current_highlight_color": current_highlight_color.value,
         "theme_color": THEME_META_COLORS[current_theme],
         "brand_logo_variant": "black" if current_theme.value.startswith("light") else "white",
         "flash_messages": pop_flash_messages(request),

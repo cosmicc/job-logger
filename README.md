@@ -120,7 +120,7 @@ Autotask REST API references used by this app:
    Autotask role metadata is readable, and save the selected numeric role ID as
    an optional default fallback for tickets that do not return usable role data.
    Add/edit forms also include a default-off Admin checkbox that grants that
-   managed user full `/debug` Diagnostics access only.
+   managed user full `/diagnostics` Diagnostics access only.
    When Autotask returns an email for the selected resource, TicketPilot saves it
    with that web-user account. Managed-user passwords must be at least 8
    characters and include lowercase, uppercase, number, and symbol characters.
@@ -130,13 +130,17 @@ Autotask REST API references used by this app:
    The first web user you create takes ownership of any existing unowned jobs
    from earlier single-user installs.
 
-8. Managed web users can open `/config` to choose their visual theme and how
+8. Managed web users can open `/config` to choose their background and
+   highlight color and control how
    finished Work in Progress entries are submitted. Default Dark is selected
    initially, and changes save and apply immediately without a Save button.
-   Config offers three light and five dark palettes, shown in the maintained
+   Config offers three light and five dark background profiles plus ten
+   independent highlight colors, shown in the maintained
    [theme palette reference](docs/design/theme_palettes.svg), and the chosen
-   theme applies to mobile and web pages for that login only. Navigation icons
-   and ordinary buttons follow the selected theme's highlight color while
+   combination applies to mobile and web pages for that login only. Highlight
+   shades adjust automatically for readable contrast on light or dark
+   backgrounds. Navigation icons and ordinary buttons follow the selected
+   highlight color while
    status and destructive actions retain their established colors. The **Submit from Work in Progress** workflow
    option is not a workflow availability toggle. It is off by default; when
    enabled, ending work submits the completed time entry or ticket note to
@@ -554,8 +558,10 @@ Check these items first:
   scripts/diagnose_tunnel.sh
   ```
 
-The work-entry home route is `/home`. The app also redirects `/mobile` and
-`/moble` to `/home` to preserve old bookmarks and avoid a common typo after the
+The work-entry home route is `/work`. `/home` remains a backward-compatible
+redirect, and `/home/service-calls` remains an authenticated alias for the
+canonical `/work/service-calls` endpoint. The app also redirects `/mobile` and
+`/moble` to `/work` to preserve old bookmarks and avoid a common typo after the
 tunnel is working.
 
 ## Mobile App Mode
@@ -597,8 +603,9 @@ browser and installed-app shells fetch changed assets after deploy without
 requiring an application version bump.
 Favicon and Apple touch icon links use the same content-derived version value.
 The full-browser header and favicon use the supplied white TicketPilot SVG on
-dark themes and the black SVG on light themes; the supplied grey SVG is the
-neutral fallback. A theme change on Config updates both immediately. The web
+dark backgrounds and the black SVG on light backgrounds; the supplied grey SVG
+is the neutral fallback. A background change on Config updates both
+immediately. The web
 manifest advertises the supplied 128, 256, 512, and 1024 pixel PNG app icons,
 and the 256 pixel source is also used as the Apple touch icon. These files are
 kept unchanged under `ticket_pilot/static/icons/`, which is the canonical
@@ -633,7 +640,7 @@ or with registered device sign-in. The app labels this feature **Device
 sign-in** because the underlying passkey can use a phone, browser profile,
 security key, fingerprint, Face ID, PIN, pattern, or another local unlock
 method. Device sign-in can be set up from `/config` after a normal password
-login. On phone-sized layouts, the `/home` page prompts managed users without a
+login. On phone-sized layouts, the `/work` page prompts managed users without a
 registered credential only once after each successful login, while `/config`
 always keeps setup available. TicketPilot stores only the public credential ID,
 public key,
@@ -1085,7 +1092,7 @@ from cache can still be queried from Autotask. Ticket status picklist labels and
 other Autotask lookup data remain on a 15-minute cache. Recently displayed
 open-ticket selection lists are cached server-side for two minutes so selecting
 a ticket that was just shown does not re-query Autotask on the critical tap
-path. The initial `/home` page and blank Start Work route do not run an
+path. The initial `/work` page and blank Start Work route do not run an
 Autotask contactability check. Live company and ticket queries request
 `MaxRecords=500` and follow Autotask
 pagination links so larger tenants are not limited to the first page of results.
@@ -1150,7 +1157,7 @@ When an active job slot is available, the mobile start panel also lists Autotask
 service calls assigned to the logged-in web user's Autotask resource ID for the
 selected local date. The mobile page renders first with a loading state and no
 synchronous Autotask calls. After the window load event, the browser fetches
-`/home/service-calls` so slow Autotask service-call lookups show progress
+`/work/service-calls` so slow Autotask service-call lookups show progress
 instead of delaying the whole start screen. The compact date navigator can move
 to the previous or next day, and tapping the displayed day opens the app's
 calendar chooser with **Today**, **Cancel**, and **Set** controls. Today,
@@ -1186,7 +1193,7 @@ Companies and Tickets permissions already required by the app.
 The shared page data is styled through `app.css`, then viewport-specific
 `phone.css` or `desktop.css` loads automatically with media queries so phones
 and desktop browsers get appropriately sized layouts. In a full browser view,
-the `/home` Home screen lays out Start Work beside the service-call list, and
+the `/work` Home screen lays out Start Work beside the service-call list, and
 Work in Progress puts job details beside notes and finish actions for easier
 scanning. Active Work in Progress cards show an editable **Job date** calendar
 with `(Today)`, `(Yesterday)`, or `(Tomorrow)` inside the date box when
@@ -1212,12 +1219,12 @@ buttons. On phone-sized Review detail, Record and AI Cleanup status text also
 stays below the Review action buttons. Phone-sized authenticated layouts hide
 the brand mark and desktop logout button. Managed web users see Work and
 Review left-aligned, then Help, Config, optional Diagnostics, and logout
-right-aligned. The Work icon links to `/home` and uses the same work-entry
+right-aligned. The Work icon links to `/work` and uses the same work-entry
 symbol as the full-browser Work nav button. The config super admin sees Users
 and Review on the left, with Help, Diagnostics, and logout on the right. Phone
 nav icons use one larger shared size inside the compact buttons. The mobile logout
-icon submits the normal CSRF-protected `/logout` form. Full-width `/home`,
-review, debug, and other non-mobile pages keep the explicit desktop logout
+icon submits the normal CSRF-protected `/logout` form. Full-width `/work`,
+Review, Diagnostics, and other non-mobile pages keep the explicit desktop logout
 button. Mobile submit actions show a loading overlay once the
 tap is accepted so slow redirects or Autotask lookups do not look like ignored
 buttons; rounded start/stop `-15` and `+15` adjustments skip the full-page
@@ -1309,11 +1316,11 @@ user-scoped payloads and service-call filters, but live calls do not send the
 optional Autotask `ImpersonationResourceId` header. Super-admin Resource setup
 and debug connectivity checks run without a managed-user context.
 
-The `/debug` page is available to the config super admin and to managed web
+The `/diagnostics` page is available to the config super admin and to managed web
 users marked Admin on `/users`. Managed admins get the same Diagnostics buttons
 and options, but no `/users` access, no super-admin review scope, and no extra
 job workflow permissions. Non-admin managed users do not see the Diag menu
-item, and direct `/debug/*` requests from those sessions return 403. It shows
+item, and direct `/diagnostics/*` requests from those sessions return 403. It shows
 the source-controlled application version and includes **Test Autotask API**
 and **Log out web users** buttons. The logout button forces all managed web
 users to sign in again while leaving the config super admin signed in; a
@@ -1340,7 +1347,7 @@ active failure. The top of Diagnostics also shows a yellow warning banner or
 red critical banner while any monitored
 app-health issue is active.
 
-The same `/debug` page also shows compact, paginated successful-login,
+The same `/diagnostics` page also shows compact, paginated successful-login,
 failed-login, Cloudflare blocked-IP, and Autotask submission-attempt windows.
 Successful-login, failed-login, and Autotask submission-attempt lists show 7
 rows per page without vertical table scrollbars, while Cloudflare blocked IPs
@@ -1359,7 +1366,7 @@ Successful-login rows use a yellow account chip for the config super admin, a
 green chip for managed web users, and colored `Password` or `Passkey` method
 pills.
 The raw submitted password is never stored or displayed. The
-`/debug/logs/login-failures` and `/debug/logs/login-successes` endpoints
+`/diagnostics/logs/login-failures` and `/diagnostics/logs/login-successes` endpoints
 generate sanitized JSONL downloads from the database for authenticated
 diagnostics.
 Password reset audit events store only safe metadata such as hashed submitted
@@ -1368,9 +1375,9 @@ IDs, delivery status, and rate-limit results. They never store raw reset tokens,
 full reset URLs, submitted passwords, SMTP secrets, Turnstile secrets, cookies,
 or authorization headers.
 
-Failed-login rows can be hidden from the `/debug` table by setting a hidden
+Failed-login rows can be hidden from the `/diagnostics` table by setting a hidden
 timestamp on the database row. When `CLOUDFLARE_IP_BLOCKING_ENABLED=true` and
-`CLOUDFLARE_API_TOKEN` plus `CLOUDFLARE_ZONE_ID` are configured, `/debug` can
+`CLOUDFLARE_API_TOKEN` plus `CLOUDFLARE_ZONE_ID` are configured, `/diagnostics` can
 create and remove app-managed Cloudflare zone IP Access Rules for failed-login
 client IPs. Diagnostics can also add a manual Cloudflare IP block with a
 reason. Failed-login row blocks, manual blocks, and automatic blocks are stored
@@ -1391,7 +1398,7 @@ browser response.
 `CLOUDFLARE_IP_BLOCK_ALLOWLIST` accepts trusted IPs or CIDRs separated by
 commas or whitespace so home/admin addresses are never app-blocked.
 
-The `/debug` page also includes a **Disk space** card for the app-visible root
+The `/diagnostics` page also includes a **Disk space** card for the app-visible root
 filesystem and `AUTOMATIC_BACKUP_DIR`. Paths with exactly matching used and
 total space are combined into one row because they are reporting the same
 underlying storage. Disk alerts use free space only: warning below
@@ -1443,7 +1450,7 @@ Diagnostics labels retained automatic backups as `Startup` or `Hourly` when
 that creation metadata is available; older retained files may show no source
 label.
 
-The `/debug` page also includes **Download Full Backup** and **Restore Full
+The `/diagnostics` page also includes **Download Full Backup** and **Restore Full
 Backup** controls. Each retained automatic backup also has a per-file
 **Download** button. Backups are sensitive `.json.gz` files containing all
 TicketPilot database tables, including managed web-user password hashes and email
@@ -1452,7 +1459,7 @@ Store backup files
 somewhere private because they contain account, customer, ticket, and
 work-summary history.
 
-To restore, upload a TicketPilot full-backup file on `/debug` and type
+To restore, upload a TicketPilot full-backup file on `/diagnostics` and type
 `RESTORE`. Restore validates the archive format, required tables, and columns
 before deleting current app rows. A successful restore replaces the current app
 database contents with the backup contents, then records a new restore audit
@@ -1464,9 +1471,9 @@ as time entries with **Append to resolution** defaulted on and no note title.
 The default restore upload cap is 250 MB:
 `MAX_BACKUP_RESTORE_BYTES` controls app-side validation and
 `NGINX_RESTORE_MAX_BODY_SIZE` controls the matching nginx body limit for
-`/debug/restore`.
+`/diagnostics/restore`.
 
-To restore an automatic backup, use the per-backup restore row on `/debug` and
+To restore an automatic backup, use the per-backup restore row on `/diagnostics` and
 type `RESTORE` beside the selected file. The same validation, replacement, and
 post-restore audit behavior used by uploaded full-backup restores applies.
 
@@ -1479,7 +1486,7 @@ verified backup and intend to replace or discard the existing data.
 The `scripts/discover_autotask_ids.py` helper also prints a workflow endpoint
 preflight section. Ticket-status ID discovery can succeed even when the
 Autotask API user cannot query Companies or Tickets, so use the preflight
-result and the `/debug` failed-operation label when diagnosing Autotask HTTP
+result and the `/diagnostics` failed-operation label when diagnosing Autotask HTTP
 500 or permission failures. Some Autotask permission denials are returned as
 HTTP 500 responses, so check the preflight detail before changing credentials.
 
@@ -1514,9 +1521,12 @@ Work in Progress and Review detail show that rounded duration as centered labels
 like `15 Minutes`, `1 Hour`, or `1.25 Hours`.
 Work shows centered compact boxed total time-entry hours worked today and this
 week.
-Review shows today and week total cards, lists jobs newest-first, 10 rows per
-page, and includes day-hours and week-hours columns for each job owner/date.
-Ticket notes do not add to hour totals because they do not record time.
+Review shows Today, Week, and Unsubmitted metric cards, lists jobs newest-first,
+10 rows per page, and includes day-hours and week-hours columns for each job
+owner/date. Unsubmitted counts time entries in Active, Ready for Review, or
+Submission Failed status. Managed users see their own count, while the config
+super admin sees the all-owner review scope. Ticket notes do not add to hour
+totals or the unsubmitted count.
 Time entries also enforce work-location minimums: Remote work must be at least
 15 rounded minutes, and On-Site work must be at least 1 rounded hour. Ticket
 notes do not use start and end times, so these minimums do not apply to notes.

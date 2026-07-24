@@ -220,7 +220,7 @@
             public_device: publicDeviceLoginSelected(),
           },
         );
-        window.location.href = verificationPayload.redirect_url || "/home";
+        window.location.href = verificationPayload.redirect_url || "/work";
       } catch (error) {
         setStatus(statusElement, `${error.message || "Device sign-in failed."} Use username and password.`, true);
         delete button.dataset.passkeyLoginBusy;

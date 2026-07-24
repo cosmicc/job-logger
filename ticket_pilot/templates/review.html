@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "_ticket_notes_overlay.html" import render_ticket_notes_overlay %}
 
-{% block title %}Work Review - TicketPilot{% endblock %}
+{% block title %}TicketPilot - Review{% endblock %}
 
 {% block content %}
   <div class="mobile-page-loading is-hidden" data-review-page-loading role="status" aria-live="assertive" aria-busy="true">
@@ -26,6 +26,10 @@
           <div class="review-hours-summary" aria-label="Hours worked this week">
             <span class="metric-label">Week</span>
             <strong>{{ week_work_hours_label }}</strong>
+          </div>
+          <div class="review-hours-summary" aria-label="Time entries not submitted to Autotask">
+            <span class="metric-label">Unsubmitted</span>
+            <strong>{{ unsubmitted_time_entry_count }}</strong>
           </div>
         </div>
       {% endif %}

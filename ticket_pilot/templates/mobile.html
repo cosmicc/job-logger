@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% from "_ticket_notes_overlay.html" import render_ticket_notes_overlay %}
 
-{% block title %}Mobile Work Log - TicketPilot{% endblock %}
+{% block title %}TicketPilot - Time Entry{% endblock %}
 
 {% macro render_service_call_start_options() %}
   <section
     class="service-call-start-panel"
     aria-labelledby="service-call-start-heading"
     data-service-call-panel
-    data-service-call-url="/home/service-calls"
+    data-service-call-url="/work/service-calls"
   >
     <div class="service-call-panel-header">
       <h3 id="service-call-start-heading">Service calls</h3>

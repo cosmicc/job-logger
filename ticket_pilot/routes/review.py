@@ -40,6 +40,7 @@ from ticket_pilot.services.jobs import (
     apply_review_fields,
     apply_selected_ticket_from_lookup,
     apply_unset_review_client,
+    count_unsubmitted_time_entries,
     delete_submitted_job_autotask_entry,
     display_summary_notes_for_review,
     ensure_job_is_not_locked_after_successful_submission,
@@ -650,6 +651,7 @@ def _render_review(
             selected_job=selected_job,
             today_work_hours_label=format_duration_minutes(today_total_minutes) or "0 Hours",
             week_work_hours_label=format_duration_minutes(week_total_minutes) or "0 Hours",
+            unsubmitted_time_entry_count=count_unsubmitted_time_entries(all_jobs),
             job_hour_totals=job_hour_totals,
             selected_job_submitted=(
                 is_job_locked_after_successful_submission(selected_job) if selected_job is not None else False

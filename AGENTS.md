@@ -35,7 +35,9 @@ it must not start, edit, submit, delete, record, or AI-cleanup work entries
 because it has no Autotask resource ID. Normal work must be performed through
 database-managed web users created on `/users`.
 The config super admin and managed web users explicitly marked as Admin may see
-and use `/debug` and `/debug/*`, including all Diagnostics buttons and options.
+and use `/diagnostics` and `/diagnostics/*`, including all Diagnostics buttons
+and options. `/debug` and `/debug/*` remain authenticated compatibility aliases,
+but all rendered links, forms, and redirects must use `/diagnostics`.
 The managed-user Admin flag grants only Diagnostics access. It must not grant
 `/users`, super-admin review scope, or any extra job workflow permissions.
 Managed web users without the Admin flag must receive 403 for direct debug
@@ -178,14 +180,17 @@ phone, browser, biometric unlock, PIN, or another passkey-capable device.
 The login page shows the normal username/password form first and places the
 Device sign-in button under the password sign-in button as the alternate
 managed-user login path.
-`/home` may show a device sign-in setup card only once after each successful
+`/work` may show a device sign-in setup card only once after each successful
 login, only on phone-sized layouts, and only while that managed user has no
 registered passkeys.
 
 Managed web users may change per-login configuration on `/config`. Per-user
-configuration is database-backed, defaults to Default Dark, saves immediately
-when an option changes, and supports all eight defined visual themes for
-authenticated mobile and web pages. It also supports the default-off **Submit
+configuration is database-backed, defaults to Default Dark with Teal
+highlighting, saves immediately when an option changes, and supports eight
+independent background profiles plus ten named highlight colors for
+authenticated mobile and web pages. Highlight colors must use contrast-adjusted
+light and dark shades while preserving the selected color family. It also
+supports the default-off **Submit
 from Work in Progress** option. When enabled, ending an active job submits the
 time entry directly to Autotask instead of stopping in Review first. The
 per-user navigation setting supports None, Device Default, Google Maps, Waze,
@@ -231,7 +236,7 @@ Do not log secrets, session tokens, raw authentication headers, Cloudflare Acces
 JWTs, Autotask API credentials, transcription provider credentials, raw audio,
 or other sensitive values. Successful and failed app-login attempts must be
 stored in the database as sanitized `login_attempts` records and shown on
-`/debug` only with safe metadata such as timestamp, client IP, submitted
+`/diagnostics` only with safe metadata such as timestamp, client IP, submitted
 username, account kind, authentication method, user agent, request/proxy
 details, failure reason, and password-present/length for failures. Never store,
 write, or display the raw submitted password. For login diagnostics, display the
@@ -243,7 +248,7 @@ nginx-sanitized `X-Real-IP`/`X-Forwarded-For` or, outside the bundled proxy
 path, the direct socket peer. The failed-login table may hide individual rows by
 setting `login_attempts.hidden_at_utc`; JSONL downloads are generated from the
 database for diagnostics and must remain sanitized. Cloudflare IP blocking on
-`/debug` may create or remove only app-managed zone IP Access Rules tracked in
+`/diagnostics` may create or remove only app-managed zone IP Access Rules tracked in
 `cloudflare_ip_blocks`; it must honor `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, use the
 trusted enforcement IP, store a safe reason for every block, and reset
 `login_failure_counters` to zero after a successful local login for the same
@@ -583,7 +588,10 @@ The mobile interface must be optimized for quick use from a phone.
 Mobile summary notes textareas should default to a taller note-taking area than
 the shared desktop textarea baseline while remaining vertically resizable.
 
-The `/home` route renders the Home and Work in Progress workflow. Full browser
+The `/work` route is canonical for the Home and Work in Progress workflow.
+`/home` remains a backward-compatible redirect to `/work`, and old
+`/home/service-calls` requests remain accepted while new browser requests use
+`/work/service-calls`. Full browser
 rendering should use desktop-only CSS from `desktop.css` for a wider,
 scan-friendly layout. Keep full-browser layout changes out of `phone.css` so
 the installed mobile phone experience remains unchanged unless explicitly
@@ -651,18 +659,22 @@ centered **Ticket name** card repeats the same value. The full-browser layout
 depends on that label row so the Summary notes panel starts flush with the top
 of the **Job date** card; keep that label prominent enough to read quickly.
 
-Managed web-user pages must respect the current user's saved theme preference.
-Default Dark is the initial theme. Config must expose Default Light, Sage Light,
-Sky Light, Default Dark, Midnight Black, Graphite Dark, Forest Dark, and Plum
-Dark for a total of three light and five dark palettes. Midnight Black replaces
-Slate Dark, and existing Slate Dark preferences migrate to Midnight Black.
-Every theme must cover mobile, review, user
-management, config, debug, and login surfaces through shared CSS variables
-instead of separate unaudited template branches. Super-admin pages always use
-Default Dark. `docs/design/theme_palettes.svg` is the maintained reference for
-all eight theme palettes. Navigation icons and ordinary buttons use the active
-theme highlight color; established destructive, success, warning, AI, status,
-and disabled-control colors retain their semantic meaning.
+Managed web-user pages must respect the current user's saved background and
+highlight preferences. Default Dark with Teal is the initial appearance.
+Config exposes Default Light, Sage Light, Sky Light, Default Dark, Midnight
+Black, Graphite Dark, Forest Dark, and Plum Dark as three light and five dark
+background profiles. It separately exposes Teal, Sage, Sky Blue, Blue, Indigo,
+Amber, Orange, Mint, Lavender, and Rose in a dropdown with a visible color
+sample for every option. Midnight Black replaces Slate Dark, and migrations
+must preserve the effective highlight of older saved themes and backups.
+Every background/highlight combination must cover mobile, review, user
+management, Config, Diagnostics, and login surfaces through shared CSS
+variables instead of separate unaudited template branches. Super-admin pages
+always use Default Dark with Teal. `docs/design/theme_palettes.svg` is the
+maintained reference for all eight backgrounds and ten highlight colors.
+Navigation icons and ordinary buttons use the active highlight color;
+established destructive, success, warning, AI, status, and disabled-control
+colors retain their semantic meaning.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
 must mark the Help navigation button in yellow so dev instances are visually
 distinct from production without adding a separate pill. Full-browser
@@ -674,7 +686,7 @@ On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows compact route and status icons on the left,
 with Work and Review left-aligned for managed web users. Help, Config,
 optional Diagnostics, and logout are right-aligned in that order. The Work
-button links to `/home` and uses the same work-entry icon on phone and
+button links to `/work` and uses the same work-entry icon on phone and
 full-browser navigation. The shared authenticated top bar must remain visible
 at the top of the viewport while any phone or full-browser page scrolls through
 its complete document. The config super admin sees Users and Review on the
@@ -683,7 +695,7 @@ Config shortcut.
 The mobile logout button must post to `/logout` with the
 rendered CSRF token and
 must not use `window.close()` or a browser-only app close fallback. Full-width
-`/home`, review, debug, and other non-mobile authenticated views still expose
+`/work`, Review, Diagnostics, and other non-mobile authenticated views still expose
 the explicit desktop logout control. Full-browser route navigation should be
 centered, use raised blue icon-and-text buttons, place Help immediately before
 the right-side **Log out** button. The authenticated desktop brand mark and
@@ -728,9 +740,13 @@ week-hours totals calculated from time-entry jobs for that job's owner, local
 job date, and local work week. Ticket notes do not contribute to hour totals.
 The Work page and Review page should also show time-entry hours worked today
 and this week, including `0 Hours` when no time-entry work has been recorded.
-Home should show those values as a centered, compact, discreet boxed summary
-rather than full metric cards. Review should show Today and Week as same-sized
-metric cards near the top of the page. The summary
+Work should show those values as a centered, compact, discreet boxed summary
+rather than full metric cards. Review should show Today, Week, and Unsubmitted
+as same-sized metric cards near the top of the page. Unsubmitted counts only
+time-entry jobs in Active, Ready for Review, or Submission Failed status;
+ticket notes, rejected jobs, and successfully submitted jobs do not count.
+Managed users see only their own count, while the config super admin sees the
+count across all owners in the same review scope. The summary
 textarea for time entries must show the complete Autotask summary that will be
 sent, including the leading `Remote. ` or `On-Site. ` prefix. Saving review
 edits parses that prefix back into the stored
@@ -1091,7 +1107,7 @@ The application is a FastAPI project under `ticket_pilot/`.
   completion without account enumeration.
 - `ticket_pilot/routes/passkeys.py` handles managed-user passkey registration,
   deletion, and passkey login challenge/verification routes.
-- `ticket_pilot/routes/mobile.py` handles `/home`, active job start/end/save,
+- `ticket_pilot/routes/mobile.py` handles `/work`, active job start/end/save,
   active rounded-start adjustment, WebSocket recording streams for active and
   unsubmitted review jobs, compatibility recording uploads, description text
   saves, and Autotask company autocomplete.
@@ -1104,14 +1120,15 @@ The application is a FastAPI project under `ticket_pilot/`.
   Resource lookup, active service-desk role lookup, and session invalidation
   when accounts are disabled or archived.
 - `ticket_pilot/routes/configuration.py` handles authenticated managed-web-user
-  configuration such as immediate eight-palette theme selection and explicit
-  managed-user password changes.
+  configuration such as immediate independent background/highlight selection
+  and explicit managed-user password changes.
 - `ticket_pilot/routes/changelog.py` handles authenticated `/changelog` release
   history used by the Help page's **version changelog** overlay and by direct
   authenticated fallback navigation.
 - `ticket_pilot/routes/help.py` handles authenticated `/help` and `/help/ask`
   for the Help page and stateless, single-question help assistant answers.
-- `ticket_pilot/routes/debug.py` handles the super-admin diagnostic page, the
+- `ticket_pilot/routes/debug.py` handles the canonical `/diagnostics` page,
+  backward-compatible `/debug` aliases, the
   sanitized successful/failed login windows, disk-space monitor, database
   diagnostics, full backup/restore actions, managed web-user session
   invalidation, and the Autotask API connectivity test.
@@ -1158,7 +1175,7 @@ The application is a FastAPI project under `ticket_pilot/`.
 - `ticket_pilot/services/audit.py` records immutable audit events.
 - `ticket_pilot/services/backups.py` creates and restores portable gzip JSON full
   database backups, writes startup and hourly automatic backup files, and
-  enforces automatic backup retention. `/debug` may download retained automatic
+  enforces automatic backup retention. `/diagnostics` may download retained automatic
   backups only after strict filename validation, and labels retained automatic
   backups as startup or hourly when creation audit metadata is available.
 - `ticket_pilot/services/login_failures.py` writes and reads sanitized
@@ -1180,7 +1197,7 @@ The application is a FastAPI project under `ticket_pilot/`.
   `static/icons/`. Keep supplied branding sources unchanged and remove
   superseded logo/icon files when artwork is replaced.
 - `docs/design/` contains `theme_palettes.svg`, the only maintained reference
-  defining every selectable light and dark theme.
+  defining all eight selectable background profiles and ten highlight colors.
 - `migrations/versions/` contains Alembic schema migrations.
 - `scripts/` contains operational helper scripts, including Autotask ID
   discovery.
@@ -1213,18 +1230,19 @@ The normal workflow is:
    Device sign-in passkeys are registered. The first visible managed web user
    claims any existing unowned jobs from earlier single-user installs.
 3. A managed web user may open `/config` to choose among three light and five
-   dark themes for their own login, enable the default-off **Submit from Work in Progress**
+   dark background profiles and independently choose one of ten highlight
+   colors for their own login, enable the default-off **Submit from Work in Progress**
    option, change their password, and add or delete passkeys. If the account is
    using a temporary super-admin-created or reset password, `/config` shows only
    the required password-change flow until the user chooses a new password.
    Config changes save and apply immediately without a visible save action,
    except password and passkey actions which are explicit. The password card
    shows password requirements. The config super admin has no `/config` access
-   and stays dark.
-4. A managed web user opens `/home`.
-5. The `/home` page renders from local application state without running an
+   and always uses Default Dark with Teal.
+4. A managed web user opens `/work`.
+5. The `/work` page renders from local application state without running an
    Autotask API contactability check. After the page has loaded, browser
-   JavaScript queries `/home/service-calls` to populate service-call start
+   JavaScript queries `/work/service-calls` to populate service-call start
    cards for the selected local date and that user's Autotask resource,
    including each call's scheduled local date and start/end time range. The
    mobile date navigator
@@ -1362,7 +1380,7 @@ In production:
 - `APP_USERNAME`/`APP_PASSWORD` authenticate the config super admin only.
 - Each managed web user must be created on `/users` with an Autotask resource
   ID before that person can start work.
-- `/home` and blank Start Work do not run Autotask contactability probes.
+- `/work` and blank Start Work do not run Autotask contactability probes.
 - Service-call loading, company lookup, ticket lookup, and Autotask submission
   still call Autotask only when those specific workflows need provider data.
   Service-call and open-ticket selection are read/query-only against Autotask
@@ -1379,7 +1397,7 @@ In production:
   the server-side provider; browser code never contacts Autotask directly.
   Returned resource email metadata is optional and is stored only when a user
   selects a resource that includes one.
-- The `/debug` page provides the supported manual **Test Autotask API** action.
+- The `/diagnostics` page provides the supported manual **Test Autotask API** action.
   The authenticated desktop navigation labels this route as **Diag**, while the
   page itself is titled **Diagnostics**.
 - Autotask provider HTTP/status failures, failed time-entry create/update/delete
@@ -1393,13 +1411,13 @@ In production:
   defaulting to 2. Keep all direct REST traffic inside
   `ticket_pilot/services/autotask.py` so this process-local and PostgreSQL
   advisory-lock limiter is always applied.
-- The `/debug` page provides a Diagnostics-admin **Log out web users** action
+- The `/diagnostics` page provides a Diagnostics-admin **Log out web users** action
   that invalidates all managed web-user sessions without ending the config
   super-admin session. Managed Admin users are included in that invalidation
   because they are managed web users. The button should sit centered below the
   explanatory text, using a wider-than-tall destructive button shape inside the
   session-controls card.
-- The `/debug` page provides per-row failed-login hide controls, per-row
+- The `/diagnostics` page provides per-row failed-login hide controls, per-row
   Cloudflare block/unblock controls, and an app-managed Cloudflare blocked IP
   card. Automatic Cloudflare blocking happens after
   `CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS` consecutive failed local logins
@@ -1411,7 +1429,7 @@ In production:
 - The shared app-health snapshot must monitor disk space, cached Autotask
   operation failures, database availability, database query latency, database
   connection-pool pressure, active local login lockouts, and app-managed
-  Cloudflare IP blocks. The `/debug` page should show a yellow or red
+  Cloudflare IP blocks. The `/diagnostics` page should show a yellow or red
   app-health banner at the top when any monitored issue is active.
   A temporarily unreadable monitored storage path must report a critical
   **Storage unavailable** condition while normal app workflows remain usable;
@@ -1427,8 +1445,8 @@ In production:
   host/container/process-down detection still requires an external monitor
   against `/health/live`. `DEV_BUILD=true` must disable Pushover notifications
   even when `PUSHOVER_ENABLED=true`.
-- The `/debug` disk-space card combines monitored paths when used bytes and
-  total bytes match exactly. The `/debug` database card may show safe
+- The `/diagnostics` disk-space card combines monitored paths when used bytes and
+  total bytes match exactly. The `/diagnostics` database card may show safe
   connectivity, latency, backend/driver, migration revision, and pool counters,
   but must not show connection strings, hosts, database names, usernames, or
   passwords. On full-browser Diagnostics, the disk-space and session-control

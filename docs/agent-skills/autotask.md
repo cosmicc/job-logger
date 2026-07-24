@@ -17,9 +17,9 @@ Production startup requires:
 - `AUTOTASK_PROVIDER=autotask`.
 - Valid application authentication settings.
 
-The initial `/home` page and blank Start Work route must not run an Autotask
+The initial `/work` page and blank Start Work route must not run an Autotask
 contactability probe. The mobile screen should render from local state first,
-then service-call cards can load through `/home/service-calls` after the page
+then service-call cards can load through `/work/service-calls` after the page
 has loaded. Autotask is queried only when a workflow actually needs provider
 data, such as service-call loading, company search, open-ticket lookup,
 service-call start verification, or Autotask submission/update/delete actions.
@@ -113,7 +113,7 @@ Current provider responsibilities:
 
 ## Mandatory Connectivity Test
 
-The debug page posts to `POST /debug/autotask/test`.
+The Diagnostics page posts to `POST /diagnostics/autotask/test`.
 
 The connectivity test must remain safe:
 
@@ -132,7 +132,7 @@ The live check currently verifies:
 - Ticket query endpoint is reachable.
 
 If this check fails, show a clear diagnostic result, but do not wire this check
-into `/home` page rendering or blank Start Work. Keep the debug page on
+into `/work` page rendering or blank Start Work. Keep the Diagnostics page on
 `test_autotask_connectivity()` so operator-triggered diagnostics always run a
 fresh live check.
 
@@ -252,7 +252,7 @@ The mobile start panels can list selected-day Autotask service calls for the
 logged-in managed web user's Autotask resource ID. This is a read-only
 convenience path for starting a job from scheduled dispatch data, not a
 separate trust boundary. The browser may ask for another local date through
-`/home/service-calls?date=YYYY-MM-DD`; the resource ID still comes only from
+`/work/service-calls?date=YYYY-MM-DD`; the resource ID still comes only from
 the authenticated managed web user.
 
 Service-call lookup must stay inside `ticket_pilot/services/autotask.py` because
@@ -278,7 +278,7 @@ CSRF to `POST /jobs/start/service-call`. The route re-reads the provider's
 server-verified list for the selected local date and current managed web user's
 resource, filters out tickets that already have a local TicketPilot job for that
 user with ticket status Complete or Follow up, and only then creates a job.
-Apply the same local Complete/Follow up filter to `/home/service-calls`
+Apply the same local Complete/Follow up filter to `/work/service-calls`
 responses; this is local workflow state and should not be pushed into the
 provider query. Never accept ticket
 number, ticket title, ticket description, client name, company ID, or
@@ -294,7 +294,7 @@ the same company fallbacks. Validate every CompanyLocation belongs to the
 expected company. Return a bounded single-line address only; do not return raw
 location rows and do not store customer addresses on Job or audit rows.
 
-The `/home/service-calls` response includes a preformatted local scheduled date
+The `/work/service-calls` response includes a preformatted local scheduled date
 and may include a local start/end time range for display, such as
 `06/20/2026 · 4:00pm-5:00pm`. Treat that context as
 read-only card context; it must not be submitted back by the browser or used as
@@ -519,7 +519,7 @@ shown without falling back to generic HTTP client exception text.
 
 ## Diagnostics And Scripts
 
-The debug page is a Diagnostics-authorized runtime visibility surface for the
+The Diagnostics page is a Diagnostics-authorized runtime visibility surface for the
 config super admin and managed web users marked Admin. It should show the
 source-controlled application version, sanitized config, connectivity test
 results, and submission attempts under the **Diagnostics** page title. The

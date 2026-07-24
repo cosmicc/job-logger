@@ -26,9 +26,11 @@ from ticket_pilot.security import (
 from ticket_pilot.services.audit import record_audit_event
 from ticket_pilot.services.passkeys import list_passkey_credentials_for_user
 from ticket_pilot.services.preferences import (
+    HIGHLIGHT_OPTIONS,
     THEME_META_COLORS,
     THEME_OPTIONS,
     UserPreferenceError,
+    get_highlight_color_for_principal,
     get_navigation_preferences_for_principal,
     get_submit_from_work_in_progress_for_principal,
     get_theme_for_principal,
@@ -83,6 +85,7 @@ def config_page(request: Request, database_session: Session = Depends(get_databa
         raise
 
     current_theme = get_theme_for_principal(database_session, principal.key)
+    current_highlight_color = get_highlight_color_for_principal(database_session, principal.key)
     submit_from_work_in_progress = get_submit_from_work_in_progress_for_principal(database_session, principal.key)
     navigation_preferences = get_navigation_preferences_for_principal(database_session, principal.key)
     current_web_user = _current_config_web_user(request, database_session)
@@ -101,6 +104,8 @@ def config_page(request: Request, database_session: Session = Depends(get_databa
             config_principal_label=principal.label,
             selected_theme=current_theme.value,
             theme_options=THEME_OPTIONS,
+            selected_highlight_color=current_highlight_color.value,
+            highlight_options=HIGHLIGHT_OPTIONS,
             submit_from_work_in_progress=submit_from_work_in_progress,
             selected_navigation_app=navigation_preferences.navigation_app.value,
             navigation_app_options=[
@@ -135,6 +140,11 @@ async def save_config(
         form_data = await request.form()
         validate_csrf_token(request, str(form_data.get("csrf_token", "")))
         submitted_theme = str(form_data.get("theme", "")) if "theme" in form_data else None
+        submitted_highlight_color = (
+            str(form_data.get("highlight_color", ""))
+            if "highlight_color" in form_data
+            else None
+        )
         submitted_submit_from_work_in_progress = (
             str(form_data.get("submit_from_work_in_progress", ""))
             if "submit_from_work_in_progress" in form_data
@@ -145,6 +155,7 @@ async def save_config(
             database_session,
             principal_key=principal.key,
             theme=submitted_theme,
+            highlight_color=submitted_highlight_color,
             submit_from_work_in_progress=submitted_submit_from_work_in_progress,
         )
         if navigation_fields_submitted:
@@ -164,6 +175,7 @@ async def save_config(
             details={
                 "principal_key": principal.key,
                 "theme": user_preference.theme.value,
+                "highlight_color": user_preference.highlight_color.value,
                 "submit_from_work_in_progress": user_preference.submit_from_work_in_progress,
                 "navigation_app": user_preference.navigation_app.value,
                 "home_address_configured": bool(user_preference.home_address),
@@ -176,6 +188,7 @@ async def save_config(
             return JSONResponse(
                 {
                     "theme": user_preference.theme.value,
+                    "highlight_color": user_preference.highlight_color.value,
                     "theme_color": THEME_META_COLORS[user_preference.theme],
                     "submit_from_work_in_progress": user_preference.submit_from_work_in_progress,
                     "navigation_app": user_preference.navigation_app.value,
@@ -259,4 +272,4 @@ async def change_password(
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
         return RedirectResponse(url="/config?password_required=1" if request.session.get(SESSION_PASSWORD_CHANGE_REQUIRED_KEY) else "/config", status_code=303)
 
-    return RedirectResponse(url="/home" if was_password_change_required else "/config", status_code=303)
+    return RedirectResponse(url="/work" if was_password_change_required else "/config", status_code=303)

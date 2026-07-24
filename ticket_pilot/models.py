@@ -10,7 +10,16 @@ from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, ForeignKey, Index, I
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ticket_pilot.database import Base
-from ticket_pilot.enums import EntryType, JobStatus, NavigationApp, ThemeMode, TicketStatus, TranscriptionStatus, WorkLocation
+from ticket_pilot.enums import (
+    EntryType,
+    HighlightColor,
+    JobStatus,
+    NavigationApp,
+    ThemeMode,
+    TicketStatus,
+    TranscriptionStatus,
+    WorkLocation,
+)
 
 
 def utc_now() -> datetime:
@@ -122,7 +131,7 @@ class WebUser(Base):
         nullable=False,
         default=False,
         server_default="false",
-        comment="Whether this managed user may access /debug and /debug/* diagnostics.",
+        comment="Whether this managed user may access /diagnostics and legacy /debug diagnostics.",
     )
 
     # sessions_invalidated_at_utc forces existing signed sessions for this user
@@ -200,8 +209,16 @@ class UserPreference(Base):
         comment="Stable authenticated-user key, such as web_user:<uuid>.",
     )
 
-    # theme stores the preferred visual theme for every authenticated page.
-    theme: Mapped[ThemeMode] = enum_column(ThemeMode, 16, "Preferred visual theme.")
+    # theme stores the background and surface profile independently from the
+    # highlight color used by navigation and ordinary actions.
+    theme: Mapped[ThemeMode] = enum_column(ThemeMode, 16, "Preferred background and surface profile.")
+    highlight_color: Mapped[HighlightColor] = enum_column(
+        HighlightColor,
+        16,
+        "Preferred highlight color family for navigation and ordinary actions.",
+        default=HighlightColor.TEAL,
+        server_default=HighlightColor.TEAL.value,
+    )
 
     # submit_from_work_in_progress lets a technician end and submit an active
     # job in one step. It defaults off so existing review-first behavior is

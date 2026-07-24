@@ -24,6 +24,12 @@ Authentication routes live in `ticket_pilot/routes/auth.py`. Managed-user
 password reset routes live in `ticket_pilot/routes/password_reset.py`.
 Managed-user passkey routes live in `ticket_pilot/routes/passkeys.py`.
 
+`/diagnostics` is the canonical administrative namespace. `/debug` and
+`/debug/*` remain authenticated compatibility aliases, but rendered links,
+forms, redirects, proxy examples, and documentation must use `/diagnostics`.
+Both namespaces must apply identical server-side Diagnostics authorization,
+CSRF, upload limits, and audit behavior.
+
 `APP_USERNAME` and `APP_PASSWORD` authenticate only the config super admin. That
 account can manage `/users`, view all review jobs, use diagnostics, and run
 backup/restore, but it must not start, edit, submit, delete, record, or
@@ -153,7 +159,7 @@ the password page through a separate passkey button above the username/password
 form. Failed, canceled, or unsupported passkey authentication must leave the
 username/password form usable.
 User-facing controls should call this feature **Device sign-in** even though the
-technical implementation remains WebAuthn/passkeys. The `/home` device sign-in
+technical implementation remains WebAuthn/passkeys. The `/work` device sign-in
 setup card is only a one-time phone-sized post-login prompt for managed users
 without a passkey; `/config` must keep device sign-in setup available except
 while the current login session is marked as a public-device session.
@@ -172,7 +178,7 @@ successful assertions, and block disabled managed users. Passkey audit events
 must contain only safe metadata such as user ID, username, credential row ID,
 credential ID prefix, and failure reason.
 
-The `/debug` page and all `/debug/*` actions are available to the config super
+The `/diagnostics` page and all `/diagnostics/*` actions are available to the config super
 admin and to managed web users whose `web_users.is_admin` flag is enabled.
 That managed-user Admin flag grants full Diagnostics access only, including
 backup/restore, session invalidation, Autotask tests, failed-login hiding, and
@@ -183,7 +189,7 @@ those sessions must receive 403 instead of being treated as anonymous login
 redirects.
 The cached app-health top-bar indicator is visible to every authenticated user
 when app health is degraded. It may link to `/help#operational-status`, but
-keep `/debug` authorization as the server-side source of truth for Diagnostics
+keep `/diagnostics` authorization as the server-side source of truth for Diagnostics
 and do not expose secrets, raw provider details, or specific issue labels in
 the header; detailed troubleshooting belongs on Diagnostics. The header button
 uses yellow for warning and red for critical. Diagnostics may show a yellow or
@@ -265,7 +271,7 @@ add only `https://challenges.cloudflare.com` for Turnstile `script-src` and
 `frame-src` while keeping `frame-ancestors 'none'`.
 
 Successful and failed local app login attempts are recorded as sanitized
-database rows in `login_attempts`. The `/debug` login windows and generated
+database rows in `login_attempts`. The `/diagnostics` login windows and generated
 JSONL downloads may show timestamp, client IP details, submitted username,
 account kind, authentication method, username length/truncation for failures,
 user agent, request path, host/proxy metadata, reason, and
@@ -278,7 +284,7 @@ the direct nginx peer. Local login lockout and automatic Cloudflare block
 decisions must use the trusted enforcement IP from nginx-sanitized
 `X-Real-IP`/`X-Forwarded-For`, falling back to the direct app socket peer only
 outside the bundled proxy path. Retain direct socket and proxy headers as
-supporting metadata only. Failed-login rows may be hidden from the `/debug`
+supporting metadata only. Failed-login rows may be hidden from the `/diagnostics`
 table by setting `login_attempts.hidden_at_utc`; JSONL downloads are generated
 from database rows and must remain sanitized. `login_failure_counters` stores
 consecutive failures by trusted enforcement IP and case-insensitive submitted
@@ -303,7 +309,7 @@ vertical table scrollbars. Cloudflare blocked-IP diagnostics stay paginated at
 phone layouts instead of compressing columns, especially when they include
 per-row backup or Cloudflare actions. `LOG_LEVEL` controls stdout/stderr
 verbosity and must be limited to `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
-`/debug` may also show
+`/diagnostics` may also show
 disk usage for app-visible storage paths such as `/` and
 `${AUTOMATIC_BACKUP_DIR}`. Combine monitored paths when used bytes and total
 bytes match exactly, and keep disk diagnostics read-only and limited to path,
@@ -318,7 +324,7 @@ rendering while the mount is repaired. On full-browser Diagnostics, keep the
 disk-space card and managed-web-user session-controls card together on a
 same-height row above the database card; phone layouts should continue stacking
 those cards.
-The `/debug` database card may run a cheap `SELECT 1` probe and show safe
+The `/diagnostics` database card may run a cheap `SELECT 1` probe and show safe
 connectivity status, latency, backend/driver, migration revision, pool class,
 pool counters, and configured pool limits/timeouts. It must not display the
 database URL, host, database name, username, password, or raw exception details.
@@ -625,7 +631,7 @@ cleanup exception is the explicit, CSRF-protected local-only purge offered after
 Delete From Autotask fails, and it must warn that the Autotask entry may still
 exist.
 
-The `/debug` full backup and restore actions are the supported whole-app data
+The `/diagnostics` full backup and restore actions are the supported whole-app data
 export/import path. They must remain limited to Diagnostics-authorized users
 and CSRF-protected. Backup files contain all TicketPilot database rows,
 including managed web-user password hashes and customer/work history, and
@@ -650,7 +656,7 @@ directory listings and downloads must be Diagnostics-authorized only, selected
 download or restore filenames must be strictly validated instead of trusting
 form paths, and retention must purge expired automatic backups after successful
 backup creation.
-Creation audit details may include safe source metadata so `/debug` can label a
+Creation audit details may include safe source metadata so `/diagnostics` can label a
 retained automatic backup as `Startup` or `Hourly`; do not infer or expose
 sensitive runtime state for older files that lack that metadata.
 
@@ -710,7 +716,7 @@ Container health checks should use private Docker networking instead. Common
 nginx-generated 4xx and 5xx responses should use internal app-styled TicketPilot
 web service error pages and must not expose stock server branding. Full restore
 uploads may have a larger nginx body limit, but that limit must stay scoped to
-`/debug/restore`.
+`/diagnostics/restore`.
 Browser navigation to app-generated HTTP errors, including missing FastAPI
 routes, should also render app-styled TicketPilot error pages. Those pages must
 derive the **Back to Login** or **Back to Work** action from the current signed
@@ -733,7 +739,7 @@ deployments must attach to the same trusted Docker network or Swarm overlay as
 the app service
 and mirror the bundled nginx security behavior: blocked API/schema/docs/health
 paths, sanitized `X-Forwarded-For` and `X-Real-IP`, forwarded HTTPS scheme
-preservation, the audio WebSocket route, the scoped `/debug/restore` body
+preservation, the audio WebSocket route, the scoped `/diagnostics/restore` body
 limit, and app-styled proxy error pages. Use
 `docs/external-nginx-ticket-pilot.conf` as the maintained sample. The Cloudflare
 Tunnel public hostname should be recorded through `WEBAUTHN_ORIGIN` when the

@@ -49,6 +49,16 @@ AUTOMATIC_BACKUP_TRIGGERS = {
 AUTOMATIC_HOURLY_BACKUPS_TO_KEEP = 6
 AUTOMATIC_DAILY_BACKUP_DAYS_TO_KEEP = 3
 _BACKUP_RESTORE_LOCK = threading.RLock()
+_LEGACY_THEME_HIGHLIGHT_COLORS = {
+    "dark": "teal",
+    "light": "teal",
+    "light-sage": "sage",
+    "light-sky": "sky",
+    "dark-midnight": "blue",
+    "dark-graphite": "amber",
+    "dark-forest": "mint",
+    "dark-plum": "lavender",
+}
 _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
     "jobs": {
         # v1.2.0 added ticket-note mode. Older backups restore as the original
@@ -618,6 +628,13 @@ def _validated_row(table: Table, row: Any, index: int) -> dict[str, Any]:
     # non-sensitive preference so pre-change full backups remain restorable.
     if table.name == "user_preferences" and row.get("theme") == "dark-slate":
         row["theme"] = "dark-midnight"
+    if table.name == "user_preferences" and "highlight_color" not in row:
+        # Backups created before independent highlights inherit the accent that
+        # belonged to their saved theme so a restore does not change appearance.
+        row["highlight_color"] = _LEGACY_THEME_HIGHLIGHT_COLORS.get(
+            str(row.get("theme", "")),
+            "teal",
+        )
     expected_columns = {column.name for column in table.columns}
     actual_columns = set(row)
     unexpected_columns = actual_columns - expected_columns

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Config - TicketPilot{% endblock %}
+{% block title %}TicketPilot - Config{% endblock %}
 
 {% block content %}
   <section class="config-shell config-page-shell">
@@ -28,14 +28,14 @@
             <div class="panel-title-row">
               <div>
                 <h2 id="appearance-heading">Appearance</h2>
-                <p class="muted-text">Choose the theme for this login.</p>
+                <p class="muted-text">Choose the background and highlight color for this login.</p>
               </div>
             </div>
             <form method="post" action="/config" class="stack-form config-form" data-config-form>
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <fieldset class="segmented-fieldset theme-card-fieldset">
-                <legend>Theme</legend>
-                <div class="theme-option-grid theme-card-grid" role="radiogroup" aria-label="Theme">
+                <legend>Background</legend>
+                <div class="theme-option-grid theme-card-grid" role="radiogroup" aria-label="Background">
                   {% for option in theme_options %}
                     <label class="theme-choice-card theme-choice-card-{{ option.value }}">
                       <input
@@ -75,6 +75,44 @@
                     </label>
                   {% endfor %}
                 </div>
+              </fieldset>
+              <fieldset class="segmented-fieldset highlight-color-fieldset">
+                <legend>Highlight color</legend>
+                <details class="highlight-color-dropdown" data-highlight-dropdown>
+                  <summary class="highlight-color-summary">
+                    {% for option in highlight_options %}
+                      {% if selected_highlight_color == option.value %}
+                        <span class="highlight-color-current">
+                          <span class="highlight-color-swatch highlight-color-swatch-{{ option.value }}" aria-hidden="true"></span>
+                          <span data-highlight-current-label>{{ option.label }}</span>
+                        </span>
+                      {% endif %}
+                    {% endfor %}
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m7 10 5 5 5-5"></path>
+                    </svg>
+                  </summary>
+                  <div class="highlight-color-menu" role="radiogroup" aria-label="Highlight color">
+                    {% for option in highlight_options %}
+                      <label class="highlight-color-option">
+                        <input
+                          type="radio"
+                          name="highlight_color"
+                          value="{{ option.value }}"
+                          data-highlight-option
+                          data-highlight-label="{{ option.label }}"
+                          {% if selected_highlight_color == option.value %}checked{% endif %}
+                        >
+                        <span class="highlight-color-swatch highlight-color-swatch-{{ option.value }}" aria-hidden="true"></span>
+                        <span>{{ option.label }}</span>
+                        <svg class="highlight-color-check" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m5 12 4 4L19 6"></path>
+                        </svg>
+                      </label>
+                    {% endfor %}
+                  </div>
+                </details>
+                <p class="field-help">Shades adjust automatically for readable contrast on light and dark backgrounds.</p>
               </fieldset>
               <p class="config-save-status muted-text" data-config-status aria-live="polite">Changes save automatically.</p>
             </form>

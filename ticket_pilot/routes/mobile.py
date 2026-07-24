@@ -667,17 +667,17 @@ async def _receive_audio_stream_chunks(
 
 @router.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
-    """Redirect the root URL to the home work logger."""
+    """Redirect the root URL to the canonical work logger."""
 
-    return RedirectResponse(url="/home", status_code=303)
+    return RedirectResponse(url="/work", status_code=303)
 
 
-@router.get("/home", response_class=HTMLResponse)
+@router.get("/work", response_class=HTMLResponse)
 def home_page(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> Response:
-    """Render the authenticated home work logging page."""
+    """Render the authenticated work logging page."""
 
     if not require_authenticated_username_or_redirect(request):
         return RedirectResponse(url="/login", status_code=303)
@@ -769,7 +769,19 @@ def home_page(
     )
 
 
-@router.get("/home/service-calls")
+@router.get("/home", include_in_schema=False)
+def legacy_home_page_redirect(request: Request) -> RedirectResponse:
+    """Redirect old Home bookmarks to the canonical Work URL."""
+
+    query_string = request.url.query
+    redirect_url = "/work"
+    if query_string:
+        redirect_url = f"{redirect_url}?{query_string}"
+    return RedirectResponse(url=redirect_url, status_code=308)
+
+
+@router.get("/work/service-calls")
+@router.get("/home/service-calls", include_in_schema=False)
 def home_service_call_options(
     request: Request,
     service_call_date: str | None = Query(default=None, alias="date"),
@@ -827,17 +839,17 @@ def home_service_call_options(
 
 @router.get("/mobile", include_in_schema=False)
 def legacy_mobile_page_redirect() -> RedirectResponse:
-    """Redirect the old route name to the canonical home route."""
+    """Redirect the old route name to the canonical Work route."""
 
-    return RedirectResponse(url="/home", status_code=308)
+    return RedirectResponse(url="/work", status_code=308)
 
 
 @router.get("/mobile/service-calls", include_in_schema=False)
 def legacy_mobile_service_call_redirect(request: Request) -> RedirectResponse:
-    """Redirect the old service-call endpoint to the canonical home endpoint."""
+    """Redirect the old service-call endpoint to the canonical Work endpoint."""
 
     query_string = request.url.query
-    redirect_url = "/home/service-calls"
+    redirect_url = "/work/service-calls"
     if query_string:
         redirect_url = f"{redirect_url}?{query_string}"
     return RedirectResponse(url=redirect_url, status_code=308)
@@ -845,9 +857,9 @@ def legacy_mobile_service_call_redirect(request: Request) -> RedirectResponse:
 
 @router.get("/moble", include_in_schema=False)
 def mobile_typo_redirect() -> RedirectResponse:
-    """Redirect a common old home URL typo to the canonical home work logger."""
+    """Redirect a common old URL typo to the canonical Work logger."""
 
-    return RedirectResponse(url="/home", status_code=303)
+    return RedirectResponse(url="/work", status_code=303)
 
 
 @router.get("/autotask/companies")
@@ -919,7 +931,7 @@ async def start_work(
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/home", status_code=303)
+    return RedirectResponse(url="/work", status_code=303)
 
 
 @router.post("/jobs/start/service-call")
@@ -941,13 +953,13 @@ async def start_work_from_service_call(
         if wants_json_response:
             return JSONResponse({"detail": "Selected service call is invalid."}, status_code=400)
         add_flash_message(request, "Selected service call is invalid.", "error")
-        return RedirectResponse(url="/home", status_code=303)
+        return RedirectResponse(url="/work", status_code=303)
 
     if service_call_ticket_id <= 0:
         if wants_json_response:
             return JSONResponse({"detail": "Selected service call is invalid."}, status_code=400)
         add_flash_message(request, "Selected service call is invalid.", "error")
-        return RedirectResponse(url="/home", status_code=303)
+        return RedirectResponse(url="/work", status_code=303)
 
     try:
         selected_service_call_date = _parse_service_call_local_date(str(form_data.get("service_call_date") or ""))
@@ -955,7 +967,7 @@ async def start_work_from_service_call(
         if wants_json_response:
             return JSONResponse({"detail": str(exc)}, status_code=400)
         add_flash_message(request, str(exc), "error")
-        return RedirectResponse(url="/home", status_code=303)
+        return RedirectResponse(url="/work", status_code=303)
 
     try:
         web_user = _current_enabled_web_user(request, database_session)
@@ -1040,7 +1052,7 @@ async def start_work_from_service_call(
             return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/home", status_code=303)
+    return RedirectResponse(url="/work", status_code=303)
 
 
 @router.post("/jobs/{job_id}/ticket-number")
@@ -1149,7 +1161,7 @@ async def save_ticket_number(
             return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/home", status_code=303)
+    return RedirectResponse(url="/work", status_code=303)
 
 
 @router.post("/jobs/{job_id}/ticket")
@@ -1275,7 +1287,7 @@ async def delete_open_job(
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/home", status_code=303)
+    return RedirectResponse(url="/work", status_code=303)
 
 
 @router.post("/jobs/{job_id}/start-time")
@@ -1321,7 +1333,7 @@ async def save_start_time(
             return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/home", status_code=303)
+    return RedirectResponse(url="/work", status_code=303)
 
 
 @router.post("/jobs/{job_id}/start-time/adjust")
@@ -1357,7 +1369,7 @@ async def adjust_start_time(
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/home", status_code=303)
+    return RedirectResponse(url="/work", status_code=303)
 
 
 @router.post("/jobs/{job_id}/stop-time")
@@ -1403,7 +1415,7 @@ async def save_stop_time(
             return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/home", status_code=303)
+    return RedirectResponse(url="/work", status_code=303)
 
 
 @router.post("/jobs/{job_id}/stop-time/adjust")
@@ -1439,7 +1451,7 @@ async def adjust_stop_time(
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/home", status_code=303)
+    return RedirectResponse(url="/work", status_code=303)
 
 
 @router.post("/jobs/{job_id}/end")
@@ -1471,7 +1483,7 @@ async def end_work(
     raw_append_to_resolution = form_data.get("append_to_resolution")
     submitted_append_to_resolution = str(raw_append_to_resolution) if raw_append_to_resolution is not None else None
     return_to = str(form_data.get("return_to", "")).strip().lower()
-    redirect_url = f"/review/{job_id}" if return_to == "review" else "/home"
+    redirect_url = f"/review/{job_id}" if return_to == "review" else "/work"
 
     try:
         web_user = _current_enabled_web_user(request, database_session)

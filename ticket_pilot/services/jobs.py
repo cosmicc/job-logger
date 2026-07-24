@@ -53,6 +53,11 @@ RECORDABLE_JOB_STATUSES = {
     JobStatus.READY_FOR_REVIEW,
     JobStatus.SUBMISSION_FAILED,
 }
+UNSUBMITTED_TIME_ENTRY_STATUSES = {
+    JobStatus.ACTIVE,
+    JobStatus.READY_FOR_REVIEW,
+    JobStatus.SUBMISSION_FAILED,
+}
 DESCRIPTION_RECORDING_UNAVAILABLE_MESSAGE = (
     "Audio descriptions can only be recorded before the job has been submitted to Autotask."
 )
@@ -512,6 +517,18 @@ def list_review_jobs(database_session: Session, web_user_id: str | None = None) 
     if web_user_id is not None:
         statement = statement.where(Job.web_user_id == web_user_id)
     return list(database_session.execute(statement).scalars())
+
+
+def count_unsubmitted_time_entries(jobs: list[Job]) -> int:
+    """Return actionable time entries that do not have an Autotask record yet."""
+
+    return sum(
+        1
+        for job in jobs
+        if job.entry_type != EntryType.TICKET_NOTE
+        and job.status in UNSUBMITTED_TIME_ENTRY_STATUSES
+        and not job.autotask_external_id
+    )
 
 
 def _job_totals_owner_id(job: Job) -> str:

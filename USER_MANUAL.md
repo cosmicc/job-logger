@@ -298,9 +298,13 @@ have been chosen. If an active record was opened in Review before any client was
 selected, Review may let you choose the first verified client and then select a
 ticket.
 
-Review also shows your total time-entry hours worked today and this week. Each
-review row shows day and week hour totals for that job's owner and work date.
-Ticket notes do not add to these totals because they do not record time.
+Review also shows your total time-entry hours worked today and this week, plus
+the number of your time entries that have not been submitted to Autotask yet.
+That count includes active entries, entries ready for review, and failed
+submissions. Ticket notes, rejected entries, and successfully submitted entries
+do not count. Each review row shows day and week hour totals for that job's
+owner and work date. Ticket notes do not add to these totals because they do
+not record time.
 
 ## Review Fields
 
@@ -358,10 +362,14 @@ change them.
 
 ### Appearance
 
-Choose from **Default Light**, **Sage Light**, **Sky Light**, **Default Dark**,
-**Midnight Black**, **Graphite Dark**, **Forest Dark**, or **Plum Dark**. The
-choice applies to your signed-in pages, including the highlight color used by
-navigation icons and ordinary buttons. Default Dark is selected initially.
+Choose a background from **Default Light**, **Sage Light**, **Sky Light**,
+**Default Dark**, **Midnight Black**, **Graphite Dark**, **Forest Dark**, or
+**Plum Dark**. Then independently choose one of ten highlight colors from the
+dropdown; every option includes a visible color sample. TicketPilot
+automatically uses an adjusted shade for readable contrast on light and dark
+backgrounds. The combination applies to your signed-in pages, including
+navigation icons and ordinary buttons. Default Dark with Teal is selected
+initially.
 
 On a full browser, Config uses a wide two-column card layout. On phones, the
 same cards remain stacked in the documented order.

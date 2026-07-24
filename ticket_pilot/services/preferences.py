@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ticket_pilot.config import Settings, settings
-from ticket_pilot.enums import NavigationApp, ThemeMode
+from ticket_pilot.enums import HighlightColor, NavigationApp, ThemeMode
 from ticket_pilot.models import UserPreference
 from ticket_pilot.security import (
     WEB_USER_SESSION_KIND,
@@ -19,6 +19,7 @@ from ticket_pilot.security import (
 )
 
 DEFAULT_THEME = ThemeMode.DARK
+DEFAULT_HIGHLIGHT_COLOR = HighlightColor.TEAL
 DEFAULT_SUBMIT_FROM_WORK_IN_PROGRESS = False
 DEFAULT_NAVIGATION_APP = NavigationApp.NONE
 DEFAULT_ALLOW_NAVIGATION_ON_FULL_WEB = False
@@ -41,7 +42,7 @@ class UserPreferenceError(RuntimeError):
 
 @dataclass(frozen=True)
 class ThemeOption:
-    """User-facing metadata for one supported visual theme."""
+    """User-facing metadata for one supported background profile."""
 
     value: str
     label: str
@@ -50,52 +51,86 @@ class ThemeOption:
     meta_color: str
 
 
+@dataclass(frozen=True)
+class HighlightOption:
+    """User-facing metadata for one contrast-adjusted highlight profile."""
+
+    value: str
+    label: str
+    dark_preview: str
+    light_preview: str
+
+
 THEME_OPTIONS = (
-    ThemeOption(ThemeMode.DARK.value, "Default Dark", "Navy and teal", "dark", THEME_META_COLORS[ThemeMode.DARK]),
+    ThemeOption(ThemeMode.DARK.value, "Default Dark", "Navy surfaces", "dark", THEME_META_COLORS[ThemeMode.DARK]),
     ThemeOption(
         ThemeMode.DARK_MIDNIGHT.value,
         "Midnight Black",
-        "Black and navy blue",
+        "Black and navy surfaces",
         "dark",
         THEME_META_COLORS[ThemeMode.DARK_MIDNIGHT],
     ),
     ThemeOption(
         ThemeMode.DARK_GRAPHITE.value,
         "Graphite Dark",
-        "Charcoal and amber",
+        "Charcoal surfaces",
         "dark",
         THEME_META_COLORS[ThemeMode.DARK_GRAPHITE],
     ),
     ThemeOption(
         ThemeMode.DARK_FOREST.value,
         "Forest Dark",
-        "Evergreen and sage",
+        "Evergreen surfaces",
         "dark",
         THEME_META_COLORS[ThemeMode.DARK_FOREST],
     ),
     ThemeOption(
         ThemeMode.DARK_PLUM.value,
         "Plum Dark",
-        "Aubergine and lavender",
+        "Aubergine surfaces",
         "dark",
         THEME_META_COLORS[ThemeMode.DARK_PLUM],
     ),
-    ThemeOption(ThemeMode.LIGHT.value, "Default Light", "Cool white and teal", "light", THEME_META_COLORS[ThemeMode.LIGHT]),
+    ThemeOption(ThemeMode.LIGHT.value, "Default Light", "Cool white surfaces", "light", THEME_META_COLORS[ThemeMode.LIGHT]),
     ThemeOption(
         ThemeMode.LIGHT_SAGE.value,
         "Sage Light",
-        "Warm ivory and sage",
+        "Warm ivory surfaces",
         "light",
         THEME_META_COLORS[ThemeMode.LIGHT_SAGE],
     ),
     ThemeOption(
         ThemeMode.LIGHT_SKY.value,
         "Sky Light",
-        "Soft blue and indigo",
+        "Soft blue surfaces",
         "light",
         THEME_META_COLORS[ThemeMode.LIGHT_SKY],
     ),
 )
+
+HIGHLIGHT_OPTIONS = (
+    HighlightOption(HighlightColor.TEAL.value, "Teal", "#2dd4bf", "#0f766e"),
+    HighlightOption(HighlightColor.SAGE.value, "Sage", "#9fca9f", "#557a5b"),
+    HighlightOption(HighlightColor.SKY.value, "Sky Blue", "#76b9e8", "#356f9f"),
+    HighlightOption(HighlightColor.BLUE.value, "Blue", "#6699e8", "#3267b1"),
+    HighlightOption(HighlightColor.INDIGO.value, "Indigo", "#8b8ff0", "#5558b7"),
+    HighlightOption(HighlightColor.AMBER.value, "Amber", "#f2b84b", "#a85f05"),
+    HighlightOption(HighlightColor.ORANGE.value, "Orange", "#f59a56", "#b45309"),
+    HighlightOption(HighlightColor.MINT.value, "Mint", "#7fc29a", "#367b55"),
+    HighlightOption(HighlightColor.LAVENDER.value, "Lavender", "#c49ad7", "#80539a"),
+    HighlightOption(HighlightColor.ROSE.value, "Rose", "#e990ad", "#a93f67"),
+)
+
+LEGACY_THEME_HIGHLIGHTS = {
+    ThemeMode.DARK: HighlightColor.TEAL,
+    ThemeMode.LIGHT: HighlightColor.TEAL,
+    ThemeMode.LIGHT_SAGE: HighlightColor.SAGE,
+    ThemeMode.LIGHT_SKY: HighlightColor.SKY,
+    ThemeMode.DARK_MIDNIGHT: HighlightColor.BLUE,
+    ThemeMode.DARK_GRAPHITE: HighlightColor.AMBER,
+    ThemeMode.DARK_FOREST: HighlightColor.MINT,
+    ThemeMode.DARK_PLUM: HighlightColor.LAVENDER,
+}
 
 
 @dataclass(frozen=True)
@@ -121,13 +156,23 @@ class NavigationPreferences:
 
 
 def normalize_theme(raw_theme: str | None) -> ThemeMode:
-    """Return a supported theme value, defaulting to dark when unset."""
+    """Return a supported background profile, defaulting to dark when unset."""
 
     normalized_theme = (raw_theme or DEFAULT_THEME.value).strip().lower()
     try:
         return ThemeMode(normalized_theme)
     except ValueError as exc:
         raise UserPreferenceError("Select a supported visual theme.") from exc
+
+
+def normalize_highlight_color(raw_highlight_color: str | None) -> HighlightColor:
+    """Return a supported highlight color, defaulting to teal when unset."""
+
+    normalized_highlight = (raw_highlight_color or DEFAULT_HIGHLIGHT_COLOR.value).strip().lower()
+    try:
+        return HighlightColor(normalized_highlight)
+    except ValueError as exc:
+        raise UserPreferenceError("Select a supported highlight color.") from exc
 
 
 def normalize_submit_from_work_in_progress(raw_enabled: bool | str | None) -> bool:
@@ -220,6 +265,19 @@ def get_theme_for_principal(database_session: Session, principal_key: str | None
     return user_preference.theme if user_preference is not None else DEFAULT_THEME
 
 
+def get_highlight_color_for_principal(
+    database_session: Session,
+    principal_key: str | None,
+) -> HighlightColor:
+    """Return a user's saved highlight color, or the default when none exists."""
+
+    if not principal_key:
+        return DEFAULT_HIGHLIGHT_COLOR
+
+    user_preference = get_user_preference(database_session, principal_key)
+    return user_preference.highlight_color if user_preference is not None else DEFAULT_HIGHLIGHT_COLOR
+
+
 def get_submit_from_work_in_progress_for_principal(database_session: Session, principal_key: str | None) -> bool:
     """Return whether one user has enabled direct Work in Progress submission."""
 
@@ -265,6 +323,16 @@ def get_theme_for_session(database_session: Session, session: Mapping[str, objec
     return get_theme_for_principal(database_session, principal.key if principal else None)
 
 
+def get_highlight_color_for_session(
+    database_session: Session,
+    session: Mapping[str, object],
+) -> HighlightColor:
+    """Return the saved highlight color for the current authenticated session."""
+
+    principal = preference_principal_from_session(session)
+    return get_highlight_color_for_principal(database_session, principal.key if principal else None)
+
+
 def get_submit_from_work_in_progress_for_session(database_session: Session, session: Mapping[str, object]) -> bool:
     """Return the direct-submit setting for the current managed web-user session."""
 
@@ -278,6 +346,7 @@ def _new_user_preference(principal_key: str) -> UserPreference:
     return UserPreference(
         principal_key=principal_key,
         theme=DEFAULT_THEME,
+        highlight_color=DEFAULT_HIGHLIGHT_COLOR,
         submit_from_work_in_progress=DEFAULT_SUBMIT_FROM_WORK_IN_PROGRESS,
         navigation_app=DEFAULT_NAVIGATION_APP,
         allow_navigation_on_full_web=DEFAULT_ALLOW_NAVIGATION_ON_FULL_WEB,
@@ -289,6 +358,7 @@ def save_preferences_for_principal(
     *,
     principal_key: str,
     theme: str | None = None,
+    highlight_color: str | None = None,
     submit_from_work_in_progress: bool | str | None = None,
 ) -> UserPreference:
     """Persist supplied configuration values for one authenticated principal."""
@@ -300,6 +370,9 @@ def save_preferences_for_principal(
 
     if theme is not None:
         user_preference.theme = normalize_theme(theme)
+
+    if highlight_color is not None:
+        user_preference.highlight_color = normalize_highlight_color(highlight_color)
 
     if submit_from_work_in_progress is not None:
         user_preference.submit_from_work_in_progress = normalize_submit_from_work_in_progress(

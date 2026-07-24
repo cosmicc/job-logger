@@ -12,6 +12,10 @@ All notable changes to TicketPilot are documented in this file.
   Forest Dark, and Plum Dark palettes, bringing Config to three light and five
   dark choices.
 - Added a checked-in eight-theme palette reference for future visual work.
+- Added ten independently selectable highlight colors with visible dropdown
+  samples and contrast-adjusted light/dark shades.
+- Added an Unsubmitted Review metric that counts actionable time entries still
+  active, ready for review, or awaiting a successful retry.
 - Added the supplied white, grey, and black TicketPilot SVG logo sources and
   the supplied 128, 256, 512, and 1024 pixel installed-app icon sources.
 
@@ -50,6 +54,11 @@ All notable changes to TicketPilot are documented in this file.
   highlight color while preserving established semantic action colors.
 - Replaced Slate Dark with the darker Midnight Black palette and safely migrated
   existing Slate Dark preferences and legacy backup values to Midnight Black.
+- Made `/work` the canonical Home and Work in Progress URL while retaining
+  `/home` compatibility, and made `/diagnostics` the canonical administrative
+  URL while retaining `/debug` compatibility.
+- Standardized browser titles in the `TicketPilot - Page` order, including
+  `TicketPilot - Time Entry` for Work.
 
 ### Fixed
 
@@ -64,6 +73,8 @@ All notable changes to TicketPilot are documented in this file.
   the eight-theme SVG is now the only maintained palette reference.
 - Aligned the dev Swarm regression test and deployment documentation with its
   intentional single `cloudflared` replica while retaining two in production.
+- Preserved the effective highlight color when migrating existing theme
+  preferences or restoring backups created before independent highlights.
 
 ## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations
 

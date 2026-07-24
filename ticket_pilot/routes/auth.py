@@ -38,7 +38,7 @@ def login_page(request: Request) -> Response:
     """Render the local app login page."""
 
     if current_username(request):
-        redirect_url = "/users" if current_user_kind(request) == SUPER_ADMIN_SESSION_KIND else "/home"
+        redirect_url = "/users" if current_user_kind(request) == SUPER_ADMIN_SESSION_KIND else "/work"
         return RedirectResponse(url=redirect_url, status_code=303)
 
     return templates.TemplateResponse(request, "login.html", template_context(request))
@@ -143,7 +143,7 @@ async def login(
             add_flash_message(request, "Change your temporary password before using TicketPilot.", "error")
             return RedirectResponse(url="/config?password_required=1", status_code=303)
         add_flash_message(request, "Signed in.", "success")
-        return RedirectResponse(url="/home", status_code=303)
+        return RedirectResponse(url="/work", status_code=303)
 
     if web_user_authentication.disabled_user is not None:
         disabled_user = web_user_authentication.disabled_user

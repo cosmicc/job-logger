@@ -51,7 +51,8 @@ from ticket_pilot.ui import template_context, templates
 from ticket_pilot.version import APP_VERSION
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/debug", tags=["debug"])
+router = APIRouter(prefix="/diagnostics", tags=["diagnostics"])
+legacy_router = APIRouter(prefix="/debug", tags=["diagnostics"])
 DIAGNOSTIC_TABLE_PAGE_SIZE = 10
 LOGIN_ATTEMPT_PAGE_SIZE = 7
 CLOUDFLARE_BLOCK_PAGE_SIZE = DIAGNOSTIC_TABLE_PAGE_SIZE
@@ -352,7 +353,26 @@ def _redirect_anonymous_or_raise(exc: HTTPException) -> RedirectResponse:
 def _debug_redirect(fragment: str) -> RedirectResponse:
     """Redirect back to one diagnostics section after a state-changing action."""
 
-    return RedirectResponse(url=f"/debug#{fragment}", status_code=303)
+    return RedirectResponse(url=f"/diagnostics#{fragment}", status_code=303)
+
+
+@legacy_router.get("", include_in_schema=False)
+def legacy_diagnostics_page_redirect(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Redirect old Diagnostics bookmarks to the canonical namespace."""
+
+    try:
+        require_debug_access(request, database_session)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
+
+    query_string = request.url.query
+    redirect_url = "/diagnostics"
+    if query_string:
+        redirect_url = f"{redirect_url}?{query_string}"
+    return RedirectResponse(url=redirect_url, status_code=308)
 
 
 def _debug_redirect_fragment_from_form(value: object, *, default: str) -> str:
@@ -460,6 +480,7 @@ def debug_page(
 
 
 @router.get("/logs/login-failures")
+@legacy_router.get("/logs/login-failures", include_in_schema=False)
 def download_login_failure_log(
     request: Request,
     database_session: Session = Depends(get_database_session),
@@ -482,6 +503,7 @@ def download_login_failure_log(
 
 
 @router.get("/logs/login-successes")
+@legacy_router.get("/logs/login-successes", include_in_schema=False)
 def download_login_success_log(
     request: Request,
     database_session: Session = Depends(get_database_session),
@@ -504,6 +526,7 @@ def download_login_success_log(
 
 
 @router.post("/login-failures/hide")
+@legacy_router.post("/login-failures/hide", include_in_schema=False)
 async def hide_login_failure_entry(
     request: Request,
     database_session: Session = Depends(get_database_session),
@@ -548,6 +571,7 @@ async def hide_login_failure_entry(
 
 
 @router.post("/cloudflare-blocks/block")
+@legacy_router.post("/cloudflare-blocks/block", include_in_schema=False)
 async def block_login_ip_form(
     request: Request,
     database_session: Session = Depends(get_database_session),
@@ -611,6 +635,7 @@ async def block_login_ip_form(
 
 
 @router.post("/cloudflare-blocks/unblock")
+@legacy_router.post("/cloudflare-blocks/unblock", include_in_schema=False)
 async def unblock_login_ip_form(
     request: Request,
     database_session: Session = Depends(get_database_session),
@@ -659,6 +684,7 @@ async def unblock_login_ip_form(
 
 
 @router.post("/backup")
+@legacy_router.post("/backup", include_in_schema=False)
 async def download_full_backup(
     request: Request,
     database_session: Session = Depends(get_database_session),
@@ -704,6 +730,7 @@ async def download_full_backup(
 
 
 @router.post("/restore")
+@legacy_router.post("/restore", include_in_schema=False)
 async def restore_full_backup_form(
     request: Request,
     database_session: Session = Depends(get_database_session),
@@ -720,29 +747,29 @@ async def restore_full_backup_form(
 
     if str(form_data.get("confirmation", "")).strip() != "RESTORE":
         add_flash_message(request, "Type RESTORE to confirm full data restore.", "error")
-        return RedirectResponse(url="/debug#full-backup", status_code=303)
+        return RedirectResponse(url="/diagnostics#full-backup", status_code=303)
 
     backup_file = form_data.get("backup_file")
     if not isinstance(backup_file, UploadFile):
         add_flash_message(request, "Choose a TicketPilot backup file to restore.", "error")
-        return RedirectResponse(url="/debug#full-backup", status_code=303)
+        return RedirectResponse(url="/diagnostics#full-backup", status_code=303)
 
     content = await backup_file.read(settings.max_backup_restore_bytes + 1)
     await backup_file.close()
     if len(content) > settings.max_backup_restore_bytes:
         add_flash_message(request, f"Backup file is larger than {_backup_upload_max_mb()} MB.", "error")
-        return RedirectResponse(url="/debug#full-backup", status_code=303)
+        return RedirectResponse(url="/diagnostics#full-backup", status_code=303)
 
     try:
         summary = restore_full_backup(database_session, content)
     except BackupValidationError as exc:
         logger.warning("Rejected full TicketPilot restore upload: %s", exc)
         add_flash_message(request, str(exc), "error")
-        return RedirectResponse(url="/debug#full-backup", status_code=303)
+        return RedirectResponse(url="/diagnostics#full-backup", status_code=303)
     except Exception:
         logger.exception("Full TicketPilot restore failed unexpectedly")
         add_flash_message(request, "Restore failed. Check the service logs before trying again.", "error")
-        return RedirectResponse(url="/debug#full-backup", status_code=303)
+        return RedirectResponse(url="/diagnostics#full-backup", status_code=303)
 
     record_audit_event(
         database_session,
@@ -761,10 +788,11 @@ async def restore_full_backup_form(
         f"Full data restore completed. Restored {summary.total_rows} rows across {len(summary.table_counts)} tables.",
         "success",
     )
-    return RedirectResponse(url="/debug#full-backup", status_code=303)
+    return RedirectResponse(url="/diagnostics#full-backup", status_code=303)
 
 
 @router.post("/automatic-backups/restore")
+@legacy_router.post("/automatic-backups/restore", include_in_schema=False)
 async def restore_automatic_backup_form(
     request: Request,
     database_session: Session = Depends(get_database_session),
@@ -782,7 +810,7 @@ async def restore_automatic_backup_form(
     backup_filename = str(form_data.get("filename", "")).strip()
     if str(form_data.get("confirmation", "")).strip() != "RESTORE":
         add_flash_message(request, "Type RESTORE to confirm automatic backup restore.", "error")
-        return RedirectResponse(url="/debug#automatic-backups", status_code=303)
+        return RedirectResponse(url="/diagnostics#automatic-backups", status_code=303)
 
     try:
         content = read_automatic_backup_content(
@@ -794,11 +822,11 @@ async def restore_automatic_backup_form(
     except BackupValidationError as exc:
         logger.warning("Rejected automatic backup restore filename=%s error=%s", backup_filename, exc)
         add_flash_message(request, str(exc), "error")
-        return RedirectResponse(url="/debug#automatic-backups", status_code=303)
+        return RedirectResponse(url="/diagnostics#automatic-backups", status_code=303)
     except Exception:
         logger.exception("Automatic TicketPilot restore failed unexpectedly filename=%s", backup_filename)
         add_flash_message(request, "Restore failed. Check the service logs before trying again.", "error")
-        return RedirectResponse(url="/debug#automatic-backups", status_code=303)
+        return RedirectResponse(url="/diagnostics#automatic-backups", status_code=303)
 
     record_audit_event(
         database_session,
@@ -818,10 +846,11 @@ async def restore_automatic_backup_form(
         f"Automatic backup restore completed. Restored {summary.total_rows} rows across {len(summary.table_counts)} tables.",
         "success",
     )
-    return RedirectResponse(url="/debug#automatic-backups", status_code=303)
+    return RedirectResponse(url="/diagnostics#automatic-backups", status_code=303)
 
 
 @router.post("/automatic-backups/download")
+@legacy_router.post("/automatic-backups/download", include_in_schema=False)
 async def download_automatic_backup_form(
     request: Request,
     database_session: Session = Depends(get_database_session),
@@ -846,7 +875,7 @@ async def download_automatic_backup_form(
     except BackupValidationError as exc:
         logger.warning("Rejected automatic backup download filename=%s error=%s", backup_filename, exc)
         add_flash_message(request, str(exc), "error")
-        return RedirectResponse(url="/debug#automatic-backups", status_code=303)
+        return RedirectResponse(url="/diagnostics#automatic-backups", status_code=303)
 
     record_audit_event(
         database_session,
@@ -876,6 +905,7 @@ async def download_automatic_backup_form(
 
 
 @router.post("/autotask/test")
+@legacy_router.post("/autotask/test", include_in_schema=False)
 async def test_autotask_api(
     request: Request,
     database_session: Session = Depends(get_database_session),
@@ -910,10 +940,11 @@ async def test_autotask_api(
     else:
         add_flash_message(request, f"Autotask API is down and needs fixing. {connectivity_result.summary}", "error")
 
-    return RedirectResponse(url="/debug", status_code=303)
+    return RedirectResponse(url="/diagnostics", status_code=303)
 
 
 @router.post("/sessions/logout-web-users")
+@legacy_router.post("/sessions/logout-web-users", include_in_schema=False)
 async def logout_all_web_users(
     request: Request,
     database_session: Session = Depends(get_database_session),
@@ -945,4 +976,4 @@ async def logout_all_web_users(
         f"Signed out {result.affected_user_count} web users. They must sign in again.",
         "success",
     )
-    return RedirectResponse(url="/debug#session-controls", status_code=303)
+    return RedirectResponse(url="/diagnostics#session-controls", status_code=303)

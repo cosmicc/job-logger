@@ -88,7 +88,7 @@ def test_super_admin_adds_first_web_user_and_claims_existing_jobs(super_admin_cl
     assert "Choose a new login password to continue." in forced_config_response.text
     assert "Submit from Work in Progress" not in forced_config_response.text
 
-    blocked_home_response = super_admin_client.get("/home", follow_redirects=False)
+    blocked_home_response = super_admin_client.get("/work", follow_redirects=False)
     assert blocked_home_response.status_code == 303
     assert blocked_home_response.headers["location"] == "/config?password_required=1"
 
@@ -104,13 +104,13 @@ def test_super_admin_adds_first_web_user_and_claims_existing_jobs(super_admin_cl
         follow_redirects=False,
     )
     assert password_change_response.status_code == 303
-    assert password_change_response.headers["location"] == "/home"
+    assert password_change_response.headers["location"] == "/work"
     with database.SessionLocal() as database_session:
         user = database_session.scalar(select(WebUser).where(WebUser.username == "first-tech"))
         assert user is not None
         assert user.password_must_change is False
 
-    mobile_response = super_admin_client.get("/home")
+    mobile_response = super_admin_client.get("/work")
     assert mobile_response.status_code == 200
     assert "Start a work entry" in mobile_response.text
     assert "Set up faster sign-in" in mobile_response.text
@@ -496,7 +496,7 @@ def test_successful_managed_user_login_updates_last_login(client: TestClient) ->
 def test_super_admin_is_read_only_for_work_entries(super_admin_client: TestClient) -> None:
     """The config super admin can view but cannot create work entries."""
 
-    mobile_response = super_admin_client.get("/home")
+    mobile_response = super_admin_client.get("/work")
     csrf_token = extract_csrf_token(mobile_response.text)
     start_response = super_admin_client.post(
         "/jobs/start",
@@ -550,7 +550,7 @@ def test_hard_deleted_user_session_is_cleared_and_login_is_generic(client: TestC
         admin_contact_email="admin@example.test",
     )
     login_as_web_user(client)
-    assert client.get("/home").status_code == 200
+    assert client.get("/work").status_code == 200
     with database.SessionLocal() as database_session:
         user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
         assert user is not None
@@ -570,7 +570,7 @@ def test_hard_deleted_user_session_is_cleared_and_login_is_generic(client: TestC
         assert "User deleted." in result_page.text
         assert 'title="Enable user"' not in result_page.text
 
-    old_session_response = client.get("/home", follow_redirects=False)
+    old_session_response = client.get("/work", follow_redirects=False)
     assert old_session_response.status_code == 303
     assert old_session_response.headers["location"] == "/login"
 
@@ -609,7 +609,7 @@ def test_users_page_archives_and_restores_user_with_job_history(
 ) -> None:
     """Users with jobs should be hidden and later restored by Autotask resource ID."""
 
-    mobile_page = authenticated_client.get("/home")
+    mobile_page = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page.text)
     start_response = authenticated_client.post(
         "/jobs/start",

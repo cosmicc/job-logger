@@ -32,10 +32,19 @@ class UnavailableDatabaseMonitor:
         self.marked_unavailable = True
 
 
+def test_login_browser_title_starts_with_ticketpilot(client: TestClient) -> None:
+    """Public browser titles should put the application name first."""
+
+    response = client.get("/login")
+
+    assert response.status_code == 200
+    assert "<title>TicketPilot - Login</title>" in response.text
+
+
 def test_anonymous_sensitive_pages_redirect_to_login(client: TestClient) -> None:
     """Normal browser pages with app data should not render without a session."""
 
-    for path in ("/home", "/review", "/users", "/debug", "/config", "/changelog", "/help"):
+    for path in ("/work", "/review", "/users", "/diagnostics", "/config", "/changelog", "/help"):
         response = client.get(path, follow_redirects=False)
 
         assert response.status_code == 303, path
@@ -46,15 +55,15 @@ def test_anonymous_json_and_action_routes_require_authentication(client: TestCli
     """Workflow and admin helper endpoints should reject anonymous requests."""
 
     get_paths = (
-        "/home/service-calls",
+        "/work/service-calls",
         "/autotask/companies?query=Acme",
         "/users/autotask-resources?query=Joe",
         "/users/autotask-resource-roles?resource_id=123",
         "/review/job-1/tickets",
         "/review/job-1/ticket-notes",
         "/review/job-1/ticket-time-entries",
-        "/debug/logs/login-failures",
-        "/debug/logs/login-successes",
+        "/diagnostics/logs/login-failures",
+        "/diagnostics/logs/login-successes",
     )
     for path in get_paths:
         response = client.get(path, follow_redirects=False)
@@ -78,8 +87,8 @@ def test_anonymous_json_and_action_routes_require_authentication(client: TestCli
         "/review/job-1/retry",
         "/review/job-1/ticket",
         "/review/job-1/purge",
-        "/debug/autotask/test",
-        "/debug/sessions/logout-web-users",
+        "/diagnostics/autotask/test",
+        "/diagnostics/sessions/logout-web-users",
     )
     for path in post_paths:
         response = client.post(path, data={}, follow_redirects=False)
@@ -136,7 +145,7 @@ def test_browser_missing_page_renders_work_button_for_authenticated_users(authen
     assert response.status_code == 404
     assert "Page not found" in response.text
     assert "Back to Work" in response.text
-    assert 'href="/home"' in response.text
+    assert 'href="/work"' in response.text
     assert "Back to Login" not in response.text
 
 
@@ -172,7 +181,7 @@ def test_login_after_error_page_uses_fresh_login_flow(client: TestClient) -> Non
     )
 
     assert login_response.status_code == 303
-    assert login_response.headers["location"] == "/home"
+    assert login_response.headers["location"] == "/work"
 
 
 def test_generated_api_docs_and_public_health_are_closed_at_app_or_proxy(client: TestClient) -> None:
@@ -202,7 +211,7 @@ def test_database_unavailable_mode_serves_styled_retry_page() -> None:
             follow_redirects=False,
         )
         json_response = test_client.get(
-            "/home/service-calls",
+            "/work/service-calls",
             headers={"Accept": "application/json"},
             follow_redirects=False,
         )
@@ -218,7 +227,7 @@ def test_database_unavailable_mode_serves_styled_retry_page() -> None:
     assert "/static/app.css" in login_response.text
     assert "/static/service-unavailable.css" in login_response.text
     assert "service-unavailable-brand" not in login_response.text
-    assert "TicketPilot" not in login_response.text
+    assert "<title>TicketPilot - Service Temporarily Unavailable</title>" in login_response.text
     assert "maskable" not in login_response.text
     assert "Work logging service" not in login_response.text
     assert "Temporary outage" in login_response.text

@@ -163,7 +163,7 @@ services:
       NGINX_ERROR_LOG: ${NGINX_ERROR_LOG:-/dev/stderr warn}
       # NGINX_CLIENT_MAX_BODY_SIZE bounds compatibility uploads and streamed audio.
       NGINX_CLIENT_MAX_BODY_SIZE: ${NGINX_CLIENT_MAX_BODY_SIZE:-12m}
-      # NGINX_RESTORE_MAX_BODY_SIZE applies only to /debug/restore uploads.
+      # NGINX_RESTORE_MAX_BODY_SIZE applies only to Diagnostics restore uploads.
       NGINX_RESTORE_MAX_BODY_SIZE: ${NGINX_RESTORE_MAX_BODY_SIZE:-250m}
     # Nginx can start before the app is healthy; Docker health status and the
     # app entrypoint make readiness visible without aborting Portainer stack

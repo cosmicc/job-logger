@@ -28,8 +28,12 @@ Important workflow service responsibilities include:
 
 ## Active Job Flow
 
-The work-entry home page is `/home`, implemented by
+The work-entry home page is `/work`, implemented by
 `ticket_pilot/routes/mobile.py` and `ticket_pilot/templates/mobile.html`.
+`/home` must remain a query-preserving compatibility redirect to `/work`, and
+`/home/service-calls` must remain an authenticated alias for
+`/work/service-calls`. All rendered links, forms, redirects, browser requests,
+and PWA metadata must use the canonical `/work` namespace.
 
 The same route is also the full-browser Home and Work in Progress surface.
 The selected mobile or desktop presentation must come from client/browser and
@@ -54,7 +58,7 @@ order. Keep the shared authenticated top bar sticky at the top of the viewport
 for the complete document scroll on every phone and full-browser page. Do not
 constrain `html` or `body` to one viewport height, because that ends the sticky
 containing block and lets the header scroll away. The Work button links to
-`/home` and uses the same work-entry icon on
+`/work` and uses the same work-entry icon on
 phone and full-browser navigation. Managed users marked as Admin also see
 Diagnostics in the right-side phone action group, but that flag must not remove
 Config or grant super-admin-only Users navigation. The config super admin sees
@@ -107,6 +111,11 @@ all monitored checks are operational.
 The unauthenticated login page should render the sign-in form without a top app
 icon or wordmark.
 
+Browser titles use the compact application name first: the Work page is
+`TicketPilot - Time Entry`, Config is `TicketPilot - Config`, Review is
+`TicketPilot - Review`, and other pages follow the same
+`TicketPilot - <Page>` convention.
+
 New blank work starts through `POST /jobs/start`. A user can also start work
 from an Autotask service call selected in the mobile day navigator through
 `POST /jobs/start/service-call`.
@@ -119,7 +128,7 @@ Security and data-integrity requirements for start:
 
 - The user must be authenticated as an enabled managed web user.
 - CSRF must be valid.
-- The `/home` page must render from local database state without running an
+- The `/work` page must render from local database state without running an
   Autotask API contactability check.
 - Blank Start Work must not call Autotask before creating the local active job.
   Ticket and company data are attached later through explicit lookup flows.
@@ -295,7 +304,7 @@ older review text.
 The mobile start panels show Autotask service calls for a selected local date
 when an active job slot is available. The page should render immediately with a
 **Loading service calls...** state and no synchronous Autotask calls. After the
-window `load` event, `ticket_pilot/static/mobile.js` loads `/home/service-calls`
+window `load` event, `ticket_pilot/static/mobile.js` loads `/work/service-calls`
 to fetch safe card data for the current selected date. The panel has compact
 previous/next day buttons with the displayed day between them; clicking that day
 opens the native calendar picker. Today, yesterday, and tomorrow labels put the
@@ -327,7 +336,7 @@ is enabled. Remote or unknown service-call locations must not auto-launch
 navigation. A missing destination must not undo or hide a successfully started
 job.
 
-The `/home/service-calls` endpoint is only for drawing already-verified
+The `/work/service-calls` endpoint is only for drawing already-verified
 candidate cards in the browser. Before returning or accepting service-call
 options, route code must filter out tickets that already have a local TicketPilot
 job for the current managed web user with ticket status Complete or Follow up;
@@ -573,6 +582,11 @@ Review supports:
   including `0 Hours` when no time-entry work exists for those periods.
 - Showing Today and Week time-entry hours as a compact boxed summary near the
   top of Work without turning it into full metric cards.
+- Showing equal Today, Week, and Unsubmitted cards near the top of Review.
+  Unsubmitted counts time entries in Active, Ready for Review, or Submission
+  Failed status only. Exclude ticket notes, rejected jobs, and successfully
+  submitted jobs. Managed users use their owner-scoped job list; the config
+  super admin uses the all-owner review list.
 - Keeping full-browser Work start panels compact, with the Service calls title
   visually raised above the date picker while the date picker, list, and
   empty-state message remain tightly arranged. Phone spacing stays controlled

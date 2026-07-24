@@ -19,7 +19,7 @@ from ticket_pilot.models import AuditEvent, Job, SubmissionAttempt, WebUser
 from ticket_pilot.services import system_health
 from ticket_pilot.services.ai_cleanup import AiCleanupResult
 from ticket_pilot.services.autotask import AutotaskSubmissionResult
-from ticket_pilot.services.jobs import get_active_job
+from ticket_pilot.services.jobs import count_unsubmitted_time_entries, get_active_job
 from ticket_pilot.time_utils import format_local_time, local_date_for, round_start_for_technician
 from ticket_pilot.version import APP_VERSION
 
@@ -29,7 +29,7 @@ def create_submitted_mock_job(authenticated_client: TestClient, *, summary_notes
 
     # csrf_token is the authenticated session token used by the state-changing
     # mobile and review requests in this helper.
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     assert "Start Work" in mobile_page_response.text
 
@@ -142,7 +142,7 @@ def test_login_rejects_missing_csrf(client: TestClient) -> None:
 def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
     """A job can be started, described, ended, reviewed, and mock-submitted."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
     start_response = authenticated_client.post(
@@ -240,7 +240,7 @@ def test_work_in_progress_can_submit_directly_to_autotask(authenticated_client: 
     """The opt-in workflow should submit from Work in Progress without review acceptance."""
 
     enable_submit_from_work_in_progress(authenticated_client)
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
     start_response = authenticated_client.post(
@@ -258,7 +258,7 @@ def test_work_in_progress_can_submit_directly_to_autotask(authenticated_client: 
         active_job.local_work_date = local_date_for(active_job.rounded_start_utc)
         database_session.commit()
 
-    active_page_response = authenticated_client.get("/home")
+    active_page_response = authenticated_client.get("/work")
     assert "Submit to Autotask" in active_page_response.text
     assert 'data-loading-message="Submitting to Autotask..."' in active_page_response.text
 
@@ -298,7 +298,7 @@ def test_work_in_progress_can_submit_directly_to_autotask(authenticated_client: 
         follow_redirects=False,
     )
     assert end_response.status_code == 303
-    assert end_response.headers["location"] == "/home"
+    assert end_response.headers["location"] == "/work"
 
     with database.SessionLocal() as database_session:
         job = database_session.get(Job, active_job_id)
@@ -344,7 +344,7 @@ def test_work_in_progress_can_submit_directly_to_autotask(authenticated_client: 
 def test_on_site_active_work_clamps_to_one_hour_before_end(authenticated_client: TestClient) -> None:
     """Ending new On-Site work should move only the stop to at least one hour."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -383,7 +383,7 @@ def test_on_site_active_work_clamps_to_one_hour_before_end(authenticated_client:
 def test_review_rejects_on_site_time_entry_shorter_than_one_hour(authenticated_client: TestClient) -> None:
     """Review validation blocks On-Site time entries shorter than one hour."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -457,7 +457,7 @@ def test_review_rejects_on_site_time_entry_shorter_than_one_hour(authenticated_c
 def test_ticket_note_can_be_submitted_from_review_without_time_fields(authenticated_client: TestClient) -> None:
     """A review entry can become a customer-visible ticket note before Autotask submission."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -499,7 +499,7 @@ def test_ticket_note_can_be_submitted_from_review_without_time_fields(authentica
     )
     assert text_response.status_code == 200
 
-    active_page_response = authenticated_client.get("/home")
+    active_page_response = authenticated_client.get("/work")
     active_html = active_page_response.text
     assert 'value="ticket_note"' in active_html
     assert "Note Date" in active_html
@@ -596,7 +596,7 @@ def test_ticket_note_can_be_submitted_from_review_without_time_fields(authentica
 def test_submitted_ticket_note_can_be_updated_and_deleted(authenticated_client: TestClient) -> None:
     """Submitted ticket notes should update and delete the existing Autotask note ID."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
     assert start_response.status_code == 303
@@ -699,7 +699,7 @@ def test_direct_work_in_progress_ticket_note_submit(authenticated_client: TestCl
     """Direct Work in Progress submission should support ticket notes."""
 
     enable_submit_from_work_in_progress(authenticated_client)
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
     assert start_response.status_code == 303
@@ -728,7 +728,7 @@ def test_direct_work_in_progress_ticket_note_submit(authenticated_client: TestCl
         headers={"X-CSRF-Token": csrf_token},
         json={"ticket_number": "T20260616.0001"},
     )
-    active_page_response = authenticated_client.get("/home")
+    active_page_response = authenticated_client.get("/work")
     assert "Submit note" in active_page_response.text
 
     end_response = authenticated_client.post(
@@ -761,7 +761,7 @@ def test_direct_work_in_progress_submit_requires_autotask_fields(authenticated_c
     """Direct submit should keep the job active when required Autotask fields are missing."""
 
     enable_submit_from_work_in_progress(authenticated_client)
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -793,7 +793,7 @@ def test_direct_work_in_progress_submit_requires_autotask_fields(authenticated_c
         follow_redirects=False,
     )
     assert end_response.status_code == 303
-    assert end_response.headers["location"] == "/home"
+    assert end_response.headers["location"] == "/work"
 
     with database.SessionLocal() as database_session:
         active_job = database_session.get(Job, active_job_id)
@@ -818,7 +818,7 @@ def test_active_job_ai_cleanup_returns_replacement_text(
             cleaned_text="Remote replaced the failed power supply and verified startup.",
         ),
     )
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -867,7 +867,7 @@ def test_active_job_ai_cleanup_can_be_reverted_from_persisted_state(
             cleaned_text="Remote cleaned up the firewall notes.",
         ),
     )
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -936,7 +936,7 @@ def test_active_job_ai_cleanup_revert_state_expires_on_home_render(
             cleaned_text="Remote cleaned up old undo notes.",
         ),
     )
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -970,7 +970,7 @@ def test_active_job_ai_cleanup_revert_state_expires_on_home_render(
         job.ai_cleanup_at_utc = datetime.now(UTC) - timedelta(hours=25)
         database_session.commit()
 
-    refreshed_home_response = authenticated_client.get("/home")
+    refreshed_home_response = authenticated_client.get("/work")
 
     assert refreshed_home_response.status_code == 200
     assert "Revert cleanup" not in refreshed_home_response.text
@@ -1424,7 +1424,7 @@ def test_mobile_page_and_blank_start_do_not_probe_autotask(
         raise AssertionError("Autotask provider should not be used by the initial mobile page or blank Start Work.")
 
     monkeypatch.setattr("ticket_pilot.routes.mobile.get_autotask_provider", fail_if_provider_is_used)
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     assert mobile_page_response.status_code == 200
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
@@ -1439,9 +1439,10 @@ def test_mobile_page_and_blank_start_do_not_probe_autotask(
         assert get_active_job(database_session) is not None
 
 
-def test_legacy_mobile_routes_redirect_to_home(authenticated_client: TestClient) -> None:
-    """Old mobile URLs should preserve bookmarks while `/home` stays canonical."""
+def test_legacy_work_routes_redirect_to_canonical_work(authenticated_client: TestClient) -> None:
+    """Old Home and mobile URLs should preserve bookmarks while `/work` stays canonical."""
 
+    home_response = authenticated_client.get("/home?source=bookmark", follow_redirects=False)
     page_response = authenticated_client.get("/mobile", follow_redirects=False)
     service_calls_response = authenticated_client.get(
         "/mobile/service-calls?date=2026-06-20",
@@ -1449,12 +1450,33 @@ def test_legacy_mobile_routes_redirect_to_home(authenticated_client: TestClient)
     )
     typo_response = authenticated_client.get("/moble", follow_redirects=False)
 
+    assert home_response.status_code == 308
+    assert home_response.headers["location"] == "/work?source=bookmark"
     assert page_response.status_code == 308
-    assert page_response.headers["location"] == "/home"
+    assert page_response.headers["location"] == "/work"
     assert service_calls_response.status_code == 308
-    assert service_calls_response.headers["location"] == "/home/service-calls?date=2026-06-20"
+    assert service_calls_response.headers["location"] == "/work/service-calls?date=2026-06-20"
     assert typo_response.status_code == 303
-    assert typo_response.headers["location"] == "/home"
+    assert typo_response.headers["location"] == "/work"
+
+
+def test_authenticated_browser_titles_use_ticketpilot_page_format(
+    authenticated_client: TestClient,
+) -> None:
+    """Authenticated page titles should use `TicketPilot - Page` consistently."""
+
+    expected_titles = {
+        "/work": "TicketPilot - Time Entry",
+        "/review": "TicketPilot - Review",
+        "/config": "TicketPilot - Config",
+        "/help": "TicketPilot - Help",
+        "/changelog": "TicketPilot - Changelog",
+    }
+
+    for path, title in expected_titles.items():
+        response = authenticated_client.get(path)
+        assert response.status_code == 200
+        assert f"<title>{title}</title>" in response.text
 
 
 def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated_client: TestClient, monkeypatch) -> None:
@@ -1467,7 +1489,7 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     )
     monkeypatch.setattr(system_health, "collect_disk_usage_snapshot", lambda: healthy_disk_snapshot)
 
-    response = authenticated_client.get("/home")
+    response = authenticated_client.get("/work")
 
     assert response.status_code == 200
     assert 'class="icon-button mobile-nav-action mobile-help-action header-help-link' in response.text
@@ -1489,10 +1511,10 @@ def test_authenticated_mobile_header_renders_phone_icon_navigation(authenticated
     assert 'data-mobile-help-link' in response.text
     assert 'aria-label="Help"' in response.text
     assert "<span>Help</span>" in response.text
-    assert '<a href="/home">' in response.text
+    assert '<a href="/work">' in response.text
     assert "<span>Work</span>" in response.text
     assert '<path d="M12 11v6"></path>' in response.text
-    assert '<a href="/home">Mobile</a>' not in response.text
+    assert '<a href="/work">Mobile</a>' not in response.text
     assert 'class="mobile-nav-actions mobile-nav-left"' in response.text
     assert 'class="mobile-nav-actions mobile-nav-right"' in response.text
     assert 'data-mobile-home-link' in response.text
@@ -1565,7 +1587,7 @@ def test_managed_admin_mobile_header_places_optional_diag_on_right(authenticated
         user.is_admin = True
         database_session.commit()
 
-    response = authenticated_client.get("/home")
+    response = authenticated_client.get("/work")
 
     assert response.status_code == 200
     assert 'data-mobile-home-link' in response.text
@@ -1588,13 +1610,13 @@ def test_non_mobile_authenticated_header_keeps_desktop_navigation_and_logout(aut
     response = authenticated_client.get("/review")
 
     assert response.status_code == 200
-    assert 'class="secondary-link-button" href="/home"' not in response.text
+    assert 'class="secondary-link-button" href="/work"' not in response.text
     assert ">Mobile<" not in response.text
     assert "Secure session" not in response.text
-    assert '<a href="/home">' in response.text
+    assert '<a href="/work">' in response.text
     assert "<span>Work</span>" in response.text
     assert '<path d="M12 11v6"></path>' in response.text
-    assert '<a href="/home">Mobile</a>' not in response.text
+    assert '<a href="/work">Mobile</a>' not in response.text
     assert 'action="/logout"' in response.text
     assert 'class="icon-button desktop-logout-button"' in response.text
     assert 'aria-label="Log out"' in response.text
@@ -1635,7 +1657,7 @@ def test_dev_build_indicator_renders_in_desktop_and_mobile_header(authenticated_
         dev_build=True,
     )
 
-    response = authenticated_client.get("/home")
+    response = authenticated_client.get("/work")
 
     assert response.status_code == 200
     assert response.text.count("header-help-link-dev") == 2
@@ -1730,7 +1752,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".review-table th:nth-child(4)" in stylesheet
     assert "text-overflow: ellipsis;" in stylesheet
     assert "grid-column: 1;" in stylesheet
-    assert "linear-gradient(90deg, rgba(45, 212, 191" in stylesheet
+    assert "linear-gradient(90deg, rgba(var(--highlight-rgb)" in stylesheet
     assert "linear-gradient(90deg, rgba(245, 158, 11" in stylesheet
     assert ".service-call-loading-state" in stylesheet
     assert ".service-call-date-nav" in stylesheet
@@ -2119,7 +2141,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
 def test_active_job_completion_requires_client_name(authenticated_client: TestClient) -> None:
     """Jobs without a client name cannot be moved from active to review."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
     start_response = authenticated_client.post(
@@ -2173,7 +2195,7 @@ def test_mobile_autotask_company_lookup_returns_options(authenticated_client: Te
 def test_mobile_job_start_ignores_prestart_client_and_ticket_fields(authenticated_client: TestClient) -> None:
     """Starting work creates a blank job even if stale form fields are posted."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     assert "Autotask ticket number" not in mobile_page_response.text
     assert 'name="ticket_number"' not in mobile_page_response.text
@@ -2202,7 +2224,7 @@ def test_mobile_job_start_ignores_prestart_client_and_ticket_fields(authenticate
 def test_super_admin_review_shows_job_owner_only_for_admin(authenticated_client: TestClient) -> None:
     """Only the super-admin review list and detail should expose job ownership."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -2232,7 +2254,7 @@ def test_super_admin_review_shows_job_owner_only_for_admin(authenticated_client:
 def test_review_delete_time_entry_can_delete_active_jobs(authenticated_client: TestClient) -> None:
     """The review-page Delete time entry action can remove an active local job."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -2266,7 +2288,7 @@ def test_review_delete_time_entry_can_delete_active_jobs(authenticated_client: T
 def test_review_detail_can_end_active_jobs(authenticated_client: TestClient) -> None:
     """Active jobs selected on review detail expose the normal End Work action."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -2329,7 +2351,7 @@ def test_review_detail_can_end_active_jobs(authenticated_client: TestClient) -> 
 def test_mobile_active_job_page_keeps_client_editable_until_ticket(authenticated_client: TestClient) -> None:
     """The active mobile card keeps selected clients editable until a ticket is selected."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -2350,7 +2372,7 @@ def test_mobile_active_job_page_keeps_client_editable_until_ticket(authenticated
     )
     assert save_client_response.status_code == 303
 
-    updated_mobile_page_response = authenticated_client.get("/home")
+    updated_mobile_page_response = authenticated_client.get("/work")
     page_html = updated_mobile_page_response.text
 
     assert 'data-locked-client-field' not in page_html
@@ -2444,7 +2466,7 @@ def test_mobile_active_job_page_keeps_client_editable_until_ticket(authenticated
 def test_mobile_active_job_can_replace_client_before_ticket_selection(authenticated_client: TestClient) -> None:
     """Mobile form handlers allow verified client replacement before ticket selection."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -2525,7 +2547,7 @@ def test_mobile_active_job_can_replace_client_before_ticket_selection(authentica
 def test_review_save_does_not_require_ticket_number(authenticated_client: TestClient) -> None:
     """Review edits can be saved while leaving the ticket number blank."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -2601,7 +2623,7 @@ def test_review_save_does_not_require_ticket_number(authenticated_client: TestCl
 def test_review_detail_shows_active_rounded_stop_without_ending_job(authenticated_client: TestClient) -> None:
     """Active review detail should display the WIP rounded stop preview without applying it as an end time."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -2669,7 +2691,7 @@ def test_review_detail_shows_active_rounded_stop_without_ending_job(authenticate
 def test_review_summary_prefix_is_editable_and_updates_work_location(authenticated_client: TestClient) -> None:
     """Review saves the visible Autotask summary prefix back into work_location."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -2738,7 +2760,7 @@ def test_review_summary_prefix_is_editable_and_updates_work_location(authenticat
 def test_review_save_active_job_without_stop_time(authenticated_client: TestClient) -> None:
     """Active jobs can be saved in review without submitting an end time."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -2793,7 +2815,7 @@ def test_review_save_active_job_without_stop_time(authenticated_client: TestClie
 def test_review_rejects_cross_day_time_edits(authenticated_client: TestClient) -> None:
     """Review edits use one job date and reject times that would span days."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -2841,7 +2863,7 @@ def test_review_rejects_cross_day_time_edits(authenticated_client: TestClient) -
 def test_review_ticket_lookup_returns_open_tickets_for_job_client(authenticated_client: TestClient) -> None:
     """Review can request open Autotask ticket options using the selected company."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -2892,7 +2914,7 @@ def test_review_ticket_lookup_returns_open_tickets_for_job_client(authenticated_
 def test_review_detail_can_select_client_when_identity_is_empty(authenticated_client: TestClient) -> None:
     """Blank active jobs opened in Review can save a first Autotask client selection."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -3002,7 +3024,7 @@ def test_review_detail_can_select_client_when_identity_is_empty(authenticated_cl
 def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authenticated_client: TestClient) -> None:
     """Selecting an Autotask ticket stores the title and locks review identity fields."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -3128,7 +3150,7 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
 def test_ticket_notes_endpoint_returns_safe_selected_ticket_notes(authenticated_client: TestClient) -> None:
     """Selected ticket notes should load through the authenticated server route."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -3176,7 +3198,7 @@ def test_ticket_notes_endpoint_returns_safe_selected_ticket_notes(authenticated_
 def test_ticket_time_entries_endpoint_returns_safe_selected_ticket_time_entries(authenticated_client: TestClient) -> None:
     """Selected ticket time entries should load through the authenticated server route."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -3221,7 +3243,7 @@ def test_ticket_time_entries_endpoint_returns_safe_selected_ticket_time_entries(
 def test_ticket_notes_endpoint_stays_empty_until_ticket_is_selected(authenticated_client: TestClient) -> None:
     """The ticket-notes route should not query notes for a job without a ticket."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -3244,7 +3266,7 @@ def test_ticket_notes_endpoint_stays_empty_until_ticket_is_selected(authenticate
 def test_ticket_time_entries_endpoint_stays_empty_until_ticket_is_selected(authenticated_client: TestClient) -> None:
     """The ticket-time-entries route should not query entries for a job without a ticket."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -3267,7 +3289,7 @@ def test_ticket_time_entries_endpoint_stays_empty_until_ticket_is_selected(authe
 def test_ticket_description_card_stays_visible_without_description(authenticated_client: TestClient) -> None:
     """Selected tickets without Autotask descriptions still show a context card."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -3288,7 +3310,7 @@ def test_ticket_description_card_stays_visible_without_description(authenticated
         active_job.autotask_company_id = 1001
         database_session.commit()
 
-    home_response = authenticated_client.get("/home")
+    home_response = authenticated_client.get("/work")
     assert home_response.status_code == 200
     assert "No description exists for this ticket." in home_response.text
     assert (
@@ -3318,7 +3340,7 @@ def test_ticket_description_card_stays_visible_without_description(authenticated
 def test_review_accept_still_requires_ticket_number(authenticated_client: TestClient) -> None:
     """Review save path is permissive, but submission still requires a ticket number."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -3367,7 +3389,7 @@ def test_review_accept_still_requires_ticket_number(authenticated_client: TestCl
 def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_client: TestClient) -> None:
     """Active job save on mobile stores edited client and summary before completion."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -3404,7 +3426,7 @@ def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_
         assert active_job.ticket_number is None
         assert active_job.ticket_title is None
 
-    updated_mobile_page_response = authenticated_client.get("/home")
+    updated_mobile_page_response = authenticated_client.get("/work")
     updated_mobile_html = updated_mobile_page_response.text
     assert "data-active-ticket-picker" in updated_mobile_html
     assert "On-Site Saved from mobile active form" not in updated_mobile_html
@@ -3413,7 +3435,7 @@ def test_mobile_active_job_save_button_updates_client_and_summary(authenticated_
 def test_browser_description_save_skips_activity_timeline(authenticated_client: TestClient) -> None:
     """Browser summary autosaves should not add or display noisy job activity."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -3504,7 +3526,7 @@ def test_browser_description_save_skips_activity_timeline(authenticated_client: 
 def test_mobile_active_job_background_save_returns_ticket_lookup_context(authenticated_client: TestClient) -> None:
     """Background active saves return JSON for in-place open-ticket loading."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -3548,7 +3570,7 @@ def test_active_work_location_change_recalculates_only_stop_time(
 ) -> None:
     """Work type changes should use the location minimum or later current block."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -3614,7 +3636,7 @@ def test_active_work_location_change_recalculates_only_stop_time(
 def test_mobile_audio_stream_requires_csrf(authenticated_client: TestClient) -> None:
     """The WebSocket audio stream validates CSRF before accepting audio bytes."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
     assert start_response.status_code == 303
@@ -3643,7 +3665,7 @@ def test_mobile_audio_stream_requires_csrf(authenticated_client: TestClient) -> 
 def test_mobile_audio_stream_transcribes_chunks(authenticated_client: TestClient) -> None:
     """Chunked WebSocket audio is transcribed and saved on finish."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
     assert start_response.status_code == 303
@@ -3696,7 +3718,7 @@ def test_mobile_audio_stream_transcribes_chunks(authenticated_client: TestClient
 def test_review_detail_record_button_only_for_unsubmitted_jobs(authenticated_client: TestClient) -> None:
     """Review detail shows recording only until the job has a submitted Autotask entry."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
     assert start_response.status_code == 303
@@ -3736,7 +3758,7 @@ def test_review_detail_record_button_only_for_unsubmitted_jobs(authenticated_cli
 def test_review_audio_stream_transcribes_unsubmitted_job(authenticated_client: TestClient) -> None:
     """The shared audio stream can update a review job before Autotask submission."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
     assert start_response.status_code == 303
@@ -3819,7 +3841,7 @@ def test_submitted_job_audio_stream_is_blocked(authenticated_client: TestClient)
 def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient) -> None:
     """The active ticket picker endpoint persists a server-verified Autotask ticket."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
     start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
@@ -3860,7 +3882,7 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
         assert active_job.ticket_description == "Mock follow-up description for Acme Services."
         assert active_job.ticket_status == TicketStatus.IN_PROGRESS
 
-    updated_mobile_page_response = authenticated_client.get("/home")
+    updated_mobile_page_response = authenticated_client.get("/work")
     updated_mobile_html = updated_mobile_page_response.text
     assert "data-active-ticket-picker" not in updated_mobile_html
     assert '<span class="active-ticket-label-mobile">Ticket number</span>' in updated_mobile_html
@@ -3890,7 +3912,7 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
 def test_mobile_active_ticket_status_is_editable(authenticated_client: TestClient) -> None:
     """Work in Progress ticket status should autosave with active-job edits."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
     start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
@@ -3901,7 +3923,7 @@ def test_mobile_active_ticket_status_is_editable(authenticated_client: TestClien
         assert active_job is not None
         active_job_id = active_job.id
 
-    active_mobile_response = authenticated_client.get("/home")
+    active_mobile_response = authenticated_client.get("/work")
     assert active_mobile_response.status_code == 200
     active_mobile_html = active_mobile_response.text
     assert 'data-active-ticket-status-input' in active_mobile_html
@@ -3929,7 +3951,7 @@ def test_mobile_active_ticket_status_is_editable(authenticated_client: TestClien
 def test_mobile_active_job_date_is_editable(authenticated_client: TestClient) -> None:
     """Work in Progress exposes an editable local job date and persists it."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
     start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
@@ -3941,7 +3963,7 @@ def test_mobile_active_job_date_is_editable(authenticated_client: TestClient) ->
         active_job_id = active_job.id
         original_local_start_time = format_local_time(active_job.rounded_start_utc)
 
-    active_mobile_response = authenticated_client.get("/home")
+    active_mobile_response = authenticated_client.get("/work")
     active_mobile_html = active_mobile_response.text
     assert "Started" not in active_mobile_html
     assert "Job date" in active_mobile_html
@@ -3970,7 +3992,7 @@ def test_mobile_active_job_date_is_editable(authenticated_client: TestClient) ->
         assert local_date_for(active_job.rounded_start_utc) == date(2026, 6, 20)
         assert format_local_time(active_job.rounded_start_utc) == original_local_start_time
 
-    updated_active_mobile_response = authenticated_client.get("/home")
+    updated_active_mobile_response = authenticated_client.get("/work")
     assert 'class="date-input-shell"' in updated_active_mobile_response.text
     assert 'class="date-display-text" data-date-display' in updated_active_mobile_response.text
 
@@ -3999,7 +4021,7 @@ def test_mobile_service_call_start_populates_active_job(
         lambda: datetime(2026, 6, 28, 13, 0, tzinfo=UTC),
     )
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     mobile_html = mobile_page_response.text
     csrf_token = extract_csrf_token(mobile_html)
 
@@ -4009,13 +4031,13 @@ def test_mobile_service_call_start_populates_active_job(
     assert 'data-service-call-date-next' in mobile_html
     assert 'data-service-call-date-input' in mobile_html
     assert "Loading service calls..." in mobile_html
-    assert 'data-service-call-url="/home/service-calls"' in mobile_html
+    assert 'data-service-call-url="/work/service-calls"' in mobile_html
     assert "Mock onsite service call" not in mobile_html
     assert "Scheduled Service Client" not in mobile_html
     assert "Mock open ticket for Scheduled Service Client" not in mobile_html
     assert "T20260616.0001 - Mock open ticket for Scheduled Service Client" not in mobile_html
 
-    service_calls_response = authenticated_client.get("/home/service-calls?date=2026-06-20")
+    service_calls_response = authenticated_client.get("/work/service-calls?date=2026-06-20")
     assert service_calls_response.status_code == 200
     service_calls_payload = service_calls_response.json()
     assert service_calls_payload["active_job_slots_available"] is True
@@ -4042,7 +4064,7 @@ def test_mobile_service_call_start_populates_active_job(
         follow_redirects=False,
     )
     assert start_response.status_code == 303
-    assert start_response.headers["location"] == "/home"
+    assert start_response.headers["location"] == "/work"
 
     with database.SessionLocal() as database_session:
         active_job = get_active_job(database_session)
@@ -4063,7 +4085,7 @@ def test_mobile_service_call_start_populates_active_job(
         assert start_audit_event.details["ticket_status_source"] == "local_selection_default"
         assert "autotask_ticket_status_changed_to_in_progress" not in start_audit_event.details
 
-    updated_mobile_page_response = authenticated_client.get("/home")
+    updated_mobile_page_response = authenticated_client.get("/work")
     updated_mobile_html = updated_mobile_page_response.text
     assert "T20260616.0001" in updated_mobile_html
     assert "Mock open ticket for Scheduled Service Client" in updated_mobile_html
@@ -4074,7 +4096,7 @@ def test_mobile_service_call_start_populates_active_job(
 def test_mobile_service_call_start_rejects_unlisted_selection(authenticated_client: TestClient) -> None:
     """Crafted service-call IDs must not create jobs from unverified browser data."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
     start_response = authenticated_client.post(
@@ -4198,7 +4220,7 @@ def test_regular_ticket_selection_returns_configured_navigation_destination(
     assert select_response.json()["navigation_app"] == "apple_maps"
     assert select_response.json()["navigation_address"] == "200 Mock Boulevard, Detroit, MI 48202"
 
-    home_response = authenticated_client.get("/home")
+    home_response = authenticated_client.get("/work")
     assert f'data-navigation-url="/review/{active_job_id}/navigation"' in home_response.text
 
 
@@ -4262,9 +4284,9 @@ def test_complete_and_follow_up_local_tickets_filter_service_call_options(
         )
         database_session.commit()
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
-    service_calls_response = authenticated_client.get("/home/service-calls?date=2026-06-20")
+    service_calls_response = authenticated_client.get("/work/service-calls?date=2026-06-20")
 
     assert service_calls_response.status_code == 200
     service_call_ids = [
@@ -4350,6 +4372,8 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
     assert first_page_html.count("data-review-url=") == 10
     assert 'class="review-hours-summary-row" aria-label="Time-entry hours worked"' in first_page_html
     assert 'aria-label="Hours worked this week"' in first_page_html
+    assert 'aria-label="Time entries not submitted to Autotask"' in first_page_html
+    assert re.search(r'<span class="metric-label">Unsubmitted</span>\s*<strong>11</strong>', first_page_html)
     assert "Day hours" in first_page_html
     assert "Week hours" in first_page_html
     assert "Page 1 of 2" in first_page_html
@@ -4369,13 +4393,14 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
     assert created_ticket_numbers[10] in second_page_html
     assert created_ticket_numbers[11] in second_page_html
     assert created_ticket_numbers[9] not in second_page_html
+    assert re.search(r'<span class="metric-label">Unsubmitted</span>\s*<strong>11</strong>', second_page_html)
 
     selected_oldest_response = authenticated_client.get(f"/review/{oldest_job_id}")
     assert selected_oldest_response.status_code == 200
     assert "Page 2 of 2" in selected_oldest_response.text
     assert f'data-review-url="/review/{oldest_job_id}"' in selected_oldest_response.text
 
-    home_response = authenticated_client.get("/home")
+    home_response = authenticated_client.get("/work")
     assert home_response.status_code == 200
     assert 'class="work-hours-compact" aria-label="Time-entry hours worked"' in home_response.text
     assert "<strong>5.5 Hours</strong>" in home_response.text
@@ -4394,6 +4419,25 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
     assert "  background: var(--surface-strong);" in stylesheet
 
 
+def test_unsubmitted_time_entry_count_includes_only_actionable_autotask_work() -> None:
+    """Active, review-ready, and failed time entries should drive the metric."""
+
+    jobs = [
+        Job(status=JobStatus.ACTIVE, entry_type=EntryType.TIME_ENTRY),
+        Job(status=JobStatus.READY_FOR_REVIEW, entry_type=EntryType.TIME_ENTRY),
+        Job(status=JobStatus.SUBMISSION_FAILED, entry_type=EntryType.TIME_ENTRY),
+        Job(status=JobStatus.REJECTED, entry_type=EntryType.TIME_ENTRY),
+        Job(
+            status=JobStatus.SUBMITTED,
+            entry_type=EntryType.TIME_ENTRY,
+            autotask_external_id="time-entry-1",
+        ),
+        Job(status=JobStatus.READY_FOR_REVIEW, entry_type=EntryType.TICKET_NOTE),
+    ]
+
+    assert count_unsubmitted_time_entries(jobs) == 3
+
+
 def test_mobile_service_call_date_labels(authenticated_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """Service-call day navigation should label relative and calendar dates clearly."""
 
@@ -4402,15 +4446,15 @@ def test_mobile_service_call_date_labels(authenticated_client: TestClient, monke
         lambda: datetime(2026, 6, 20, 13, 0, tzinfo=UTC),
     )
 
-    first_response = authenticated_client.get("/home/service-calls?date=2026-06-01")
-    second_response = authenticated_client.get("/home/service-calls?date=2026-06-02")
-    third_response = authenticated_client.get("/home/service-calls?date=2026-06-03")
-    eleventh_response = authenticated_client.get("/home/service-calls?date=2026-06-11")
-    today_response = authenticated_client.get("/home/service-calls?date=2026-06-20")
-    yesterday_response = authenticated_client.get("/home/service-calls?date=2026-06-19")
-    tomorrow_response = authenticated_client.get("/home/service-calls?date=2026-06-21")
-    outside_week_response = authenticated_client.get("/home/service-calls?date=2026-06-25")
-    invalid_response = authenticated_client.get("/home/service-calls?date=not-a-date")
+    first_response = authenticated_client.get("/work/service-calls?date=2026-06-01")
+    second_response = authenticated_client.get("/work/service-calls?date=2026-06-02")
+    third_response = authenticated_client.get("/work/service-calls?date=2026-06-03")
+    eleventh_response = authenticated_client.get("/work/service-calls?date=2026-06-11")
+    today_response = authenticated_client.get("/work/service-calls?date=2026-06-20")
+    yesterday_response = authenticated_client.get("/work/service-calls?date=2026-06-19")
+    tomorrow_response = authenticated_client.get("/work/service-calls?date=2026-06-21")
+    outside_week_response = authenticated_client.get("/work/service-calls?date=2026-06-25")
+    invalid_response = authenticated_client.get("/work/service-calls?date=not-a-date")
 
     for response in (
         first_response,
@@ -4439,7 +4483,7 @@ def test_mobile_service_call_date_labels(authenticated_client: TestClient, monke
 def test_mobile_selected_ticket_title_drives_review_heading(authenticated_client: TestClient) -> None:
     """Tickets selected on mobile keep their Autotask title through review."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -4484,7 +4528,7 @@ def test_mobile_selected_ticket_title_drives_review_heading(authenticated_client
 def test_mobile_active_job_delete_discards_open_job_with_audit(authenticated_client: TestClient) -> None:
     """The mobile delete action removes only an active in-progress job."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
     start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
@@ -4495,7 +4539,7 @@ def test_mobile_active_job_delete_discards_open_job_with_audit(authenticated_cli
         assert active_job is not None
         active_job_id = active_job.id
 
-    active_page_response = authenticated_client.get("/home")
+    active_page_response = authenticated_client.get("/work")
     assert "<span data-delete-entry-label>Delete</span>" in active_page_response.text
     assert "Delete time entry" not in active_page_response.text
     assert "Delete this time entry? This removes the in-progress entry without sending it to review." in active_page_response.text
@@ -4508,7 +4552,7 @@ def test_mobile_active_job_delete_discards_open_job_with_audit(authenticated_cli
         follow_redirects=False,
     )
     assert delete_response.status_code == 303
-    assert delete_response.headers["location"] == "/home"
+    assert delete_response.headers["location"] == "/work"
 
     with database.SessionLocal() as database_session:
         assert database_session.get(Job, active_job_id) is None
@@ -4521,7 +4565,7 @@ def test_mobile_active_job_delete_discards_open_job_with_audit(authenticated_cli
 def test_mobile_active_job_ticket_update_preserves_client_name(authenticated_client: TestClient) -> None:
     """Selecting a ticket should preserve a verified Autotask client and lock it."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -4576,7 +4620,7 @@ def test_mobile_active_job_ticket_update_preserves_client_name(authenticated_cli
         assert active_job.client_name == "Acme Services"
         assert active_job.autotask_company_id == 1001
 
-    updated_mobile_page_response = authenticated_client.get("/home")
+    updated_mobile_page_response = authenticated_client.get("/work")
     page_html = updated_mobile_page_response.text
     assert 'data-locked-client-field' in page_html
     assert "Acme Services" in page_html
@@ -4628,7 +4672,7 @@ def test_mobile_active_job_ticket_update_preserves_client_name(authenticated_cli
 def test_mobile_active_job_rounded_start_can_be_adjusted(authenticated_client: TestClient) -> None:
     """The active job rounded start time can be incremented in 15-minute steps."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -4659,7 +4703,7 @@ def test_mobile_active_job_rounded_start_can_be_adjusted(authenticated_client: T
 def test_mobile_active_job_rounded_start_can_be_set_from_time_input(authenticated_client: TestClient) -> None:
     """The editable Work in Progress start time saves through the active-job route."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -4694,7 +4738,7 @@ def test_mobile_active_job_rounded_start_can_be_set_from_time_input(authenticate
 def test_mobile_active_job_rounded_start_rejects_selector_payload(authenticated_client: TestClient) -> None:
     """The active rounded-start route accepts bounded deltas, not arbitrary selector values."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -4727,7 +4771,7 @@ def test_mobile_active_job_rounded_start_rejects_selector_payload(authenticated_
 def test_mobile_active_job_rounded_stop_can_be_adjusted_and_used_on_end(authenticated_client: TestClient) -> None:
     """A manually adjusted active rounded stop is used when the job ends."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -4778,7 +4822,7 @@ def test_mobile_active_job_rounded_stop_can_be_adjusted_and_used_on_end(authenti
 def test_mobile_active_job_rounded_stop_can_be_set_from_time_input(authenticated_client: TestClient) -> None:
     """The editable Work in Progress stop time saves as a rounded stop override."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -4818,7 +4862,7 @@ def test_mobile_active_job_rounded_stop_can_be_set_from_time_input(authenticated
 def test_mobile_active_job_rounded_stop_clamps_time_before_start(authenticated_client: TestClient) -> None:
     """The editable active stop should clamp to the Remote minimum after start."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -4857,7 +4901,7 @@ def test_mobile_active_job_rounded_stop_clamps_time_before_start(authenticated_c
 def test_mobile_active_job_rounded_stop_rejects_selector_payload(authenticated_client: TestClient) -> None:
     """The active rounded-stop route accepts bounded deltas, not arbitrary selector values."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -4893,7 +4937,7 @@ def test_mobile_end_job_rounds_live_stop_up_for_technician(
 ) -> None:
     """Ending work without an override rounds the stop upward at submit time."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -4931,7 +4975,7 @@ def test_mobile_end_job_rounds_live_stop_up_for_technician(
 def test_review_detail_delete_time_entry_removes_job_and_attempts(authenticated_client: TestClient) -> None:
     """A selected unsubmitted review job can be deleted from the detail view."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -5020,7 +5064,7 @@ def test_review_detail_delete_time_entry_removes_job_and_attempts(authenticated_
 def test_review_detail_delete_time_entry_allows_active_job(authenticated_client: TestClient) -> None:
     """Active jobs can be explicitly deleted from the review detail endpoint."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
     start_response = authenticated_client.post("/jobs/start", data={"csrf_token": csrf_token}, follow_redirects=False)
@@ -5046,7 +5090,7 @@ def test_review_detail_delete_time_entry_allows_active_job(authenticated_client:
 def test_manual_summary_carries_to_review_on_completion(authenticated_client: TestClient) -> None:
     """Text typed in the mobile summary field persists when work is ended."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     start_response = authenticated_client.post(
         "/jobs/start",
@@ -5085,7 +5129,7 @@ def test_manual_summary_carries_to_review_on_completion(authenticated_client: Te
 def test_mobile_allows_two_active_jobs(authenticated_client: TestClient) -> None:
     """Only two jobs can remain active at the same time."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
 
     first_response = authenticated_client.post(
@@ -5121,7 +5165,7 @@ def test_mobile_allows_two_active_jobs(authenticated_client: TestClient) -> None
 def test_mobile_renders_the_newest_active_job_first(authenticated_client: TestClient) -> None:
     """The newest concurrent job should appear above the earlier active job."""
 
-    mobile_page_response = authenticated_client.get("/home")
+    mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
     assert authenticated_client.post(
         "/jobs/start",
@@ -5145,7 +5189,7 @@ def test_mobile_renders_the_newest_active_job_first(authenticated_client: TestCl
         older_job_id = older_job.id
         newer_job_id = newer_job.id
 
-    rendered_home = authenticated_client.get("/home").text
+    rendered_home = authenticated_client.get("/work").text
     assert rendered_home.index(f'data-active-job-card="{newer_job_id}"') < rendered_home.index(
         f'data-active-job-card="{older_job_id}"'
     )

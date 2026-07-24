@@ -263,14 +263,14 @@ def test_home_prompts_for_passkey_once_per_login_until_one_is_registered(client:
     """Password login should keep a phone-only prompt until the mobile UI marks it seen."""
 
     login_as_web_user(client)
-    home_response = client.get("/home")
+    home_response = client.get("/work")
     assert home_response.status_code == 200
     assert "Set up faster sign-in" in home_response.text
     assert "phone-only-passkey-home-prompt" in home_response.text
     assert "data-mobile-passkey-prompt" in home_response.text
     assert "data-passkey-register-button" in home_response.text
 
-    repeated_home_response = client.get("/home")
+    repeated_home_response = client.get("/work")
     assert "Set up faster sign-in" in repeated_home_response.text
 
     csrf_token = extract_csrf_token(home_response.text)
@@ -283,12 +283,12 @@ def test_home_prompts_for_passkey_once_per_login_until_one_is_registered(client:
     assert seen_response.status_code == 200
     assert seen_response.json()["seen"] is True
 
-    dismissed_home_response = client.get("/home")
+    dismissed_home_response = client.get("/work")
     assert "Set up faster sign-in" not in dismissed_home_response.text
     assert "data-passkey-register-button" not in dismissed_home_response.text
 
     login_as_web_user(client)
-    next_login_home_response = client.get("/home")
+    next_login_home_response = client.get("/work")
     assert "Set up faster sign-in" in next_login_home_response.text
     stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
     phone_stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "phone.css").read_text(encoding="utf-8")
@@ -296,11 +296,11 @@ def test_home_prompts_for_passkey_once_per_login_until_one_is_registered(client:
     assert ".phone-only-passkey-home-prompt {\n  display: block;" in phone_stylesheet
 
     _register_mock_passkey(client, monkeypatch, credential_id=b"credential-two")
-    updated_home_response = client.get("/home")
+    updated_home_response = client.get("/work")
     assert "Set up faster sign-in" not in updated_home_response.text
 
     login_as_web_user(client)
-    later_login_home_response = client.get("/home")
+    later_login_home_response = client.get("/work")
     assert "Set up faster sign-in" not in later_login_home_response.text
 
 
@@ -320,9 +320,9 @@ def test_public_device_password_login_hides_passkey_setup(client: TestClient) ->
         follow_redirects=False,
     )
     assert sign_in_response.status_code == 303
-    assert sign_in_response.headers["location"] == "/home"
+    assert sign_in_response.headers["location"] == "/work"
 
-    home_response = client.get("/home")
+    home_response = client.get("/work")
     assert home_response.status_code == 200
     assert "Set up faster sign-in" not in home_response.text
     assert "phone-only-passkey-home-prompt" not in home_response.text
@@ -373,8 +373,8 @@ def test_passkey_login_creates_managed_user_session(client: TestClient, monkeypa
     )
 
     assert verify_response.status_code == 200
-    assert verify_response.json()["redirect_url"] == "/home"
-    assert client.get("/home").status_code == 200
+    assert verify_response.json()["redirect_url"] == "/work"
+    assert client.get("/work").status_code == 200
     with database.SessionLocal() as database_session:
         success_attempt = database_session.scalar(
             select(LoginAttempt).where(
@@ -428,8 +428,8 @@ def test_public_device_passkey_login_hides_passkey_setup(client: TestClient, mon
     )
 
     assert verify_response.status_code == 200
-    assert client.get("/home").status_code == 200
-    assert "Set up faster sign-in" not in client.get("/home").text
+    assert client.get("/work").status_code == 200
+    assert "Set up faster sign-in" not in client.get("/work").text
     config_response = client.get("/config")
     assert "Device sign-in setup is unavailable while signed in on a public device." in config_response.text
     with database.SessionLocal() as database_session:
@@ -461,10 +461,10 @@ def test_failed_passkey_login_keeps_password_fallback(client: TestClient, monkey
 
     assert verify_response.status_code == 400
     assert verify_response.json()["fallback"] == "password"
-    assert client.get("/home", follow_redirects=False).status_code == 303
+    assert client.get("/work", follow_redirects=False).status_code == 303
 
     login_as(client, username="tech", password=TEST_WEB_USER_PASSWORD)
-    assert client.get("/home").status_code == 200
+    assert client.get("/work").status_code == 200
     with database.SessionLocal() as database_session:
         actions = list(database_session.scalars(select(AuditEvent.action).order_by(AuditEvent.created_at_utc)))
         assert "auth.passkey.login.failed" in actions

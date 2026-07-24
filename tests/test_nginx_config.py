@@ -82,12 +82,13 @@ def test_nginx_restore_upload_limit_is_scoped_to_restore_endpoint() -> None:
     """Full restore can use a larger body limit without widening every route."""
 
     template_text = NGINX_TEMPLATE.read_text(encoding="utf-8")
-    restore_location_index = template_text.index("location = /debug/restore")
+    restore_location_index = template_text.index("location ~ ^/(?:diagnostics|debug)/restore$")
     restore_block_end_index = template_text.index("\n    }", restore_location_index)
     restore_block = template_text[restore_location_index:restore_block_end_index]
 
     assert "client_max_body_size ${NGINX_RESTORE_MAX_BODY_SIZE};" in restore_block
-    assert "proxy_pass http://${APP_UPSTREAM_HOST}:8000/debug/restore;" in restore_block
+    assert "proxy_pass http://${APP_UPSTREAM_HOST}:8000;" in restore_block
+    assert "(?:diagnostics|debug)" in restore_block
     assert template_text.count("NGINX_RESTORE_MAX_BODY_SIZE") == 1
 
 
@@ -141,11 +142,12 @@ def test_external_nginx_sample_keeps_public_surface_controls() -> None:
         assert "return 404;" in location_block
         assert "proxy_pass" not in location_block
 
-    restore_index = sample_text.index("location = /debug/restore")
+    restore_index = sample_text.index("location ~ ^/(?:diagnostics|debug)/restore$")
     restore_block_end_index = sample_text.index("\n    }", restore_index)
     restore_block = sample_text[restore_index:restore_block_end_index]
     assert "client_max_body_size 250m;" in restore_block
-    assert "proxy_pass http://tpapp:8000/debug/restore;" in restore_block
+    assert "proxy_pass http://tpapp:8000;" in restore_block
+    assert "(?:diagnostics|debug)" in restore_block
 
     websocket_index = sample_text.index("location ~ ^/jobs/[^/]+/description/audio/stream$")
     websocket_block_end_index = sample_text.index("\n    }", websocket_index)

@@ -1965,7 +1965,7 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
       if (payload.navigation_requested && !payload.navigation_address) {
         window.alert("Work started, but Autotask did not provide a navigation address for this client.");
       }
-      window.location.assign("/home");
+      window.location.assign("/work");
     } catch (error) {
       optionButton.disabled = false;
       optionButton.classList.remove("is-loading");

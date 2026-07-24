@@ -208,7 +208,7 @@ def test_user_manual_stays_end_user_focused() -> None:
     assert "Human verification is not complete yet" in manual_text
     assert "This password reset link is invalid or expired" in manual_text
     assert "Diagnostics" not in manual_text
-    assert "/debug" not in manual_text
+    assert "/diagnostics" not in manual_text
     assert "debug page" not in manual_text.lower()
     assert "super admin" not in manual_text.lower()
 
@@ -229,6 +229,8 @@ def test_changelog_parser_reads_current_release() -> None:
                 "Config now offers three comfortable light themes and five dark themes, including Midnight Black "
                 "and amber-accented Graphite Dark."
             ),
+            "Config now has ten independently selectable highlight colors with a visible sample for every option.",
+            "Review now shows how many actionable time entries have not been submitted to Autotask yet.",
             "TicketPilot now uses its new logo and new high-resolution installed-app icon.",
             "Account emails, Help content, and user documentation now use the TicketPilot name.",
             (
@@ -255,6 +257,8 @@ def test_changelog_parser_reads_current_release() -> None:
                 "Cloudflare Access enforcement now starts off by default and can be enabled after an Access application "
                 "is configured; a paid Cloudflare plan is not required."
             ),
+            "Work now uses `/work` as its browser URL while old `/home` bookmarks continue to work.",
+            "Browser tab titles now put TicketPilot first, such as `TicketPilot - Time Entry`.",
             "Removed stale former-name labels from user-facing application pages and metadata.",
             (
                 "Help and Config now begin closer to the navigation bar without redundant page titles or blank space."
@@ -262,6 +266,10 @@ def test_changelog_parser_reads_current_release() -> None:
             "Work Duration now updates immediately when a work-type change normalizes the active stop time.",
             (
                 "Removed the former logo and app-icon artwork so browsers no longer discover stale branding assets."
+            ),
+            (
+                "Existing saved appearances keep their familiar highlight when upgraded to the new independent "
+                "color setting."
             ),
         ),
     )
@@ -703,7 +711,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
             assert entry.release_date in response.text
         for change in entry.changes:
             assert change.replace("'", "&#39;") in response.text
-    home_response_text = authenticated_client.get("/home").text
+    home_response_text = authenticated_client.get("/work").text
     assert 'href="/help"' in home_response_text
     assert 'href="/changelog"' not in home_response_text
     assert 'href="/changelog"' in authenticated_client.get("/help").text
@@ -734,7 +742,7 @@ def test_changelog_page_uses_managed_user_theme(authenticated_client: TestClient
     response = authenticated_client.get("/changelog")
 
     assert response.status_code == 200
-    assert 'class="theme-light"' in response.text
+    assert 'class="theme-light highlight-teal"' in response.text
 
 
 def test_super_admin_can_view_changelog_in_dark_theme(super_admin_client: TestClient) -> None:
@@ -743,6 +751,6 @@ def test_super_admin_can_view_changelog_in_dark_theme(super_admin_client: TestCl
     response = super_admin_client.get("/changelog")
 
     assert response.status_code == 200
-    assert 'class="theme-dark"' in response.text
+    assert 'class="theme-dark highlight-teal"' in response.text
     assert "1.1.4" in response.text
     assert "[1.1.4]" not in response.text

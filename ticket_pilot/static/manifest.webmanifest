@@ -1,9 +1,9 @@
 {
-  "id": "/home",
+  "id": "/work",
   "name": "Ticket Pilot for Autotask",
   "short_name": "TicketPilot",
   "description": "Ticket Pilot for Autotask work timing, notes, review, and submission.",
-  "start_url": "/home",
+  "start_url": "/work",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "browser"],
@@ -41,7 +41,7 @@
     {
       "name": "Work Entry",
       "short_name": "Work",
-      "url": "/home",
+      "url": "/work",
       "description": "Open the active work entry screen."
     },
     {

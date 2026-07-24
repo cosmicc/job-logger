@@ -271,7 +271,7 @@ async def passkey_login_verify(
         return JSONResponse(
             {
                 "authenticated": True,
-                "redirect_url": "/config?password_required=1" if password_change_required else "/home",
+                "redirect_url": "/config?password_required=1" if password_change_required else "/work",
             }
         )
     except (HTTPException, PasskeyError) as exc:

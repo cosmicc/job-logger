@@ -310,7 +310,7 @@ class Settings:
     # MAX_AUDIO_UPLOAD_BYTES prevents memory exhaustion from oversized audio uploads.
     max_audio_upload_bytes: int
 
-    # MAX_BACKUP_RESTORE_BYTES bounds full-data restore uploads on /debug.
+    # MAX_BACKUP_RESTORE_BYTES bounds full-data restore uploads on /diagnostics.
     max_backup_restore_bytes: int
 
     # AUTOMATIC_BACKUPS_ENABLED controls the hourly full-database backup task.

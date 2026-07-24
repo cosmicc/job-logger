@@ -8,6 +8,8 @@ Short release notes shown on the authenticated `/changelog` page.
 
 - TicketPilot is now the application name across the web interface and installed app.
 - Config now offers three comfortable light themes and five dark themes, including Midnight Black and amber-accented Graphite Dark.
+- Config now has ten independently selectable highlight colors with a visible sample for every option.
+- Review now shows how many actionable time entries have not been submitted to Autotask yet.
 - TicketPilot now uses its new logo and new high-resolution installed-app icon.
 
 ### Changed
@@ -19,6 +21,8 @@ Short release notes shown on the authenticated `/changelog` page.
 - Navigation icons and ordinary buttons now use the selected theme's highlight color while action-specific colors remain easy to recognize.
 - The formal long application name is now Ticket Pilot for Autotask, reflecting that its work workflow relies on Autotask.
 - Cloudflare Access enforcement now starts off by default and can be enabled after an Access application is configured; a paid Cloudflare plan is not required.
+- Work now uses `/work` as its browser URL while old `/home` bookmarks continue to work.
+- Browser tab titles now put TicketPilot first, such as `TicketPilot - Time Entry`.
 
 ### Fixed
 
@@ -26,6 +30,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Help and Config now begin closer to the navigation bar without redundant page titles or blank space.
 - Work Duration now updates immediately when a work-type change normalizes the active stop time.
 - Removed the former logo and app-icon artwork so browsers no longer discover stale branding assets.
+- Existing saved appearances keep their familiar highlight when upgraded to the new independent color setting.
 
 ## 1.4.0 - 07.20.2026 - Navigation apps and quick destinations
 
