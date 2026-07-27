@@ -112,7 +112,8 @@ def test_super_admin_adds_first_web_user_and_claims_existing_jobs(super_admin_cl
 
     mobile_response = super_admin_client.get("/work")
     assert mobile_response.status_code == 200
-    assert "Start a work entry" in mobile_response.text
+    assert "Start a time entry" in mobile_response.text
+    assert "Start a work entry" not in mobile_response.text
     assert "Set up faster sign-in" in mobile_response.text
 
 

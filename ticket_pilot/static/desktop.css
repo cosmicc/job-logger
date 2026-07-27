@@ -25,6 +25,7 @@
 .mobile-shell {
   width: min(1180px, calc(100% - 48px));
   max-width: none;
+  margin-top: 8px;
 }
 
 .config-shell {
@@ -162,14 +163,50 @@
 }
 
 @media (min-width: 960px) {
-  .config-main-stack {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
+  .config-main-stack-standard {
+    display: flow-root;
   }
 
-  .config-grid-full,
-  .config-appearance-panel {
-    grid-column: 1 / -1;
+  .config-main-stack-standard > .config-appearance-panel {
+    margin-bottom: 18px;
+  }
+
+  .config-main-stack-standard > .config-password-panel,
+  .config-main-stack-standard > .config-workflow-panel,
+  .config-main-stack-standard > .config-navigation-panel,
+  .config-main-stack-standard > .config-device-panel {
+    width: calc(50% - 9px);
+  }
+
+  .config-main-stack-standard > .config-password-panel,
+  .config-main-stack-standard > .config-workflow-panel {
+    float: left;
+  }
+
+  .config-main-stack-standard > .config-navigation-panel,
+  .config-main-stack-standard > .config-device-panel {
+    float: right;
+  }
+
+  .config-main-stack-standard > .config-workflow-panel {
+    clear: left;
+    margin-top: 18px;
+  }
+
+  .config-main-stack-standard > .config-device-panel {
+    clear: right;
+    margin-top: 18px;
+  }
+
+  .review-hours-summary-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: max(390px, calc((100% - 18px) / 2.55));
+    margin-left: auto;
+  }
+
+  .review-hours-summary {
+    min-width: 0;
   }
 
   .debug-shell {

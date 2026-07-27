@@ -275,6 +275,11 @@ def test_changelog_parser_reads_current_release() -> None:
                 "on one row with shorter hour and minute labels."
             ),
             "Config now identifies the active account with its full name and username.",
+            "The blank Work panel now says **Start a time entry**.",
+            (
+                "Full-browser Work, Config, and Review now remove uneven top/card gaps and align their summary and "
+                "detail areas more consistently."
+            ),
             "The installed-app icon now places its clock on the left so browser corner badges do not cover it.",
             "Removed stale former-name labels from user-facing application pages and metadata.",
             (

@@ -28,9 +28,11 @@ Short release notes shown on the authenticated `/changelog` page.
 - Background selection on Config is now a dropdown with three round palette samples for every choice.
 - Review now begins with its summary cards directly below navigation, and phones keep all three cards on one row with shorter hour and minute labels.
 - Config now identifies the active account with its full name and username.
+- The blank Work panel now says **Start a time entry**.
 
 ### Fixed
 
+- Full-browser Work, Config, and Review now remove uneven top/card gaps and align their summary and detail areas more consistently.
 - The installed-app icon now places its clock on the left so browser corner badges do not cover it.
 - Removed stale former-name labels from user-facing application pages and metadata.
 - Help and Config now begin closer to the navigation bar without redundant page titles or blank space.

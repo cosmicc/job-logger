@@ -809,7 +809,7 @@
       {% else %}
         <section class="work-panel start-entry-panel">
           {% if can_start_jobs %}
-            <h1>Start a work entry</h1>
+            <h1>Start a time entry</h1>
             <p class="muted-text">click start work, or choose a service call below to start work on a ticket</p>
             <form method="post" action="/jobs/start" class="start-work-form" data-page-loading-form data-loading-message="Starting work...">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

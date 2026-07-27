@@ -4408,6 +4408,8 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
     assert home_response.status_code == 200
     assert 'class="work-hours-compact" aria-label="Time-entry hours worked"' in home_response.text
     assert "<strong>5.5 Hours</strong>" in home_response.text
+    assert "Start a time entry" in home_response.text
+    assert "Start a work entry" not in home_response.text
     assert "work-hours-summary" not in home_response.text
     stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
     assert (
@@ -4431,6 +4433,24 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
     ) in phone_stylesheet
     assert ".review-shell .review-hours-full-value {\n  display: none;\n}" in phone_stylesheet
     assert ".review-shell .review-hours-compact-value {\n  display: block;\n}" in phone_stylesheet
+    desktop_stylesheet = (
+        Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "desktop.css"
+    ).read_text(encoding="utf-8")
+    assert (
+        ".mobile-shell {\n"
+        "  width: min(1180px, calc(100% - 48px));\n"
+        "  max-width: none;\n"
+        "  margin-top: 8px;\n"
+        "}"
+    ) in desktop_stylesheet
+    assert (
+        ".review-hours-summary-row {\n"
+        "    display: grid;\n"
+        "    grid-template-columns: repeat(3, minmax(0, 1fr));\n"
+        "    width: max(390px, calc((100% - 18px) / 2.55));\n"
+        "    margin-left: auto;\n"
+        "  }"
+    ) in desktop_stylesheet
 
 
 def test_unsubmitted_time_entry_count_includes_only_actionable_autotask_work() -> None:

@@ -13,7 +13,7 @@
     </p>
 
     <div class="config-layout">
-      <div class="config-main-stack">
+      <div class="config-main-stack{% if not password_change_required %} config-main-stack-standard{% endif %}">
         {% if password_change_required %}
           <section class="edit-panel config-panel config-required-password-notice config-grid-full" aria-labelledby="required-password-heading">
             <div class="panel-title-row">

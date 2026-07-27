@@ -50,6 +50,11 @@ authorization.
 Use `ticket_pilot/static/desktop.css` for wider browser-only layout improvements
 and leave `ticket_pilot/static/phone.css` unchanged unless the request explicitly
 targets the phone or installed mobile app.
+On full-browser Config, use independent card columns so Password and Workflow
+stack on the left while Navigation and Device sign-in stack on the right.
+Workflow must sit directly below Password instead of being pushed down by the
+taller Navigation card. Preserve the phone visual order of Appearance,
+Password, Navigation, Workflow, then Device sign-in.
 
 Phone-sized authenticated layouts hide the brand mark and desktop logout form.
 The visible top bar should place Work and Review left-aligned for managed web
@@ -585,12 +590,16 @@ Review supports:
 - Showing time-entry hours worked today and this week near the top of Review,
   including `0 Hours` when no time-entry work exists for those periods.
 - Showing Today and Week time-entry hours as a compact boxed summary near the
-  top of Work without turning it into full metric cards.
+  top of Work without turning it into full metric cards. On full browsers, keep
+  that summary close below the navigation bar without the larger generic shell
+  top margin.
 - Starting Review with equal Today, Week, and Unsubmitted cards directly below
   the navigation bar, without a page title or description. On phones all three
   cards stay on one row and abbreviate durations as `15m`, `1h`, or `1.25h`;
-  full-browser cards keep complete duration labels. Unsubmitted counts time
-  entries in Active, Ready for Review, or Submission Failed status only.
+  full-browser cards keep complete duration labels and the three-card row
+  matches the width and right edge of the Review detail card below it.
+  Unsubmitted counts time entries in Active, Ready for Review, or Submission
+  Failed status only.
   Exclude ticket notes, rejected jobs, and successfully submitted jobs.
   Managed users use their owner-scoped job list; the config super admin uses
   the all-owner review list.

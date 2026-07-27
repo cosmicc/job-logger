@@ -26,6 +26,7 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert config_response.status_code == 200
     assert 'class="theme-dark highlight-teal"' in config_response.text
     assert 'class="config-layout"' in config_response.text
+    assert 'class="config-main-stack config-main-stack-standard"' in config_response.text
     assert 'class="theme-background-dropdown"' in config_response.text
     assert 'role="radiogroup" aria-label="Background"' in config_response.text
     assert 'class="theme-palette-dots theme-palette-dots-dark"' in config_response.text
@@ -76,6 +77,19 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
         "  opacity: 0;\n"
         "}"
     ) in stylesheet
+    desktop_stylesheet = authenticated_client.get("/static/desktop.css").text
+    assert (
+        ".config-main-stack-standard > .config-workflow-panel {\n"
+        "    clear: left;\n"
+        "    margin-top: 18px;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".config-main-stack-standard > .config-device-panel {\n"
+        "    clear: right;\n"
+        "    margin-top: 18px;\n"
+        "  }"
+    ) in desktop_stylesheet
     assert (
         config_response.text.index('id="appearance-heading"')
         < config_response.text.index('id="password-heading"')

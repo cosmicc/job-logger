@@ -38,6 +38,8 @@ All notable changes to TicketPilot are documented in this file.
   development version.
 - Widened the full-browser Config page and arranged its cards in a balanced
   two-column layout while keeping the phone layout stacked.
+- Changed the blank Work panel heading from **Start a work entry** to
+  **Start a time entry**.
 - Rebalanced full-browser blank and concurrent start-work panels so their
   smaller single-line headings and Start Work controls stay left of Service
   calls.
@@ -77,6 +79,10 @@ All notable changes to TicketPilot are documented in this file.
 
 ### Fixed
 
+- Removed extra full-browser space above the Work hour summary and above the
+  Config Workflow card.
+- Aligned the full-browser Review Today, Week, and Unsubmitted summary row with
+  the Review detail card and distributed its three cards evenly.
 - Fixed the installed-app icon layout so the clock is on the left, the notepad
   is in the middle, and the navigation symbol is on the right, keeping browser
   corner badges from covering the clock.

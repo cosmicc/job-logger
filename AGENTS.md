@@ -610,8 +610,11 @@ control on the left, with Service calls on the right. The Help page must begin
 with its first card without a redundant Support/Help page heading. Config must
 begin with the compact **User Settings for &lt;full name&gt;
 (&lt;username&gt;)** line, omit a separate Config heading, use the full desktop
-content width with paired cards where practical, and retain one-card-per-row
-stacking on phones.
+content width, and retain one-card-per-row stacking on phones. On full-browser
+Config, keep Password with Workflow in the left column and Navigation with
+Device sign-in in the right column so Workflow sits directly below Password
+without inheriting Navigation's taller card height. The phone card order remains
+Appearance, Password, Navigation, Workflow, then Device sign-in.
 When no service calls are available for a selected day, the full-browser
 empty-state message should be centered. Phone spacing should remain governed by
 the shared/mobile CSS.
@@ -750,8 +753,12 @@ job date, and local work week. Ticket notes do not contribute to hour totals.
 The Work page and Review page should also show time-entry hours worked today
 and this week, including `0 Hours` when no time-entry work has been recorded.
 Work should show those values as a centered, compact, discreet boxed summary
-rather than full metric cards. Review must omit the page title and description
-so its Today, Week, and Unsubmitted cards begin just below the navigation bar.
+rather than full metric cards. On full-browser Work, that summary should begin
+close below the navigation bar without the larger generic page-shell top gap.
+Review must omit the page title and description so its Today, Week, and
+Unsubmitted cards begin just below the navigation bar. On full-browser Review,
+the three-card summary row should match the width and right edge of the Review
+detail card below it, with three equal-width cards.
 On phones those three same-sized cards must fit on one row and use abbreviated
 duration values such as `15m`, `1h`, or `1.25h`; full-browser cards retain the
 complete duration labels. Unsubmitted counts only time-entry jobs in Active,

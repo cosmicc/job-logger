@@ -126,12 +126,13 @@ calls for your Autotask resource, and it also lets you start a blank work
 record.
 
 The Work page shows a compact Today and Week box with your total time-entry
-hours. Ticket notes do not add to these totals because they do not record start
-and end times.
+hours directly below the navigation area. Ticket notes do not add to these
+totals because they do not record start and end times.
 
-Select **Start Work** to create a Work in Progress card. TicketPilot supports up
-to two active work records at the same time. When two are active, the most
-recently started record appears above the earlier record.
+The blank-work panel is titled **Start a time entry**. Select **Start Work** to
+create a Work in Progress card. TicketPilot supports up to two active work
+records at the same time. When two are active, the most recently started record
+appears above the earlier record.
 
 Each Work in Progress card belongs to your user account. Other users do not use
 your active cards.
@@ -287,7 +288,8 @@ actions instead.
 The Review page starts with Today, Week, and Unsubmitted cards directly below
 the navigation bar, then lists your completed, failed, and submitted records
 newest first, with 10 records per page. On a phone, all three summary cards fit
-on one row and abbreviate duration values, such as `15m`, `1h`, or `1.25h`.
+on one row and abbreviate duration values, such as `15m`, `1h`, or `1.25h`. On
+a full browser, the summary row aligns with the Review detail card.
 
 Use Review to:
 
