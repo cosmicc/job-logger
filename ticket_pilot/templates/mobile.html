@@ -116,7 +116,7 @@
       </div>
     {% endif %}
 
-    {% if navigation_app is defined and navigation_app != "none" and navigation_home_address %}
+    {% if navigation_app is defined and navigation_app != "none" and navigation_home_address and not hide_home_office_navigation_buttons %}
       <nav class="quick-navigation-row is-hidden" aria-label="Quick navigation" data-quick-navigation-row>
         <button
           class="secondary-button quick-navigation-button"

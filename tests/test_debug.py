@@ -814,8 +814,8 @@ def test_app_health_snapshot_includes_active_login_lockout(super_admin_client: T
     assert issue_codes["login-protection"].severity == "warning"
 
 
-def test_app_health_pushover_notifications_fire_on_degrade_change_and_restore(monkeypatch) -> None:
-    """Pushover notifications should avoid repeats and announce recovery."""
+def test_app_health_pushover_notifications_repeat_hourly_until_restore(monkeypatch) -> None:
+    """Pushover should repeat unresolved health alerts and announce recovery."""
 
     sent_notifications: list[tuple[str, str, int]] = []
 
@@ -851,38 +851,51 @@ def test_app_health_pushover_notifications_fire_on_degrade_change_and_restore(mo
         pushover_enabled=True,
         pushover_user_key="user-key",
         pushover_app_key="app-key",
+        pushover_reminder_interval_seconds=3600,
     )
 
     assert app_health_monitor.notify_if_health_changed(
         warning_snapshot,
         notification_state,
         application_settings=notification_settings,
+        observed_at=1000,
     ) == "degraded"
     assert app_health_monitor.notify_if_health_changed(
         warning_snapshot,
         notification_state,
         application_settings=notification_settings,
+        observed_at=4599,
     ) is None
+    assert app_health_monitor.notify_if_health_changed(
+        warning_snapshot,
+        notification_state,
+        application_settings=notification_settings,
+        observed_at=4600,
+    ) == "reminder"
     assert app_health_monitor.notify_if_health_changed(
         critical_snapshot,
         notification_state,
         application_settings=notification_settings,
+        observed_at=4601,
     ) == "changed"
     assert app_health_monitor.notify_if_health_changed(
         healthy_snapshot,
         notification_state,
         application_settings=notification_settings,
+        observed_at=4602,
     ) == "restored"
 
     assert [title for title, _message, _priority in sent_notifications] == [
         "TicketPilot health degraded",
+        "TicketPilot health still degraded",
         "TicketPilot health changed",
         "TicketPilot health restored",
     ]
     assert sent_notifications[0][2] == 0
-    assert sent_notifications[1][2] == 1
-    assert "Database unavailable" in sent_notifications[1][1]
-    assert "passing again" in sent_notifications[2][1]
+    assert sent_notifications[1][2] == 0
+    assert sent_notifications[2][2] == 1
+    assert "Database unavailable" in sent_notifications[2][1]
+    assert "passing again" in sent_notifications[3][1]
 
 
 def test_pushover_notifications_do_not_send_in_dev_build(monkeypatch) -> None:
@@ -2208,9 +2221,11 @@ def test_debug_restore_normalizes_legacy_theme_and_defaults_missing_preferences(
         row.pop("highlight_color", None)
         row.pop("submit_from_work_in_progress", None)
         row.pop("allow_navigation_on_full_web", None)
+        row.pop("hide_home_office_navigation_buttons", None)
     payload["schema"]["user_preferences"].remove("highlight_color")
     payload["schema"]["user_preferences"].remove("submit_from_work_in_progress")
     payload["schema"]["user_preferences"].remove("allow_navigation_on_full_web")
+    payload["schema"]["user_preferences"].remove("hide_home_office_navigation_buttons")
     legacy_backup_content = gzip.compress(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8"),
         mtime=0,
@@ -2241,6 +2256,7 @@ def test_debug_restore_normalizes_legacy_theme_and_defaults_missing_preferences(
         assert restored_preference.highlight_color == HighlightColor.BLUE
         assert restored_preference.submit_from_work_in_progress is False
         assert restored_preference.allow_navigation_on_full_web is False
+        assert restored_preference.hide_home_office_navigation_buttons is False
 
 
 def test_debug_restore_defaults_missing_web_session_invalidation_column(

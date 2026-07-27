@@ -362,6 +362,10 @@ must also stay hidden on full web browsers unless **Allow navigation on full
 web version** is enabled. Do not request transient ticket destinations from a
 full web browser while that preference is off. Device classification is a
 presentation convenience only and must never authorize a workflow action.
+The default-off **Hide Home and Office navigation buttons** preference hides
+only those two quick destinations. Disable and grey out that setting while
+Navigation is None. It must not hide or disable ticket/service-call
+**Navigate to Destination** controls or automatic verified On-Site directions.
 Home, Office, and Navigate to Destination controls use the shared subtle blue
 navigation-button treatment. On phone layouts, place **Navigate to Destination**
 on its own full-width row immediately

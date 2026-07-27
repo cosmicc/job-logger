@@ -304,6 +304,9 @@ class Settings:
     # PUSHOVER_TIMEOUT_SECONDS bounds notification delivery attempts.
     pushover_timeout_seconds: float
 
+    # PUSHOVER_REMINDER_INTERVAL_SECONDS repeats unresolved degraded-health alerts.
+    pushover_reminder_interval_seconds: int
+
     # TRANSCRIPTION_PROVIDER selects the audio transcription backend.
     transcription_provider: str
 
@@ -628,6 +631,10 @@ def load_settings() -> Settings:
             or "https://api.pushover.net/1/messages.json"
         ),
         pushover_timeout_seconds=_get_positive_float("PUSHOVER_TIMEOUT_SECONDS", 10.0),
+        pushover_reminder_interval_seconds=_get_positive_integer(
+            "PUSHOVER_REMINDER_INTERVAL_SECONDS",
+            3600,
+        ),
         transcription_provider=os.getenv("TRANSCRIPTION_PROVIDER", "mock").strip().lower().replace("-", "_"),
         max_audio_upload_bytes=_get_integer("MAX_AUDIO_UPLOAD_BYTES", 10 * 1024 * 1024),
         max_backup_restore_bytes=_get_integer("MAX_BACKUP_RESTORE_BYTES", 250 * 1024 * 1024),

@@ -202,6 +202,10 @@ viewport width. **Allow navigation on full web version** is a separate
 default-off per-user preference; disable and grey out that checkbox while
 Navigation is None. Full-browser navigation requires both a configured
 navigation app and this explicit opt-in.
+**Hide Home and Office navigation buttons** is a separate default-off per-user
+preference that hides only those two quick destinations on Work. Disable and
+grey it out while Navigation is None, and never use it to hide ticket or
+service-call destination navigation.
 For every future feature that must distinguish a mobile device from the full
 web version, reuse `window.TicketPilotNavigation.isMobileDevice()` from
 `ticket_pilot/static/navigation.js`; use
@@ -705,7 +709,7 @@ the right-side **Log out** button. The authenticated desktop brand mark and
 favicon must use `ticketpilot-logo-white.svg` for all dark themes and
 `ticketpilot-logo-black.svg` for all light themes, with
 `ticketpilot-logo-grey.svg` as the neutral fallback. Config theme changes must
-update both without a page reload. The PWA manifest must advertise the supplied
+update both without a page reload. The PWA manifest must advertise the maintained
 `ticketpilot-app-icon-*` PNG sources at 128, 256, 512, and 1024 pixels, and the
 Apple touch icon must use the 256 pixel source. Do not advertise maskable
 install icons unless a future design includes separately supplied and tested
@@ -907,8 +911,8 @@ Pushover health notifications are optional and best-effort. Compose, Swarm,
 `.env.example`, and README docs must stay aligned when adding or changing
 `PUSHOVER_*` or `APP_HEALTH_*` variables. Pushover user and app keys are
 secrets and must stay in environment variables, Docker secrets, or another
-approved secret store. The in-app monitor can report degraded, changed, and
-restored app health only while the app process is running; full
+approved secret store. The in-app monitor reports degraded, changed, hourly
+still-degraded, and restored app health only while the app process is running; full
 host/container/process-down alerts require an external monitor against
 `/health/live`. `DEV_BUILD=true` must suppress Pushover health notifications
 regardless of `PUSHOVER_ENABLED`.
@@ -1152,8 +1156,8 @@ The application is a FastAPI project under `ticket_pilot/`.
   including stale network-filesystem handles, must become a critical health
   issue without preventing ordinary authenticated pages from rendering.
 - `ticket_pilot/services/app_health_monitor.py` runs the optional in-process
-  app-health notification loop and suppresses repeated Pushover alerts until
-  the active degraded issue set changes or restores.
+  app-health notification loop, sends immediate changed/restored notices, and
+  repeats an unchanged degraded state at the configured hourly interval.
 - `ticket_pilot/services/pushover.py` owns best-effort Pushover message delivery
   and must never log configured user or app keys.
 - `ticket_pilot/services/database_diagnostics.py` collects display-safe database
@@ -1447,8 +1451,8 @@ In production:
   `APP_HEALTH_DISK_CRITICAL_FREE_MB`, defaulting to 250. Used percentage is
   display-only and must not trigger an alert.
 - The optional Pushover health monitor is best-effort and in-process. It can
-  notify on degraded, changed, and restored monitored health only while the app
-  process is running. Keep `PUSHOVER_USER_KEY` and `PUSHOVER_APP_KEY` in
+  notify on degraded, changed, hourly still-degraded, and restored monitored
+  health only while the app process is running. Keep `PUSHOVER_USER_KEY` and `PUSHOVER_APP_KEY` in
   environment or Docker secrets, never source control or logs. Full
   host/container/process-down detection still requires an external monitor
   against `/health/live`. `DEV_BUILD=true` must disable Pushover notifications

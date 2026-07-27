@@ -23,6 +23,7 @@ DEFAULT_HIGHLIGHT_COLOR = HighlightColor.TEAL
 DEFAULT_SUBMIT_FROM_WORK_IN_PROGRESS = False
 DEFAULT_NAVIGATION_APP = NavigationApp.NONE
 DEFAULT_ALLOW_NAVIGATION_ON_FULL_WEB = False
+DEFAULT_HIDE_HOME_OFFICE_NAVIGATION_BUTTONS = False
 MAX_NAVIGATION_ADDRESS_LENGTH = 300
 THEME_META_COLORS = {
     ThemeMode.DARK: "#0b1220",
@@ -153,6 +154,7 @@ class NavigationPreferences:
     office_address_override: str | None
     effective_office_address: str | None
     allow_navigation_on_full_web: bool
+    hide_home_office_navigation_buttons: bool
 
 
 def normalize_theme(raw_theme: str | None) -> ThemeMode:
@@ -213,6 +215,21 @@ def normalize_allow_navigation_on_full_web(raw_enabled: bool | str | None) -> bo
         return False
 
     raise UserPreferenceError("Allow navigation on full web version must be on or off.")
+
+
+def normalize_hide_home_office_navigation_buttons(raw_enabled: bool | str | None) -> bool:
+    """Return whether Work should hide only the Home and Office quick actions."""
+
+    if isinstance(raw_enabled, bool):
+        return raw_enabled
+
+    normalized_enabled = (raw_enabled or "").strip().casefold()
+    if normalized_enabled in {"1", "true", "yes", "on"}:
+        return True
+    if normalized_enabled in {"", "0", "false", "no", "off"}:
+        return False
+
+    raise UserPreferenceError("Hide Home and Office navigation buttons must be on or off.")
 
 
 def normalize_navigation_address(raw_address: str | None, *, field_label: str) -> str | None:
@@ -307,12 +324,18 @@ def get_navigation_preferences_for_principal(
         if user_preference
         else DEFAULT_ALLOW_NAVIGATION_ON_FULL_WEB
     )
+    hide_home_office_navigation_buttons = (
+        bool(user_preference.hide_home_office_navigation_buttons)
+        if user_preference
+        else DEFAULT_HIDE_HOME_OFFICE_NAVIGATION_BUTTONS
+    )
     return NavigationPreferences(
         navigation_app=navigation_app,
         home_address=home_address,
         office_address_override=office_override,
         effective_office_address=office_override or application_settings.navigation_office_address or None,
         allow_navigation_on_full_web=allow_navigation_on_full_web,
+        hide_home_office_navigation_buttons=hide_home_office_navigation_buttons,
     )
 
 
@@ -350,6 +373,7 @@ def _new_user_preference(principal_key: str) -> UserPreference:
         submit_from_work_in_progress=DEFAULT_SUBMIT_FROM_WORK_IN_PROGRESS,
         navigation_app=DEFAULT_NAVIGATION_APP,
         allow_navigation_on_full_web=DEFAULT_ALLOW_NAVIGATION_ON_FULL_WEB,
+        hide_home_office_navigation_buttons=DEFAULT_HIDE_HOME_OFFICE_NAVIGATION_BUTTONS,
     )
 
 
@@ -401,6 +425,7 @@ def save_navigation_preferences_for_principal(
     home_address: str | None,
     office_address: str | None,
     allow_navigation_on_full_web: bool | str | None,
+    hide_home_office_navigation_buttons: bool | str | None,
 ) -> UserPreference:
     """Validate and persist private navigation settings for one managed user."""
 
@@ -408,10 +433,14 @@ def save_navigation_preferences_for_principal(
     normalized_home = normalize_navigation_address(home_address, field_label="Home address")
     normalized_office = normalize_navigation_address(office_address, field_label="Office address")
     normalized_allow_full_web = normalize_allow_navigation_on_full_web(allow_navigation_on_full_web)
+    normalized_hide_home_office_buttons = normalize_hide_home_office_navigation_buttons(
+        hide_home_office_navigation_buttons
+    )
     if normalized_app != NavigationApp.NONE and normalized_home is None:
         raise UserPreferenceError("Home address is required when navigation is enabled.")
     if normalized_app == NavigationApp.NONE:
         normalized_allow_full_web = False
+        normalized_hide_home_office_buttons = False
 
     user_preference = get_user_preference(database_session, principal_key)
     if user_preference is None:
@@ -422,4 +451,5 @@ def save_navigation_preferences_for_principal(
     user_preference.home_address = normalized_home
     user_preference.office_address = normalized_office
     user_preference.allow_navigation_on_full_web = normalized_allow_full_web
+    user_preference.hide_home_office_navigation_buttons = normalized_hide_home_office_buttons
     return user_preference

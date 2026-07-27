@@ -212,9 +212,11 @@ def test_compose_and_swarm_expose_pushover_health_settings() -> None:
         assert "PUSHOVER_APP_KEY: ${PUSHOVER_APP_KEY:-}" in deployment_text
         assert "PUSHOVER_API_URL: ${PUSHOVER_API_URL:-https://api.pushover.net/1/messages.json}" in deployment_text
         assert "PUSHOVER_TIMEOUT_SECONDS: ${PUSHOVER_TIMEOUT_SECONDS:-10}" in deployment_text
+        assert "PUSHOVER_REMINDER_INTERVAL_SECONDS: ${PUSHOVER_REMINDER_INTERVAL_SECONDS:-3600}" in deployment_text
 
     assert "PUSHOVER_USER_KEY=" in env_example_text
     assert "PUSHOVER_APP_KEY=" in env_example_text
+    assert "PUSHOVER_REMINDER_INTERVAL_SECONDS=3600" in env_example_text
     assert "APP_HEALTH_DISK_WARNING_FREE_MB=1000" in env_example_text
     assert "APP_HEALTH_DISK_CRITICAL_FREE_MB=250" in env_example_text
     assert "external monitor" in env_example_text

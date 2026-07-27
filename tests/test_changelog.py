@@ -17,8 +17,8 @@ from ticket_pilot.services.changelog import (
 from ticket_pilot.version import APP_VERSION
 
 CURRENT_RELEASE_DATE = ""
-CURRENT_WEB_TITLE = "TicketPilot rename, themes, layouts, and active timing"
-CURRENT_DETAILED_HEADING = "## 2.0.0 - TicketPilot rename, themes, layouts, and active timing"
+CURRENT_WEB_TITLE = "TicketPilot rename, themes, workflow, navigation, and reliability"
+CURRENT_DETAILED_HEADING = "## 2.0.0 - TicketPilot rename, themes, workflow, navigation, and reliability"
 CURRENT_WEB_HEADING = f"## 2.0.0 - {CURRENT_WEB_TITLE}"
 V140_DETAILED_HEADING = "## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations"
 V140_WEB_HEADING = "## 1.4.0 - 07.20.2026 - Navigation apps and quick destinations"
@@ -232,6 +232,10 @@ def test_changelog_parser_reads_current_release() -> None:
             "Config now has ten independently selectable highlight colors with a visible sample for every option.",
             "Review now shows how many actionable time entries have not been submitted to Autotask yet.",
             "TicketPilot now uses its new logo and new high-resolution installed-app icon.",
+            (
+                "Config can hide only the Home and Office quick-navigation buttons while keeping ticket "
+                "destinations available."
+            ),
             "Account emails, Help content, and user documentation now use the TicketPilot name.",
             (
                 "Full-browser Config now uses the available width with paired cards, and both blank and concurrent "
@@ -271,6 +275,7 @@ def test_changelog_parser_reads_current_release() -> None:
                 "on one row with shorter hour and minute labels."
             ),
             "Config now identifies the active account with its full name and username.",
+            "The installed-app icon now places its clock on the left so browser corner badges do not cover it.",
             "Removed stale former-name labels from user-facing application pages and metadata.",
             (
                 "Help and Config now begin closer to the navigation bar without redundant page titles or blank space."

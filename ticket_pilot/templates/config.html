@@ -257,6 +257,34 @@
                   </span>
                 </span>
               </label>
+              <label
+                class="toggle-setting-card{% if selected_navigation_app == 'none' %} is-disabled{% endif %}"
+                data-home-office-navigation-setting
+              >
+                <span class="toggle-setting-copy">
+                  <strong>Hide Home and Office navigation buttons</strong>
+                  <small>
+                    When this is on, Work hides only the Home and Office quick-navigation buttons.
+                    Ticket and service-call destination navigation stays available.
+                  </small>
+                </span>
+                <span class="setting-toggle">
+                  <input
+                    type="checkbox"
+                    name="hide_home_office_navigation_buttons"
+                    value="true"
+                    data-home-office-navigation-option
+                    {% if hide_home_office_navigation_buttons %}checked{% endif %}
+                    {% if selected_navigation_app == "none" %}disabled{% endif %}
+                  >
+                  <span class="setting-toggle-track" aria-hidden="true">
+                    <span class="setting-toggle-knob"></span>
+                  </span>
+                  <span class="setting-toggle-state" data-home-office-navigation-state>
+                    {% if hide_home_office_navigation_buttons %}On{% else %}Off{% endif %}
+                  </span>
+                </span>
+              </label>
               <p class="config-privacy-note muted-text">Saved addresses are private user settings and are not included in audit logs.</p>
               <p class="config-save-status muted-text" data-config-status aria-live="polite">Changes save automatically.</p>
             </form>

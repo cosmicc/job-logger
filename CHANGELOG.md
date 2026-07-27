@@ -2,7 +2,7 @@
 
 All notable changes to TicketPilot are documented in this file.
 
-## 2.0.0 - TicketPilot rename, themes, layouts, and active timing
+## 2.0.0 - TicketPilot rename, themes, workflow, navigation, and reliability
 
 ### Added
 
@@ -18,6 +18,10 @@ All notable changes to TicketPilot are documented in this file.
   active, ready for review, or awaiting a successful retry.
 - Added the supplied white, grey, and black TicketPilot SVG logo sources and
   the supplied 128, 256, 512, and 1024 pixel installed-app icon sources.
+- Added a default-off per-user option to hide the Home and Office
+  quick-navigation buttons without disabling ticket or service-call directions.
+- Added `PUSHOVER_REMINDER_INTERVAL_SECONDS`, defaulting to 3600, for
+  unresolved app-health alert reminders.
 
 ### Changed
 
@@ -43,8 +47,10 @@ All notable changes to TicketPilot are documented in this file.
 - Changed the authenticated desktop logo and browser favicon to use the white
   logo on dark themes, the black logo on light themes, and the grey logo as a
   neutral fallback. Theme changes update both immediately.
-- Changed the PWA manifest and Apple touch icon to use the supplied
-  multi-resolution TicketPilot app icons without altering their source files.
+- Changed the PWA manifest and Apple touch icon to use the maintained
+  multi-resolution TicketPilot app icons.
+- Changed Pushover health monitoring to repeat unchanged degraded-health alerts
+  every hour by default until the monitored state changes or recovers.
 - Established **Ticket Pilot for Autotask** as the formal long application name
   while retaining `TicketPilot` for compact UI, package, and deployment use.
 - Defaulted optional Cloudflare Access header enforcement to off across Compose,
@@ -71,6 +77,9 @@ All notable changes to TicketPilot are documented in this file.
 
 ### Fixed
 
+- Fixed the installed-app icon layout so the clock is on the left, the notepad
+  is in the middle, and the navigation symbol is on the right, keeping browser
+  corner badges from covering the clock.
 - Removed stale former-name labels and paths from runtime metadata, public
   application surfaces, deployment templates, and maintained documentation.
 - Removed the Help and Config page titles and their unused vertical space,

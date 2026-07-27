@@ -588,7 +588,9 @@ Review can show **Navigate to Destination**. Device Default uses the Android `ge
 Apple Maps on iPhone/iPad, and a browser map on desktop. Navigation controls
 and automatic On-Site service-call directions are enabled on phones and tablets
 by default. Desktop browsers require the separate default-off **Allow
-navigation on full web version** option. Starting a verified On-Site service
+navigation on full web version** option. The separate default-off **Hide Home
+and Office navigation buttons** option removes only those two quick buttons;
+ticket and service-call destination navigation remains available. Starting a verified On-Site service
 call opens directions only after the local job commits; Remote service calls
 never launch directions automatically.
 
@@ -1424,8 +1426,11 @@ database errors.
 
 TicketPilot can send best-effort Pushover notifications to an administrator
 when monitored app health first degrades, when the active degraded issue set
-changes, and when all monitored checks are restored. Enable this with
+changes, every hour while the same degraded state remains unresolved, and when
+all monitored checks are restored. Enable this with
 `PUSHOVER_ENABLED=true`, `PUSHOVER_USER_KEY`, and `PUSHOVER_APP_KEY`.
+`PUSHOVER_REMINDER_INTERVAL_SECONDS` controls the repeat interval and defaults
+to `3600`.
 When `DEV_BUILD=true`, TicketPilot suppresses Pushover notifications regardless
 of `PUSHOVER_ENABLED` so dev/test deployments do not alert as production.
 The monitor runs inside the app process at

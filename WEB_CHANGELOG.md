@@ -2,7 +2,7 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## 2.0.0 - TicketPilot rename, themes, layouts, and active timing
+## 2.0.0 - TicketPilot rename, themes, workflow, navigation, and reliability
 
 ### Added
 
@@ -11,6 +11,7 @@ Short release notes shown on the authenticated `/changelog` page.
 - Config now has ten independently selectable highlight colors with a visible sample for every option.
 - Review now shows how many actionable time entries have not been submitted to Autotask yet.
 - TicketPilot now uses its new logo and new high-resolution installed-app icon.
+- Config can hide only the Home and Office quick-navigation buttons while keeping ticket destinations available.
 
 ### Changed
 
@@ -30,6 +31,7 @@ Short release notes shown on the authenticated `/changelog` page.
 
 ### Fixed
 
+- The installed-app icon now places its clock on the left so browser corner badges do not cover it.
 - Removed stale former-name labels from user-facing application pages and metadata.
 - Help and Config now begin closer to the navigation bar without redundant page titles or blank space.
 - Work Duration now updates immediately when a work-type change normalizes the active stop time.

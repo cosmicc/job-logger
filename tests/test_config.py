@@ -54,7 +54,9 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert "Waze" in config_response.text
     assert "Apple Maps" in config_response.text
     assert "Allow navigation on full web version" in config_response.text
+    assert "Hide Home and Office navigation buttons" in config_response.text
     assert re.search(r'name="allow_navigation_on_full_web"[^>]+disabled', config_response.text)
+    assert re.search(r'name="hide_home_office_navigation_buttons"[^>]+disabled', config_response.text)
     assert "submits the completed entry to Autotask immediately" in config_response.text
     assert "data-direct-submit-option" in config_response.text
     assert "data-direct-submit-state" in config_response.text
@@ -286,6 +288,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
             "home_address": "",
             "office_address": "",
             "allow_navigation_on_full_web": "true",
+            "hide_home_office_navigation_buttons": "false",
         },
     )
     assert missing_home_response.status_code == 400
@@ -300,6 +303,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
             "home_address": "  10 Home Road\nDetroit, MI 48201  ",
             "office_address": "20 Office Avenue, Detroit, MI 48202",
             "allow_navigation_on_full_web": "true",
+            "hide_home_office_navigation_buttons": "false",
         },
     )
     assert save_response.status_code == 200
@@ -307,6 +311,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
     assert save_response.json()["home_address_configured"] is True
     assert save_response.json()["office_address_override_configured"] is True
     assert save_response.json()["allow_navigation_on_full_web"] is True
+    assert save_response.json()["hide_home_office_navigation_buttons"] is False
 
     home_response = authenticated_client.get("/work")
     assert 'data-navigation-app="waze"' in home_response.text
@@ -320,14 +325,32 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
         assert preference.navigation_app == NavigationApp.WAZE
         assert preference.home_address == "10 Home Road Detroit, MI 48201"
         assert preference.allow_navigation_on_full_web is True
+        assert preference.hide_home_office_navigation_buttons is False
         audit_event = database_session.scalars(
             select(AuditEvent).where(AuditEvent.action == "user.config.updated").order_by(AuditEvent.created_at_utc.desc())
         ).first()
         assert audit_event is not None
         assert audit_event.details["home_address_configured"] is True
         assert audit_event.details["allow_navigation_on_full_web"] is True
+        assert audit_event.details["hide_home_office_navigation_buttons"] is False
         assert "10 Home Road" not in str(audit_event.details)
         assert "20 Office Avenue" not in str(audit_event.details)
+
+    hide_quick_destinations_response = authenticated_client.post(
+        "/config",
+        headers={"Accept": "application/json", "X-CSRF-Token": csrf_token},
+        data={
+            "csrf_token": csrf_token,
+            "navigation_app": "waze",
+            "home_address": "10 Home Road Detroit, MI 48201",
+            "office_address": "20 Office Avenue, Detroit, MI 48202",
+            "allow_navigation_on_full_web": "true",
+            "hide_home_office_navigation_buttons": "true",
+        },
+    )
+    assert hide_quick_destinations_response.status_code == 200
+    assert hide_quick_destinations_response.json()["hide_home_office_navigation_buttons"] is True
+    assert "data-static-navigation-button" not in authenticated_client.get("/work").text
 
     disable_response = authenticated_client.post(
         "/config",
@@ -338,10 +361,12 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
             "home_address": "10 Home Road Detroit, MI 48201",
             "office_address": "20 Office Avenue, Detroit, MI 48202",
             "allow_navigation_on_full_web": "true",
+            "hide_home_office_navigation_buttons": "true",
         },
     )
     assert disable_response.status_code == 200
     assert disable_response.json()["allow_navigation_on_full_web"] is False
+    assert disable_response.json()["hide_home_office_navigation_buttons"] is False
 
     disabled_config_response = authenticated_client.get("/config")
     assert re.search(
@@ -349,6 +374,10 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
         disabled_config_response.text,
     )
     assert re.search(r'name="allow_navigation_on_full_web"[^>]+disabled', disabled_config_response.text)
+    assert re.search(
+        r'name="hide_home_office_navigation_buttons"[^>]+disabled',
+        disabled_config_response.text,
+    )
 
 
 def test_navigation_office_address_loads_bounded_single_line_value(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -575,6 +604,7 @@ def test_app_health_and_pushover_settings_load_from_environment(monkeypatch) -> 
     monkeypatch.setenv("PUSHOVER_APP_KEY", "app-key-value")
     monkeypatch.setenv("PUSHOVER_API_URL", "https://pushover.example.test/messages.json")
     monkeypatch.setenv("PUSHOVER_TIMEOUT_SECONDS", "3.5")
+    monkeypatch.setenv("PUSHOVER_REMINDER_INTERVAL_SECONDS", "7200")
 
     loaded_settings = load_settings()
 
@@ -590,6 +620,7 @@ def test_app_health_and_pushover_settings_load_from_environment(monkeypatch) -> 
     assert loaded_settings.pushover_app_key == "app-key-value"
     assert loaded_settings.pushover_api_url == "https://pushover.example.test/messages.json"
     assert loaded_settings.pushover_timeout_seconds == 3.5
+    assert loaded_settings.pushover_reminder_interval_seconds == 7200
     assert loaded_settings.pushover_configured is True
     assert loaded_settings.pushover_notifications_enabled is True
 

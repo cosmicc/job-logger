@@ -105,6 +105,9 @@ _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
         # Full-browser navigation is a separate, explicit opt-in. Legacy
         # backups restore with navigation limited to mobile devices.
         "allow_navigation_on_full_web": False,
+        # v2.0.0 added an independent quick-destination visibility option.
+        # Older backups continue showing Home and Office navigation buttons.
+        "hide_home_office_navigation_buttons": False,
     },
     "login_failure_counters": {
         # v1.1.5 scoped local lockout counters by username. Older backups had

@@ -765,6 +765,7 @@ def home_page(
             navigation_home_address=navigation_preferences.home_address,
             navigation_office_address=navigation_preferences.effective_office_address,
             allow_navigation_on_full_web=navigation_preferences.allow_navigation_on_full_web,
+            hide_home_office_navigation_buttons=navigation_preferences.hide_home_office_navigation_buttons,
         ),
     )
 

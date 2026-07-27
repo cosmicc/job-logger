@@ -400,6 +400,11 @@ hide navigation buttons and prevent automatic service-call directions in a
 desktop browser. Turn it on to allow those actions on full web browsers as well
 as mobile devices. The option is disabled while Navigation is set to None.
 
+**Hide Home and Office navigation buttons** is also off by default. Turn it on
+to remove only those two quick buttons from Work. Ticket and service-call
+**Navigate to Destination** controls remain available. This option is disabled
+while Navigation is set to None.
+
 Device Default asks Android to use its registered map handler, uses Apple Maps
 on iPhone or iPad, and opens browser directions on an opted-in desktop.
 

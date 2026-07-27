@@ -257,6 +257,13 @@ class UserPreference(Base):
         server_default="false",
         comment="Whether navigation controls and automatic launches are allowed on full web browsers.",
     )
+    hide_home_office_navigation_buttons: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Whether the Work page hides only the user's Home and Office quick-navigation buttons.",
+    )
 
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(

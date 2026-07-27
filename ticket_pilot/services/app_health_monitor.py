@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -20,9 +21,10 @@ HealthFingerprint = tuple[tuple[str, str], ...]
 
 @dataclass
 class HealthNotificationState:
-    """State used to prevent repeated notifications for unchanged health issues."""
+    """State used to time notifications for the active degraded issue set."""
 
     active_fingerprint: HealthFingerprint = ()
+    last_degraded_notification_at: float | None = None
 
 
 def health_snapshot_fingerprint(snapshot: AppHealthSnapshot) -> HealthFingerprint:
@@ -50,13 +52,33 @@ def notify_if_health_changed(
     state: HealthNotificationState,
     *,
     application_settings: Settings = settings,
+    observed_at: float | None = None,
 ) -> str | None:
-    """Send a notification for degraded, changed, or restored app health."""
+    """Send a notification for degraded, changed, repeated, or restored health."""
 
     current_fingerprint = health_snapshot_fingerprint(snapshot)
     previous_fingerprint = state.active_fingerprint
+    current_observed_at = time.monotonic() if observed_at is None else observed_at
     if current_fingerprint == previous_fingerprint:
-        return None
+        if not current_fingerprint:
+            return None
+        reminder_due = (
+            state.last_degraded_notification_at is None
+            or current_observed_at - state.last_degraded_notification_at
+            >= application_settings.pushover_reminder_interval_seconds
+        )
+        if not reminder_due:
+            return None
+
+        priority = 1 if snapshot.severity == "critical" else 0
+        send_pushover_notification(
+            "TicketPilot health still degraded",
+            health_snapshot_message(snapshot),
+            priority=priority,
+            application_settings=application_settings,
+        )
+        state.last_degraded_notification_at = current_observed_at
+        return "reminder"
 
     state.active_fingerprint = current_fingerprint
     if current_fingerprint:
@@ -70,8 +92,10 @@ def notify_if_health_changed(
             priority=priority,
             application_settings=application_settings,
         )
+        state.last_degraded_notification_at = current_observed_at
         return "degraded" if not previous_fingerprint else "changed"
 
+    state.last_degraded_notification_at = None
     send_pushover_notification(
         "TicketPilot health restored",
         "All monitored TicketPilot checks are passing again.",

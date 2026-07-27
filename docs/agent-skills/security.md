@@ -343,11 +343,14 @@ authenticated pages. Cached Autotask health is tracked by semantic operation
 type, so any user's failed Autotask operation keeps the indicator active until
 that same operation type succeeds again. Successful unrelated Autotask
 operations must not clear another active failure.
-The optional Pushover health monitor is best-effort and in-process. It may
-send degraded, changed, and restored messages only while the app process is
-running; full host/container/process-down detection still belongs to an
-external monitor against `/health/live`. `DEV_BUILD=true` must suppress
-Pushover notifications even when `PUSHOVER_ENABLED=true`.
+The optional Pushover health monitor is best-effort and in-process. It sends an
+initial degraded message, immediate changed-state messages, hourly
+still-degraded reminders by default, and one restored message. Configure the
+repeat cadence with `PUSHOVER_REMINDER_INTERVAL_SECONDS`, defaulting to 3600.
+It can send only while the app process is running; full
+host/container/process-down detection still belongs to an external monitor
+against `/health/live`. `DEV_BUILD=true` must suppress Pushover notifications
+even when `PUSHOVER_ENABLED=true`.
 `DEV_BUILD=true` is not an authorization, environment-isolation, or safety
 boundary.
 
