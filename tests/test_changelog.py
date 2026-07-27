@@ -16,10 +16,10 @@ from ticket_pilot.services.changelog import (
 )
 from ticket_pilot.version import APP_VERSION
 
-CURRENT_RELEASE_DATE = ""
+CURRENT_RELEASE_DATE = "07.26.2026"
 CURRENT_WEB_TITLE = "TicketPilot rename, themes, workflow, navigation, and reliability"
-CURRENT_DETAILED_HEADING = "## 2.0.0 - TicketPilot rename, themes, workflow, navigation, and reliability"
-CURRENT_WEB_HEADING = f"## 2.0.0 - {CURRENT_WEB_TITLE}"
+CURRENT_DETAILED_HEADING = f"## 2.0.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+CURRENT_WEB_HEADING = f"## 2.0.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
 V140_DETAILED_HEADING = "## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations"
 V140_WEB_HEADING = "## 1.4.0 - 07.20.2026 - Navigation apps and quick destinations"
 V131_DETAILED_HEADING = (

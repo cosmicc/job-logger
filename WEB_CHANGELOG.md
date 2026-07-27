@@ -2,7 +2,7 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## 2.0.0 - TicketPilot rename, themes, workflow, navigation, and reliability
+## 2.0.0 - 07.26.2026 - TicketPilot rename, themes, workflow, navigation, and reliability
 
 ### Added
 

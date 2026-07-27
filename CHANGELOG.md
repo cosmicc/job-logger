@@ -2,7 +2,7 @@
 
 All notable changes to TicketPilot are documented in this file.
 
-## 2.0.0 - TicketPilot rename, themes, workflow, navigation, and reliability
+## 2.0.0 - 07.26.2026 - TicketPilot rename, themes, workflow, navigation, and reliability
 
 ### Added
 
@@ -34,8 +34,7 @@ All notable changes to TicketPilot are documented in this file.
 - Renamed Docker Compose and Swarm database, image, service, storage, backup,
   network, and external-Nginx references. Production Swarm now uses `tpapp`
   and `tpnginx`; dev Swarm uses `tpdapp` and `tpdnginx`.
-- Advanced all source-controlled version surfaces to the unreleased `2.0.0`
-  development version.
+- Advanced all source-controlled version surfaces to the `2.0.0` release.
 - Widened the full-browser Config page and arranged its cards in a balanced
   two-column layout while keeping the phone layout stacked.
 - Changed the blank Work panel heading from **Start a work entry** to
