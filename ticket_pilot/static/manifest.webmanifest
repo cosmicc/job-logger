@@ -1,0 +1,54 @@
+{
+  "id": "/work",
+  "name": "Ticket Pilot for Autotask",
+  "short_name": "TicketPilot",
+  "description": "Ticket Pilot for Autotask work timing, notes, review, and submission.",
+  "start_url": "/work",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/static/icons/ticketpilot-app-icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/ticketpilot-app-icon-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/ticketpilot-app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/ticketpilot-app-icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Work Entry",
+      "short_name": "Work",
+      "url": "/work",
+      "description": "Open the active work entry screen."
+    },
+    {
+      "name": "Review Jobs",
+      "short_name": "Review",
+      "url": "/review",
+      "description": "Open the job review screen."
+    }
+  ]
+}

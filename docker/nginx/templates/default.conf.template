@@ -1,9 +1,9 @@
-map $http_x_forwarded_proto $job_logger_forwarded_proto {
+map $http_x_forwarded_proto $ticket_pilot_forwarded_proto {
     default $http_x_forwarded_proto;
     "" $scheme;
 }
 
-map $http_cf_connecting_ip $job_logger_client_ip {
+map $http_cf_connecting_ip $ticket_pilot_client_ip {
     default $http_cf_connecting_ip;
     "" $remote_addr;
 }
@@ -89,16 +89,16 @@ server {
 
     # Full restore uploads can be larger than audio uploads. Limit that higher
     # body allowance to the authenticated diagnostics restore action only.
-    location = /debug/restore {
+    location ~ ^/(?:diagnostics|debug)/restore$ {
         client_max_body_size ${NGINX_RESTORE_MAX_BODY_SIZE};
-        proxy_pass http://${APP_UPSTREAM_HOST}:8000/debug/restore;
+        proxy_pass http://${APP_UPSTREAM_HOST}:8000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $job_logger_client_ip;
+        proxy_set_header X-Forwarded-For $ticket_pilot_client_ip;
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $job_logger_forwarded_proto;
-        proxy_set_header X-Real-IP $job_logger_client_ip;
+        proxy_set_header X-Forwarded-Proto $ticket_pilot_forwarded_proto;
+        proxy_set_header X-Real-IP $ticket_pilot_client_ip;
         proxy_request_buffering off;
     }
 
@@ -124,11 +124,11 @@ server {
 
         # Preserve the same request context as normal proxied app requests.
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $job_logger_client_ip;
+        proxy_set_header X-Forwarded-For $ticket_pilot_client_ip;
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $job_logger_forwarded_proto;
-        proxy_set_header X-Real-IP $job_logger_client_ip;
+        proxy_set_header X-Forwarded-Proto $ticket_pilot_forwarded_proto;
+        proxy_set_header X-Real-IP $ticket_pilot_client_ip;
 
         # Recordings can stay open while the user pauses or adds notes.
         proxy_read_timeout 1h;
@@ -144,11 +144,11 @@ server {
         # Preserve the original host, but replace spoofable client-IP headers
         # with the sanitized tunnel client IP selected above.
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $job_logger_client_ip;
+        proxy_set_header X-Forwarded-For $ticket_pilot_client_ip;
         proxy_set_header X-Forwarded-Host $host;
         proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $job_logger_forwarded_proto;
-        proxy_set_header X-Real-IP $job_logger_client_ip;
+        proxy_set_header X-Forwarded-Proto $ticket_pilot_forwarded_proto;
+        proxy_set_header X-Real-IP $ticket_pilot_client_ip;
 
         # Do not buffer request bodies because mobile audio recordings can be
         # several megabytes and should stream through the reverse proxy.

@@ -2,7 +2,10 @@
 
 ## Project Overview
 
-This repository is for a Dockerized Python web application named Job Logger.
+This repository is for a Dockerized Python web application named TicketPilot.
+Its formal long name is **Ticket Pilot for Autotask**; use `TicketPilot` as the
+compact UI, code, package, and deployment name. Production use depends on the
+Autotask service and valid Autotask API access.
 The application provides a mobile-first web workflow for recording work time,
 recording spoken job descriptions, reviewing recorded jobs, and creating
 Autotask time entries or customer-visible ticket notes after review and
@@ -32,7 +35,9 @@ it must not start, edit, submit, delete, record, or AI-cleanup work entries
 because it has no Autotask resource ID. Normal work must be performed through
 database-managed web users created on `/users`.
 The config super admin and managed web users explicitly marked as Admin may see
-and use `/debug` and `/debug/*`, including all Diagnostics buttons and options.
+and use `/diagnostics` and `/diagnostics/*`, including all Diagnostics buttons
+and options. `/debug` and `/debug/*` remain authenticated compatibility aliases,
+but all rendered links, forms, and redirects must use `/diagnostics`.
 The managed-user Admin flag grants only Diagnostics access. It must not grant
 `/users`, super-admin review scope, or any extra job workflow permissions.
 Managed web users without the Admin flag must receive 403 for direct debug
@@ -71,7 +76,7 @@ The add form includes a default-on **Send welcome email** option. When checked,
 it sends the new user's stored email address a plain-text welcome email with the
 configured `APP_PUBLIC_BASE_URL`, username, temporary-password instructions,
 mobile install steps, Device sign-in guidance, and `ADMIN_CONTACT_EMAIL` when
-configured. Account emails should call the app **Autotask Job Logger**. The
+configured. Account emails should call the app **TicketPilot**. The
 welcome email must never include the temporary password, and
 user creation must still succeed when welcome-email delivery is skipped or
 fails. Audit only safe outcome metadata such as user ID, username, provider,
@@ -175,14 +180,17 @@ phone, browser, biometric unlock, PIN, or another passkey-capable device.
 The login page shows the normal username/password form first and places the
 Device sign-in button under the password sign-in button as the alternate
 managed-user login path.
-`/home` may show a device sign-in setup card only once after each successful
+`/work` may show a device sign-in setup card only once after each successful
 login, only on phone-sized layouts, and only while that managed user has no
 registered passkeys.
 
 Managed web users may change per-login configuration on `/config`. Per-user
-configuration is database-backed, defaults to the dark theme, saves immediately
-when an option changes, and supports `dark` or `light` visual themes for all
-authenticated mobile and web pages. It also supports the default-off **Submit
+configuration is database-backed, defaults to Default Dark with Teal
+highlighting, saves immediately when an option changes, and supports eight
+independent background profiles plus ten named highlight colors for
+authenticated mobile and web pages. Highlight colors must use contrast-adjusted
+light and dark shades while preserving the selected color family. It also
+supports the default-off **Submit
 from Work in Progress** option. When enabled, ending an active job submits the
 time entry directly to Autotask instead of stopping in Review first. The
 per-user navigation setting supports None, Device Default, Google Maps, Waze,
@@ -194,10 +202,14 @@ viewport width. **Allow navigation on full web version** is a separate
 default-off per-user preference; disable and grey out that checkbox while
 Navigation is None. Full-browser navigation requires both a configured
 navigation app and this explicit opt-in.
+**Hide Home and Office navigation buttons** is a separate default-off per-user
+preference that hides only those two quick destinations on Work. Disable and
+grey it out while Navigation is None, and never use it to hide ticket or
+service-call destination navigation.
 For every future feature that must distinguish a mobile device from the full
-web version, reuse `window.JobLoggerNavigation.isMobileDevice()` from
-`job_logger/static/navigation.js`; use
-`window.JobLoggerNavigation.isNavigationAllowed()` when the full-web navigation
+web version, reuse `window.TicketPilotNavigation.isMobileDevice()` from
+`ticket_pilot/static/navigation.js`; use
+`window.TicketPilotNavigation.isNavigationAllowed()` when the full-web navigation
 preference also applies. Do not add feature-specific viewport-width, user-agent,
 or touch checks elsewhere. Extend the shared detector and
 `tests/test_navigation_javascript.py` when another device case must be covered.
@@ -209,7 +221,7 @@ password-change section on `/config` is the exception: it requires two matching
 password entries and an explicit **Change password** submit button, and the
 password card must show the managed-user password requirements. The config
 super admin does not have user settings, does not see the Config menu item,
-cannot access `/config`, and always renders in dark mode.
+cannot access `/config`, and always renders in Default Dark.
 The `/config` cards should render in this order: **Appearance**, **Password**,
 **Navigation**, **Workflow**, then **Device sign-in** as the final card.
 
@@ -228,7 +240,7 @@ Do not log secrets, session tokens, raw authentication headers, Cloudflare Acces
 JWTs, Autotask API credentials, transcription provider credentials, raw audio,
 or other sensitive values. Successful and failed app-login attempts must be
 stored in the database as sanitized `login_attempts` records and shown on
-`/debug` only with safe metadata such as timestamp, client IP, submitted
+`/diagnostics` only with safe metadata such as timestamp, client IP, submitted
 username, account kind, authentication method, user agent, request/proxy
 details, failure reason, and password-present/length for failures. Never store,
 write, or display the raw submitted password. For login diagnostics, display the
@@ -240,7 +252,7 @@ nginx-sanitized `X-Real-IP`/`X-Forwarded-For` or, outside the bundled proxy
 path, the direct socket peer. The failed-login table may hide individual rows by
 setting `login_attempts.hidden_at_utc`; JSONL downloads are generated from the
 database for diagnostics and must remain sanitized. Cloudflare IP blocking on
-`/debug` may create or remove only app-managed zone IP Access Rules tracked in
+`/diagnostics` may create or remove only app-managed zone IP Access Rules tracked in
 `cloudflare_ip_blocks`; it must honor `CLOUDFLARE_IP_BLOCK_ALLOWLIST`, use the
 trusted enforcement IP, store a safe reason for every block, and reset
 `login_failure_counters` to zero after a successful local login for the same
@@ -311,7 +323,7 @@ credential, or internal configuration questions. `GEMINI_API_BASE` is the
 OpenAI-compatible Gemini base URL; the app may accept a full
 `.../chat/completions` endpoint for operator recovery, but it must build the
 final endpoint once and never append that path twice. The assistant is for
-end-user Job Logger support only. Built-in Help instructions should favor
+end-user TicketPilot support only. Built-in Help instructions should favor
 concise complete answers, and server-side answer cleanup may remove short
 dangling trailing fragments after a complete sentence. The Help page may show a
 general operational-status card to all authenticated users, but specific health
@@ -382,7 +394,7 @@ Recorded jobs follow this lifecycle:
    external Autotask record and move the local job back to review, but must not
    delete the local job record. If Delete From Autotask fails, the selected
    review detail may show an explicit local-only purge fallback that removes
-   the Job Logger review row while warning that the Autotask record may still
+   the TicketPilot review row while warning that the Autotask record may still
    exist.
 8. Failed or edited jobs remain available for audit history. Local cleanup is
    available only through explicit audited delete actions, including **Delete
@@ -418,6 +430,12 @@ least 1 rounded hour. Apply the same server-side rule to active end-work,
 Review saves, Review submission/retry, submitted-entry edits, and direct
 Work in Progress Autotask submission. Ticket notes are exempt because they do
 not use start/stop time fields.
+On active Work only, selecting Remote or On-Site must recalculate only the stop
+time. Use the later of the selected location minimum or the current rounded
+15-minute block, keep the start unchanged, persist the canonical stop, and
+return it to the browser so Work Duration updates immediately. Review and
+submitted-entry edits remain manual and must continue to reject durations below
+the selected work-location minimum.
 
 Jobs do not span multiple work dates. Review forms must use one local job date
 with start and end times, and must reject edits where the end time is not after
@@ -451,7 +469,7 @@ The required Autotask ticket-note fields for this application are:
 - Note title.
 - Note description.
 
-Ticket notes created by Job Logger must be customer-visible, never internal.
+Ticket notes created by TicketPilot must be customer-visible, never internal.
 Time entries and ticket notes both include the local **Append to resolution**
 setting in the Autotask payload.
 
@@ -514,7 +532,7 @@ operation type succeeds again; unrelated successful Autotask requests must not
 clear a different active failure.
 Live Autotask REST calls must also pass through the shared provider request
 wrapper so `AUTOTASK_MAX_CONCURRENT_REQUESTS`, defaulting to 2 and validated
-from 1 through 3, can keep Job Logger below Autotask's three-thread threshold.
+from 1 through 3, can keep TicketPilot below Autotask's three-thread threshold.
 PostgreSQL-backed deployments coordinate that limiter across app processes
 sharing the same database by using advisory locks; deployments that do not
 share a database are still independently capped by their own process-local
@@ -574,7 +592,10 @@ The mobile interface must be optimized for quick use from a phone.
 Mobile summary notes textareas should default to a taller note-taking area than
 the shared desktop textarea baseline while remaining vertically resizable.
 
-The `/home` route renders the Home and Work in Progress workflow. Full browser
+The `/work` route is canonical for the Home and Work in Progress workflow.
+`/home` remains a backward-compatible redirect to `/work`, and old
+`/home/service-calls` requests remain accepted while new browser requests use
+`/work/service-calls`. Full browser
 rendering should use desktop-only CSS from `desktop.css` for a wider,
 scan-friendly layout. Keep full-browser layout changes out of `phone.css` so
 the installed mobile phone experience remains unchanged unless explicitly
@@ -583,6 +604,17 @@ presentation must follow client/browser and media behavior. Full-browser
 start-work panels should keep the **Service calls** heading visually raised
 above the date selector while the date selector and service-call list stay
 tightly stacked without a divider line above the section.
+Both the blank and one-active-job concurrent start panels must use this same
+full-browser two-column treatment: a smaller single-line title and Start Work
+control on the left, with Service calls on the right. The Help page must begin
+with its first card without a redundant Support/Help page heading. Config must
+begin with the compact **User Settings for &lt;full name&gt;
+(&lt;username&gt;)** line, omit a separate Config heading, use the full desktop
+content width, and retain one-card-per-row stacking on phones. On full-browser
+Config, keep Password with Workflow in the left column and Navigation with
+Device sign-in in the right column so Workflow sits directly below Password
+without inheriting Navigation's taller card height. The phone card order remains
+Appearance, Password, Navigation, Workflow, then Device sign-in.
 When no service calls are available for a selected day, the full-browser
 empty-state message should be centered. Phone spacing should remain governed by
 the shared/mobile CSS.
@@ -635,23 +667,36 @@ centered **Ticket name** card repeats the same value. The full-browser layout
 depends on that label row so the Summary notes panel starts flush with the top
 of the **Job date** card; keep that label prominent enough to read quickly.
 
-Managed web-user pages must respect the current user's saved theme preference.
-The default is the dark theme. Light theme support must cover mobile, review,
-user management, config, debug, and login surfaces through shared CSS variables
-instead of a separate unaudited template branch. Super-admin pages always use
-dark mode.
+Managed web-user pages must respect the current user's saved background and
+highlight preferences. Default Dark with Teal is the initial appearance.
+Config exposes Default Light, Sage Light, Sky Light, Default Dark, Midnight
+Black, Graphite Dark, Forest Dark, and Plum Dark as three light and five dark
+background profiles in a dropdown whose selected value and every option show
+three round swatches for that background's page, surface, and muted-surface
+colors. It separately exposes Teal, Sage, Sky Blue, Blue, Indigo, Amber,
+Orange, Mint, Lavender, and Rose in a dropdown with a visible color sample for
+every option. Midnight Black replaces Slate Dark, and migrations must preserve
+the effective highlight of older saved themes and backups.
+Every background/highlight combination must cover mobile, review, user
+management, Config, Diagnostics, and login surfaces through shared CSS
+variables instead of separate unaudited template branches. Super-admin pages
+always use Default Dark with Teal. `docs/design/theme_palettes.svg` is the
+maintained reference for all eight backgrounds and ten highlight colors.
+Navigation icons and ordinary buttons use the active highlight color;
+established destructive, success, warning, AI, status, and disabled-control
+colors retain their semantic meaning.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
 must mark the Help navigation button in yellow so dev instances are visually
 distinct from production without adding a separate pill. Full-browser
-authenticated headers also show the version under the left-side Job Logger
+authenticated headers also show the version under the left-side TicketPilot
 title, using `vX.Y.Z-DEV` for dev builds. The Help page itself must show the
-current version with `DEV`, such as `v1.4.0 DEV`.
+current version with `DEV`, such as `v2.0.0 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows compact route and status icons on the left,
 with Work and Review left-aligned for managed web users. Help, Config,
 optional Diagnostics, and logout are right-aligned in that order. The Work
-button links to `/home` and uses the same work-entry icon on phone and
+button links to `/work` and uses the same work-entry icon on phone and
 full-browser navigation. The shared authenticated top bar must remain visible
 at the top of the viewport while any phone or full-browser page scrolls through
 its complete document. The config super admin sees Users and Review on the
@@ -660,16 +705,18 @@ Config shortcut.
 The mobile logout button must post to `/logout` with the
 rendered CSRF token and
 must not use `window.close()` or a browser-only app close fallback. Full-width
-`/home`, review, debug, and other non-mobile authenticated views still expose
+`/work`, Review, Diagnostics, and other non-mobile authenticated views still expose
 the explicit desktop logout control. Full-browser route navigation should be
 centered, use raised blue icon-and-text buttons, place Help immediately before
-the right-side **Log out** button, and show the source-controlled transparent
-Job Logger logo asset as the authenticated desktop brand mark. The
-PWA manifest and favicon should use the source-controlled icon-format Job
-Logger artwork through the `job-logger-install-icon-*` files so installed
-home-screen icons fill the icon frame with the dark app-icon background. Do not
-advertise maskable install icons unless a future design includes a tested
-full-bleed mask-safe background. It should include a **Log out**
+the right-side **Log out** button. The authenticated desktop brand mark and
+favicon must use `ticketpilot-logo-white.svg` for all dark themes and
+`ticketpilot-logo-black.svg` for all light themes, with
+`ticketpilot-logo-grey.svg` as the neutral fallback. Config theme changes must
+update both without a page reload. The PWA manifest must advertise the maintained
+`ticketpilot-app-icon-*` PNG sources at 128, 256, 512, and 1024 pixels, and the
+Apple touch icon must use the 256 pixel source. Do not advertise maskable
+install icons unless a future design includes separately supplied and tested
+full-bleed mask-safe artwork. It should include a **Log out**
 button with the logout icon and visible text while preserving the phone-sized
 icon navigation. Phone top-bar navigation buttons should use the same blue
 visual treatment as the full-browser navigation buttons, and all phone nav
@@ -689,7 +736,9 @@ right-side Help/logout actions; the phone icon joins the compact left-side
 route group so Help can stay immediately beside logout. Do not run live
 Autotask probes while rendering a page.
 The unauthenticated login page should not show a top app icon or wordmark above
-the sign-in form.
+the sign-in form. It must use its own neutral black, white, and grey palette,
+including controls, focus states, and feedback messages, without inheriting or
+applying any authenticated background or highlight theme.
 
 The standard review interface must work well on a full computer screen.
 
@@ -703,9 +752,20 @@ week-hours totals calculated from time-entry jobs for that job's owner, local
 job date, and local work week. Ticket notes do not contribute to hour totals.
 The Work page and Review page should also show time-entry hours worked today
 and this week, including `0 Hours` when no time-entry work has been recorded.
-Home should show those values as a centered, compact, discreet boxed summary
-rather than full metric cards. Review should show Today and Week as same-sized
-metric cards near the top of the page. The summary
+Work should show those values as a centered, compact, discreet boxed summary
+rather than full metric cards. On full-browser Work, that summary should begin
+close below the navigation bar without the larger generic page-shell top gap.
+Review must omit the page title and description so its Today, Week, and
+Unsubmitted cards begin just below the navigation bar. On full-browser Review,
+the three-card summary row should match the width and right edge of the Review
+detail card below it, with three equal-width cards.
+On phones those three same-sized cards must fit on one row and use abbreviated
+duration values such as `15m`, `1h`, or `1.25h`; full-browser cards retain the
+complete duration labels. Unsubmitted counts only time-entry jobs in Active,
+Ready for Review, or Submission Failed status; ticket notes, rejected jobs,
+and successfully submitted jobs do not count.
+Managed users see only their own count, while the config super admin sees the
+count across all owners in the same review scope. The summary
 textarea for time entries must show the complete Autotask summary that will be
 sent, including the leading `Remote. ` or `On-Site. ` prefix. Saving review
 edits parses that prefix back into the stored
@@ -817,10 +877,10 @@ Docker Compose Nginx host publishing must bind only to `127.0.0.1` and use
 `HTTP_PORT` for the host-networked Cloudflare Tunnel origin URL, such as
 `http://127.0.0.1:2082`. Swarm keeps the Nginx listener private to its overlay.
 The internet-facing nginx template must block public API-style, generated docs,
-and public health paths and use app-styled Job Logger web service error pages
+and public health paths and use app-styled TicketPilot web service error pages
 for common nginx-generated 4xx and 5xx responses instead of stock server pages.
 Browser navigation to app-generated HTTP errors, including missing FastAPI
-routes, must also render app-styled Job Logger error pages. Those pages should
+routes, must also render app-styled TicketPilot error pages. Those pages should
 show **Back to Login** when there is no valid app session and **Back to Work**
 when the request already has a valid authenticated session, while API-style
 clients that request JSON should keep receiving JSON error bodies.
@@ -828,8 +888,9 @@ Compose must fail closed when `APP_SECRET_KEY`, `APP_PASSWORD`, or the selected
 database credential source is missing instead of falling back to development
 secrets. Local-db deployments use `POSTGRES_PASSWORD`; remote database
 deployments use `DATABASE_URL`.
-Compose should default the optional Cloudflare Access header gate on for
-production, but production startup must only hard-require secure session
+Compose and Swarm must default the optional Cloudflare Access header gate off.
+Operators may set `CLOUDFLARE_ACCESS_REQUIRED=true` only after a matching
+Cloudflare Access application is configured. Production startup must only hard-require secure session
 cookies, non-default app/database secrets that are not copied placeholders, and
 `AUTOTASK_PROVIDER=autotask`.
 
@@ -857,24 +918,25 @@ Pushover health notifications are optional and best-effort. Compose, Swarm,
 `.env.example`, and README docs must stay aligned when adding or changing
 `PUSHOVER_*` or `APP_HEALTH_*` variables. Pushover user and app keys are
 secrets and must stay in environment variables, Docker secrets, or another
-approved secret store. The in-app monitor can report degraded, changed, and
-restored app health only while the app process is running; full
+approved secret store. The in-app monitor reports degraded, changed, hourly
+still-degraded, and restored app health only while the app process is running; full
 host/container/process-down alerts require an external monitor against
 `/health/live`. `DEV_BUILD=true` must suppress Pushover health notifications
 regardless of `PUSHOVER_ENABLED`.
 
-Production Swarm deployment uses `docker-stack.yml`, the `jlapp` and `jlnginx`
-service names, private GHCR images selected by `JOB_LOGGER_APP_IMAGE` and
-`JOB_LOGGER_NGINX_IMAGE`, and the `http://jlnginx:<HTTP_PORT>` Cloudflare Tunnel
-origin. Dev Swarm deployment uses `docker-stack.dev.yml`, the `jldapp` and
-`jldnginx` service names, dev-tag values in the same per-stack image variables,
-and `http://jldnginx:<HTTP_PORT>`. `HTTP_PORT` defaults to the private overlay
+Production Swarm deployment uses `docker-stack.yml`, the `tpapp` and `tpnginx`
+service names, private GHCR images selected by `TICKET_PILOT_APP_IMAGE` and
+`TICKET_PILOT_NGINX_IMAGE`, and the `http://tpnginx:<HTTP_PORT>` Cloudflare Tunnel
+origin. Dev Swarm deployment uses `docker-stack.dev.yml`, the `tpdapp` and
+`tpdnginx` service names, dev-tag values in the same per-stack image variables,
+and `http://tpdnginx:<HTTP_PORT>`. `HTTP_PORT` defaults to the private overlay
 port `80`; do not publish it through the Swarm routing mesh because Swarm cannot
 restrict a published port to loopback.
-Run two `cloudflared` replicas with at most one replica per node in each stack.
-The per-stack `JOB_LOGGER_SWARM_STORAGE_PATH` defaults to
-`/mnt/swarm-storage/job-logger` in production and
-`/mnt/swarm-storage/job-logger-dev` in dev. Both NFS roots are mounted on every
+Run two `cloudflared` replicas with at most one replica per node in production.
+The dev stack uses one `cloudflared` replica for the smaller test deployment.
+The per-stack `TICKET_PILOT_SWARM_STORAGE_PATH` defaults to
+`/mnt/swarm-storage/ticket-pilot` in production and
+`/mnt/swarm-storage/ticket-pilot-dev` in dev. Both NFS roots are mounted on every
 eligible node without deployment-time ownership or mode changes. Bind only
 automatic backups and the faster-whisper model cache under those paths.
 App, Nginx, and `cloudflared` operational logs must go only to stdout/stderr.
@@ -1008,17 +1070,17 @@ adding features quickly.
 
 ## Current Application Structure
 
-The application is a FastAPI project under `job_logger/`.
+The application is a FastAPI project under `ticket_pilot/`.
 
-- `job_logger/main.py` creates the FastAPI app, registers routers, applies
+- `ticket_pilot/main.py` creates the FastAPI app, registers routers, applies
   session, Cloudflare Access, CSP, and security-header middleware.
-- `job_logger/version.py` owns the source-controlled application version shown
+- `ticket_pilot/version.py` owns the source-controlled application version shown
   on `/help`, `/changelog`, and diagnostics. Advance it only when requested and
   keep it aligned with `pyproject.toml`.
-- `job_logger/session_timeout.py` clears expired local authenticated sessions
+- `ticket_pilot/session_timeout.py` clears expired local authenticated sessions
   according to the configured `APP_SESSION_TIMEOUT_HOURS` value and rejects
   managed web-user sessions that were disabled or administratively invalidated.
-- `job_logger/config.py` loads every runtime setting from environment variables.
+- `ticket_pilot/config.py` loads every runtime setting from environment variables.
   Production must use `AUTOTASK_PROVIDER=autotask`; Autotask resource IDs are
   stored on managed web users, not in config. Remote faster-whisper, AI
   cleanup, help assistant, password reset, SMTP, and Turnstile settings live
@@ -1029,130 +1091,132 @@ The application is a FastAPI project under `job_logger/`.
   visually distinct from production. `ADMIN_CONTACT_EMAIL` configures the
   end-user support contact shown in disabled-account messages, AI Help answer
   footers, and managed-user welcome emails.
-- `job_logger/database.py` owns SQLAlchemy engine/session setup.
-- `job_logger/models.py` defines persistent tables for managed web users,
+- `ticket_pilot/database.py` owns SQLAlchemy engine/session setup.
+- `ticket_pilot/models.py` defines persistent tables for managed web users,
   managed-user session invalidation cutoffs, per-user preferences, password
   reset token hashes and throttles, jobs, audit events, sanitized login
   attempts, and Autotask submission attempts.
-- `job_logger/enums.py` defines workflow, transcription, and ticket-status
+- `ticket_pilot/enums.py` defines workflow, transcription, and ticket-status
   enums used by routes, services, templates, and migrations.
-- `job_logger/time_utils.py` centralizes UTC/local conversion and 15-minute
+- `ticket_pilot/time_utils.py` centralizes UTC/local conversion and 15-minute
   rounding. Do not duplicate rounding logic elsewhere.
-- `job_logger/ui.py` owns shared template context, including the content-derived
+- `ticket_pilot/ui.py` owns shared template context, including the content-derived
   static asset version used to bust browser/PWA caches after CSS or JavaScript
   changes without changing the source-controlled app version.
-- `job_logger/services/changelog.py` parses the source-controlled
+- `ticket_pilot/services/changelog.py` parses the source-controlled
   `WEB_CHANGELOG.md` into concise plain-text release entries for authenticated
   display.
-- `job_logger/services/help_assistant.py` builds bounded end-user help context
+- `ticket_pilot/services/help_assistant.py` builds bounded end-user help context
   from `USER_MANUAL.md`, `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files,
   and selected app source, then calls Gemini's OpenAI-compatible
   chat-completions API only when server-side AI Help is configured.
 - `USER_MANUAL.md` is the full end-user manual. It must describe only surfaces
   normal managed web users can access and must not document Diagnostics or
   other admin-only pages.
-- `job_logger/services/transcription.py` owns local and remote speech-to-text
+- `ticket_pilot/services/transcription.py` owns local and remote speech-to-text
   providers, including remote faster-whisper URL safety checks and bearer-token
   handling.
 - `CHANGELOG.md` contains detailed release notes for operators and agents.
   `WEB_CHANGELOG.md` contains short user-facing release notes for `/changelog`.
-- `job_logger/routes/auth.py` handles config super-admin login, managed web-user
+- `ticket_pilot/routes/auth.py` handles config super-admin login, managed web-user
   login, logout, and local authenticated sessions, including sanitized
   database-backed login-attempt records.
-- `job_logger/routes/password_reset.py` handles self-service managed-user
+- `ticket_pilot/routes/password_reset.py` handles self-service managed-user
   password reset requests, sanitized Turnstile browser diagnostics, and token
   completion without account enumeration.
-- `job_logger/routes/passkeys.py` handles managed-user passkey registration,
+- `ticket_pilot/routes/passkeys.py` handles managed-user passkey registration,
   deletion, and passkey login challenge/verification routes.
-- `job_logger/routes/mobile.py` handles `/home`, active job start/end/save,
+- `ticket_pilot/routes/mobile.py` handles `/work`, active job start/end/save,
   active rounded-start adjustment, WebSocket recording streams for active and
   unsubmitted review jobs, compatibility recording uploads, description text
   saves, and Autotask company autocomplete.
-- `job_logger/routes/review.py` handles review listing, edit/save/accept/retry,
+- `ticket_pilot/routes/review.py` handles review listing, edit/save/accept/retry,
   saving the first client selection for an empty active review job, updating or
   deleting existing submitted Autotask records, ticket lookup for a selected
   job, and explicit local **Delete time entry** / **Delete note** cleanup.
-- `job_logger/routes/users.py` handles the super-admin managed web-user page,
+- `ticket_pilot/routes/users.py` handles the super-admin managed web-user page,
   including add/edit/enable/disable/delete/archive/restore behavior, Autotask
   Resource lookup, active service-desk role lookup, and session invalidation
   when accounts are disabled or archived.
-- `job_logger/routes/configuration.py` handles authenticated managed-web-user
-  configuration such as immediate light/dark theme selection and explicit
-  managed-user password changes.
-- `job_logger/routes/changelog.py` handles authenticated `/changelog` release
+- `ticket_pilot/routes/configuration.py` handles authenticated managed-web-user
+  configuration such as immediate independent background/highlight selection
+  and explicit managed-user password changes.
+- `ticket_pilot/routes/changelog.py` handles authenticated `/changelog` release
   history used by the Help page's **version changelog** overlay and by direct
   authenticated fallback navigation.
-- `job_logger/routes/help.py` handles authenticated `/help` and `/help/ask`
+- `ticket_pilot/routes/help.py` handles authenticated `/help` and `/help/ask`
   for the Help page and stateless, single-question help assistant answers.
-- `job_logger/routes/debug.py` handles the super-admin diagnostic page, the
+- `ticket_pilot/routes/debug.py` handles the canonical `/diagnostics` page,
+  backward-compatible `/debug` aliases, the
   sanitized successful/failed login windows, disk-space monitor, database
   diagnostics, full backup/restore actions, managed web-user session
   invalidation, and the Autotask API connectivity test.
-- `job_logger/routes/health.py` exposes private container health endpoints.
-- `job_logger/routes/pwa.py` serves the web app manifest and root-scoped
+- `ticket_pilot/routes/health.py` exposes private container health endpoints.
+- `ticket_pilot/routes/pwa.py` serves the web app manifest and root-scoped
   service worker for installed mobile app behavior. The service worker must not
   cache authenticated job, session, Autotask, or transcription data.
-- `job_logger/services/system_health.py` owns shared app-health snapshots,
+- `ticket_pilot/services/system_health.py` owns shared app-health snapshots,
   including disk usage, cached Autotask API health, database status, database
   latency, database connection-pool pressure, and active login-protection
   state used by Diagnostics, the authenticated top-bar degraded-health Help link,
   and best-effort admin notifications. Storage-probe operating-system errors,
   including stale network-filesystem handles, must become a critical health
   issue without preventing ordinary authenticated pages from rendering.
-- `job_logger/services/app_health_monitor.py` runs the optional in-process
-  app-health notification loop and suppresses repeated Pushover alerts until
-  the active degraded issue set changes or restores.
-- `job_logger/services/pushover.py` owns best-effort Pushover message delivery
+- `ticket_pilot/services/app_health_monitor.py` runs the optional in-process
+  app-health notification loop, sends immediate changed/restored notices, and
+  repeats an unchanged degraded state at the configured hourly interval.
+- `ticket_pilot/services/pushover.py` owns best-effort Pushover message delivery
   and must never log configured user or app keys.
-- `job_logger/services/database_diagnostics.py` collects display-safe database
+- `ticket_pilot/services/database_diagnostics.py` collects display-safe database
   connectivity, latency, migration, and connection-pool stats for Diagnostics.
-- `job_logger/services/jobs.py` owns core job state transitions and must remain
+- `ticket_pilot/services/jobs.py` owns core job state transitions and must remain
   the primary place for workflow and job-ownership validation.
-- `job_logger/services/autotask.py` owns Autotask providers, connectivity tests,
+- `ticket_pilot/services/autotask.py` owns Autotask providers, connectivity tests,
   company/ticket lookup, per-user resource service-call lookup, cache behavior,
   pagination, active service-desk role lookup, submission-time status mapping,
   time entry submission, existing-entry updates, and existing-entry deletes.
-- `job_logger/services/users.py` owns managed web-user validation, optional
+- `ticket_pilot/services/users.py` owns managed web-user validation, optional
   Autotask Resource email and default-role storage, password hashing and
   changes, first-user legacy job claiming, and delete/archive/restore rules.
-- `job_logger/services/session_control.py` owns server-side managed web-user
+- `ticket_pilot/services/session_control.py` owns server-side managed web-user
   session invalidation cutoffs used by diagnostics, user disable, and user
   archive actions.
-- `job_logger/services/preferences.py` owns per-authenticated-user
+- `ticket_pilot/services/preferences.py` owns per-authenticated-user
   configuration validation and persistence.
-- `job_logger/services/passkeys.py` owns WebAuthn relying-party/origin
+- `ticket_pilot/services/passkeys.py` owns WebAuthn relying-party/origin
   resolution, challenge generation, passkey verification, public credential
   storage, credential counters, and safe passkey deletion.
-- `job_logger/services/ai_cleanup.py` owns server-side Gemini, Groq, Ollama,
+- `ticket_pilot/services/ai_cleanup.py` owns server-side Gemini, Groq, Ollama,
   and LM Studio summary cleanup, including request construction,
   provider-specific instruction placement, private-network provider URL
   validation, safe response parsing, and provider error normalization.
-- `job_logger/services/transcription.py` owns speech-to-text provider behavior.
-- `job_logger/services/audit.py` records immutable audit events.
-- `job_logger/services/backups.py` creates and restores portable gzip JSON full
+- `ticket_pilot/services/transcription.py` owns speech-to-text provider behavior.
+- `ticket_pilot/services/audit.py` records immutable audit events.
+- `ticket_pilot/services/backups.py` creates and restores portable gzip JSON full
   database backups, writes startup and hourly automatic backup files, and
-  enforces automatic backup retention. `/debug` may download retained automatic
+  enforces automatic backup retention. `/diagnostics` may download retained automatic
   backups only after strict filename validation, and labels retained automatic
   backups as startup or hourly when creation audit metadata is available.
-- `job_logger/services/login_failures.py` writes and reads sanitized
+- `ticket_pilot/services/login_failures.py` writes and reads sanitized
   successful/failed login attempts from the database and generates sanitized
   JSONL downloads for Diagnostics. `LOG_LEVEL` controls stdout/stderr verbosity
   and must be one of `DEBUG`, `INFO`, `WARNING`, or `ERROR`.
-- `job_logger/services/login_protection.py` enforces local pre-authentication
+- `ticket_pilot/services/login_protection.py` enforces local pre-authentication
   lockout, increments persistent consecutive failed-login counters by trusted
   enforcement IP and username, stores sanitized failed-login database records,
   and triggers Cloudflare auto-blocking at the configured threshold.
-- `job_logger/services/cloudflare_blocks.py` owns app-managed Cloudflare zone
+- `ticket_pilot/services/cloudflare_blocks.py` owns app-managed Cloudflare zone
   IP Access Rule create/delete calls and allowlist checks. It must never list,
-  edit, or delete Cloudflare rules that are not tracked in Job Logger's
+  edit, or delete Cloudflare rules that are not tracked in TicketPilot's
   `cloudflare_ip_blocks` table.
-- `job_logger/templates/` contains Jinja pages for mobile, review, users,
+- `ticket_pilot/templates/` contains Jinja pages for mobile, review, users,
   config, changelog, debug, and authentication views.
-- `job_logger/static/` contains browser-side JavaScript, CSS, PWA metadata, and
-  source-controlled app icons.
-- `docs/design/` contains source logo assets, SVG wrapper versions, and the
-  reference color palette. `docs/design/color_palette.png` is the current
-  palette reference when visual work needs the app palette.
+- `ticket_pilot/static/` contains browser-side JavaScript, CSS, PWA metadata,
+  and the canonical source-controlled TicketPilot logo and app-icon files under
+  `static/icons/`. Keep supplied branding sources unchanged and remove
+  superseded logo/icon files when artwork is replaced.
+- `docs/design/` contains `theme_palettes.svg`, the only maintained reference
+  defining all eight selectable background profiles and ten highlight colors.
 - `migrations/versions/` contains Alembic schema migrations.
 - `scripts/` contains operational helper scripts, including Autotask ID
   discovery.
@@ -1175,7 +1239,7 @@ The normal workflow is:
    The add form sends a welcome email by default when the stored email address,
    `APP_PUBLIC_BASE_URL`, and mail delivery settings are configured, unless the
    super admin unchecks that option. Account emails refer to the app as
-   **Autotask Job Logger**.
+   **TicketPilot**.
    Delete actions fully remove users that have no jobs. Users with linked jobs
    are hidden and signed out, their passkeys, reset tokens, and preferences are
    removed, and their jobs remain attached to the hidden row so adding another
@@ -1184,19 +1248,20 @@ The normal workflow is:
    password or passkey login, or `Never`, plus a green/red key icon for whether
    Device sign-in passkeys are registered. The first visible managed web user
    claims any existing unowned jobs from earlier single-user installs.
-3. A managed web user may open `/config` to choose dark or light theme for
-   their own login, enable the default-off **Submit from Work in Progress**
+3. A managed web user may open `/config` to choose among three light and five
+   dark background profiles and independently choose one of ten highlight
+   colors for their own login, enable the default-off **Submit from Work in Progress**
    option, change their password, and add or delete passkeys. If the account is
    using a temporary super-admin-created or reset password, `/config` shows only
    the required password-change flow until the user chooses a new password.
    Config changes save and apply immediately without a visible save action,
    except password and passkey actions which are explicit. The password card
    shows password requirements. The config super admin has no `/config` access
-   and stays dark.
-4. A managed web user opens `/home`.
-5. The `/home` page renders from local application state without running an
+   and always uses Default Dark with Teal.
+4. A managed web user opens `/work`.
+5. The `/work` page renders from local application state without running an
    Autotask API contactability check. After the page has loaded, browser
-   JavaScript queries `/home/service-calls` to populate service-call start
+   JavaScript queries `/work/service-calls` to populate service-call start
    cards for the selected local date and that user's Autotask resource,
    including each call's scheduled local date and start/end time range. The
    mobile date navigator
@@ -1207,7 +1272,7 @@ The normal workflow is:
    Service-call starts are still verified server-side for the submitted date
    and resource.
    The browser list and start route both filter out service calls for tickets
-   that already have a local Job Logger time entry with ticket status Complete
+   that already have a local TicketPilot time entry with ticket status Complete
    or Follow up for the current managed user.
 6. User starts Job 1 or Job 2. Blank Start Work creates a local active job
    owned by that web user without first probing Autotask. At most two active
@@ -1236,9 +1301,11 @@ The normal workflow is:
    clear no-description message. After ticket selection, the client name is
    locked for that job in Work in Progress, Review, and server-side save/end
    handlers.
-9. User chooses whether the work is Remote or On-Site. The mode is stored on
-   the job and appears as the leading `Remote. ` or `On-Site. ` prefix in the
-   review summary textarea so it can be corrected before Autotask submission.
+9. User chooses whether the work is Remote or On-Site. On active Work, changing
+   this mode keeps the start time unchanged and recalculates the stop to the
+   later of the location minimum or the current rounded block. The mode is
+   stored on the job and appears as the leading `Remote. ` or `On-Site. ` prefix
+   in the review summary textarea so it can be corrected before Autotask submission.
 10. User records notes during an active job from the Summary notes action row,
    where **Record** sits beside the optional **AI Cleanup** action. Review
    detail uses the same paired summary action row for unsubmitted jobs. On
@@ -1295,7 +1362,7 @@ The normal workflow is:
     progress before patching the external record, then apply the selected final
     status after the patch when needed.
     If **Delete From Autotask** fails, a session-scoped dialog can offer a
-    local-only purge from Job Logger review while warning that the Autotask
+    local-only purge from TicketPilot review while warning that the Autotask
     record may still exist.
     Ticket/client identity, local delete, accept/resend, and retry stay blocked
     while the job remains submitted.
@@ -1332,24 +1399,24 @@ In production:
 - `APP_USERNAME`/`APP_PASSWORD` authenticate the config super admin only.
 - Each managed web user must be created on `/users` with an Autotask resource
   ID before that person can start work.
-- `/home` and blank Start Work do not run Autotask contactability probes.
+- `/work` and blank Start Work do not run Autotask contactability probes.
 - Service-call loading, company lookup, ticket lookup, and Autotask submission
   still call Autotask only when those specific workflows need provider data.
   Service-call and open-ticket selection are read/query-only against Autotask
   and must not patch remote ticket status before TimeEntries or TicketNotes
   submission.
 - Time-entry and ticket-note submission patch `Tickets.status` to match the
-  selected Job Logger ticket status. Configure all `AUTOTASK_STATUS_*_ID`
+  selected TicketPilot ticket status. Configure all `AUTOTASK_STATUS_*_ID`
   values and ensure the Autotask API user can patch `Tickets.status`; otherwise
   submission fails without marking the local job submitted.
 - Submitted **Submit changes** actions also patch `Tickets.status` to match the
-  selected Job Logger ticket status. The removed
+  selected TicketPilot ticket status. The removed
   `AUTOTASK_TICKET_STATUS_UPDATES_ENABLED` setting must not be reintroduced.
 - Super-admin resource lookup on `/users` calls Autotask Resources only through
   the server-side provider; browser code never contacts Autotask directly.
   Returned resource email metadata is optional and is stored only when a user
   selects a resource that includes one.
-- The `/debug` page provides the supported manual **Test Autotask API** action.
+- The `/diagnostics` page provides the supported manual **Test Autotask API** action.
   The authenticated desktop navigation labels this route as **Diag**, while the
   page itself is titled **Diagnostics**.
 - Autotask provider HTTP/status failures, failed time-entry create/update/delete
@@ -1361,15 +1428,15 @@ In production:
   Autotask contactability probe.
 - Live Autotask HTTP calls are capped by `AUTOTASK_MAX_CONCURRENT_REQUESTS`,
   defaulting to 2. Keep all direct REST traffic inside
-  `job_logger/services/autotask.py` so this process-local and PostgreSQL
+  `ticket_pilot/services/autotask.py` so this process-local and PostgreSQL
   advisory-lock limiter is always applied.
-- The `/debug` page provides a Diagnostics-admin **Log out web users** action
+- The `/diagnostics` page provides a Diagnostics-admin **Log out web users** action
   that invalidates all managed web-user sessions without ending the config
   super-admin session. Managed Admin users are included in that invalidation
   because they are managed web users. The button should sit centered below the
   explanatory text, using a wider-than-tall destructive button shape inside the
   session-controls card.
-- The `/debug` page provides per-row failed-login hide controls, per-row
+- The `/diagnostics` page provides per-row failed-login hide controls, per-row
   Cloudflare block/unblock controls, and an app-managed Cloudflare blocked IP
   card. Automatic Cloudflare blocking happens after
   `CLOUDFLARE_AUTO_BLOCK_FAILED_LOGIN_ATTEMPTS` consecutive failed local logins
@@ -1381,7 +1448,7 @@ In production:
 - The shared app-health snapshot must monitor disk space, cached Autotask
   operation failures, database availability, database query latency, database
   connection-pool pressure, active local login lockouts, and app-managed
-  Cloudflare IP blocks. The `/debug` page should show a yellow or red
+  Cloudflare IP blocks. The `/diagnostics` page should show a yellow or red
   app-health banner at the top when any monitored issue is active.
   A temporarily unreadable monitored storage path must report a critical
   **Storage unavailable** condition while normal app workflows remain usable;
@@ -1391,14 +1458,14 @@ In production:
   `APP_HEALTH_DISK_CRITICAL_FREE_MB`, defaulting to 250. Used percentage is
   display-only and must not trigger an alert.
 - The optional Pushover health monitor is best-effort and in-process. It can
-  notify on degraded, changed, and restored monitored health only while the app
-  process is running. Keep `PUSHOVER_USER_KEY` and `PUSHOVER_APP_KEY` in
+  notify on degraded, changed, hourly still-degraded, and restored monitored
+  health only while the app process is running. Keep `PUSHOVER_USER_KEY` and `PUSHOVER_APP_KEY` in
   environment or Docker secrets, never source control or logs. Full
   host/container/process-down detection still requires an external monitor
   against `/health/live`. `DEV_BUILD=true` must disable Pushover notifications
   even when `PUSHOVER_ENABLED=true`.
-- The `/debug` disk-space card combines monitored paths when used bytes and
-  total bytes match exactly. The `/debug` database card may show safe
+- The `/diagnostics` disk-space card combines monitored paths when used bytes and
+  total bytes match exactly. The `/diagnostics` database card may show safe
   connectivity, latency, backend/driver, migration revision, and pool counters,
   but must not show connection strings, hosts, database names, usernames, or
   passwords. On full-browser Diagnostics, the disk-space and session-control

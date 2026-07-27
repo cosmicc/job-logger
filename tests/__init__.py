@@ -1,2 +1,2 @@
-"""Test package for Job Logger."""
+"""Test package for TicketPilot."""
 

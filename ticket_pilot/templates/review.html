@@ -1,0 +1,873 @@
+{% extends "base.html" %}
+{% from "_ticket_notes_overlay.html" import render_ticket_notes_overlay %}
+
+{% block title %}TicketPilot - Review{% endblock %}
+
+{% block content %}
+  <div class="mobile-page-loading is-hidden" data-review-page-loading role="status" aria-live="assertive" aria-busy="true">
+    <div class="mobile-page-loading-card">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <span data-review-page-loading-message>Loading...</span>
+    </div>
+  </div>
+
+  <section class="review-shell">
+    {% if today_work_hours_label or week_work_hours_label %}
+      <div class="review-hours-summary-row" aria-label="Time-entry hours worked">
+        <div class="review-hours-summary" aria-label="Hours worked today">
+          <span class="metric-label">Today</span>
+          <strong class="review-hours-full-value">{{ today_work_hours_label }}</strong>
+          <strong class="review-hours-compact-value" aria-label="{{ today_work_hours_label }}">
+            {{ today_work_hours_compact_label }}
+          </strong>
+        </div>
+        <div class="review-hours-summary" aria-label="Hours worked this week">
+          <span class="metric-label">Week</span>
+          <strong class="review-hours-full-value">{{ week_work_hours_label }}</strong>
+          <strong class="review-hours-compact-value" aria-label="{{ week_work_hours_label }}">
+            {{ week_work_hours_compact_label }}
+          </strong>
+        </div>
+        <div class="review-hours-summary" aria-label="Time entries not submitted to Autotask">
+          <span class="metric-label">Unsubmitted</span>
+          <strong>{{ unsubmitted_time_entry_count }}</strong>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="review-layout">
+      <section class="table-panel" aria-label="Recorded jobs">
+        <div class="table-wrap">
+          <table class="review-table">
+            <thead>
+            <tr>
+                <th>Ticket</th>
+                <th>Client</th>
+                <th>Entry type</th>
+                {% if show_job_owner %}<th>Owner</th>{% endif %}
+                <th>Status</th>
+                <th>Date</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Day hours</th>
+                <th>Week hours</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for job in jobs %}
+                {% set row_hour_totals = job_hour_totals.get(job.id) if job_hour_totals is defined else none %}
+                <tr
+                  class="review-table-row {% if selected_job and selected_job.id == job.id %}selected-row{% endif %}"
+                  data-review-url="/review/{{ job.id }}"
+                  tabindex="0"
+                  role="button"
+                  aria-label="Open job {{ job.ticket_number or 'No ticket' }} for review"
+                >
+                  <td>
+                    <span {% if selected_job and selected_job.id == job.id %}data-review-selected-row-ticket{% endif %}>
+                      {{ job.ticket_number or "No ticket" }}
+                    </span>
+                  </td>
+                  <td>
+                    {{ job.client_name or "Not set" }}
+                  </td>
+                  <td>
+                    {% set row_entry_type = job.entry_type.value if job.entry_type else "time_entry" %}
+                    {% if row_entry_type == "ticket_note" %}
+                      <span class="review-location-chip review-location-note">Ticket note</span>
+                    {% else %}
+                      {% set row_work_location = job.work_location.value if job.work_location else "remote" %}
+                      <span class="review-location-chip review-location-{{ row_work_location }}">
+                        {% if row_work_location == "on_site" %}On-Site{% else %}Remote{% endif %}
+                      </span>
+                    {% endif %}
+                  </td>
+                  {% if show_job_owner %}
+                    <td>{{ job.web_user.full_name if job.web_user else "Unassigned" }}</td>
+                  {% endif %}
+                  <td>
+                    {% if job.autotask_external_id %}
+                      <span class="status-chip status-submitted">Submitted</span>
+                    {% elif job.status.value == "submission_failed" or job.autotask_error %}
+                      <span class="status-chip status-submission_failed">Submission failed</span>
+                    {% else %}
+                      <span class="status-chip status-{{ job.status.value }}">{{ job.status.value.replace("_", " ") }}</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ job.rounded_start_utc|local_date }}</td>
+                  <td>{{ job.rounded_start_utc|local_time }}</td>
+                  <td>{% if job.status.value != "active" %}{{ job.rounded_end_utc|local_time }}{% endif %}</td>
+                  <td>{{ row_hour_totals.day_label if row_hour_totals else "0 Hours" }}</td>
+                  <td>{{ row_hour_totals.week_label if row_hour_totals else "0 Hours" }}</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="{% if show_job_owner %}10{% else %}9{% endif %}">No jobs are available for review.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if pagination and pagination.total_jobs > pagination.per_page %}
+          <nav class="review-pagination" aria-label="Review job pages">
+            {% if pagination.has_previous %}
+              <a class="secondary-button" href="/review?page={{ pagination.previous_page }}">Previous</a>
+            {% else %}
+              <span class="secondary-button disabled-button" aria-disabled="true">Previous</span>
+            {% endif %}
+            <span class="review-pagination-status">
+              Page {{ pagination.current_page }} of {{ pagination.total_pages }}
+            </span>
+            {% if pagination.has_next %}
+              <a class="secondary-button" href="/review?page={{ pagination.next_page }}">Next</a>
+            {% else %}
+              <span class="secondary-button disabled-button" aria-disabled="true">Next</span>
+            {% endif %}
+          </nav>
+        {% endif %}
+      </section>
+
+      <section class="edit-panel" aria-label="Work detail editor">
+        {% if selected_job %}
+          {% set review_form_id = "review-form-" ~ selected_job.id %}
+          {% set selected_entry_type = selected_job.entry_type.value if selected_job.entry_type else "time_entry" %}
+          {% set is_ticket_note = selected_entry_type == "ticket_note" %}
+          <form
+            id="{{ review_form_id }}"
+            method="post"
+            class="review-form {% if selected_job_submitted %}review-form-submitted{% endif %}"
+            data-review-task-form
+            {% if selected_job_submitted and can_modify_selected_job %}
+              action="/review/{{ selected_job.id }}/edit-entry"
+            {% endif %}
+            {% if not selected_job_submitted and can_modify_selected_job %}
+              data-review-autosave-form
+              data-review-save-url="/review/{{ selected_job.id }}/save"
+            {% endif %}
+          >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            {% set selected_job_date = selected_job.local_work_date or selected_job.rounded_start_utc|local_date %}
+            {% if selected_job.status.value == "active" %}
+              <input type="hidden" name="return_to" value="review">
+            {% endif %}
+
+            <div class="detail-heading-row review-detail-heading-row">
+              <h2 data-selected-ticket-heading>{{ selected_job.ticket_title or selected_job.ticket_number or "Unassigned Ticket" }}</h2>
+              <span class="status-chip status-{{ selected_job.status.value }}">{{ selected_job.status.value.replace("_", " ") }}</span>
+            </div>
+
+            {% if show_job_owner %}
+              <div class="readonly-field-card review-owner-card">
+                <span class="metric-label readonly-field-title">Owner</span>
+                <strong class="readonly-field-value">{{ selected_job.web_user.full_name if selected_job.web_user else "Unassigned" }}</strong>
+              </div>
+            {% endif %}
+
+            {% if selected_job_submitted %}
+              <section class="review-submitted-notice" role="note" aria-label="Submitted job editable">
+                <strong>Submitted Autotask entry</strong>
+                <span>
+                  {% if can_modify_selected_job %}
+                    {% if is_ticket_note %}
+                      Note title, note description, append-to-resolution, and ticket status can be updated with Submit changes.
+                    {% else %}
+                      Date, start time, end time, summary notes, work type, append-to-resolution, and ticket status can be updated with Submit changes.
+                    {% endif %}
+                  {% else %}
+                    This submitted Autotask entry is visible to the super admin but cannot be edited from that account.
+                  {% endif %}
+                </span>
+              </section>
+            {% endif %}
+            {% if not can_modify_selected_job %}
+              <section class="review-submitted-notice" role="note" aria-label="Read-only job view">
+                <strong>Read-only view</strong>
+                <span>The config super admin can inspect jobs and audit history, but cannot edit, submit, delete, record audio, or run AI cleanup.</span>
+              </section>
+            {% endif %}
+            {% if selected_job.autotask_error %}
+              <p class="error-text">{{ selected_job.autotask_error }}</p>
+            {% endif %}
+            <fieldset class="review-readonly-fieldset" {% if not can_modify_selected_job %}disabled{% endif %}>
+            <div class="form-grid">
+              <div class="readonly-field-card review-ticket-number-card">
+                <span class="metric-label readonly-field-title">Ticket number</span>
+                <strong class="readonly-field-value" data-review-ticket-number-display>{{ selected_job.ticket_number or "Unassigned Ticket" }}</strong>
+              </div>
+              <input
+                type="hidden"
+                data-review-ticket-number-input
+                name="ticket_number"
+                value="{{ selected_job.ticket_number or '' }}"
+              >
+              <input
+                type="hidden"
+                data-review-ticket-title-input
+                name="ticket_title"
+                value="{{ selected_job.ticket_title or '' }}"
+              >
+              <input
+                type="hidden"
+                data-review-ticket-description-input
+                name="ticket_description"
+                value="{{ selected_job.ticket_description or '' }}"
+              >
+              {% set review_client_is_unset = (
+                can_modify_selected_job
+                and not selected_job_submitted
+                and not selected_job.ticket_number
+                and not selected_job.client_name
+                and not selected_job.autotask_company_id
+              ) %}
+              {% if review_client_is_unset %}
+                <div class="metric-card client-name-card review-client-name-card">
+                  <label>
+                    <span class="metric-label">Client name</span>
+                    <input
+                      class="autotask-company-input"
+                      data-review-company-input
+                      data-review-client-name-input
+                      data-review-client-save-url="/review/{{ selected_job.id }}/client"
+                      name="client_name"
+                      value=""
+                      placeholder="Search Autotask company"
+                      maxlength="120"
+                      autocomplete="off"
+                      autocorrect="off"
+                      spellcheck="false"
+                    >
+                  </label>
+                  <div class="company-search-results" data-company-results></div>
+                  <p class="company-search-status muted-text" data-company-status aria-live="polite"></p>
+                </div>
+              {% else %}
+                <div class="readonly-field-card review-client-name-card">
+                  <span class="metric-label readonly-field-title">Client name</span>
+                  <strong class="readonly-field-value" data-review-client-name-display>{{ selected_job.client_name or "No client selected" }}</strong>
+                </div>
+                <input
+                  type="hidden"
+                  data-review-client-name-input
+                  name="client_name"
+                  value="{{ selected_job.client_name or '' }}"
+                >
+              {% endif %}
+              <div
+                class="readonly-field-card review-ticket-title-card {% if not selected_job.ticket_number %}is-hidden{% endif %}"
+                data-review-ticket-title-card
+              >
+                <span class="metric-label readonly-field-title">Ticket name</span>
+                <strong class="readonly-field-value" data-review-ticket-title-display>{{ selected_job.ticket_title or selected_job.ticket_number or "Unassigned Ticket" }}</strong>
+                <div class="ticket-context-actions ticket-context-actions-mobile">
+                  <button
+                    class="secondary-button ticket-notes-button is-hidden"
+                    type="button"
+                    data-ticket-notes-button
+                    data-ticket-notes-url="/review/{{ selected_job.id }}/ticket-notes"
+                    data-ticket-notes-ticket-number="{{ selected_job.ticket_number or '' }}"
+                    aria-label="View ticket notes"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 3h9l3 3v15H6z"></path>
+                      <path d="M15 3v4h4"></path>
+                      <path d="M9 11h6"></path>
+                      <path d="M9 15h6"></path>
+                    </svg>
+                    <span data-ticket-context-label>Ticket notes</span>
+                  </button>
+                  <button
+                    class="secondary-button ticket-notes-button is-hidden"
+                    type="button"
+                    data-ticket-time-entries-button
+                    data-ticket-time-entries-url="/review/{{ selected_job.id }}/ticket-time-entries"
+                    data-ticket-time-entries-ticket-number="{{ selected_job.ticket_number or '' }}"
+                    aria-label="View past time entries"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 5h16"></path>
+                      <path d="M4 12h16"></path>
+                      <path d="M4 19h16"></path>
+                      <path d="M8 3v4"></path>
+                      <path d="M8 10v4"></path>
+                      <path d="M8 17v4"></path>
+                    </svg>
+                    <span data-ticket-context-label>Past time entries</span>
+                  </button>
+                </div>
+                <div class="ticket-context-actions ticket-context-actions-desktop">
+                  {% if can_modify_selected_job and navigation_app != "none" %}
+                    <button
+                      class="secondary-button ticket-navigation-button is-hidden"
+                      type="button"
+                      data-ticket-navigation-button
+                      data-navigation-url="/review/{{ selected_job.id }}/navigation"
+                      data-navigation-allow-full-web="{{ 'true' if allow_navigation_on_full_web else 'false' }}"
+                      aria-label="Navigate to destination"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-5.2 7-13a7 7 0 1 0-14 0c0 7.8 7 13 7 13Z"></path><circle cx="12" cy="9" r="2.5"></circle></svg>
+                      Navigate to Destination
+                    </button>
+                  {% endif %}
+                  <button
+                    class="secondary-button ticket-notes-button is-hidden"
+                    type="button"
+                    data-ticket-notes-button
+                    data-ticket-notes-url="/review/{{ selected_job.id }}/ticket-notes"
+                    data-ticket-notes-ticket-number="{{ selected_job.ticket_number or '' }}"
+                    aria-label="View ticket notes"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 3h9l3 3v15H6z"></path>
+                      <path d="M15 3v4h4"></path>
+                      <path d="M9 11h6"></path>
+                      <path d="M9 15h6"></path>
+                    </svg>
+                    <span data-ticket-context-label>Ticket notes</span>
+                  </button>
+                  <button
+                    class="secondary-button ticket-notes-button is-hidden"
+                    type="button"
+                    data-ticket-time-entries-button
+                    data-ticket-time-entries-url="/review/{{ selected_job.id }}/ticket-time-entries"
+                    data-ticket-time-entries-ticket-number="{{ selected_job.ticket_number or '' }}"
+                    aria-label="View past time entries"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 5h16"></path>
+                      <path d="M4 12h16"></path>
+                      <path d="M4 19h16"></path>
+                      <path d="M8 3v4"></path>
+                      <path d="M8 10v4"></path>
+                      <path d="M8 17v4"></path>
+                    </svg>
+                    <span data-ticket-context-label>Past time entries</span>
+                  </button>
+                </div>
+              </div>
+              <input
+                type="hidden"
+                data-review-company-id-input
+                data-company-id-input
+                name="autotask_company_id"
+                value="{{ selected_job.autotask_company_id or '' }}"
+              >
+              {% if selected_job_submitted %}
+                <input type="hidden" name="entry_type" value="{{ selected_entry_type }}">
+              {% endif %}
+              {% if can_modify_selected_job and navigation_app != "none" %}
+                <div
+                  class="mobile-entry-navigation-row is-destination-hidden{% if is_ticket_note %} is-entry-mode-hidden{% endif %}"
+                  data-mobile-entry-navigation-row
+                >
+                  <button
+                    class="secondary-button ticket-navigation-button is-hidden"
+                    type="button"
+                    data-ticket-navigation-button
+                    data-navigation-url="/review/{{ selected_job.id }}/navigation"
+                    data-navigation-allow-full-web="{{ 'true' if allow_navigation_on_full_web else 'false' }}"
+                    aria-label="Navigate to destination"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-5.2 7-13a7 7 0 1 0-14 0c0 7.8 7 13 7 13Z"></path><circle cx="12" cy="9" r="2.5"></circle></svg>
+                    Navigate to Destination
+                  </button>
+                </div>
+              {% endif %}
+              <div class="readonly-field-card review-entry-type-card" aria-label="Entry type">
+                <span class="metric-label readonly-field-title">Entry type</span>
+                <div class="work-location-switch entry-type-switch" data-review-entry-type-toggle role="radiogroup" aria-label="Entry type">
+                  <label>
+                    <input
+                      type="radio"
+                      name="entry_type"
+                      value="time_entry"
+                      data-review-entry-type-input
+                      {% if selected_entry_type == "time_entry" %}checked{% endif %}
+                      {% if selected_job_submitted %}disabled{% endif %}
+                    >
+                    <span>Time entry</span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="entry_type"
+                      value="ticket_note"
+                      data-review-entry-type-input
+                      {% if is_ticket_note %}checked{% endif %}
+                      {% if selected_job_submitted %}disabled{% endif %}
+                    >
+                    <span>Ticket note</span>
+                  </label>
+                </div>
+              </div>
+              <div
+                class="readonly-field-card review-work-location-card{% if is_ticket_note %} work-location-card-disabled{% endif %}"
+                aria-label="Work type"
+                data-review-work-location-card
+                aria-disabled="{% if is_ticket_note %}true{% else %}false{% endif %}"
+              >
+                <span class="metric-label readonly-field-title">Work type</span>
+                {% set selected_work_location = selected_job.work_location.value if selected_job.work_location else "remote" %}
+                <div class="work-location-switch" data-review-work-location-toggle role="radiogroup" aria-label="Work type">
+                  <label>
+                    <input
+                      type="radio"
+                      name="work_location"
+                      value="remote"
+                      {% if selected_work_location == "remote" %}checked{% endif %}
+                      {% if is_ticket_note %}disabled{% endif %}
+                    >
+                    <span>Remote</span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="work_location"
+                      value="on_site"
+                      {% if selected_work_location == "on_site" %}checked{% endif %}
+                      {% if is_ticket_note %}disabled{% endif %}
+                    >
+                    <span>On-Site</span>
+                  </label>
+                </div>
+              </div>
+              <label class="review-job-date-field">
+                <span class="centered-field-label" data-review-entry-date-label>{% if is_ticket_note %}Note Date{% else %}Job date{% endif %}</span>
+                <span class="date-input-shell">
+                  <input name="job_date" type="date" value="{{ selected_job_date }}" data-date-chooser-input required>
+                  <span class="date-display-text" data-review-date-display>{{ selected_job_date|job_date_display }}</span>
+                </span>
+              </label>
+              <label class="review-start-time-field{% if is_ticket_note %} is-hidden{% endif %}" data-review-time-field>
+                <span class="centered-field-label">Start time</span>
+                <div class="time-step-controls {% if is_ticket_note %}time-controls-disabled{% endif %}">
+                  <button
+                    type="button"
+                    class="secondary-button time-step-button"
+                    data-time-input="start_time"
+                    data-delta-minutes="-15"
+                    aria-label="Decrease start time by 15 minutes"
+                    data-review-time-control
+                    {% if is_ticket_note %}disabled{% endif %}
+                  >
+                    -15
+                  </button>
+                  <input
+                    name="start_time"
+                    type="text"
+                    class="time-field-input"
+                    value="{{ selected_job.rounded_start_utc|local_time }}"
+                    inputmode="text"
+                    autocomplete="off"
+                    autocorrect="off"
+                    spellcheck="false"
+                    data-review-time-control
+                    data-required-for-time-entry="true"
+                    {% if not is_ticket_note %}required{% endif %}
+                    {% if is_ticket_note %}disabled{% endif %}
+                  >
+                  <button
+                    type="button"
+                    class="secondary-button time-step-button"
+                    data-time-input="start_time"
+                    data-delta-minutes="15"
+                    aria-label="Increase start time by 15 minutes"
+                    data-review-time-control
+                    {% if is_ticket_note %}disabled{% endif %}
+                  >
+                    +15
+                  </button>
+                </div>
+              </label>
+              <label class="review-end-time-field{% if is_ticket_note %} is-hidden{% endif %}" data-review-time-field>
+                <span class="centered-field-label">End time</span>
+                <div class="time-step-controls {% if is_ticket_note %}time-controls-disabled{% endif %}">
+                  <button
+                    type="button"
+                    class="secondary-button time-step-button"
+                    data-time-input="end_time"
+                    data-delta-minutes="-15"
+                    aria-label="Decrease end time by 15 minutes"
+                    data-review-time-control
+                    {% if is_ticket_note %}disabled{% endif %}
+                  >
+                    -15
+                  </button>
+                  <input
+                    name="end_time"
+                    type="text"
+                    class="time-field-input"
+                    value="{{ selected_job_review_end_utc|local_time }}"
+                    inputmode="text"
+                    autocomplete="off"
+                    autocorrect="off"
+                    spellcheck="false"
+                    data-review-time-control
+                    data-required-for-time-entry="{% if selected_job.status.value != 'active' %}true{% else %}false{% endif %}"
+                    {% if selected_job.status.value != "active" and not is_ticket_note %}required{% endif %}
+                    {% if is_ticket_note %}disabled{% endif %}
+                  >
+                  <button
+                    type="button"
+                    class="secondary-button time-step-button"
+                    data-time-input="end_time"
+                    data-delta-minutes="15"
+                    aria-label="Increase end time by 15 minutes"
+                    data-review-time-control
+                    {% if is_ticket_note %}disabled{% endif %}
+                  >
+                    +15
+                  </button>
+                </div>
+              </label>
+              <div class="duration-inline duration-centered review-duration-row{% if is_ticket_note %} is-hidden{% endif %}" data-review-duration-row>
+                Work Duration:
+                <strong data-duration-display>{{ selected_job.rounded_start_utc|duration_label(selected_job_review_end_utc) }}</strong>
+              </div>
+              <label class="review-ticket-status-field">
+                <span class="centered-field-label">Ticket status</span>
+                <select name="ticket_status" required>
+                  {% for option_value, option_label in ticket_status_options %}
+                    <option value="{{ option_value }}" {% if selected_job.ticket_status and selected_job.ticket_status.value == option_value %}selected{% endif %}>
+                      {{ option_label }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </label>
+            </div>
+
+            {% if can_modify_selected_job and not selected_job_submitted and not selected_job.ticket_number %}
+              <section
+                class="ticket-picker"
+                data-ticket-picker
+                data-ticket-lookup-url="/review/{{ selected_job.id }}/tickets"
+                data-ticket-select-url="/review/{{ selected_job.id }}/ticket"
+                data-ticket-client-name="{{ selected_job.client_name or '' }}"
+                aria-label="Open Autotask tickets"
+              >
+                <div class="ticket-picker-header">
+                  <div>
+                    <h3>Open tickets</h3>
+                    <p class="muted-text" data-ticket-client-label>{{ selected_job.client_name or "No client name set" }}</p>
+                  </div>
+                </div>
+                <p class="ticket-picker-status muted-text" data-ticket-lookup-status aria-live="polite">
+                  {% if selected_job.client_name %}Click this box to load open tickets.{% else %}Client name is required before open tickets can load.{% endif %}
+                </p>
+                <div class="ticket-picker-results" data-ticket-lookup-results></div>
+              </section>
+            {% endif %}
+
+            <section
+              class="ticket-description-card readonly-context-card {% if not selected_job.ticket_number %}is-hidden{% endif %}"
+              data-review-ticket-description-card
+              aria-label="Selected ticket description"
+            >
+              <div class="ticket-context-header">
+                <span class="metric-label readonly-field-title centered-field-label">Ticket description</span>
+              </div>
+              <p data-review-ticket-description-display>{{ selected_job.ticket_description or "No description exists for this ticket." }}</p>
+            </section>
+
+            <label class="wide-field note-title-field {% if not is_ticket_note %}is-hidden{% endif %}" data-review-note-title-field>
+              <span>Note title</span>
+              <input
+                type="text"
+                name="note_title"
+                value="{{ selected_job.note_title or '' }}"
+                maxlength="250"
+                data-review-note-title-input
+                {% if is_ticket_note %}required{% endif %}
+                {% if not is_ticket_note %}disabled{% endif %}
+              >
+            </label>
+            <label class="wide-field">
+              <span class="centered-field-label" data-review-summary-label>{% if is_ticket_note %}Note description{% else %}Summary notes{% endif %}</span>
+              <textarea name="summary_notes" rows="8" data-review-summary-textarea>{{ selected_job_autotask_summary_notes }}</textarea>
+            </label>
+            <label class="append-resolution-field review-append-resolution-field">
+              <input type="hidden" name="append_to_resolution" value="false">
+              <input
+                type="checkbox"
+                name="append_to_resolution"
+                value="true"
+                data-review-append-resolution-input
+                {% if selected_job.append_to_resolution %}checked{% endif %}
+              >
+              <span>Append to resolution</span>
+            </label>
+            {% if can_modify_selected_job and (not selected_job_submitted or ai_cleanup_enabled or selected_job.ai_cleanup_original_summary) %}
+              <div class="summary-action-row review-summary-action-row recording-control-stack">
+                {% if not selected_job_submitted %}
+                  <button
+                    class="secondary-button record-notes-button"
+                    type="button"
+                    data-review-record-button
+                    data-job-id="{{ selected_job.id }}"
+                    aria-pressed="false"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                      <path d="M12 19v3"></path>
+                    </svg>
+                    <span data-record-audio-label>Record</span>
+                  </button>
+                {% endif %}
+                {% if ai_cleanup_enabled or selected_job.ai_cleanup_original_summary %}
+                  <button
+                    type="button"
+                    class="secondary-button ai-cleanup-button"
+                    data-ai-cleanup-button
+                    data-cleanup-url="/review/{{ selected_job.id }}/summary/cleanup"
+                    data-revert-url="/review/{{ selected_job.id }}/summary/cleanup/revert"
+                    data-cleanup-mode="{% if selected_job.ai_cleanup_original_summary %}revert{% else %}cleanup{% endif %}"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 3l1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3Z"></path>
+                      <path d="M19 13l.7 2.3L22 16l-2.3.7L19 19l-.7-2.3L16 16l2.3-.7L19 13Z"></path>
+                      <path d="M5 14l.8 2.2L8 17l-2.2.8L5 20l-.8-2.2L2 17l2.2-.8L5 14Z"></path>
+                    </svg>
+                    <span data-ai-cleanup-label>{% if selected_job.ai_cleanup_original_summary %}Revert cleanup{% else %}AI Cleanup{% endif %}</span>
+                  </button>
+                {% endif %}
+              </div>
+            {% endif %}
+            </fieldset>
+          </form>
+
+          {% if can_modify_selected_job %}
+            <div class="review-action-stack" aria-label="Review actions">
+              {% if selected_job_submitted %}
+                <div class="button-pair-row review-action-row">
+                  <button
+                    class="primary-button"
+                    type="submit"
+                    form="{{ review_form_id }}"
+                    formaction="/review/{{ selected_job.id }}/edit-entry"
+                    data-review-loading-message="{% if is_ticket_note %}Updating Autotask ticket and note...{% else %}Updating Autotask ticket and time entry...{% endif %}"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4z"></path>
+                      <path d="M13.5 6.5l4 4"></path>
+                    </svg>
+                    Submit changes
+                  </button>
+                  <form
+                    method="post"
+                    action="/review/{{ selected_job.id }}/delete-entry"
+                    class="submitted-entry-delete-form review-inline-action-form"
+                    data-review-task-form
+                    data-review-loading-message="{% if is_ticket_note %}Deleting Autotask ticket note...{% else %}Deleting Autotask time entry...{% endif %}"
+                    data-confirm-message="{% if is_ticket_note %}This will delete the existing Autotask ticket note and return this job to review. Continue?{% else %}This will delete the existing Autotask time entry and return this job to review. Continue?{% endif %}"
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="danger-outline-button" type="submit">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6h18"></path>
+                        <path d="M8 6V4h8v2"></path>
+                        <path d="M10 11v6"></path>
+                        <path d="M14 11v6"></path>
+                        <path d="M9 10h6"></path>
+                      </svg>
+                      Delete From Autotask
+                    </button>
+                  </form>
+                </div>
+                {% if show_delete_failure_purge_prompt %}
+                  <dialog class="submitted-delete-fallback-dialog" data-submitted-delete-fallback-dialog>
+                    <div class="submitted-delete-fallback-content">
+                      <p class="eyebrow-text">Autotask delete failed</p>
+                      <h2>Purge from TicketPilot review?</h2>
+                      <p class="muted-text">
+                        Delete From Autotask did not complete. This fallback removes only the TicketPilot review entry and
+                        related local submission history. It does not delete the Autotask record.
+                      </p>
+                      {% if selected_job.autotask_error %}
+                        <p class="error-text">{{ selected_job.autotask_error }}</p>
+                      {% endif %}
+                      <div class="button-pair-row review-action-row">
+                        <form method="dialog" class="review-inline-action-form">
+                          <button class="secondary-button" type="submit">Keep in Review</button>
+                        </form>
+                        <form
+                          method="post"
+                          action="/review/{{ selected_job.id }}/purge-submitted-local"
+                          class="review-inline-action-form"
+                        >
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                          <button class="danger-outline-button" type="submit">Purge from Review</button>
+                        </form>
+                      </div>
+                    </div>
+                  </dialog>
+                {% endif %}
+              {% elif selected_job.status.value == "active" %}
+                <div class="button-pair-row review-action-row">
+                  <button
+                    class="primary-button"
+                    type="submit"
+                    form="{{ review_form_id }}"
+                    formaction="/jobs/{{ selected_job.id }}/end"
+                    data-review-loading-message="{% if is_ticket_note %}Ending note...{% else %}Ending work...{% endif %}"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M8 5h8v14H8z"></path>
+                    </svg>
+                    <span data-review-end-entry-label>{% if is_ticket_note %}End Note{% else %}End Work{% endif %}</span>
+                  </button>
+                  <form
+                    method="post"
+                    action="/review/{{ selected_job.id }}/purge"
+                    class="purge-form review-inline-action-form"
+                    data-confirm-message="{% if is_ticket_note %}This will permanently remove this local note and related debug history. Continue?{% else %}This will permanently remove this local time entry and related debug history. Continue?{% endif %}"
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="danger-outline-button" type="submit">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6h18"></path>
+                        <path d="M8 6V4h8v2"></path>
+                        <path d="M10 11v6"></path>
+                        <path d="M14 11v6"></path>
+                        <path d="M9 10h6"></path>
+                      </svg>
+                      <span data-review-delete-entry-label>{% if is_ticket_note %}Delete note{% else %}Delete time entry{% endif %}</span>
+                    </button>
+                  </form>
+                </div>
+              {% elif selected_job.status.value == "submission_failed" %}
+                <div class="button-pair-row review-action-row">
+                  <button
+                    class="primary-button"
+                    type="submit"
+                    form="{{ review_form_id }}"
+                    formaction="/review/{{ selected_job.id }}/retry"
+                    data-review-loading-message="Retrying Autotask submission..."
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M21 12a9 9 0 1 1-3-6.7"></path>
+                      <path d="M21 3v6h-6"></path>
+                    </svg>
+                    Retry
+                  </button>
+                  <button
+                    class="primary-button"
+                    type="submit"
+                    form="{{ review_form_id }}"
+                    formaction="/review/{{ selected_job.id }}/accept"
+                    data-review-loading-message="{% if is_ticket_note %}Submitting ticket note to Autotask...{% else %}Submitting time entry to Autotask...{% endif %}"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M20 6L9 17l-5-5"></path>
+                    </svg>
+                    Accept and Submit
+                  </button>
+                </div>
+                <div class="button-pair-row review-action-row">
+                  <form
+                    method="post"
+                    action="/review/{{ selected_job.id }}/purge"
+                    class="purge-form review-inline-action-form"
+                    data-confirm-message="{% if is_ticket_note %}This will permanently remove this local note and related debug history. Continue?{% else %}This will permanently remove this local time entry and related debug history. Continue?{% endif %}"
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="danger-outline-button" type="submit">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6h18"></path>
+                        <path d="M8 6V4h8v2"></path>
+                        <path d="M10 11v6"></path>
+                        <path d="M14 11v6"></path>
+                        <path d="M9 10h6"></path>
+                      </svg>
+                      <span data-review-delete-entry-label>{% if is_ticket_note %}Delete note{% else %}Delete time entry{% endif %}</span>
+                    </button>
+                  </form>
+                </div>
+              {% else %}
+                <div class="button-pair-row review-action-row">
+                  <button
+                    class="primary-button"
+                    type="submit"
+                    form="{{ review_form_id }}"
+                    formaction="/review/{{ selected_job.id }}/accept"
+                    data-review-loading-message="{% if is_ticket_note %}Submitting ticket note to Autotask...{% else %}Submitting time entry to Autotask...{% endif %}"
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M20 6L9 17l-5-5"></path>
+                    </svg>
+                    Accept and Submit
+                  </button>
+                  <form
+                    method="post"
+                    action="/review/{{ selected_job.id }}/purge"
+                    class="purge-form review-inline-action-form"
+                    data-confirm-message="{% if is_ticket_note %}This will permanently remove this local note and related debug history. Continue?{% else %}This will permanently remove this local time entry and related debug history. Continue?{% endif %}"
+                  >
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="danger-outline-button" type="submit">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 6h18"></path>
+                        <path d="M8 6V4h8v2"></path>
+                        <path d="M10 11v6"></path>
+                        <path d="M14 11v6"></path>
+                        <path d="M9 10h6"></path>
+                      </svg>
+                      <span data-review-delete-entry-label>{% if is_ticket_note %}Delete note{% else %}Delete time entry{% endif %}</span>
+                    </button>
+                  </form>
+                </div>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          {% if can_modify_selected_job and (not selected_job_submitted or ai_cleanup_enabled or selected_job.ai_cleanup_original_summary) %}
+            <div class="review-status-stack{% if not selected_job_submitted and selected_job.transcription_error %} has-status-message{% endif %}" aria-live="polite">
+              <p
+                class="recording-status workflow-status-line"
+                data-review-autosave-status
+                data-review-recording-status
+                data-ai-cleanup-status
+                data-job-id="{{ selected_job.id }}"
+                aria-live="polite"
+              ></p>
+              {% if not selected_job_submitted and selected_job.transcription_error %}
+                <p class="error-text">{{ selected_job.transcription_error }}</p>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          <details class="audit-panel audit-timeline" aria-label="Audit timeline">
+            <summary>
+              <span>Audit timeline</span>
+              <span class="audit-count">{{ audit_events|length }} event{% if audit_events|length != 1 %}s{% endif %}</span>
+            </summary>
+            <div class="audit-timeline-body">
+              {% if audit_events %}
+                <ol class="audit-list">
+                  {% for audit_event in audit_events %}
+                    <li>
+                      <strong>{{ audit_event.action }}</strong>
+                      <span>{{ audit_event.created_at_utc|local_display }} by {{ audit_event.actor }}</span>
+                    </li>
+                  {% endfor %}
+                </ol>
+              {% else %}
+                <p class="muted-text">No audit events recorded for this job.</p>
+              {% endif %}
+            </div>
+          </details>
+        {% else %}
+          <div class="empty-state">
+            <h2>No job selected</h2>
+            <p class="muted-text">Recorded jobs will appear here after work is ended.</p>
+          </div>
+        {% endif %}
+      </section>
+    </div>
+  </section>
+
+  {{ render_ticket_notes_overlay() }}
+  <script src="/static/ticket-notes.js?v={{ static_asset_version }}" defer></script>
+  <script src="/static/date-time-controls.js?v={{ static_asset_version }}" defer></script>
+  <script src="/static/navigation.js?v={{ static_asset_version }}" defer></script>
+  <script src="/static/review.js?v={{ static_asset_version }}" defer></script>
+{% endblock %}

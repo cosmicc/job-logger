@@ -7,15 +7,15 @@ import logging
 from dataclasses import replace
 from typing import Any
 
-from job_logger.config import settings
-from job_logger.services import turnstile as turnstile_service
+from ticket_pilot.config import settings
+from ticket_pilot.services import turnstile as turnstile_service
 
 
 def _turnstile_settings(**overrides):
     """Return settings with Turnstile enabled for validation tests."""
 
     base_overrides = {
-        "app_public_base_url": "https://joblogger.example.test",
+        "app_public_base_url": "https://ticketpilot.example.test",
         "turnstile_enabled": True,
         "turnstile_secret_key": "secret-key",
         "turnstile_verify_url": "https://turnstile.example.test/siteverify",
@@ -78,7 +78,7 @@ def test_turnstile_validation_posts_required_siteverify_fields(monkeypatch) -> N
     _FakeAsyncClient.calls = []
     _FakeAsyncClient.response_payload = {
         "success": True,
-        "hostname": "joblogger.example.test",
+        "hostname": "ticketpilot.example.test",
         "action": "password_reset",
     }
     monkeypatch.setattr(turnstile_service.httpx, "AsyncClient", _FakeAsyncClient)
@@ -102,12 +102,12 @@ def test_turnstile_validation_logs_safe_debug_metadata(monkeypatch, caplog) -> N
     _FakeAsyncClient.calls = []
     _FakeAsyncClient.response_payload = {
         "success": True,
-        "hostname": "joblogger.example.test",
+        "hostname": "ticketpilot.example.test",
         "action": "password_reset",
     }
     monkeypatch.setattr(turnstile_service.httpx, "AsyncClient", _FakeAsyncClient)
 
-    with caplog.at_level(logging.DEBUG, logger="job_logger.services.turnstile"):
+    with caplog.at_level(logging.DEBUG, logger="ticket_pilot.services.turnstile"):
         result = _run_validation(response_token="raw-sensitive-token")
 
     assert result.success is True
@@ -115,7 +115,7 @@ def test_turnstile_validation_logs_safe_debug_metadata(monkeypatch, caplog) -> N
     assert "Turnstile Siteverify response" in caplog.text
     assert "Turnstile verification succeeded" in caplog.text
     assert "token_length=19" in caplog.text
-    assert "joblogger.example.test" in caplog.text
+    assert "ticketpilot.example.test" in caplog.text
     assert "raw-sensitive-token" not in caplog.text
     assert "secret-key" not in caplog.text
 
@@ -126,7 +126,7 @@ def test_turnstile_validation_allows_disabled_turnstile_without_dev_build(monkey
     _FakeAsyncClient.calls = []
     monkeypatch.setattr(turnstile_service.httpx, "AsyncClient", _FakeAsyncClient)
 
-    with caplog.at_level(logging.INFO, logger="job_logger.services.turnstile"):
+    with caplog.at_level(logging.INFO, logger="ticket_pilot.services.turnstile"):
         result = _run_validation(
             response_token="",
             turnstile_enabled=False,
@@ -147,7 +147,7 @@ def test_turnstile_validation_rejects_action_mismatch(monkeypatch) -> None:
     _FakeAsyncClient.calls = []
     _FakeAsyncClient.response_payload = {
         "success": True,
-        "hostname": "joblogger.example.test",
+        "hostname": "ticketpilot.example.test",
         "action": "login",
     }
     monkeypatch.setattr(turnstile_service.httpx, "AsyncClient", _FakeAsyncClient)

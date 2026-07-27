@@ -1,13 +1,15 @@
-# Job Logger User Manual
+# TicketPilot User Manual
 
-This manual explains the Job Logger screens and workflows available to a normal
-managed web user. It covers signing in, resetting your password, recording work,
-submitting Autotask time entries or ticket notes, reviewing completed work,
-changing your own settings, and understanding common messages.
+TicketPilot's formal name is **Ticket Pilot for Autotask** because its work
+workflow relies on the Autotask service. This manual explains the TicketPilot
+screens and workflows available to a normal managed web user. It covers signing
+in, resetting your password, recording work, submitting Autotask time entries
+or ticket notes, reviewing completed work, changing your own settings, and
+understanding common messages.
 
-## What Job Logger Does
+## What TicketPilot Does
 
-Job Logger helps you record work while it is happening and send the finished
+TicketPilot helps you record work while it is happening and send the finished
 record to Autotask. A work record can become either:
 
 - A **Time entry** with date, start time, end time, work type, ticket status,
@@ -20,19 +22,21 @@ pages also work from a full browser.
 
 ## Signing In
 
-Open the Job Logger URL provided by your organization. Sign in with your
-username and password.
+Open the TicketPilot URL provided by your organization. Sign in with your
+username and password. The login page always uses a neutral black, white, and
+grey appearance; your saved background and highlight choices apply only after
+you sign in.
 
 If you are signing in on a shared or public device, check **This is a public
-device** before signing in. Job Logger signs out public-device sessions after
+device** before signing in. TicketPilot signs out public-device sessions after
 15 minutes of inactivity and does not offer Device sign-in setup during that
 session.
 
-Your administrator may send a Job Logger welcome email with the app link, your
+Your administrator may send a TicketPilot welcome email with the app link, your
 username, mobile install steps, and support contact. The welcome email does not
 include your temporary password.
 
-If your account is new or your administrator reset your password, Job Logger
+If your account is new or your administrator reset your password, TicketPilot
 will ask you to choose a new password before you can use the rest of the app.
 
 Your password must have:
@@ -46,13 +50,13 @@ If your account is disabled, the sign-in page will tell you after you enter the
 correct password. It may also show the contact email your organization
 configured for support.
 
-If there are too many failed sign-in attempts, Job Logger may temporarily block
+If there are too many failed sign-in attempts, TicketPilot may temporarily block
 more attempts from that location. Wait for the lockout time to pass or contact
 your app administrator.
 
 If your organization enables password reset, the sign-in page shows **Forgot
 password?**. Enter your account email address and complete the verification
-prompt if one appears. Job Logger always shows the same confirmation message,
+prompt if one appears. TicketPilot always shows the same confirmation message,
 even when no enabled account matches that email address. If your email matches
 exactly one enabled account, you will receive a reset link that works once and
 expires after 24 hours. After you set the new password, sign in again with that
@@ -60,6 +64,14 @@ password. Three consecutive reset requests that do not match one enabled
 account can temporarily block further requests from that location. Carefully
 check the email address before submitting again, or contact your app
 administrator if the location becomes blocked.
+
+## Installing The App On A Phone
+
+Open your organization's TicketPilot address in the phone browser, sign in,
+then choose the browser action named **Install App** or **Add to Home Screen**.
+The installed app uses the TicketPilot app icon and opens without the normal
+browser toolbar. If a phone continues to show an older icon after an update,
+remove the installed shortcut or app and install TicketPilot again.
 
 ## Device Sign-In
 
@@ -70,12 +82,12 @@ unlock method.
 To set it up:
 
 1. Sign in with your normal username and password.
-2. If Job Logger asks you to change a temporary password, change it first.
+2. If TicketPilot asks you to change a temporary password, change it first.
 3. Open **Config**.
 4. In **Device sign-in**, select **Set up device sign-in**.
 5. Follow the browser or device prompt.
 
-On phones, Job Logger may also show a one-time Work page prompt to set up
+On phones, TicketPilot may also show a one-time Work page prompt to set up
 device sign-in when your account does not have one yet.
 Device sign-in setup is unavailable while you are signed in using the public
 device option.
@@ -85,7 +97,7 @@ After setup, the login page still shows username/password first. Use the
 credential. Password sign-in remains available as a fallback.
 
 You can delete a saved device sign-in from **Config**. Deleting it removes that
-credential from Job Logger, but it does not change your password.
+credential from TicketPilot, but it does not change your password.
 
 ## Navigation
 
@@ -102,7 +114,7 @@ any optional admin shortcut, and Log out sit on the right side. On a full
 browser, these controls use icon-and-text buttons. The top bar remains visible
 while you scroll on either layout.
 
-If a red app-health icon appears in the header, Job Logger has detected that
+If a red app-health icon appears in the header, TicketPilot has detected that
 something needs attention. You can usually keep working unless the page shows a
 specific error. Contact your app administrator if the icon stays on or work
 submission fails.
@@ -114,12 +126,13 @@ calls for your Autotask resource, and it also lets you start a blank work
 record.
 
 The Work page shows a compact Today and Week box with your total time-entry
-hours. Ticket notes do not add to these totals because they do not record start
-and end times.
+hours directly below the navigation area. Ticket notes do not add to these
+totals because they do not record start and end times.
 
-Select **Start Work** to create a Work in Progress card. Job Logger supports up
-to two active work records at the same time. When two are active, the most
-recently started record appears above the earlier record.
+The blank-work panel is titled **Start a time entry**. Select **Start Work** to
+create a Work in Progress card. TicketPilot supports up to two active work
+records at the same time. When two are active, the most recently started record
+appears above the earlier record.
 
 Each Work in Progress card belongs to your user account. Other users do not use
 your active cards.
@@ -127,7 +140,7 @@ your active cards.
 When navigation is enabled in Config, Work shows quick **Home** and **Office**
 buttons. Office appears only when you or your administrator configured an
 office destination. Starting a service call detected as On-Site opens your
-chosen navigation app after Job Logger confirms the work entry started. Remote
+chosen navigation app after TicketPilot confirms the work entry started. Remote
 service calls start without opening navigation. These navigation actions are
 available on phones and tablets by default. On a full web browser, they appear
 only when **Allow navigation on full web version** is enabled in Config.
@@ -148,14 +161,14 @@ visible but disabled because ticket notes do not use work type.
 
 **Ticket status**
 
-Choose the status Job Logger should send to Autotask when the record is
+Choose the status TicketPilot should send to Autotask when the record is
 submitted. Supported statuses are **In progress**, **Waiting customer**,
 **Waiting parts**, **Follow up**, and **Complete**.
 
 **Job date** or **Note Date**
 
 Time entries use **Job date**. Ticket notes use **Note Date**. Date pickers use
-Job Logger's own **Today**, **Cancel**, and **Set** controls.
+TicketPilot's own **Today**, **Cancel**, and **Set** controls.
 
 **Start time**, **End time**, and **Work Duration**
 
@@ -164,7 +177,10 @@ adjust the visible times with the time controls. **Work Duration** shows the
 rounded duration that will be used for the time entry. Ticket notes hide these
 time fields because ticket notes do not use start and end time.
 Remote time entries must be at least 15 minutes. On-Site time entries must be
-at least 1 hour.
+at least 1 hour. On the active Work page, changing the work type updates only
+the end time. TicketPilot uses the minimum duration unless the current rounded
+15-minute block is later. Review and submitted-entry edits remain manual and
+show a validation message when the selected duration is too short.
 
 **Client name**
 
@@ -178,7 +194,7 @@ selected, the client becomes read-only for that work record.
 
 After selecting a verified client, load that client's open tickets and select
 the correct ticket. Each choice includes the ticket's **Start** date and
-**Due by** date when Autotask provides them. Job Logger saves the selected
+**Due by** date when Autotask provides them. TicketPilot saves the selected
 ticket number, title, and description. The ticket identity becomes read-only
 after selection.
 
@@ -199,7 +215,7 @@ Ticket note is selected.
 
 **Summary notes**
 
-For time entries, write the work summary that should go to Autotask. Job Logger
+For time entries, write the work summary that should go to Autotask. TicketPilot
 adds the selected work type prefix, such as `Remote.` or `On-Site.`, to the
 summary that will be submitted.
 
@@ -212,8 +228,8 @@ Ticket notes require a note title. Time entries do not use a note title.
 
 **Append to resolution**
 
-This option is available for time entries and ticket notes. When it is on, Job
-Logger tells Autotask to append the submitted content to the ticket resolution
+This option is available for time entries and ticket notes. When it is on,
+TicketPilot tells Autotask to append the submitted content to the ticket resolution
 where the Autotask workflow supports that behavior.
 
 ## Recording Notes
@@ -269,8 +285,11 @@ actions instead.
 
 ## Review Page
 
-The Review page lists your completed, failed, and submitted records, newest
-first, with 10 records per page.
+The Review page starts with Today, Week, and Unsubmitted cards directly below
+the navigation bar, then lists your completed, failed, and submitted records
+newest first, with 10 records per page. On a phone, all three summary cards fit
+on one row and abbreviate duration values, such as `15m`, `1h`, or `1.25h`. On
+a full browser, the summary row aligns with the Review detail card.
 
 Use Review to:
 
@@ -285,9 +304,13 @@ have been chosen. If an active record was opened in Review before any client was
 selected, Review may let you choose the first verified client and then select a
 ticket.
 
-Review also shows your total time-entry hours worked today and this week. Each
-review row shows day and week hour totals for that job's owner and work date.
-Ticket notes do not add to these totals because they do not record time.
+Review also shows your total time-entry hours worked today and this week, plus
+the number of your time entries that have not been submitted to Autotask yet.
+That count includes active entries, entries ready for review, and failed
+submissions. Ticket notes, rejected entries, and successfully submitted entries
+do not count. Each review row shows day and week hour totals for that job's
+owner and work date. Ticket notes do not add to these totals because they do
+not record time.
 
 ## Review Fields
 
@@ -330,8 +353,8 @@ append-to-resolution, and ticket status.
 **Delete From Autotask**
 
 Deletes the submitted Autotask record when that action is available and moves
-the local record back to Review. If Autotask cannot complete the delete, Job
-Logger may show a local-only cleanup option with a warning.
+the local record back to Review. If Autotask cannot complete the delete,
+TicketPilot may show a local-only cleanup option with a warning.
 
 **Delete time entry** or **Delete note**
 
@@ -341,19 +364,30 @@ record should not be submitted.
 ## Config Page
 
 Config stores your personal settings. Most options save immediately when you
-change them.
+change them. The page identifies the active account as **User Settings for
+Full Name (username)** above the settings cards.
 
 ### Appearance
 
-Choose **Dark** or **Light** theme. The choice applies to your signed-in pages.
-Dark is the default.
+Choose a background from the dropdown: **Default Light**, **Sage Light**,
+**Sky Light**, **Default Dark**, **Midnight Black**, **Graphite Dark**,
+**Forest Dark**, or **Plum Dark**. Every background option displays three round
+palette samples. Then independently choose one of ten highlight colors from
+its dropdown; every option includes a visible color sample. TicketPilot
+automatically uses an adjusted shade for readable contrast on light and dark
+backgrounds. The combination applies to your signed-in pages, including
+navigation icons and ordinary buttons. Default Dark with Teal is selected
+initially.
+
+On a full browser, Config uses a wide two-column card layout. On phones, the
+same cards remain stacked in the documented order.
 
 ### Password
 
 Enter a new password twice and select **Change password**. Password changes do
 not save automatically because they require explicit confirmation.
 
-When Job Logger says you are using a temporary password, Config shows only the
+When TicketPilot says you are using a temporary password, Config shows only the
 password-change step until the new password is saved.
 
 ### Navigation
@@ -367,6 +401,11 @@ configured. These personal addresses save with your user settings.
 hide navigation buttons and prevent automatic service-call directions in a
 desktop browser. Turn it on to allow those actions on full web browsers as well
 as mobile devices. The option is disabled while Navigation is set to None.
+
+**Hide Home and Office navigation buttons** is also off by default. Turn it on
+to remove only those two quick buttons from Work. Ticket and service-call
+**Navigate to Destination** controls remain available. This option is disabled
+while Navigation is set to None.
 
 Device Default asks Android to use its registered map handler, uses Apple Maps
 on iPhone or iPad, and opens browser directions on an opted-in desktop.
@@ -403,7 +442,7 @@ If the Help page shows **DEV** beside the version, or the Help button is
 yellow, you are using a development or testing instance rather than the
 production instance.
 
-If AI Help is enabled, you can ask one Job Logger support question at a time in
+If AI Help is enabled, you can ask one TicketPilot support question at a time in
 the **Ask AI for help** card and read the answer on the Help page. When your
 organization configures a support contact email, that contact line appears
 under the AI answer.
@@ -425,7 +464,7 @@ contact your app administrator.
 Password reset is temporarily blocked for that location. Wait and try again
 later, or contact your app administrator to verify the account email address.
 
-**If an enabled Job Logger account exists for that email address, a password reset email has been sent**
+**If an enabled TicketPilot account exists for that email address, a password reset email has been sent**
 
 Check your email for the reset link. If no message arrives, confirm you entered
 the email address connected to your account and contact your app administrator.
@@ -454,7 +493,7 @@ your app administrator.
 **Select a client from the search results**
 
 Typed client text is not enough. Choose the Autotask company from the search
-results so Job Logger can save the verified company ID.
+results so TicketPilot can save the verified company ID.
 
 **No open tickets**
 
@@ -474,14 +513,14 @@ appearing.
 
 **Service Temporarily Unavailable**
 
-Job Logger cannot reach required storage right now. Wait for the page to retry
+TicketPilot cannot reach required storage right now. Wait for the page to retry
 or sign in again later. Contact your app administrator if it does not recover.
 
 ## Glossary
 
 **Autotask**
 
-The external system where Job Logger sends time entries and ticket notes.
+The external system where TicketPilot sends time entries and ticket notes.
 
 **Device sign-in**
 
@@ -511,4 +550,4 @@ An Autotask work-time record with date, start time, end time, and work summary.
 
 **Work in Progress**
 
-An active Job Logger record that has been started but not yet finished.
+An active TicketPilot record that has been started but not yet finished.

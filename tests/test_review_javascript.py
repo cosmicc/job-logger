@@ -14,8 +14,8 @@ def test_open_ticket_renderers_share_dates_status_and_company_metadata() -> None
     """Review and Work in Progress ticket cards should expose the same visible metadata."""
 
     repository_root = Path(__file__).resolve().parents[1]
-    mobile_script = (repository_root / "job_logger" / "static" / "mobile.js").read_text(encoding="utf-8")
-    review_script = (repository_root / "job_logger" / "static" / "review.js").read_text(encoding="utf-8")
+    mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
     expected_company_line = 'const companyName = ticketOption.company_name || "Unknown company";'
     expected_dates_line = 'createTicketOptionSpan("ticket-option-dates", `Start ${startDate} · Due by ${dueByDate}`),'
     expected_meta_line = 'createTicketOptionSpan("ticket-option-meta", `${ticketStatus} | ${companyName}`),'
@@ -32,10 +32,10 @@ def test_ticket_note_mode_disables_work_type_instead_of_hiding_it() -> None:
     """Ticket note mode should grey out Work type without removing the card."""
 
     repository_root = Path(__file__).resolve().parents[1]
-    mobile_script = (repository_root / "job_logger" / "static" / "mobile.js").read_text(encoding="utf-8")
-    review_script = (repository_root / "job_logger" / "static" / "review.js").read_text(encoding="utf-8")
-    mobile_template = (repository_root / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
-    review_template = (repository_root / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+    mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
+    mobile_template = (repository_root / "ticket_pilot" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (repository_root / "ticket_pilot" / "templates" / "review.html").read_text(encoding="utf-8")
 
     assert 'workLocationCard.classList.toggle("is-hidden", isTicketNote);' not in mobile_script
     assert 'workLocationCard.classList.toggle("is-hidden", isTicketNote);' not in review_script
@@ -51,7 +51,7 @@ def test_ticket_notes_overlay_list_cards_show_titles_only() -> None:
     """Ticket note selection cards should leave metadata in detail."""
 
     repository_root = Path(__file__).resolve().parents[1]
-    ticket_notes_script = (repository_root / "job_logger" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
+    ticket_notes_script = (repository_root / "ticket_pilot" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
 
     assert "metaParts.push(`From ${createdBy}`);" in ticket_notes_script
     assert 'const title = ticketNotesCreateElement("span", "ticket-note-list-title"' in ticket_notes_script
@@ -64,7 +64,7 @@ def test_ticket_time_entries_overlay_list_cards_show_resource_and_range() -> Non
     """Time-entry selection cards should show resource/range while detail shows summary."""
 
     repository_root = Path(__file__).resolve().parents[1]
-    ticket_notes_script = (repository_root / "job_logger" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
+    ticket_notes_script = (repository_root / "ticket_pilot" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
 
     assert "function ticketTimeEntryListRangeForDisplay(rawDisplayRange)" in ticket_notes_script
     assert "function ticketTimeEntryHoursLabel(rawHoursWorked)" in ticket_notes_script
@@ -88,12 +88,12 @@ def test_ticket_context_buttons_show_disabled_empty_states() -> None:
     """Ticket context lookups should show same-place disabled buttons for empty results."""
 
     repository_root = Path(__file__).resolve().parents[1]
-    mobile_script = (repository_root / "job_logger" / "static" / "mobile.js").read_text(encoding="utf-8")
-    review_script = (repository_root / "job_logger" / "static" / "review.js").read_text(encoding="utf-8")
-    ticket_notes_script = (repository_root / "job_logger" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
-    mobile_template = (repository_root / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
-    review_template = (repository_root / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
-    stylesheet = (repository_root / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
+    mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
+    ticket_notes_script = (repository_root / "ticket_pilot" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
+    mobile_template = (repository_root / "ticket_pilot" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (repository_root / "ticket_pilot" / "templates" / "review.html").read_text(encoding="utf-8")
+    stylesheet = (repository_root / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
 
     assert "No Notes" in ticket_notes_script
     assert "No past entries" in ticket_notes_script
@@ -127,7 +127,7 @@ def test_ticket_context_refreshes_matching_peer_buttons() -> None:
     """Duplicate mobile/desktop ticket-history buttons should share refresh results."""
 
     repository_root = Path(__file__).resolve().parents[1]
-    ticket_notes_script = (repository_root / "job_logger" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
+    ticket_notes_script = (repository_root / "ticket_pilot" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
 
     assert "function ticketContextPeerButtons(button, selector, urlDatasetName, ticketDatasetName)" in ticket_notes_script
     assert "function fetchTicketContextJson(url, fallbackErrorMessage)" in ticket_notes_script
@@ -147,15 +147,15 @@ def test_shared_date_time_controls_replace_native_picker_and_add_time_dropdown()
     """Date choosers should use app controls, and time fields should offer 15-minute options."""
 
     repository_root = Path(__file__).resolve().parents[1]
-    controls_script = (repository_root / "job_logger" / "static" / "date-time-controls.js").read_text(encoding="utf-8")
-    mobile_template = (repository_root / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
-    review_template = (repository_root / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
-    review_script = (repository_root / "job_logger" / "static" / "review.js").read_text(encoding="utf-8")
+    controls_script = (repository_root / "ticket_pilot" / "static" / "date-time-controls.js").read_text(encoding="utf-8")
+    mobile_template = (repository_root / "ticket_pilot" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (repository_root / "ticket_pilot" / "templates" / "review.html").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
 
     assert 'todayButton.textContent = "Today";' in controls_script
     assert 'cancelButton.textContent = "Cancel";' in controls_script
     assert 'setButton.textContent = "Set";' in controls_script
-    assert "JOB_LOGGER_TIME_STEP_MINUTES = 15" in controls_script
+    assert "TICKET_PILOT_TIME_STEP_MINUTES = 15" in controls_script
     assert "timeInput.setAttribute(\"aria-haspopup\", \"listbox\")" in controls_script
     assert 'selectedButton.scrollIntoView({block: "center"});' in controls_script
     assert "dateInput.type = \"text\";" in controls_script
@@ -171,7 +171,7 @@ def test_review_entry_type_switch_syncs_summary_prefix() -> None:
     """Changing entry type should strip or restore only the visible work-location prefix."""
 
     repository_root = Path(__file__).resolve().parents[1]
-    review_script = (repository_root / "job_logger" / "static" / "review.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
 
     assert "SUMMARY_WORK_LOCATION_DISPLAY_PREFIX_PATTERN" in review_script
     assert "function stripReviewSummaryDisplayPrefix(summaryText)" in review_script
@@ -185,8 +185,8 @@ def test_workflow_status_messages_share_one_line() -> None:
     """Save, recording, and AI cleanup messages should overwrite one shared status line."""
 
     repository_root = Path(__file__).resolve().parents[1]
-    mobile_template = (repository_root / "job_logger" / "templates" / "mobile.html").read_text(encoding="utf-8")
-    review_template = (repository_root / "job_logger" / "templates" / "review.html").read_text(encoding="utf-8")
+    mobile_template = (repository_root / "ticket_pilot" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (repository_root / "ticket_pilot" / "templates" / "review.html").read_text(encoding="utf-8")
 
     assert 'class="recording-status workflow-status-line"' in mobile_template
     assert "data-active-save-status" in mobile_template
@@ -208,7 +208,7 @@ def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
     repository_root = Path(__file__).resolve().parents[1]
     # review_script_path is read by the Node harness so the test exercises the
     # source-controlled script instead of a copied test double.
-    review_script_path = repository_root / "job_logger" / "static" / "review.js"
+    review_script_path = repository_root / "ticket_pilot" / "static" / "review.js"
     # harness_path keeps the temporary JavaScript runner out of source control.
     harness_path = tmp_path / "review_autosave_test.js"
     harness_path.write_text(

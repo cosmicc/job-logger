@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1060" viewBox="0 0 1200 1060" role="img" aria-labelledby="title description">
+  <title id="title">TicketPilot background and highlight profiles</title>
+  <desc id="description">Eight selectable background profiles and ten independent highlight colors with contrast-adjusted light and dark shades.</desc>
+  <rect width="1200" height="1060" fill="#eef2f6"/>
+  <g font-family="Inter, Segoe UI, sans-serif">
+    <text x="64" y="66" fill="#132033" font-size="34" font-weight="700">TicketPilot Appearance Profiles</text>
+    <text x="64" y="101" fill="#617089" font-size="18">8 background profiles · 10 independent highlight colors · Version 2.0.0</text>
+
+    <text x="64" y="151" fill="#132033" font-size="24" font-weight="700">Backgrounds</text>
+    <text x="64" y="177" fill="#617089" font-size="15">Choose one surface profile independently from the highlight color.</text>
+
+    <g transform="translate(64 202)">
+      <rect width="510" height="104" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+      <text x="22" y="32" fill="#132033" font-size="19" font-weight="700">Default Light</text>
+      <text x="22" y="55" fill="#617089" font-size="14">Cool white</text>
+      <rect x="260" y="22" width="66" height="60" rx="8" fill="#f6f8fb" stroke="#cbd5e1"/>
+      <rect x="338" y="22" width="66" height="60" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+      <rect x="416" y="22" width="66" height="60" rx="8" fill="#e8edf3" stroke="#cbd5e1"/>
+    </g>
+    <g transform="translate(626 202)">
+      <rect width="510" height="104" rx="12" fill="#fffef9" stroke="#c8d2c2"/>
+      <text x="22" y="32" fill="#243028" font-size="19" font-weight="700">Sage Light</text>
+      <text x="22" y="55" fill="#667267" font-size="14">Warm ivory</text>
+      <rect x="260" y="22" width="66" height="60" rx="8" fill="#f5f7f1" stroke="#c8d2c2"/>
+      <rect x="338" y="22" width="66" height="60" rx="8" fill="#fffef9" stroke="#c8d2c2"/>
+      <rect x="416" y="22" width="66" height="60" rx="8" fill="#e8ede3" stroke="#c8d2c2"/>
+    </g>
+    <g transform="translate(64 326)">
+      <rect width="510" height="104" rx="12" fill="#ffffff" stroke="#c5d5e4"/>
+      <text x="22" y="32" fill="#1d2b3b" font-size="19" font-weight="700">Sky Light</text>
+      <text x="22" y="55" fill="#62758a" font-size="14">Soft blue</text>
+      <rect x="260" y="22" width="66" height="60" rx="8" fill="#f2f7fb" stroke="#c5d5e4"/>
+      <rect x="338" y="22" width="66" height="60" rx="8" fill="#ffffff" stroke="#c5d5e4"/>
+      <rect x="416" y="22" width="66" height="60" rx="8" fill="#e7f0f7" stroke="#c5d5e4"/>
+    </g>
+    <g transform="translate(626 326)">
+      <rect width="510" height="104" rx="12" fill="#111a2c" stroke="#2b3c59"/>
+      <text x="22" y="32" fill="#e5e9f0" font-size="19" font-weight="700">Default Dark</text>
+      <text x="22" y="55" fill="#9aa8bc" font-size="14">Navy</text>
+      <rect x="260" y="22" width="66" height="60" rx="8" fill="#0b1220" stroke="#2b3c59"/>
+      <rect x="338" y="22" width="66" height="60" rx="8" fill="#111a2c" stroke="#2b3c59"/>
+      <rect x="416" y="22" width="66" height="60" rx="8" fill="#1a2740" stroke="#2b3c59"/>
+    </g>
+    <g transform="translate(64 450)">
+      <rect width="510" height="104" rx="12" fill="#0e141b" stroke="#29394d"/>
+      <text x="22" y="32" fill="#edf4ff" font-size="19" font-weight="700">Midnight Black</text>
+      <text x="22" y="55" fill="#9cabbf" font-size="14">Black and navy</text>
+      <rect x="260" y="22" width="66" height="60" rx="8" fill="#030508" stroke="#29394d"/>
+      <rect x="338" y="22" width="66" height="60" rx="8" fill="#0e141b" stroke="#29394d"/>
+      <rect x="416" y="22" width="66" height="60" rx="8" fill="#18222e" stroke="#29394d"/>
+    </g>
+    <g transform="translate(626 450)">
+      <rect width="510" height="104" rx="12" fill="#22252a" stroke="#474c54"/>
+      <text x="22" y="32" fill="#f1f2f3" font-size="19" font-weight="700">Graphite Dark</text>
+      <text x="22" y="55" fill="#b3b6bb" font-size="14">Charcoal</text>
+      <rect x="260" y="22" width="66" height="60" rx="8" fill="#17191d" stroke="#474c54"/>
+      <rect x="338" y="22" width="66" height="60" rx="8" fill="#22252a" stroke="#474c54"/>
+      <rect x="416" y="22" width="66" height="60" rx="8" fill="#2d3137" stroke="#474c54"/>
+    </g>
+    <g transform="translate(64 574)">
+      <rect width="510" height="104" rx="12" fill="#14241d" stroke="#345344"/>
+      <text x="22" y="32" fill="#e4eee8" font-size="19" font-weight="700">Forest Dark</text>
+      <text x="22" y="55" fill="#9fb2a5" font-size="14">Evergreen</text>
+      <rect x="260" y="22" width="66" height="60" rx="8" fill="#0d1914" stroke="#345344"/>
+      <rect x="338" y="22" width="66" height="60" rx="8" fill="#14241d" stroke="#345344"/>
+      <rect x="416" y="22" width="66" height="60" rx="8" fill="#20352b" stroke="#345344"/>
+    </g>
+    <g transform="translate(626 574)">
+      <rect width="510" height="104" rx="12" fill="#261a2d" stroke="#554062"/>
+      <text x="22" y="32" fill="#eee7f1" font-size="19" font-weight="700">Plum Dark</text>
+      <text x="22" y="55" fill="#b5a5bd" font-size="14">Aubergine</text>
+      <rect x="260" y="22" width="66" height="60" rx="8" fill="#1a1220" stroke="#554062"/>
+      <rect x="338" y="22" width="66" height="60" rx="8" fill="#261a2d" stroke="#554062"/>
+      <rect x="416" y="22" width="66" height="60" rx="8" fill="#392744" stroke="#554062"/>
+    </g>
+
+    <text x="64" y="735" fill="#132033" font-size="24" font-weight="700">Highlights</text>
+    <text x="64" y="761" fill="#617089" font-size="15">Each profile has a brighter dark-background shade and a darker light-background shade.</text>
+
+    <g transform="translate(64 787)">
+      <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+      <circle cx="38" cy="36" r="18" fill="#2dd4bf"/><circle cx="71" cy="36" r="13" fill="#0f766e"/>
+      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Teal</text>
+    </g>
+    <g transform="translate(281 787)">
+      <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+      <circle cx="38" cy="36" r="18" fill="#9fca9f"/><circle cx="71" cy="36" r="13" fill="#557a5b"/>
+      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Sage</text>
+    </g>
+    <g transform="translate(498 787)">
+      <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+      <circle cx="38" cy="36" r="18" fill="#76b9e8"/><circle cx="71" cy="36" r="13" fill="#356f9f"/>
+      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Sky Blue</text>
+    </g>
+    <g transform="translate(715 787)">
+      <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+      <circle cx="38" cy="36" r="18" fill="#6699e8"/><circle cx="71" cy="36" r="13" fill="#3267b1"/>
+      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Blue</text>
+    </g>
+    <g transform="translate(932 787)">
+      <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+      <circle cx="38" cy="36" r="18" fill="#8b8ff0"/><circle cx="71" cy="36" r="13" fill="#5558b7"/>
+      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Indigo</text>
+    </g>
+    <g transform="translate(64 891)">
+      <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+      <circle cx="38" cy="36" r="18" fill="#f2b84b"/><circle cx="71" cy="36" r="13" fill="#a85f05"/>
+      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Amber</text>
+    </g>
+    <g transform="translate(281 891)">
+      <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+      <circle cx="38" cy="36" r="18" fill="#f59a56"/><circle cx="71" cy="36" r="13" fill="#b45309"/>
+      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Orange</text>
+    </g>
+    <g transform="translate(498 891)">
+      <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+      <circle cx="38" cy="36" r="18" fill="#7fc29a"/><circle cx="71" cy="36" r="13" fill="#367b55"/>
+      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Mint</text>
+    </g>
+    <g transform="translate(715 891)">
+      <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+      <circle cx="38" cy="36" r="18" fill="#c49ad7"/><circle cx="71" cy="36" r="13" fill="#80539a"/>
+      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Lavender</text>
+    </g>
+    <g transform="translate(932 891)">
+      <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
+      <circle cx="38" cy="36" r="18" fill="#e990ad"/><circle cx="71" cy="36" r="13" fill="#a93f67"/>
+      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Rose</text>
+    </g>
+  </g>
+</svg>

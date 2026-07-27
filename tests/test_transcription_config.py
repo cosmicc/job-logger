@@ -7,9 +7,9 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-import job_logger.services.transcription as transcription_service
-from job_logger.config import load_settings
-from job_logger.services.transcription import (
+import ticket_pilot.services.transcription as transcription_service
+from ticket_pilot.config import load_settings
+from ticket_pilot.services.transcription import (
     FasterWhisperTranscriptionProvider,
     RemoteFasterWhisperTranscriptionProvider,
     TranscriptionError,

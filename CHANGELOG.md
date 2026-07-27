@@ -1,6 +1,105 @@
 # Changelog
 
-All notable changes to Job Logger are documented in this file.
+All notable changes to TicketPilot are documented in this file.
+
+## 2.0.0 - 07.26.2026 - TicketPilot rename, themes, workflow, navigation, and reliability
+
+### Added
+
+- Added TicketPilot-branded application metadata, install assets, browser
+  namespace, Python package namespace, and deployment identifiers.
+- Added Sage Light and Sky Light palettes plus Midnight Black, Graphite Dark,
+  Forest Dark, and Plum Dark palettes, bringing Config to three light and five
+  dark choices.
+- Added a checked-in eight-theme palette reference for future visual work.
+- Added ten independently selectable highlight colors with visible dropdown
+  samples and contrast-adjusted light/dark shades.
+- Added an Unsubmitted Review metric that counts actionable time entries still
+  active, ready for review, or awaiting a successful retry.
+- Added the supplied white, grey, and black TicketPilot SVG logo sources and
+  the supplied 128, 256, 512, and 1024 pixel installed-app icon sources.
+- Added a default-off per-user option to hide the Home and Office
+  quick-navigation buttons without disabling ticket or service-call directions.
+- Added `PUSHOVER_REMINDER_INTERVAL_SECONDS`, defaulting to 3600, for
+  unresolved app-health alert reminders.
+
+### Changed
+
+- Renamed the application from Job Logger to TicketPilot across the web
+  interface, account emails, Help content, documentation, source code, tests,
+  scripts, and operational examples.
+- Replaced the internal `job_logger`, `job-logger`, `JOB_LOGGER_*`, and
+  `JobLogger` contracts with `ticket_pilot`, `ticket-pilot`,
+  `TICKET_PILOT_*`, and `TicketPilot` respectively.
+- Renamed Docker Compose and Swarm database, image, service, storage, backup,
+  network, and external-Nginx references. Production Swarm now uses `tpapp`
+  and `tpnginx`; dev Swarm uses `tpdapp` and `tpdnginx`.
+- Advanced all source-controlled version surfaces to the `2.0.0` release.
+- Widened the full-browser Config page and arranged its cards in a balanced
+  two-column layout while keeping the phone layout stacked.
+- Changed the blank Work panel heading from **Start a work entry** to
+  **Start a time entry**.
+- Rebalanced full-browser blank and concurrent start-work panels so their
+  smaller single-line headings and Start Work controls stay left of Service
+  calls.
+- Changed active Work time handling so Remote stops stay at least 15 minutes
+  after start and On-Site stops stay at least 1 hour after start. Changing work
+  type recalculates only the stop, using the current rounded block when later.
+- Changed the authenticated desktop logo and browser favicon to use the white
+  logo on dark themes, the black logo on light themes, and the grey logo as a
+  neutral fallback. Theme changes update both immediately.
+- Changed the PWA manifest and Apple touch icon to use the maintained
+  multi-resolution TicketPilot app icons.
+- Changed Pushover health monitoring to repeat unchanged degraded-health alerts
+  every hour by default until the monitored state changes or recovers.
+- Established **Ticket Pilot for Autotask** as the formal long application name
+  while retaining `TicketPilot` for compact UI, package, and deployment use.
+- Defaulted optional Cloudflare Access header enforcement to off across Compose,
+  Swarm, and the environment example. A free Cloudflare account is sufficient
+  for the bundled Tunnel and optional Access deployment within free-plan limits.
+- Changed navigation icons and ordinary buttons to use each selected theme's
+  highlight color while preserving established semantic action colors.
+- Replaced Slate Dark with the darker Midnight Black palette and safely migrated
+  existing Slate Dark preferences and legacy backup values to Midnight Black.
+- Made `/work` the canonical Home and Work in Progress URL while retaining
+  `/home` compatibility, and made `/diagnostics` the canonical administrative
+  URL while retaining `/debug` compatibility.
+- Standardized browser titles in the `TicketPilot - Page` order, including
+  `TicketPilot - Time Entry` for Work.
+- Changed the public login page to a dedicated black, white, and grey palette
+  that is independent from every authenticated background and highlight choice.
+- Changed Config background selection from a card grid to a compact dropdown
+  whose selected value and every option show three round palette swatches.
+- Removed the Review page title and description so its summary cards begin just
+  below navigation, and compacted all three cards into one abbreviated row on
+  phones.
+- Changed the Config intro to identify the active managed account as
+  `User Settings for Full Name (username)`.
+
+### Fixed
+
+- Removed extra full-browser space above the Work hour summary and above the
+  Config Workflow card.
+- Aligned the full-browser Review Today, Week, and Unsubmitted summary row with
+  the Review detail card and distributed its three cards evenly.
+- Fixed the installed-app icon layout so the clock is on the left, the notepad
+  is in the middle, and the navigation symbol is on the right, keeping browser
+  corner badges from covering the clock.
+- Removed stale former-name labels and paths from runtime metadata, public
+  application surfaces, deployment templates, and maintained documentation.
+- Removed the Help and Config page titles and their unused vertical space,
+  while retaining the compact per-user Settings line on Config.
+- Kept the Work Duration display synchronized with server-normalized stop times
+  after a Remote or On-Site change.
+- Removed all superseded logo, install-icon, and maskable-icon assets.
+- Removed the superseded single-theme `docs/design/color_palette.png` reference;
+  the eight-theme SVG is now the only maintained palette reference.
+- Aligned the dev Swarm regression test and deployment documentation with its
+  intentional single `cloudflared` replica while retaining two in production.
+- Preserved the effective highlight color when migrating existing theme
+  preferences or restoring backups created before independent highlights.
+- Prevented authenticated theme and highlight classes from reaching the public
+  login page, including its controls, focus states, and feedback messages.
 
 ## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations
 

@@ -2,6 +2,45 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## 2.0.0 - 07.26.2026 - TicketPilot rename, themes, workflow, navigation, and reliability
+
+### Added
+
+- TicketPilot is now the application name across the web interface and installed app.
+- Config now offers three comfortable light themes and five dark themes, including Midnight Black and amber-accented Graphite Dark.
+- Config now has ten independently selectable highlight colors with a visible sample for every option.
+- Review now shows how many actionable time entries have not been submitted to Autotask yet.
+- TicketPilot now uses its new logo and new high-resolution installed-app icon.
+- Config can hide only the Home and Office quick-navigation buttons while keeping ticket destinations available.
+
+### Changed
+
+- Account emails, Help content, and user documentation now use the TicketPilot name.
+- Full-browser Config now uses the available width with paired cards, and both blank and concurrent Work start panels keep their controls left of Service calls.
+- Active Remote entries keep at least 15 minutes and On-Site entries keep at least 1 hour; changing work type updates only the stop time and uses the current rounded block when it is later.
+- Dark themes use the white TicketPilot mark and light themes use the black mark in the full-browser header and browser tab.
+- Navigation icons and ordinary buttons now use the selected theme's highlight color while action-specific colors remain easy to recognize.
+- The formal long application name is now Ticket Pilot for Autotask, reflecting that its work workflow relies on Autotask.
+- Cloudflare Access enforcement now starts off by default and can be enabled after an Access application is configured; a paid Cloudflare plan is not required.
+- Work now uses `/work` as its browser URL while old `/home` bookmarks continue to work.
+- Browser tab titles now put TicketPilot first, such as `TicketPilot - Time Entry`.
+- The login page now uses a neutral black, white, and grey appearance independently from your signed-in appearance choices.
+- Background selection on Config is now a dropdown with three round palette samples for every choice.
+- Review now begins with its summary cards directly below navigation, and phones keep all three cards on one row with shorter hour and minute labels.
+- Config now identifies the active account with its full name and username.
+- The blank Work panel now says **Start a time entry**.
+
+### Fixed
+
+- Full-browser Work, Config, and Review now remove uneven top/card gaps and align their summary and detail areas more consistently.
+- The installed-app icon now places its clock on the left so browser corner badges do not cover it.
+- Removed stale former-name labels from user-facing application pages and metadata.
+- Help and Config now begin closer to the navigation bar without redundant page titles or blank space.
+- Work Duration now updates immediately when a work-type change normalizes the active stop time.
+- Removed the former logo and app-icon artwork so browsers no longer discover stale branding assets.
+- Existing saved appearances keep their familiar highlight when upgraded to the new independent color setting.
+- Signed-in background and highlight choices no longer affect the login page.
+
 ## 1.4.0 - 07.20.2026 - Navigation apps and quick destinations
 
 ### Added

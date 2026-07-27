@@ -1,0 +1,283 @@
+"""Authenticated managed web-user configuration routes."""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from sqlalchemy.orm import Session
+
+from ticket_pilot.config import settings
+from ticket_pilot.database import get_database_session
+from ticket_pilot.enums import NavigationApp
+from ticket_pilot.models import WebUser
+from ticket_pilot.security import (
+    SESSION_PASSWORD_CHANGE_REQUIRED_KEY,
+    SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY,
+    WEB_USER_SESSION_KIND,
+    add_flash_message,
+    current_user_kind,
+    current_web_user_id,
+    logout_session,
+    public_device_session_enabled,
+    require_authenticated_username,
+    validate_csrf_header,
+    validate_csrf_token,
+)
+from ticket_pilot.services.audit import record_audit_event
+from ticket_pilot.services.passkeys import list_passkey_credentials_for_user
+from ticket_pilot.services.preferences import (
+    HIGHLIGHT_OPTIONS,
+    THEME_META_COLORS,
+    THEME_OPTIONS,
+    UserPreferenceError,
+    get_highlight_color_for_principal,
+    get_navigation_preferences_for_principal,
+    get_submit_from_work_in_progress_for_principal,
+    get_theme_for_principal,
+    preference_principal_from_session,
+    save_navigation_preferences_for_principal,
+    save_preferences_for_principal,
+)
+from ticket_pilot.services.users import WebUserError, change_web_user_password, get_enabled_web_user_by_id_or_raise
+from ticket_pilot.ui import template_context, templates
+
+router = APIRouter(prefix="/config", tags=["config"])
+
+
+def _wants_json_response(request: Request) -> bool:
+    """Return whether the browser expects the autosave JSON response."""
+
+    return "application/json" in request.headers.get("accept", "").lower()
+
+
+def _current_config_web_user(request: Request, database_session: Session) -> WebUser:
+    """Return the enabled managed web user allowed to access `/config`."""
+
+    require_authenticated_username(request)
+    if current_user_kind(request) != WEB_USER_SESSION_KIND:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Managed web-user configuration is required.")
+    return get_enabled_web_user_by_id_or_raise(database_session, current_web_user_id(request))
+
+
+def _current_web_user_preference_principal(request: Request, database_session: Session):
+    """Return the current managed web-user preference principal or raise an auth error."""
+
+    _current_config_web_user(request, database_session)
+    principal = preference_principal_from_session(request.session)
+    if principal is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Authenticated user configuration is unavailable.")
+    return principal
+
+
+@router.get("", response_class=HTMLResponse)
+def config_page(request: Request, database_session: Session = Depends(get_database_session)) -> Response:
+    """Render the managed web-user configuration page."""
+
+    try:
+        principal = _current_web_user_preference_principal(request, database_session)
+    except WebUserError:
+        logout_session(request)
+        return RedirectResponse(url="/login", status_code=303)
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            logout_session(request)
+            return RedirectResponse(url="/login", status_code=303)
+        raise
+
+    current_theme = get_theme_for_principal(database_session, principal.key)
+    current_highlight_color = get_highlight_color_for_principal(database_session, principal.key)
+    submit_from_work_in_progress = get_submit_from_work_in_progress_for_principal(database_session, principal.key)
+    navigation_preferences = get_navigation_preferences_for_principal(database_session, principal.key)
+    current_web_user = _current_config_web_user(request, database_session)
+    password_change_required = bool(
+        request.session.get(SESSION_PASSWORD_CHANGE_REQUIRED_KEY)
+        or current_web_user.password_must_change
+    )
+    if password_change_required:
+        request.session[SESSION_PASSWORD_CHANGE_REQUIRED_KEY] = True
+    return templates.TemplateResponse(
+        request,
+        "config.html",
+        template_context(
+            request,
+            database_session=database_session,
+            config_principal_label=principal.label,
+            config_user_full_name=current_web_user.full_name,
+            config_username=current_web_user.username,
+            selected_theme=current_theme.value,
+            theme_options=THEME_OPTIONS,
+            selected_highlight_color=current_highlight_color.value,
+            highlight_options=HIGHLIGHT_OPTIONS,
+            submit_from_work_in_progress=submit_from_work_in_progress,
+            selected_navigation_app=navigation_preferences.navigation_app.value,
+            navigation_app_options=[
+                (NavigationApp.NONE.value, "None"),
+                (NavigationApp.DEVICE_DEFAULT.value, "Device Default"),
+                (NavigationApp.GOOGLE_MAPS.value, "Google Maps"),
+                (NavigationApp.WAZE.value, "Waze"),
+                (NavigationApp.APPLE_MAPS.value, "Apple Maps"),
+            ],
+            navigation_home_address=navigation_preferences.home_address or "",
+            navigation_office_address=navigation_preferences.office_address_override or "",
+            allow_navigation_on_full_web=navigation_preferences.allow_navigation_on_full_web,
+            hide_home_office_navigation_buttons=navigation_preferences.hide_home_office_navigation_buttons,
+            global_navigation_office_configured=bool(settings.navigation_office_address),
+            passkey_credentials=list_passkey_credentials_for_user(database_session, current_web_user.id),
+            password_change_required=password_change_required,
+            public_device_session=public_device_session_enabled(request.session),
+        ),
+    )
+
+
+@router.post("")
+async def save_config(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> Response:
+    """Persist managed web-user configuration values."""
+
+    wants_json = _wants_json_response(request)
+    try:
+        actor = require_authenticated_username(request)
+        principal = _current_web_user_preference_principal(request, database_session)
+        form_data = await request.form()
+        validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+        submitted_theme = str(form_data.get("theme", "")) if "theme" in form_data else None
+        submitted_highlight_color = (
+            str(form_data.get("highlight_color", ""))
+            if "highlight_color" in form_data
+            else None
+        )
+        submitted_submit_from_work_in_progress = (
+            str(form_data.get("submit_from_work_in_progress", ""))
+            if "submit_from_work_in_progress" in form_data
+            else None
+        )
+        navigation_fields_submitted = "navigation_app" in form_data
+        user_preference = save_preferences_for_principal(
+            database_session,
+            principal_key=principal.key,
+            theme=submitted_theme,
+            highlight_color=submitted_highlight_color,
+            submit_from_work_in_progress=submitted_submit_from_work_in_progress,
+        )
+        if navigation_fields_submitted:
+            user_preference = save_navigation_preferences_for_principal(
+                database_session,
+                principal_key=principal.key,
+                navigation_app=str(form_data.get("navigation_app", "")),
+                home_address=str(form_data.get("home_address", "")),
+                office_address=str(form_data.get("office_address", "")),
+                allow_navigation_on_full_web=str(form_data.get("allow_navigation_on_full_web", "")),
+                hide_home_office_navigation_buttons=str(
+                    form_data.get("hide_home_office_navigation_buttons", "")
+                ),
+            )
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="user.config.updated",
+            request=request,
+            details={
+                "principal_key": principal.key,
+                "theme": user_preference.theme.value,
+                "highlight_color": user_preference.highlight_color.value,
+                "submit_from_work_in_progress": user_preference.submit_from_work_in_progress,
+                "navigation_app": user_preference.navigation_app.value,
+                "home_address_configured": bool(user_preference.home_address),
+                "office_address_override_configured": bool(user_preference.office_address),
+                "allow_navigation_on_full_web": user_preference.allow_navigation_on_full_web,
+                "hide_home_office_navigation_buttons": user_preference.hide_home_office_navigation_buttons,
+            },
+        )
+        database_session.commit()
+        if wants_json:
+            return JSONResponse(
+                {
+                    "theme": user_preference.theme.value,
+                    "highlight_color": user_preference.highlight_color.value,
+                    "theme_color": THEME_META_COLORS[user_preference.theme],
+                    "submit_from_work_in_progress": user_preference.submit_from_work_in_progress,
+                    "navigation_app": user_preference.navigation_app.value,
+                    "home_address_configured": bool(user_preference.home_address),
+                    "office_address_override_configured": bool(user_preference.office_address),
+                    "allow_navigation_on_full_web": user_preference.allow_navigation_on_full_web,
+                    "hide_home_office_navigation_buttons": user_preference.hide_home_office_navigation_buttons,
+                    "message": "Configuration updated.",
+                }
+            )
+    except (HTTPException, UserPreferenceError, WebUserError) as exc:
+        database_session.rollback()
+        if isinstance(exc, WebUserError):
+            logout_session(request)
+        if wants_json:
+            status_code = exc.status_code if isinstance(exc, HTTPException) else status.HTTP_400_BAD_REQUEST
+            return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=status_code)
+        raise
+
+    return RedirectResponse(url="/config", status_code=303)
+
+
+@router.post("/device-sign-in-prompt/seen")
+def mark_device_sign_in_prompt_seen(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> JSONResponse:
+    """Clear the one-login Home prompt after it has been displayed on a phone."""
+
+    validate_csrf_header(request)
+    _current_config_web_user(request, database_session)
+    request.session.pop(SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY, None)
+    return JSONResponse({"seen": True})
+
+
+@router.post("/password")
+async def change_password(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Change the current managed web user's login password."""
+
+    try:
+        actor = require_authenticated_username(request)
+        user = _current_config_web_user(request, database_session)
+    except WebUserError:
+        database_session.rollback()
+        logout_session(request)
+        return RedirectResponse(url="/login", status_code=303)
+    except HTTPException as exc:
+        database_session.rollback()
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            logout_session(request)
+            return RedirectResponse(url="/login", status_code=303)
+        raise
+
+    try:
+        form_data = await request.form()
+        validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+        was_password_change_required = bool(
+            request.session.get(SESSION_PASSWORD_CHANGE_REQUIRED_KEY)
+            or user.password_must_change
+        )
+        change_web_user_password(
+            database_session,
+            user,
+            new_password=str(form_data.get("new_password", "")),
+            confirm_password=str(form_data.get("confirm_password", "")),
+        )
+        record_audit_event(
+            database_session,
+            actor=actor,
+            action="user.config.password_changed",
+            request=request,
+            details={"web_user_id": user.id, "username": user.username},
+        )
+        database_session.commit()
+        request.session.pop(SESSION_PASSWORD_CHANGE_REQUIRED_KEY, None)
+        add_flash_message(request, "Password changed.", "success")
+    except (HTTPException, WebUserError) as exc:
+        database_session.rollback()
+        add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
+        return RedirectResponse(url="/config?password_required=1" if request.session.get(SESSION_PASSWORD_CHANGE_REQUIRED_KEY) else "/config", status_code=303)
+
+    return RedirectResponse(url="/work" if was_password_change_required else "/config", status_code=303)

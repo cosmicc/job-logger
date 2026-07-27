@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en" class="theme-dark">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="{{ retry_seconds }};url={{ retry_url }}">
+    <title>TicketPilot - Service Temporarily Unavailable</title>
+    <link rel="stylesheet" href="/static/app.css?v={{ static_asset_version }}">
+    <link rel="stylesheet" href="/static/service-unavailable.css?v={{ static_asset_version }}">
+  </head>
+  <body class="service-unavailable-body">
+    <main class="service-unavailable-shell" aria-labelledby="service-unavailable-title">
+      <section class="service-unavailable-panel">
+        <span class="service-unavailable-status">Temporary outage</span>
+        <h1 id="service-unavailable-title">Service Temporarily Unavailable</h1>
+        <p>This service is temporarily unavailable. This page will retry the sign-in page automatically.</p>
+      </section>
+    </main>
+  </body>
+</html>

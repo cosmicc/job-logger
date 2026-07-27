@@ -6,9 +6,9 @@ from dataclasses import replace
 
 from fastapi.testclient import TestClient
 
-from job_logger.config import settings
-from job_logger.main import create_app
 from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token
+from ticket_pilot.config import settings
+from ticket_pilot.main import create_app
 
 BROWSER_ACCEPT_HEADER = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
 
@@ -32,10 +32,39 @@ class UnavailableDatabaseMonitor:
         self.marked_unavailable = True
 
 
+def test_login_browser_title_starts_with_ticketpilot(client: TestClient) -> None:
+    """Login should use the application-first title and neutral public palette."""
+
+    response = client.get("/login")
+    stylesheet = client.get("/static/app.css").text
+
+    assert response.status_code == 200
+    assert "<title>TicketPilot - Login</title>" in response.text
+    assert '<html lang="en" class="login-neutral">' in response.text
+    assert '<body class="login-neutral">' in response.text
+    assert '<meta name="theme-color" content="#090909">' in response.text
+    assert 'class="theme-' not in response.text
+    assert 'class="highlight-' not in response.text
+    assert (
+        "html.login-neutral {\n"
+        "  --background: #090909;\n"
+        "  --surface: #171717;\n"
+        "  --surface-muted: #262626;\n"
+        "  --surface-strong: rgba(255, 255, 255, 0.07);\n"
+        "  --text: #f5f5f5;\n"
+        "  --muted: #b8b8b8;\n"
+        "  --border: #4a4a4a;"
+    ) in stylesheet
+    assert "  --accent: #f5f5f5;" in stylesheet
+    assert "  --accent-hover: #ffffff;" in stylesheet
+    assert "  --danger: #dedede;" in stylesheet
+    assert "  --success: #e8e8e8;" in stylesheet
+
+
 def test_anonymous_sensitive_pages_redirect_to_login(client: TestClient) -> None:
     """Normal browser pages with app data should not render without a session."""
 
-    for path in ("/home", "/review", "/users", "/debug", "/config", "/changelog", "/help"):
+    for path in ("/work", "/review", "/users", "/diagnostics", "/config", "/changelog", "/help"):
         response = client.get(path, follow_redirects=False)
 
         assert response.status_code == 303, path
@@ -46,15 +75,15 @@ def test_anonymous_json_and_action_routes_require_authentication(client: TestCli
     """Workflow and admin helper endpoints should reject anonymous requests."""
 
     get_paths = (
-        "/home/service-calls",
+        "/work/service-calls",
         "/autotask/companies?query=Acme",
         "/users/autotask-resources?query=Joe",
         "/users/autotask-resource-roles?resource_id=123",
         "/review/job-1/tickets",
         "/review/job-1/ticket-notes",
         "/review/job-1/ticket-time-entries",
-        "/debug/logs/login-failures",
-        "/debug/logs/login-successes",
+        "/diagnostics/logs/login-failures",
+        "/diagnostics/logs/login-successes",
     )
     for path in get_paths:
         response = client.get(path, follow_redirects=False)
@@ -78,8 +107,8 @@ def test_anonymous_json_and_action_routes_require_authentication(client: TestCli
         "/review/job-1/retry",
         "/review/job-1/ticket",
         "/review/job-1/purge",
-        "/debug/autotask/test",
-        "/debug/sessions/logout-web-users",
+        "/diagnostics/autotask/test",
+        "/diagnostics/sessions/logout-web-users",
     )
     for path in post_paths:
         response = client.post(path, data={}, follow_redirects=False)
@@ -93,14 +122,14 @@ def test_public_app_shell_metadata_contains_no_private_workflow_data(client: Tes
 
     manifest_response = client.get("/manifest.webmanifest")
     service_worker_response = client.get("/service-worker.js")
-    icon_response = client.get("/static/icons/job-logger-install-icon-192.png")
+    icon_response = client.get("/static/icons/ticketpilot-app-icon-128.png")
 
     assert manifest_response.status_code == 200
     assert service_worker_response.status_code == 200
     assert icon_response.status_code == 200
     public_text = manifest_response.text + service_worker_response.text
     assert "csrf" not in public_text.lower()
-    assert "job_logger_session" not in public_text
+    assert "ticket_pilot_session" not in public_text
     assert "APP_PASSWORD" not in public_text
     assert "ticket_number" not in public_text
     assert "summary_notes" not in public_text
@@ -108,7 +137,7 @@ def test_public_app_shell_metadata_contains_no_private_workflow_data(client: Tes
 
 
 def test_browser_missing_page_renders_app_error_for_anonymous_users(client: TestClient) -> None:
-    """Browser navigation to a missing app route should show a Job Logger error page."""
+    """Browser navigation to a missing app route should show a TicketPilot error page."""
 
     response = client.get(
         "/does-not-exist",
@@ -136,7 +165,7 @@ def test_browser_missing_page_renders_work_button_for_authenticated_users(authen
     assert response.status_code == 404
     assert "Page not found" in response.text
     assert "Back to Work" in response.text
-    assert 'href="/home"' in response.text
+    assert 'href="/work"' in response.text
     assert "Back to Login" not in response.text
 
 
@@ -172,7 +201,7 @@ def test_login_after_error_page_uses_fresh_login_flow(client: TestClient) -> Non
     )
 
     assert login_response.status_code == 303
-    assert login_response.headers["location"] == "/home"
+    assert login_response.headers["location"] == "/work"
 
 
 def test_generated_api_docs_and_public_health_are_closed_at_app_or_proxy(client: TestClient) -> None:
@@ -202,7 +231,7 @@ def test_database_unavailable_mode_serves_styled_retry_page() -> None:
             follow_redirects=False,
         )
         json_response = test_client.get(
-            "/home/service-calls",
+            "/work/service-calls",
             headers={"Accept": "application/json"},
             follow_redirects=False,
         )
@@ -218,8 +247,8 @@ def test_database_unavailable_mode_serves_styled_retry_page() -> None:
     assert "/static/app.css" in login_response.text
     assert "/static/service-unavailable.css" in login_response.text
     assert "service-unavailable-brand" not in login_response.text
-    assert "Job Logger" not in login_response.text
-    assert "job-logger-icon-maskable-512.png" not in login_response.text
+    assert "<title>TicketPilot - Service Temporarily Unavailable</title>" in login_response.text
+    assert "maskable" not in login_response.text
     assert "Work logging service" not in login_response.text
     assert "Temporary outage" in login_response.text
     assert "database" not in login_response.text.lower()

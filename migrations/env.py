@@ -1,4 +1,4 @@
-"""Alembic migration environment for Job Logger."""
+"""Alembic migration environment for TicketPilot."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from job_logger import models  # noqa: F401  # Import models so metadata is populated.
-from job_logger.config import settings
-from job_logger.database import Base, normalize_database_url
+from ticket_pilot import models  # noqa: F401  # Import models so metadata is populated.
+from ticket_pilot.config import settings
+from ticket_pilot.database import Base, normalize_database_url
 
 config = context.config
 

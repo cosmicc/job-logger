@@ -7,8 +7,8 @@ from typing import Any
 
 import httpx
 
-from job_logger.config import settings
-from job_logger.services import mail as mail_service
+from ticket_pilot.config import settings
+from ticket_pilot.services import mail as mail_service
 
 
 def _mail_settings(**overrides):
@@ -16,8 +16,8 @@ def _mail_settings(**overrides):
 
     base_overrides = {
         "mail_enabled": True,
-        "mail_from_email": "joblogger@example.test",
-        "mail_from_name": "Job Logger",
+        "mail_from_email": "ticketpilot@example.test",
+        "mail_from_name": "TicketPilot",
         "mail_mode": "smtp2go",
         "mail_smtp_host": "",
         "mail_smtp2go_api_key": "api-test-key",
@@ -94,10 +94,10 @@ def test_smtp2go_password_reset_email_posts_standard_email_payload(monkeypatch) 
     assert request["timeout"] == 6.0
     assert request["headers"]["X-Smtp2go-Api-Key"] == "api-test-key"
     assert request["headers"]["Content-Type"] == "application/json"
-    assert request["json"]["sender"] == "Job Logger <joblogger@example.test>"
+    assert request["json"]["sender"] == "TicketPilot <ticketpilot@example.test>"
     assert request["json"]["to"] == ["tech@example.test"]
-    assert request["json"]["subject"] == "Reset your Autotask Job Logger password"
-    assert "Autotask Job Logger account" in request["json"]["text_body"]
+    assert request["json"]["subject"] == "Reset your TicketPilot password"
+    assert "TicketPilot account" in request["json"]["text_body"]
     assert "https://logger.example.test/reset-password/token" in request["json"]["text_body"]
 
 
@@ -113,16 +113,16 @@ def test_welcome_email_body_uses_approved_copy_without_password() -> None:
 
     assert body.startswith("First,\n\n")
     assert (
-        "You have been invited to use the Autotask Job Logger for recording Autotask time entries, "
+        "You have been invited to use the TicketPilot for recording Autotask time entries, "
         "sending & reviewing Autotask ticket notes, and submitting approved work to Autotask."
     ) in body
     assert "recording Autotak time entries" not in body
-    assert "Open Autotask Job Logger here:\nhttps://logger.example.test" in body
+    assert "Open TicketPilot here:\nhttps://logger.example.test" in body
     assert "Sign in with your username:\nfirst-tech" in body
     assert "Use the temporary password provided by your administrator." in body
     assert "Invite-tech-password1!" not in body
-    assert "Autotask Job Logger can be used from a web browser" in body
-    assert "To install Autotask Job Logger on your phone:" in body
+    assert "TicketPilot can be used from a web browser" in body
+    assert "To install TicketPilot on your phone:" in body
     assert 'set up "Device sign-in"' in body
     assert "iPhone or iPad:" in body
     assert "Android:" in body
@@ -152,9 +152,9 @@ def test_smtp2go_welcome_email_posts_standard_email_payload(monkeypatch) -> None
     assert result.provider == "smtp2go"
     assert len(_FakeHttpClient.calls) == 1
     request = _FakeHttpClient.calls[0]
-    assert request["json"]["sender"] == "Job Logger <joblogger@example.test>"
+    assert request["json"]["sender"] == "TicketPilot <ticketpilot@example.test>"
     assert request["json"]["to"] == ["tech@example.test"]
-    assert request["json"]["subject"] == "Welcome to Autotask Job Logger"
+    assert request["json"]["subject"] == "Welcome to TicketPilot"
     assert "https://logger.example.test" in request["json"]["text_body"]
     assert "first-tech" in request["json"]["text_body"]
     assert "admin@example.test" in request["json"]["text_body"]

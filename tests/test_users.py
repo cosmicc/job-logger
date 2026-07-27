@@ -9,14 +9,14 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 
-from job_logger import database
-from job_logger.enums import JobStatus, TranscriptionStatus, WorkLocation
-from job_logger.models import AuditEvent, Job, PasswordResetToken, WebAuthnCredential, WebUser
-from job_logger.routes import users as users_routes
-from job_logger.services.mail import MailDeliveryResult
-from job_logger.services.users import WebUserError, hash_password, suggested_username_from_full_name
-from job_logger.ui import static_asset_version
 from tests.conftest import TEST_WEB_USER_PASSWORD, extract_csrf_token, login_as, login_as_super_admin, login_as_web_user
+from ticket_pilot import database
+from ticket_pilot.enums import JobStatus, TranscriptionStatus, WorkLocation
+from ticket_pilot.models import AuditEvent, Job, PasswordResetToken, WebAuthnCredential, WebUser
+from ticket_pilot.routes import users as users_routes
+from ticket_pilot.services.mail import MailDeliveryResult
+from ticket_pilot.services.users import WebUserError, hash_password, suggested_username_from_full_name
+from ticket_pilot.ui import static_asset_version
 
 
 def _seed_unowned_job() -> str:
@@ -88,7 +88,7 @@ def test_super_admin_adds_first_web_user_and_claims_existing_jobs(super_admin_cl
     assert "Choose a new login password to continue." in forced_config_response.text
     assert "Submit from Work in Progress" not in forced_config_response.text
 
-    blocked_home_response = super_admin_client.get("/home", follow_redirects=False)
+    blocked_home_response = super_admin_client.get("/work", follow_redirects=False)
     assert blocked_home_response.status_code == 303
     assert blocked_home_response.headers["location"] == "/config?password_required=1"
 
@@ -104,15 +104,16 @@ def test_super_admin_adds_first_web_user_and_claims_existing_jobs(super_admin_cl
         follow_redirects=False,
     )
     assert password_change_response.status_code == 303
-    assert password_change_response.headers["location"] == "/home"
+    assert password_change_response.headers["location"] == "/work"
     with database.SessionLocal() as database_session:
         user = database_session.scalar(select(WebUser).where(WebUser.username == "first-tech"))
         assert user is not None
         assert user.password_must_change is False
 
-    mobile_response = super_admin_client.get("/home")
+    mobile_response = super_admin_client.get("/work")
     assert mobile_response.status_code == 200
-    assert "Start a work entry" in mobile_response.text
+    assert "Start a time entry" in mobile_response.text
+    assert "Start a work entry" not in mobile_response.text
     assert "Set up faster sign-in" in mobile_response.text
 
 
@@ -195,14 +196,14 @@ def test_users_page_renders_table_and_edit_panels(super_admin_client: TestClient
     assert 'data-autotask-role-url="/users/autotask-resource-roles"' in users_page.text
     assert 'data-role-select' in users_page.text
 
-    stylesheet = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "app.css").read_text(encoding="utf-8")
+    stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
     assert ".users-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr);" in stylesheet
     assert ".users-table {\n  width: 100%;\n  min-width: 960px;" in stylesheet
     assert ".user-email-result-overlay" in stylesheet
     assert ".flash-email-success" in stylesheet
     assert "white-space: nowrap;" in stylesheet
     assert ".add-user-panel {\n  position: static;" in stylesheet
-    users_script = (Path(__file__).resolve().parents[1] / "job_logger" / "static" / "users.js").read_text(
+    users_script = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "users.js").read_text(
         encoding="utf-8"
     )
     assert "initializeEmailActionOverlay" in users_script
@@ -382,7 +383,7 @@ def test_super_admin_sends_user_password_reset_email(
         super_admin_client.app.state.application_settings,
         app_public_base_url="https://logger.example.test",
         mail_enabled=True,
-        mail_from_email="joblogger@example.test",
+        mail_from_email="ticketpilot@example.test",
         mail_mode="smtp",
         mail_smtp_host="smtp.example.test",
     )
@@ -496,7 +497,7 @@ def test_successful_managed_user_login_updates_last_login(client: TestClient) ->
 def test_super_admin_is_read_only_for_work_entries(super_admin_client: TestClient) -> None:
     """The config super admin can view but cannot create work entries."""
 
-    mobile_response = super_admin_client.get("/home")
+    mobile_response = super_admin_client.get("/work")
     csrf_token = extract_csrf_token(mobile_response.text)
     start_response = super_admin_client.post(
         "/jobs/start",
@@ -550,7 +551,7 @@ def test_hard_deleted_user_session_is_cleared_and_login_is_generic(client: TestC
         admin_contact_email="admin@example.test",
     )
     login_as_web_user(client)
-    assert client.get("/home").status_code == 200
+    assert client.get("/work").status_code == 200
     with database.SessionLocal() as database_session:
         user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
         assert user is not None
@@ -570,7 +571,7 @@ def test_hard_deleted_user_session_is_cleared_and_login_is_generic(client: TestC
         assert "User deleted." in result_page.text
         assert 'title="Enable user"' not in result_page.text
 
-    old_session_response = client.get("/home", follow_redirects=False)
+    old_session_response = client.get("/work", follow_redirects=False)
     assert old_session_response.status_code == 303
     assert old_session_response.headers["location"] == "/login"
 
@@ -609,7 +610,7 @@ def test_users_page_archives_and_restores_user_with_job_history(
 ) -> None:
     """Users with jobs should be hidden and later restored by Autotask resource ID."""
 
-    mobile_page = authenticated_client.get("/home")
+    mobile_page = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page.text)
     start_response = authenticated_client.post(
         "/jobs/start",

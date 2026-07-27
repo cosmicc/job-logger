@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 
-from job_logger.time_utils import (
+from ticket_pilot.time_utils import (
     enforce_minimum_rounded_end,
+    format_compact_duration_minutes,
     format_duration_minutes,
     format_job_date_display,
     format_job_date_label,
@@ -20,6 +21,17 @@ from job_logger.time_utils import (
     round_to_nearest_quarter_hour,
     to_local,
 )
+
+
+def test_format_compact_duration_minutes_abbreviates_mobile_summary_values() -> None:
+    """Phone summaries should use short minute and decimal-hour labels."""
+
+    assert format_compact_duration_minutes(None) == ""
+    assert format_compact_duration_minutes(0) == ""
+    assert format_compact_duration_minutes(15) == "15m"
+    assert format_compact_duration_minutes(60) == "1h"
+    assert format_compact_duration_minutes(75) == "1.25h"
+    assert format_compact_duration_minutes(330) == "5.5h"
 
 
 def test_round_to_nearest_quarter_hour_rounds_forward() -> None:
@@ -66,7 +78,7 @@ def test_enforce_minimum_rounded_end_adds_one_interval() -> None:
     assert enforce_minimum_rounded_end(rounded_start, rounded_end) == rounded_start + timedelta(minutes=15)
 
 
-def test_format_duration_minutes_uses_job_logger_labels() -> None:
+def test_format_duration_minutes_uses_ticket_pilot_labels() -> None:
     """Rounded durations should render as compact technician-facing labels."""
 
     assert format_duration_minutes(15) == "15 Minutes"
@@ -98,7 +110,7 @@ def test_format_local_time_uses_detroit_twelve_hour_display() -> None:
 def test_format_job_date_label_uses_today_for_current_detroit_date(monkeypatch) -> None:
     """Job date labels should show only near-current relative days."""
 
-    monkeypatch.setattr("job_logger.time_utils.now_utc", lambda: datetime(2026, 6, 29, 14, 0, tzinfo=UTC))
+    monkeypatch.setattr("ticket_pilot.time_utils.now_utc", lambda: datetime(2026, 6, 29, 14, 0, tzinfo=UTC))
 
     assert format_job_date_label("2026-06-29") == "Today"
     assert format_job_date_label(date(2026, 6, 28)) == "Yesterday"
@@ -110,7 +122,7 @@ def test_format_job_date_label_uses_today_for_current_detroit_date(monkeypatch) 
 def test_format_job_date_display_combines_date_and_relative_label(monkeypatch) -> None:
     """Date selector text should keep the date and near-current label together."""
 
-    monkeypatch.setattr("job_logger.time_utils.now_utc", lambda: datetime(2026, 6, 29, 14, 0, tzinfo=UTC))
+    monkeypatch.setattr("ticket_pilot.time_utils.now_utc", lambda: datetime(2026, 6, 29, 14, 0, tzinfo=UTC))
 
     assert format_job_date_display("2026-06-29") == "06/29/2026  (Today)"
     assert format_job_date_display(date(2026, 6, 28)) == "06/28/2026  (Yesterday)"

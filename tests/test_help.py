@@ -8,13 +8,13 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from job_logger import ui as ui_context
-from job_logger.config import settings
-from job_logger.routes import help as help_routes
-from job_logger.services.changelog import ChangelogEntry
-from job_logger.services.help_assistant import HelpAssistantError, HelpAssistantResult
-from job_logger.services.system_health import AppHealthIssue, AppHealthSnapshot
 from tests.conftest import extract_csrf_token
+from ticket_pilot import ui as ui_context
+from ticket_pilot.config import settings
+from ticket_pilot.routes import help as help_routes
+from ticket_pilot.services.changelog import ChangelogEntry
+from ticket_pilot.services.help_assistant import HelpAssistantError, HelpAssistantResult
+from ticket_pilot.services.system_health import AppHealthIssue, AppHealthSnapshot
 
 
 def test_help_page_requires_login(client: TestClient) -> None:
@@ -38,10 +38,11 @@ def test_authenticated_help_page_renders_version_and_changelog(
 
     assert response.status_code == 200
     assert 'class="help-shell"' in response.text
-    assert "<h1>Help</h1>" in response.text
-    assert "Ask a Job Logger question or view the version changelog." not in response.text
+    assert "<h1>Help</h1>" not in response.text
+    assert '<p class="eyebrow-text">Support</p>' not in response.text
+    assert "Ask a TicketPilot question or view the version changelog." not in response.text
     assert '<h2 id="help-assistant-heading">Ask AI for help</h2>' in response.text
-    assert "Ask AI for help with using Job Logger" in response.text
+    assert "Ask AI for help with using TicketPilot" in response.text
     assert "Single question, single answer." not in response.text
     assert 'type="text"' in response.text
     assert "data-help-question-input" in response.text
@@ -53,8 +54,9 @@ def test_authenticated_help_page_renders_version_and_changelog(
     assert ">Operational Status<" in response.text
     assert ">Operational<" in response.text
     assert "All monitored app checks are fully operational." in response.text
-    assert ">v1.4.0<" in response.text
-    assert '<p class="help-version-release-date">Released: 07.20.2026</p>' in response.text
+    assert ">v2.0.0<" in response.text
+    assert '<p class="help-version-release-date">Released: 07.26.2026</p>' in response.text
+    assert "Released: 07.26.2026" in response.text
     assert "Released: 07.20.2026" in response.text
     assert "Released: 07.13.2026" in response.text
     assert "Released: 07.11.2026" in response.text
@@ -73,6 +75,7 @@ def test_authenticated_help_page_renders_version_and_changelog(
     assert "/static/help.js?v=" in response.text
     assert "AI Help is not configured. Contact your app administrator." in response.text
     assistant_index = response.text.index('class="edit-panel help-assistant-panel"')
+    assert response.text.index('class="help-shell"') < assistant_index
     operational_index = response.text.index("data-help-operational-card")
     version_index = response.text.index('class="help-version-panel"')
     assert assistant_index < operational_index < version_index
@@ -136,7 +139,7 @@ def test_help_page_hides_health_details_from_non_admin_users(
     assert 'data-help-operational-card' in response.text
     assert "help-operational-panel-critical" in response.text
     assert ">Degraded<" in response.text
-    assert "Job Logger is degraded. An administrator can review Diagnostics for details." in response.text
+    assert "TicketPilot is degraded. An administrator can review Diagnostics for details." in response.text
     assert "data-help-operational-detail-list" not in response.text
     assert "Autotask API needs attention" not in response.text
     assert "Autotask company lookup could not reach the Autotask API." not in response.text
@@ -166,7 +169,7 @@ def test_help_page_uses_warning_operational_status_color(
     assert "help-operational-panel-warning" in response.text
     assert "help-operational-panel-critical" not in response.text
     assert ">Degraded<" in response.text
-    assert "Job Logger is degraded. An administrator can review Diagnostics for details." in response.text
+    assert "TicketPilot is degraded. An administrator can review Diagnostics for details." in response.text
     assert "Disk space warning" not in response.text
 
 
@@ -202,7 +205,7 @@ def test_help_page_shows_health_details_to_admin_users(
 def test_help_javascript_clears_submitted_question_on_next_entry() -> None:
     """The Help form script should clear submitted text before the next question."""
 
-    script_text = Path("job_logger/static/help.js").read_text(encoding="utf-8")
+    script_text = Path("ticket_pilot/static/help.js").read_text(encoding="utf-8")
 
     assert "clearQuestionOnNextEntry = false" in script_text
     assert 'questionInput.addEventListener("focus", clearQuestionIfReady);' in script_text
@@ -217,8 +220,8 @@ def test_super_admin_can_view_help(super_admin_client: TestClient) -> None:
     response = super_admin_client.get("/help")
 
     assert response.status_code == 200
-    assert 'class="theme-dark"' in response.text
-    assert "<h1>Help</h1>" in response.text
+    assert 'class="theme-dark highlight-teal"' in response.text
+    assert "<h1>Help</h1>" not in response.text
 
 
 def test_help_question_requires_authentication(client: TestClient) -> None:
@@ -247,7 +250,7 @@ def test_help_question_logs_route_request_status(
         ai_help_enabled=True,
         ai_help_provider="gemini",
         gemini_api_key="test-gemini-key",
-        ai_help_instructions="Answer Job Logger support questions for end users.",
+        ai_help_instructions="Answer TicketPilot support questions for end users.",
     )
 
     def fake_answer_help_question(*, question, application_settings, trace_id="-"):
@@ -259,7 +262,7 @@ def test_help_question_logs_route_request_status(
         )
 
     monkeypatch.setattr(help_routes, "answer_help_question", fake_answer_help_question)
-    caplog.set_level(logging.DEBUG, logger="job_logger.routes.help")
+    caplog.set_level(logging.DEBUG, logger="ticket_pilot.routes.help")
     page_response = authenticated_client.get("/help")
     csrf_token = extract_csrf_token(page_response.text)
 
@@ -292,7 +295,7 @@ def test_help_question_logs_assistant_failure(
         ai_help_enabled=True,
         ai_help_provider="gemini",
         gemini_api_key="test-gemini-key",
-        ai_help_instructions="Answer Job Logger support questions for end users.",
+        ai_help_instructions="Answer TicketPilot support questions for end users.",
     )
 
     def fake_answer_help_question(*, question, application_settings, trace_id="-"):
@@ -300,7 +303,7 @@ def test_help_question_logs_assistant_failure(
         raise HelpAssistantError("AI Help is disabled by configuration.")
 
     monkeypatch.setattr(help_routes, "answer_help_question", fake_answer_help_question)
-    caplog.set_level(logging.ERROR, logger="job_logger.routes.help")
+    caplog.set_level(logging.ERROR, logger="ticket_pilot.routes.help")
     page_response = authenticated_client.get("/help")
     csrf_token = extract_csrf_token(page_response.text)
 
@@ -332,7 +335,7 @@ def test_help_question_returns_single_answer(
         ai_help_enabled=True,
         ai_help_provider="gemini",
         gemini_api_key="test-gemini-key",
-        ai_help_instructions="Answer Job Logger support questions for end users.",
+        ai_help_instructions="Answer TicketPilot support questions for end users.",
     )
 
     def fake_answer_help_question(*, question, application_settings, trace_id="-"):
@@ -374,7 +377,7 @@ def test_help_question_appends_admin_contact_email(
         ai_help_enabled=True,
         ai_help_provider="gemini",
         gemini_api_key="test-gemini-key",
-        ai_help_instructions="Answer Job Logger support questions for end users.",
+        ai_help_instructions="Answer TicketPilot support questions for end users.",
         admin_contact_email="admin@example.test",
     )
 
@@ -408,4 +411,4 @@ def test_help_page_marks_dev_build(authenticated_client: TestClient) -> None:
     response = authenticated_client.get("/help")
 
     assert response.status_code == 200
-    assert ">v1.4.0 DEV<" in response.text
+    assert ">v2.0.0 DEV<" in response.text
