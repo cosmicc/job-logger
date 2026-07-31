@@ -32,6 +32,7 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert 'class="theme-palette-dots theme-palette-dots-dark"' in config_response.text
     assert 'data-theme-current-label>Default Dark</span>' in config_response.text
     assert 'class="highlight-color-dropdown"' in config_response.text
+    assert "the automatic counterpart color adjust for readable contrast" in config_response.text
     assert 'role="radiogroup" aria-label="Highlight color"' in config_response.text
     assert "<h1>Config</h1>" not in config_response.text
     assert "User Settings for Test Technician (tech)" in config_response.text
@@ -265,7 +266,7 @@ def test_config_autosaves_additional_visual_themes(
 
 
 def test_theme_highlights_color_navigation_icons_and_ordinary_buttons() -> None:
-    """Independent highlight profiles should color navigation and neutral buttons."""
+    """Highlights and their counterparts should color distinct workflow roles."""
 
     stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css").read_text(
         encoding="utf-8"
@@ -276,6 +277,11 @@ def test_theme_highlights_color_navigation_icons_and_ordinary_buttons() -> None:
     assert "html:is(.theme-light, .theme-light-sage, .theme-light-sky).highlight-amber {" in stylesheet
     assert "--accent: #6699e8;" in stylesheet
     assert "--accent: #f2b84b;" in stylesheet
+    assert "--counterpart: #6b9df2;" in stylesheet
+    assert "--counterpart: #3267b1;" in stylesheet
+    assert "--counterpart-soft: rgba(var(--counterpart-rgb), 0.16);" in stylesheet
+    assert "--counterpart-soft: rgba(var(--counterpart-rgb), 0.12);" in stylesheet
+    assert "--on-counterpart: #ffffff;" in stylesheet
     assert "--nav-action: var(--accent);" in stylesheet
     assert "--nav-action-bg: var(--accent-soft);" in stylesheet
     assert "background: var(--nav-action-bg-hover);" in stylesheet
@@ -286,6 +292,47 @@ def test_theme_highlights_color_navigation_icons_and_ordinary_buttons() -> None:
         "  color: var(--accent);\n"
         "}"
     ) in stylesheet
+    assert "background: var(--counterpart);" in stylesheet
+    assert "color: var(--on-counterpart);" in stylesheet
+    assert "rgba(var(--counterpart-rgb), 0.74)" in stylesheet
+    assert "rgba(var(--counterpart-rgb), 0.82)" in stylesheet
+    assert ".status-ready_for_review" in stylesheet
+    assert "background: var(--warning-soft);" in stylesheet
+
+    for highlight_name in (
+        "teal",
+        "sage",
+        "sky",
+        "blue",
+        "indigo",
+        "amber",
+        "orange",
+        "mint",
+        "lavender",
+        "rose",
+    ):
+        dark_profile_match = re.search(
+            rf"html\.highlight-{highlight_name} \{{(?P<body>.*?)\n\}}",
+            stylesheet,
+            flags=re.DOTALL,
+        )
+        assert dark_profile_match is not None
+        assert "--counterpart-rgb:" in dark_profile_match.group("body")
+        assert "--counterpart:" in dark_profile_match.group("body")
+        assert "--on-counterpart:" in dark_profile_match.group("body")
+
+        light_profile_match = re.search(
+            (
+                r"html:is\(\.theme-light, \.theme-light-sage, \.theme-light-sky\)"
+                rf"\.highlight-{highlight_name} \{{(?P<body>.*?)\n\}}"
+            ),
+            stylesheet,
+            flags=re.DOTALL,
+        )
+        assert light_profile_match is not None
+        assert "--counterpart-rgb:" in light_profile_match.group("body")
+        assert "--counterpart:" in light_profile_match.group("body")
+        assert "--on-counterpart: #ffffff;" in light_profile_match.group("body")
 
 
 def test_navigation_preferences_require_home_and_do_not_audit_addresses(

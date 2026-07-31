@@ -8,8 +8,10 @@ compact UI, code, package, and deployment name. Production use depends on the
 Autotask service and valid Autotask API access.
 The application provides a mobile-first web workflow for recording work time,
 recording spoken job descriptions, reviewing recorded jobs, and creating
-Autotask time entries or customer-visible ticket notes after review and
-acceptance.
+Autotask time entries, customer-visible ticket notes, or project-task notes
+after review and acceptance. A work target may be either a Service Desk ticket
+or a project task; never treat the parent project as the target of a
+project-task work record.
 
 The application will be exposed through Cloudflare Tunnel using `cloudflared`.
 The Docker deployment must include the Python web application, PostgreSQL, and
@@ -232,8 +234,8 @@ The `/config` cards should render in this order: **Appearance**, **Password**,
 
 Never rely on the mobile UI, browser state, or hidden form fields for security
 decisions. The server must validate authentication, authorization, CSRF tokens,
-job ownership, workflow status, timestamps, ticket numbers, ticket statuses, and
-all submitted text.
+job ownership, workflow status, timestamps, ticket numbers, ticket statuses,
+project IDs, project-task IDs, task statuses, and all submitted text.
 
 Store all secrets outside source control. Autotask credentials, transcription
 provider credentials, session secrets, database passwords, Cloudflare Tunnel
@@ -363,40 +365,45 @@ Recorded jobs follow this lifecycle:
    directly to Autotask during end-work instead. The config super admin may view
    all jobs but cannot mutate them.
 5. The review page allows the entry type, time, status, and notes to be edited before
-   acceptance while keeping the selected Autotask client and ticket read-only.
+   acceptance while keeping the selected Autotask client and ticket or project
+   task read-only.
    Client identity must come from a selected Autotask company search result;
    typed names that do not match the verified selected company ID must be
    rejected and not saved.
    Work in Progress may replace a verified client/company selection while no
-   open ticket has been chosen yet, so the user can search another client and
-   load that client's open tickets. Once an open ticket is chosen for the job,
-   client identity is read-only. If an active job is opened in Review before
+   work target has been chosen yet, so the user can search another client and
+   load that client's open tickets and assigned project tasks. Once a ticket or
+   project task is chosen for the job, client identity is read-only. If an
+   active job is opened in Review before
    any client has been selected, Review detail may save the first
    client/company through the authenticated Autotask company search; after that
    Review selection, client identity is read-only on Review.
 6. An accepted review job, or a directly submitted Work in Progress job,
-   creates either an Autotask time entry or a customer-visible Autotask ticket
-   note. The local entry type is editable only before successful Autotask
-   submission. Ticket notes require ticket status, note title, note description,
-   and selected ticket identity; they do not require start/stop times or
-   Remote/On-Site work location. Time entries keep the existing date, start
-   time, end time, summary notes, work location, and ticket status
-   requirements. Time entries expose **Append to resolution**, defaulting on,
-   and send that setting to Autotask. Autotask TicketNotes does not support
-   `appendToResolution`; do not show or send that field for ticket notes.
-7. A successfully submitted Autotask job keeps ticket and client identity
+   creates an Autotask time entry or a note on the selected target. Ticket
+   targets use `TicketNotes`; project-task targets use `TaskNotes` and must
+   never create `ProjectNotes`. The local entry type is editable only before
+   successful Autotask submission. Ticket notes and project-task notes require
+   the selected target's status, note title, note description, and verified
+   target identity; they do not require start/stop times or Remote/On-Site work
+   location. Time entries keep the existing date, start time, end time, summary
+   notes, work location, and target-status requirements. Time entries expose
+   **Append to resolution**, defaulting on, and send that setting to Autotask.
+   Autotask TicketNotes and TaskNotes do not support
+   `appendToResolution`; do not show or send that field for either note type.
+7. A successfully submitted Autotask job keeps target and client identity
    read-only. The entry type cannot be changed after successful submission.
    Time entries can change job date, start time, end time, summary notes, work
-   location, append-to-resolution, and ticket status only through the audited
+   location, append-to-resolution, and ticket or task status only through the audited
    **Submit changes** action, which updates the existing `TimeEntries` row
-   instead of creating another entry. Ticket notes can change note title, note
-   description and ticket status through the same
-   audited action, which updates the existing `TicketNotes` row. **Submit
-   changes** always patches `Tickets.status` to the selected local app status
-   as part of the resubmission. When needed, it may temporarily move a
-   previously Complete ticket to In progress before patching the external
-   Autotask record, then move the ticket to the selected final status after the
-   record patch. The audited **Delete From Autotask** action may delete an
+   instead of creating another entry. Notes can change note title, note
+   description, and target status through the same audited action, which
+   updates the existing `TicketNotes` or `TaskNotes` row. **Submit changes**
+   patches `Tickets.status` for ticket work or `Tasks.status` for project-task
+   work. When needed, it may temporarily move a previously Complete ticket or
+   project task to In progress before patching the external record, then move
+   only that target to the selected final status after the record patch. Never
+   patch `Projects.status` as part of task work. The audited **Delete From
+   Autotask** action may delete an
    external `TimeEntries` record and move the local job back to review, but must not
    delete the local job record. If Delete From Autotask fails, the selected
    review detail may show an explicit local-only purge fallback that removes
@@ -456,14 +463,14 @@ Daylight Saving Time edge cases must be considered when converting local times.
 
 Autotask records are created after review acceptance by default. A managed web
 user can opt in to direct Work in Progress submission on `/config`, which
-creates the selected Autotask time entry or ticket note during end-work after
-the same local submission requirements pass.
+creates the selected Autotask time entry, ticket note, or project-task note
+during end-work after the same local submission requirements pass.
 
 The required Autotask time-entry fields for this application are:
 
-- Ticket number.
+- Verified ticket or project-task identity.
 - Summary notes.
-- Local ticket status selection.
+- Local ticket or task status selection.
 - Date.
 - Start time.
 - End time.
@@ -475,9 +482,19 @@ The required Autotask ticket-note fields for this application are:
 - Note title.
 - Note description.
 
+The required Autotask project-task-note fields are:
+
+- Project-task ID and parent project ID.
+- Task status selected from current tenant `Tasks.status` metadata.
+- Note title.
+- Note description.
+
 Ticket notes created by TicketPilot must be customer-visible, never internal.
 Time entries include the local **Append to resolution** setting in the Autotask
-payload. Ticket notes must omit the unsupported `appendToResolution` field.
+payload. Ticket notes and project-task notes must omit the unsupported
+`appendToResolution` field. Project-task note mode must create and update
+`TaskNotes` through the selected task's child endpoint; never use
+`ProjectNotes`.
 
 Supported ticket status values are:
 
@@ -499,14 +516,44 @@ the overlay or reloading must not reopen it. Service-call navigation may carry
 only the new local job ID through same-tab session storage; browser state is
 presentation-only and the authenticated, owner-checked ticket-notes endpoint
 remains authoritative.
+Open-ticket and service-call options with at least one displayable customer
+note should show the shared **Note** indicator in the active highlight's
+complementary counterpart color. The selected Ticket name card must show the
+same indicator, and the **Ticket notes** button must use the same counterpart
+treatment plus that indicator while notes exist. Note
+availability must come from server-side Autotask lookups and apply the same
+system-note exclusions as the authenticated overlay; browser code must never
+query Autotask directly.
+
+The selected-company work picker must return separate **Tickets** and
+**Project tasks** groups. Project-task options come only from non-complete
+tasks on non-complete, non-inactive, non-template, non-baseline projects for the
+verified company, and only when the logged-in managed user's Autotask resource
+is the task's primary or secondary resource. Autotask does not expose a
+task-level allow-time-entry flag; actual time-entry authority remains governed
+by the resource's Autotask Projects security permission. Store the verified
+task ID, parent project ID, display metadata, and current task status locally,
+then keep that target identity read-only. Task-status choices must be read from
+the tenant's active `Tasks.status` picklist metadata and rendered in the same
+position as Ticket status under the label **Task status**. Never substitute the
+parent project's status.
+
+Service-call lookup must support both `ServiceCallTickets` /
+`ServiceCallTicketResources` and `ServiceCallTasks` /
+`ServiceCallTaskResources`. If one service call has both associations, return
+one clearly labeled selection card for each verified association. Starting a
+project-task service call must store the verified task and parent-project
+identity and must not patch either status before submission.
 
 Autotask submission must be idempotent. A retry must not create duplicate
-TimeEntries or TicketNotes rows for the same accepted job.
+TimeEntries, TicketNotes, or TaskNotes rows for the same accepted job.
 Before any Complete-status create or submitted-entry update, globally check all
-local owners for another entry with the same normalized ticket number in
-Active, Ready for Review, or Submission Failed state. Block the Complete
-submission until every such time entry or ticket note has submitted, so the
-Complete entry always reaches Autotask last.
+local owners for another entry with the same normalized ticket number or
+project-task ID in Active, Ready for Review, or Submission Failed state. Block
+the Complete submission until every such time entry or note has submitted, so
+the Complete entry always reaches Autotask last. For a project task, create or
+patch `TimeEntries` or `TaskNotes` first and only then set `Tasks.status` to
+Autotask's documented Complete value `5`. Never complete the parent project.
 
 Autotask resource IDs are not global configuration. They belong to managed web
 users and are required before a user can start work. The app uses the logged-in
@@ -514,10 +561,12 @@ or owning user's resource ID for service-call lookup and for
 `TimeEntries.resourceID` on create. User-scoped Autotask calls must not send
 Autotask's optional `ImpersonationResourceId` header; do not add or restore a
 global `AUTOTASK_IMPERSONATION_RESOURCE_ID` setting. Static Autotask role and
-billing-code IDs must not be configured. Time-entry submission and submitted
+billing-code IDs must not be configured. Ticket-target submission and submitted
 **Submit changes** actions must patch `Tickets.status` to the selected local app
 ticket status, using the configured tenant-specific `AUTOTASK_STATUS_*_ID`
-mapping. The live provider must query the selected ticket at
+mapping. Project-task work instead uses current tenant task-status metadata and
+patches only `Tasks.status` through its `Projects/{projectID}/Tasks` child
+endpoint. The live provider must query the selected ticket at
 submission time, use `Tickets.assignedResourceroleID` as `TimeEntries.roleID`
 when available, fall back to
 `TicketSecondaryResources.roleID` for the submitting managed user's resource
@@ -537,15 +586,18 @@ user-specific resource ID and optional email address. It may also query
 `ResourceServiceDeskRoles` through the server to list active role IDs for the
 selected resource, enrich those dropdown choices with `Roles.name` when allowed,
 and save the chosen numeric per-user fallback role ID.
-Selected-ticket notes and past time entries are read-only Autotask context.
-Work in Progress and Review detail may show a **Ticket notes** button only when
-a ticket is selected and the authenticated server route confirms that bounded
-notes exist for that ticket. They may also show a **Past time entries** button
-when the authenticated server route confirms that bounded `TimeEntries` rows
-exist for the selected ticket. Do not call Autotask directly from browser
-JavaScript or expose raw provider responses. Resource names returned by
-Autotask for authenticated display must be shown first-name first, even when
-Autotask stores or returns the combined name as `Last, First`.
+For project-task time entries, send `taskID`, `timeEntryType=6`, the submitting
+managed user's `resourceID`, and that user's unambiguous primary-task or
+`TaskSecondaryResources.roleID`. Do not send `ticketID` for task work.
+Selected-target notes and past time entries are read-only Autotask context.
+Work in Progress and Review detail may show **Ticket notes** or **Project task
+notes** only when the authenticated server route confirms that bounded notes
+exist for the selected target. They may also show **Past time entries** when
+the authenticated route confirms bounded `TimeEntries` rows exist for that
+ticket or task. Do not call Autotask directly from browser JavaScript or expose
+raw provider responses. Resource names returned by Autotask for authenticated
+display must be shown first-name first, even when Autotask stores or returns
+the combined name as `Last, First`.
 
 Autotask API errors must be recorded clearly for review and troubleshooting
 without exposing credentials or sensitive protocol details. Any failed live
@@ -705,16 +757,20 @@ Every background/highlight combination must cover mobile, review, user
 management, Config, Diagnostics, and login surfaces through shared CSS
 variables instead of separate unaudited template branches. Super-admin pages
 always use Default Dark with Teal. `docs/design/theme_palettes.svg` is the
-maintained reference for all eight backgrounds and ten highlight colors.
-Navigation icons and ordinary buttons use the active highlight color;
-established destructive, success, warning, AI, status, and disabled-control
-colors retain their semantic meaning.
+maintained reference for all eight backgrounds and ten highlight/counterpart
+pairs. Navigation icons, ordinary buttons, Remote choices, and Time entry
+choices use the active highlight color. Every highlight also defines an
+automatic complementary counterpart with contrast-adjusted light/dark shades.
+Use that counterpart for On-Site choices and option-card outlines, Ticket note
+choices, customer-note indicators and button emphasis, recording controls, and
+the second concurrent-job accent. Established destructive, success, genuine
+warning, AI, status, and disabled-control colors retain their semantic meaning.
 When Docker/runtime `DEV_BUILD=true`, authenticated desktop and mobile headers
 must mark the Help navigation button in yellow so dev instances are visually
 distinct from production without adding a separate pill. Full-browser
 authenticated headers also show the version under the left-side TicketPilot
 title, using `vX.Y.Z-DEV` for dev builds. The Help page itself must show the
-current version with `DEV`, such as `v2.0.1 DEV`.
+current version with `DEV`, such as `v2.1.0 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows compact route and status icons on the left,
@@ -806,7 +862,8 @@ from **Job date** to **Note Date**, hides start/end time controls while
 preserving their values for switching back to Time entry, shows a required
 left-aligned note-title input above the note description, and keeps the description
 unprefixed. Shared switch pills should show Time entry and Remote selected
-states in green and Ticket note and On-Site selected states in orange.
+states in the active highlight color, and Ticket note and On-Site selected
+states in that highlight's complementary counterpart color.
 On phone-sized Work in Progress and Review detail layouts, the editable
 workflow cards should appear in this order: **Entry type**, **Work type**,
 **Ticket status**, **Job date** or **Note Date**, **Start time**, **End time**,
@@ -826,6 +883,11 @@ user submits a workflow action that requires summary notes.
 On Work in Progress, a verified client may be changed while no ticket is
 selected yet. Once an open ticket has been chosen, the stored client name
 becomes read-only everywhere for that job.
+Open-ticket and service-call choices should receive only a safe
+`has_customer_notes` boolean derived from a batched, bounded server-side
+TicketNotes lookup. Treat this indicator lookup as optional context: a
+TicketNotes permission or transient failure must not block the primary ticket
+or service-call workflow.
 When a selected Autotask ticket exists, Work in Progress and Review detail
 should run authenticated lookups for ticket notes and past time entries near
 the ticket context. Before a ticket is selected, keep the buttons hidden. After
@@ -1140,9 +1202,15 @@ The application is a FastAPI project under `ticket_pilot/`.
   `WEB_CHANGELOG.md` into concise plain-text release entries for authenticated
   display.
 - `ticket_pilot/services/help_assistant.py` builds bounded end-user help context
-  from `USER_MANUAL.md`, `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files,
-  and selected app source, then calls Gemini's OpenAI-compatible
-  chat-completions API only when server-side AI Help is configured.
+  from the primary `AI_HELPER.md` knowledge base plus matching snippets from
+  `USER_MANUAL.md`, `WEB_CHANGELOG.md`, agent guidance, and selected app source,
+  then calls Gemini's OpenAI-compatible chat-completions API only when
+  server-side AI Help is configured.
+- `AI_HELPER.md` is the comprehensive, non-technical end-user support knowledge
+  base sent to the Help LLM. Keep it synchronized with user-visible workflows,
+  settings, field rules, common messages, frequently asked questions, and safe
+  high-level behavior. It must not contain secrets, private deployment values,
+  source instructions, or administrator-only diagnostic procedures.
 - `USER_MANUAL.md` is the full end-user manual. It must describe only surfaces
   normal managed web users can access and must not document Diagnostics or
   other admin-only pages.
@@ -1249,7 +1317,8 @@ The application is a FastAPI project under `ticket_pilot/`.
   `static/icons/`. Keep supplied branding sources unchanged and remove
   superseded logo/icon files when artwork is replaced.
 - `docs/design/` contains `theme_palettes.svg`, the only maintained reference
-  defining all eight selectable background profiles and ten highlight colors.
+  defining all eight selectable background profiles and ten automatic
+  highlight/counterpart pairs.
 - `migrations/versions/` contains Alembic schema migrations.
 - `scripts/` contains operational helper scripts, including Autotask ID
   discovery.
@@ -1525,6 +1594,9 @@ configuration, database schema, or diagnostics:
   changes.
 - Update `USER_MANUAL.md` when managed-user visible behavior, labels,
   workflows, settings, or troubleshooting messages change.
+- Update `AI_HELPER.md` for every managed-user-visible feature, behavior,
+  setting, field rule, troubleshooting message, or support answer change so
+  AI Help remains aligned with the running application.
 - Update `CHANGELOG.md` for every user-visible, security, workflow, database,
   Docker, Autotask, transcription, or diagnostic change.
 - Update `WEB_CHANGELOG.md` for every released version with short web-facing

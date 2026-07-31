@@ -29,7 +29,7 @@ def test_open_ticket_renderers_share_dates_status_and_company_metadata() -> None
 
 
 def test_ticket_note_mode_disables_work_type_instead_of_hiding_it() -> None:
-    """Ticket note mode should grey out Work type without removing the card."""
+    """Ticket note mode greys out Work type and fully hides append-to-resolution."""
 
     repository_root = Path(__file__).resolve().parents[1]
     mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
@@ -45,6 +45,10 @@ def test_ticket_note_mode_disables_work_type_instead_of_hiding_it() -> None:
     assert 'review-work-location-card{% if is_ticket_note %} is-hidden' not in review_template
     assert "work-location-card-disabled" in mobile_template
     assert "work-location-card-disabled" in review_template
+    assert 'appendResolutionField.classList.toggle("is-hidden", isTicketNote);' in mobile_script
+    assert 'appendResolutionField.classList.toggle("is-hidden", isTicketNote);' in review_script
+    assert 'appendResolutionField.hidden = isTicketNote;' not in mobile_script
+    assert 'appendResolutionField.hidden = isTicketNote;' not in review_script
 
 
 def test_ticket_notes_overlay_list_cards_show_titles_only() -> None:
@@ -103,6 +107,9 @@ def test_ticket_context_buttons_show_disabled_empty_states() -> None:
     assert "ticketContextRequestCacheKey(notesUrl, ticketNumber)" in ticket_notes_script
     assert "ticketContextRequestCacheKey(timeEntriesUrl, ticketNumber)" in ticket_notes_script
     assert "button.disabled = !hasNotes;" in ticket_notes_script
+    assert "function createCustomerNoteIndicator()" in ticket_notes_script
+    assert 'button.classList.toggle("has-customer-notes", hasCustomerNotes);' in ticket_notes_script
+    assert 'querySelectorAll("[data-selected-ticket-note-indicator]")' in ticket_notes_script
     assert "button.disabled = !hasTimeEntries;" in ticket_notes_script
     assert "function ticketContextButtonIsUnavailable(button)" in ticket_notes_script
     assert "ticketContextButtonIsUnavailable(notesButton)" in ticket_notes_script
@@ -117,10 +124,19 @@ def test_ticket_context_buttons_show_disabled_empty_states() -> None:
     assert empty_button_hover_selector in stylesheet
     assert "data-ticket-context-label" in mobile_template
     assert "data-ticket-context-label" in review_template
+    assert "data-selected-ticket-note-indicator" in mobile_template
+    assert "data-selected-ticket-note-indicator" in review_template
     assert 'querySelectorAll("[data-ticket-notes-button]")' in mobile_script
     assert 'querySelectorAll("[data-ticket-notes-button]")' in review_script
     assert 'querySelectorAll("[data-ticket-time-entries-button]")' in mobile_script
     assert 'querySelectorAll("[data-ticket-time-entries-button]")' in review_script
+    assert "function appendCustomerNoteIndicator(container, hasCustomerNotes)" in mobile_script
+    assert "function appendCustomerNoteIndicator(container, hasCustomerNotes)" in review_script
+    assert "ticketOption.has_customer_notes" in mobile_script
+    assert "ticketOption.has_customer_notes" in review_script
+    assert "serviceCallOption.has_customer_notes" in mobile_script
+    assert ".ticket-notes-button.has-customer-notes {" in stylesheet
+    assert ".customer-note-indicator {" in stylesheet
 
 
 def test_ticket_context_refreshes_matching_peer_buttons() -> None:

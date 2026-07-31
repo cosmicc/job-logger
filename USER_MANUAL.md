@@ -4,18 +4,18 @@ TicketPilot's formal name is **Ticket Pilot for Autotask** because its work
 workflow relies on the Autotask service. This manual explains the TicketPilot
 screens and workflows available to a normal managed web user. It covers signing
 in, resetting your password, recording work, submitting Autotask time entries
-or ticket notes, reviewing completed work, changing your own settings, and
-understanding common messages.
+or ticket/project-task notes, reviewing completed work, changing your own
+settings, and understanding common messages.
 
 ## What TicketPilot Does
 
 TicketPilot helps you record work while it is happening and send the finished
 record to Autotask. A work record can become either:
 
-- A **Time entry** with date, start time, end time, work type, ticket status,
-  and summary notes.
-- A **Ticket note** with a note title, note description, ticket status, and
-  customer-visible note content.
+- A **Time entry** for a ticket or assigned project task, with date, start time,
+  end time, work type, target status, and summary notes.
+- A **Ticket note** with customer-visible note content, or a **Project task
+  note** attached directly to the selected task.
 
 The app is designed for phone use first, but the same Work, Review, and Config
 pages also work from a full browser.
@@ -122,8 +122,8 @@ submission fails.
 ## Work Page
 
 The Work page is where you start and finish work. It may show scheduled service
-calls for your Autotask resource, and it also lets you start a blank work
-record.
+calls for tickets or project tasks assigned to your Autotask resource, and it
+also lets you start a blank work record.
 
 The Work page shows a compact Today and Week box with your total time-entry
 hours directly below the navigation area. Ticket notes do not add to these
@@ -136,6 +136,10 @@ appears above the earlier record.
 
 Each Work in Progress card belongs to your user account. Other users do not use
 your active cards.
+
+Service-call cards are labeled **Ticket** or **Project task**. If one service
+call has both types attached, TicketPilot shows one selectable card for each
+association.
 
 When navigation is enabled in Config, Work shows quick **Home** and **Office**
 buttons. Office appears only when you or your administrator configured an
@@ -152,33 +156,43 @@ to Autotask.
 
 **Entry type**
 
-Choose whether the record is a **Time entry** or a **Ticket note**.
+Choose whether the record is a **Time entry** or a note. Ticket work says
+**Ticket note**. Project-task work says **Project task note**.
 
 **Work type**
 
-For time entries, choose **Remote** or **On-Site**. Ticket notes keep this card
-visible but disabled because ticket notes do not use work type.
+For time entries, choose **Remote** or **On-Site**. Ticket notes and Project
+task notes keep this card visible but disabled because notes do not use work
+type.
 
-**Ticket status**
+**Ticket status** or **Task status**
 
-Choose the status TicketPilot should send to Autotask when the record is
-submitted. Supported statuses are **In progress**, **Waiting customer**,
+For a ticket, choose the status TicketPilot should send to Autotask when the
+record is submitted. Supported statuses are **In progress**, **Waiting customer**,
 **Waiting parts**, **Mfg Trouble Ticket**, **Follow up**, and **Complete**.
 When Complete is selected, TicketPilot requires every other unsubmitted time
 entry or ticket note for the same ticket to be sent first. This keeps the
 Complete entry last even when another technician owns the earlier entry.
 
+For a project task, the same card says **Task status** and shows the task
+statuses configured in your Autotask tenant. This changes only the selected
+task's status, never the whole project's status. If Complete is selected, every
+other unsubmitted Time entry or Project task note for that task must be sent
+first.
+
 **Job date** or **Note Date**
 
-Time entries use **Job date**. Ticket notes use **Note Date**. Date pickers use
-TicketPilot's own **Today**, **Cancel**, and **Set** controls.
+Time entries use **Job date**. Ticket notes and Project task notes use **Note
+Date**. Date pickers use TicketPilot's own **Today**, **Cancel**, and **Set**
+controls.
 
 **Start time**, **End time**, and **Work Duration**
 
 Time entries use rounded start and end times in 15-minute increments. You can
 adjust the visible times with the time controls. **Work Duration** shows the
-rounded duration that will be used for the time entry. Ticket notes hide these
-time fields because ticket notes do not use start and end time.
+rounded duration that will be used for the time entry. Note mode hides these
+time fields because Ticket notes and Project task notes do not use start and
+end time.
 Remote time entries must be at least 15 minutes. On-Site time entries must be
 at least 1 hour. On the active Work page, changing the work type updates only
 the end time. TicketPilot uses the minimum duration unless the current rounded
@@ -190,23 +204,30 @@ show a validation message when the selected duration is too short.
 Search for and select the Autotask company. Typed client names must be selected
 from the search results before they can be saved as the verified client.
 
-You can change the selected client before choosing a ticket. After a ticket is
-selected, the client becomes read-only for that work record.
+You can change the selected client before choosing a ticket or project task.
+After either target is selected, the client becomes read-only for that work
+record.
 
-**Ticket number** and **Ticket name**
+**Ticket** or **Project task**
 
-After selecting a verified client, load that client's open tickets and select
-the correct ticket. Each choice includes the ticket's **Start** date and
-**Due by** date when Autotask provides them. TicketPilot saves the selected
-ticket number, title, and description. The ticket identity becomes read-only
-after selection.
+After selecting a verified client, load the grouped **Tickets** and **Project
+tasks** choices. Ticket choices include **Start** and **Due by** dates when
+Autotask provides them. Project-task choices show the task and its parent
+project. Only non-complete tasks assigned to you as a primary or secondary
+Autotask resource are shown. TicketPilot saves the selected target's verified
+identity and makes it read-only. A **Note** badge means the ticket has
+customer-note history or the task has TaskNotes available in TicketPilot.
 
-**Ticket notes** and **Past time entries**
+**Ticket notes**, **Project task notes**, and **Past time entries**
 
 When available, these buttons open read-only Autotask context for the selected
-ticket. **Ticket notes** shows ticket-note history. **Past time entries** shows
-prior time entries for the ticket. Some Autotask-generated system notes are
-filtered out so this list focuses on useful ticket history.
+target. **Ticket notes** shows ticket-note history. **Project task notes** shows
+notes attached directly to the selected task, not the whole project. **Past
+time entries** shows prior time entries for the ticket or task. Some
+Autotask-generated system notes are filtered out so the list stays useful.
+When notes exist, the selected Ticket name repeats the counterpart-colored
+**Note** badge and the **Ticket notes** button uses the same counterpart
+highlight with that badge.
 
 When you select a ticket whose current Autotask status is **Customer Note
 Added**, TicketPilot automatically opens **Ticket notes** once and selects the
@@ -229,20 +250,22 @@ For time entries, write the work summary that should go to Autotask. TicketPilot
 adds the selected work type prefix, such as `Remote.` or `On-Site.`, to the
 summary that will be submitted.
 
-For ticket notes, write the note description. Ticket notes do not use the
-Remote or On-Site prefix.
+For Ticket notes or Project task notes, write the note description. Notes do
+not use the Remote or On-Site prefix. Project task note descriptions can contain
+up to 3,200 characters.
 
 **Note title**
 
-Ticket notes require a note title. Time entries do not use a note title.
+Ticket notes and Project task notes require a note title. Time entries do not
+use a note title.
 
 **Append to resolution**
 
 This option is available for time entries. When it is on,
 TicketPilot tells Autotask to append the submitted content to the ticket resolution
 where the Autotask workflow supports that behavior.
-Ticket notes do not show this option because Autotask TicketNotes does not
-support the field.
+Ticket notes and Project task notes do not show this option because Autotask
+note records do not support the field.
 
 ## Recording Notes
 
@@ -273,12 +296,13 @@ entry type.
 With the default setting:
 
 - **End Work** stops a time entry and sends it to Review.
-- **End Note** stops a ticket note and sends it to Review.
+- **End Note** stops a Ticket note or Project task note and sends it to Review.
 
 With **Submit from Work in Progress** turned on:
 
 - **Submit to Autotask** stops a time entry and submits it directly to Autotask.
-- **Submit note** stops a ticket note and submits it directly to Autotask.
+- **Submit note** stops a Ticket note or Project task note and submits it
+  directly to Autotask.
 
 **Submit from Work in Progress** is not a workflow availability setting. It
 only controls whether finished Work in Progress records go straight to Autotask
@@ -315,18 +339,19 @@ Use Review to:
 - Update a record that was already submitted.
 - Delete a submitted Autotask record when that action is available.
 
-Review shows the selected client and ticket identity as read-only once they
+Review shows the selected client and ticket or project-task identity as
+read-only once they
 have been chosen. If an active record was opened in Review before any client was
 selected, Review may let you choose the first verified client and then select a
-ticket.
+ticket or assigned project task.
 
 Review also shows your total time-entry hours worked today and this week, plus
 the number of your time entries that have not been submitted to Autotask yet.
 That count includes active entries, entries ready for review, and failed
-submissions. Ticket notes, rejected entries, and successfully submitted entries
-do not count. Each review row shows day and week hour totals for that job's
-owner and work date. Ticket notes do not add to these totals because they do
-not record time.
+submissions. Notes, rejected entries, and successfully submitted entries do not
+count. Each review row shows day and week hour totals for that job's owner and
+work date. Ticket notes and Project task notes do not add to these totals
+because they do not record time.
 
 ## Review Fields
 
@@ -335,18 +360,20 @@ used on Work in Progress:
 
 - Entry type.
 - Work type for time entries.
-- Ticket status.
+- Ticket status or Task status.
 - Job date or Note Date.
 - Start time and end time for time entries.
 - Summary notes for time entries.
-- Note title and note description for ticket notes.
+- Note title and note description for Ticket notes or Project task notes.
 - Append to resolution for time entries.
 
-Time entries require ticket number, summary notes, ticket status, job date,
-start time, and end time.
+Time entries require verified ticket or project-task identity, summary notes,
+target status, job date, start time, and end time.
 
 Ticket notes require ticket number, ticket status, note title, and note
 description. Ticket notes are customer-visible.
+Project task notes require project-task identity, Task status, note title, and
+note description, and are attached to the task rather than its parent project.
 
 ## Review Actions
 
@@ -363,14 +390,16 @@ any missing or invalid fields.
 
 Updates an Autotask record that was already submitted. Time entries can update
 date, start time, end time, summary notes, work type, append-to-resolution, and
-ticket status. Ticket notes can update note title, note description,
-and ticket status.
+the applicable Ticket or Task status. Ticket notes and Project task notes can
+update note title, note description, and the applicable target status. A
+project-task update changes only the task, not its parent project.
 
 **Delete From Autotask**
 
 Deletes a submitted Autotask time entry and moves the local record back to
 Review. Autotask does not support deleting submitted ticket notes through this
-API, so that action is not shown for notes. If Autotask cannot complete a time-entry delete,
+API, so that action is not shown for Ticket notes or Project task notes. If
+Autotask cannot complete a time-entry delete,
 TicketPilot may show a local-only cleanup option with a warning.
 
 **Delete time entry** or **Delete note**
@@ -394,7 +423,11 @@ its dropdown; every option includes a visible color sample. TicketPilot
 automatically uses an adjusted shade for readable contrast on light and dark
 backgrounds. The combination applies to your signed-in pages, including
 navigation icons and ordinary buttons. Default Dark with Teal is selected
-initially.
+initially. Every highlight also has an automatic complementary counterpart
+color. Remote, Time entry, navigation, and ordinary actions use the highlight;
+On-Site, Ticket note, customer-note indicators, Record, and second-job
+treatments use the counterpart. Genuine warnings and other status colors keep
+their normal meaning.
 
 On a full browser, Config uses a wide two-column card layout. On phones, the
 same cards remain stacked in the documented order.
@@ -519,13 +552,14 @@ results so TicketPilot can save the verified company ID.
 
 **No open tickets**
 
-The selected client did not return usable open tickets. Confirm the client is
-correct, then check Autotask or contact your app administrator.
+The selected client did not return usable open tickets or assigned project
+tasks. Confirm the client is correct, then check your Autotask assignment and
+project permissions or contact your app administrator.
 
 **Missing required fields**
 
-Complete the required client, ticket, status, date/time, title, or notes fields
-shown on the page, then submit again.
+Complete the required client, ticket or project task, status, date/time, title,
+or notes fields shown on the page, then submit again.
 
 **Autotask submission failed**
 
@@ -542,7 +576,8 @@ or sign in again later. Contact your app administrator if it does not recover.
 
 **Autotask**
 
-The external system where TicketPilot sends time entries and ticket notes.
+The external system where TicketPilot sends time entries, Ticket notes, and
+Project task notes.
 
 **Device sign-in**
 
@@ -550,7 +585,17 @@ A passkey-style sign-in method that uses a device or browser unlock method.
 
 **Entry type**
 
-Whether the record is a Time entry or a Ticket note.
+Whether the record is a Time entry or a note for the selected target.
+
+**Project task**
+
+A task inside an Autotask project that is assigned to you as a primary or
+secondary resource.
+
+**Project task note**
+
+A TaskNote attached directly to the selected Autotask project task, not to the
+whole project.
 
 **Review**
 

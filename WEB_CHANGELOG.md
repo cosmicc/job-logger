@@ -2,7 +2,7 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
-## 2.0.1 - 07.30.2026 - Review controls, workflow ordering, alerts, and Autotask compatibility
+## 2.1.0 - 07.31.2026 - Project tasks, Review controls, theme contrast, AI support, alerts, and Autotask compatibility
 
 ### Added
 
@@ -10,8 +10,18 @@ Short release notes shown on the authenticated `/changelog` page.
 - TicketPilot now supports the Autotask **Mfg Trouble Ticket** status.
 - Selecting or starting a **Customer Note Added** ticket now opens its newest
   existing customer note automatically.
+- Tickets with customer-note history now show a **Note** badge, and the
+  selected ticket's **Ticket notes** button is highlighted.
+- Every highlight color now has a matching complementary color for On-Site,
+  Ticket note, customer-note, recording, and second-job treatments.
+- AI Help now uses a comprehensive end-user knowledge base with workflows,
+  common questions, messages, and troubleshooting guidance.
 - Review can hide submitted entries and show 10, 20, 50, or 100 entries per page.
 - Administrators can acknowledge the current health alert to pause repeated Pushover reminders until the issue changes.
+- Assigned Autotask project tasks now appear beside tickets in a separate
+  picker group and can be used for time entries.
+- Project tasks now support Task status, Project task notes, note indicators,
+  past time entries, navigation, and service-call selections.
 
 ### Changed
 
@@ -20,11 +30,22 @@ Short release notes shown on the authenticated `/changelog` page.
 - Text boxes now start entered text on the left.
 - The automatically opened customer note stays closed after you close it or
   reload; the **Ticket notes** button remains available whenever you need it.
+- Alternate workflow controls now change to a complementary color that stays
+  distinct from the selected highlight, including Amber and Orange.
+- Completing a project task now waits for every other unsubmitted local entry
+  for that task, submits the Time entry or Project task note first, and changes
+  only the task status last.
 
 ### Fixed
 
+- Ticket notes now submit through the correct Autotask ticket-note endpoint.
+- Work and Review now fully hide **Append to resolution** in Ticket note mode.
 - Ticket-note create and update requests now use only fields supported by Autotask.
 - Submitted ticket notes no longer show an Autotask delete action that the TicketNotes API does not support.
+- Amber and Orange appearance choices no longer blend into On-Site, Ticket
+  note, customer-note, or recording controls.
+- Project task notes now save directly on the selected task instead of using a
+  ticket or whole-project note.
 
 ## 2.0.0 - 07.26.2026 - TicketPilot rename, themes, workflow, navigation, and reliability
 

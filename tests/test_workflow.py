@@ -14,7 +14,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from tests.conftest import extract_csrf_token, login_as_super_admin
 from ticket_pilot import database, ui
-from ticket_pilot.enums import EntryType, JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
+from ticket_pilot.enums import EntryType, JobStatus, TicketStatus, TranscriptionStatus, WorkLocation, WorkTargetType
 from ticket_pilot.models import AuditEvent, Job, SubmissionAttempt, UserPreference, WebUser
 from ticket_pilot.routes import mobile as mobile_routes
 from ticket_pilot.routes import review as review_routes
@@ -24,6 +24,7 @@ from ticket_pilot.services.autotask import AutotaskSubmissionResult
 from ticket_pilot.services.jobs import (
     JobWorkflowError,
     count_unsubmitted_time_entries,
+    ensure_complete_status_submits_last,
     get_active_job,
     submit_job_to_autotask,
 )
@@ -515,6 +516,7 @@ def test_ticket_note_can_be_submitted_from_review_without_time_fields(authentica
     assert "Note description" in active_html
     assert "End Note" in active_html
     assert "Delete Note" in active_html
+    assert re.search(r'class="append-resolution-field is-hidden"\s+data-append-resolution-field', active_html)
     assert "time-entry-time-card active-start-time-card is-hidden" in active_html
     assert "time-entry-time-card active-end-time-card is-hidden" in active_html
     assert 'data-work-location-card' in active_html
@@ -555,6 +557,11 @@ def test_ticket_note_can_be_submitted_from_review_without_time_fields(authentica
     assert "Note title" in review_html
     assert "Note description" in review_html
     assert "Delete note" in review_html
+    assert re.search(
+        r'class="append-resolution-field review-append-resolution-field is-hidden"'
+        r"\s+data-review-append-resolution-field",
+        review_html,
+    )
     assert "review-start-time-field is-hidden" in review_html
     assert "review-end-time-field is-hidden" in review_html
     assert "review-work-location-card is-hidden" not in review_html
@@ -1764,7 +1771,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "text-overflow: ellipsis;" in stylesheet
     assert "grid-column: 1;" in stylesheet
     assert "linear-gradient(90deg, rgba(var(--highlight-rgb)" in stylesheet
-    assert "linear-gradient(90deg, rgba(245, 158, 11" in stylesheet
+    assert "rgba(var(--counterpart-rgb), 0.24)" in stylesheet
     assert ".service-call-loading-state" in stylesheet
     assert ".service-call-date-nav" in stylesheet
     assert "max-width: 420px;" in stylesheet
@@ -1791,8 +1798,8 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ".ai-cleanup-status.is-loading" not in stylesheet
     assert ".ticket-picker-status.is-loading" in stylesheet
     assert ".record-notes-button,\n.recording-control-stack .record-notes-button" in stylesheet
-    assert "background: var(--warning);" in stylesheet
-    assert "background: var(--warning-hover);" in stylesheet
+    assert "background: var(--counterpart);" in stylesheet
+    assert "background: var(--counterpart-hover);" in stylesheet
     assert ".end-work-button,\n.work-finish-stack .end-work-button" in stylesheet
     assert "background: var(--success);" in stylesheet
     assert "background: var(--success-hover);" in stylesheet
@@ -1987,7 +1994,7 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert "text-align: center;" in stylesheet
     assert '.work-location-switch input[type="radio"][value="ticket_note"]:checked + span' in stylesheet
     assert '.work-location-switch input[type="radio"][value="on_site"]:checked + span' in stylesheet
-    assert "color: var(--on-warning);" in stylesheet
+    assert "color: var(--on-counterpart);" in stylesheet
     assert ".work-location-card-disabled {" in stylesheet
     assert ".work-location-card-disabled .work-location-switch" in stylesheet
     assert '.work-location-card-disabled .work-location-switch input[type="radio"]:checked + span' in stylesheet
@@ -2126,13 +2133,13 @@ def test_mobile_styles_keep_service_calls_colored_and_ticket_description_scrolla
     assert ">Record</span>" in mobile_template
     assert "Delete time entry" not in mobile_template
     assert "<span data-delete-entry-label>{% if is_ticket_note %}Delete Note{% else %}Delete{% endif %}</span>" in mobile_template
-    active_append_index = mobile_template.index('class="append-resolution-field"')
+    active_append_index = mobile_template.index("data-append-resolution-field")
     active_note_title_index = mobile_template.index("data-note-title-field")
     active_summary_label_index = mobile_template.index("data-summary-label")
     assert active_note_title_index < active_summary_label_index < active_append_index < summary_action_index
     assert 'class="summary-action-row review-summary-action-row recording-control-stack"' in review_template
     assert review_template.index("data-review-record-button") < review_template.index("data-ai-cleanup-button")
-    review_append_index = review_template.index('class="append-resolution-field review-append-resolution-field"')
+    review_append_index = review_template.index("data-review-append-resolution-field")
     review_note_title_index = review_template.index("data-review-note-title-field")
     review_summary_label_index = review_template.index("data-review-summary-label")
     review_summary_action_index = review_template.index('class="summary-action-row review-summary-action-row recording-control-stack"')
@@ -2538,6 +2545,8 @@ def test_mobile_active_job_can_replace_client_before_ticket_selection(authentica
     assert ticket_lookup_payload["autotask_company_id"] == 1002
     assert ticket_lookup_payload["tickets"][0]["company_name"] == "Acme Holdings"
     assert ticket_lookup_payload["tickets"][0]["title"] == "Mock open ticket for Acme Holdings"
+    assert ticket_lookup_payload["tickets"][0]["has_customer_notes"] is True
+    assert ticket_lookup_payload["tickets"][1]["has_customer_notes"] is False
 
     replacement_end_response = authenticated_client.post(
         f"/jobs/{active_job_id}/end",
@@ -4139,8 +4148,10 @@ def test_mobile_service_call_start_populates_active_job(
         "work_location_label": "On-Site",
         "work_location_class": "service-call-location-on_site",
         "ticket_status_label": "New",
+        "has_customer_notes": True,
     }
     assert service_calls_payload["service_calls"][1]["work_location_class"] == "service-call-location-remote"
+    assert service_calls_payload["service_calls"][1]["has_customer_notes"] is False
 
     start_response = authenticated_client.post(
         "/jobs/start/service-call",
@@ -4465,11 +4476,16 @@ def test_complete_and_follow_up_local_tickets_filter_service_call_options(
     service_calls_response = authenticated_client.get("/work/service-calls?date=2026-06-20")
 
     assert service_calls_response.status_code == 200
-    service_call_ids = [
+    ticket_service_call_ids = [
         service_call["service_call_ticket_id"]
         for service_call in service_calls_response.json()["service_calls"]
+        if service_call.get("work_target_type", "ticket") == "ticket"
     ]
-    assert service_call_ids == []
+    assert ticket_service_call_ids == []
+    assert any(
+        service_call.get("work_target_type") == "project_task"
+        for service_call in service_calls_response.json()["service_calls"]
+    )
 
     filtered_start_response = authenticated_client.post(
         "/jobs/start/service-call",
@@ -5543,3 +5559,220 @@ def test_mobile_renders_the_newest_active_job_first(authenticated_client: TestCl
     assert rendered_home.index(f'data-active-job-card="{newer_job_id}"') < rendered_home.index(
         f'data-active-job-card="{older_job_id}"'
     )
+
+
+def test_project_task_can_be_selected_reviewed_and_submitted(
+    authenticated_client: TestClient,
+) -> None:
+    """Assigned project tasks use task identity, status, history, and TimeEntries."""
+
+    work_page = authenticated_client.get("/work")
+    csrf_token = extract_csrf_token(work_page.text)
+    authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        job_id = active_job.id
+
+    save_client_response = authenticated_client.post(
+        f"/jobs/{job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Acme Services",
+            "autotask_company_id": "1001",
+        },
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
+
+    options_response = authenticated_client.get(f"/review/{job_id}/tickets")
+    assert options_response.status_code == 200
+    options_payload = options_response.json()
+    assert options_payload["tickets"]
+    assert options_payload["project_tasks"][0]["task_id"] == 7001
+    assert options_payload["project_tasks"][0]["project_name"] == "Mock client project"
+    assert {option["status_id"] for option in options_payload["task_statuses"]} == {1, 2, 5}
+
+    selection_response = authenticated_client.post(
+        f"/jobs/{job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"work_target_type": "project_task", "project_task_id": 7001},
+    )
+    assert selection_response.status_code == 200
+    assert selection_response.json()["work_target_type"] == "project_task"
+    assert selection_response.json()["project_task_id"] == 7001
+    assert selection_response.json()["task_status_id"] == 2
+
+    invalid_status_response = authenticated_client.post(
+        f"/jobs/{job_id}/ticket-number",
+        headers={"Accept": "application/json"},
+        data={"csrf_token": csrf_token, "task_status_id": "999"},
+    )
+    assert invalid_status_response.status_code == 400
+    assert "no longer available" in invalid_status_response.json()["detail"]
+
+    notes_response = authenticated_client.get(f"/review/{job_id}/ticket-notes")
+    assert notes_response.status_code == 200
+    assert notes_response.json()["target_type"] == "project_task"
+    assert notes_response.json()["notes"][0]["title"] == "Mock project task note"
+
+    description_response = authenticated_client.post(
+        f"/jobs/{job_id}/description/text",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"summary_notes": "Completed assigned project task work."},
+    )
+    assert description_response.status_code == 200
+    active_project_task_page = authenticated_client.get("/work")
+    assert 'class="end-task-status"' in active_project_task_page.text
+    assert 'class="end-ticket-status"' not in active_project_task_page.text
+    active_entry_type_switch = re.search(
+        r'<div class="work-location-switch entry-type-switch"[^>]*>(.*?)</div>',
+        active_project_task_page.text,
+        re.DOTALL,
+    )
+    assert active_entry_type_switch is not None
+    assert "<span>Time entry</span>" in active_entry_type_switch.group(1)
+    assert "<span>Project task note</span>" in active_entry_type_switch.group(1)
+    end_response = authenticated_client.post(
+        f"/jobs/{job_id}/end",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Acme Services",
+            "autotask_company_id": "1001",
+            "task_status_id": "2",
+        },
+        follow_redirects=False,
+    )
+    assert end_response.status_code == 303
+
+    with database.SessionLocal() as database_session:
+        review_job = database_session.get(Job, job_id)
+        assert review_job is not None
+        assert review_job.work_target_type == WorkTargetType.PROJECT_TASK
+        assert review_job.ticket_number is None
+        assert review_job.project_task_id == 7001
+        assert review_job.project_id == 6001
+        job_date = review_job.local_work_date.isoformat()
+        start_time = format_local_time(review_job.rounded_start_utc)
+        end_time = format_local_time(review_job.rounded_end_utc)
+
+    review_page = authenticated_client.get(f"/review/{job_id}")
+    assert "Project task notes" in review_page.text
+    assert "Task status" in review_page.text
+    assert "Mock client project" in review_page.text
+    review_entry_type_switch = re.search(
+        r'<div class="work-location-switch entry-type-switch"[^>]*>(.*?)</div>',
+        review_page.text,
+        re.DOTALL,
+    )
+    assert review_entry_type_switch is not None
+    assert "<span>Time entry</span>" in review_entry_type_switch.group(1)
+    assert "<span>Project task note</span>" in review_entry_type_switch.group(1)
+    review_csrf = extract_csrf_token(review_page.text)
+    accept_response = authenticated_client.post(
+        f"/review/{job_id}/accept",
+        data={
+            "csrf_token": review_csrf,
+            "entry_type": "time_entry",
+            "task_status_id": "5",
+            "job_date": job_date,
+            "start_time": start_time,
+            "end_time": end_time,
+            "work_location": "remote",
+            "summary_notes": "Remote. Completed assigned project task work.",
+        },
+        follow_redirects=False,
+    )
+    assert accept_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        submitted_job = database_session.get(Job, job_id)
+        assert submitted_job is not None
+        assert submitted_job.status == JobStatus.SUBMITTED
+        assert submitted_job.task_status_id == 5
+        attempt = database_session.query(SubmissionAttempt).filter_by(job_id=job_id).one()
+        assert attempt.request_snapshot["work_target_type"] == "project_task"
+        assert attempt.request_snapshot["taskID"] == 7001
+        assert attempt.request_snapshot["taskStatusID"] == 5
+
+
+def test_project_task_complete_is_blocked_by_any_unsubmitted_entry(
+    authenticated_client: TestClient,
+) -> None:
+    """Task Complete is global and waits for every local entry for that task."""
+
+    started_at = datetime(2026, 7, 30, 14, 0, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        blocker = Job(
+            status=JobStatus.READY_FOR_REVIEW,
+            work_target_type=WorkTargetType.PROJECT_TASK,
+            project_task_id=7001,
+            project_id=6001,
+            task_status_id=2,
+            task_status_label="In Progress",
+            summary_notes="Another user's unsubmitted task entry.",
+            raw_start_utc=started_at,
+            rounded_start_utc=started_at,
+            rounded_end_utc=started_at + timedelta(minutes=15),
+        )
+        completing_job = Job(
+            status=JobStatus.READY_FOR_REVIEW,
+            work_target_type=WorkTargetType.PROJECT_TASK,
+            project_task_id=7001,
+            project_id=6001,
+            task_status_id=5,
+            task_status_label="Complete",
+            summary_notes="Completion entry.",
+            raw_start_utc=started_at + timedelta(hours=1),
+            rounded_start_utc=started_at + timedelta(hours=1),
+            rounded_end_utc=started_at + timedelta(hours=1, minutes=15),
+        )
+        database_session.add_all([blocker, completing_job])
+        database_session.flush()
+        with pytest.raises(JobWorkflowError, match="project task notes for this task first"):
+            ensure_complete_status_submits_last(
+                database_session,
+                completing_job,
+                task_status_id=5,
+            )
+
+
+def test_project_task_service_call_starts_task_target(
+    authenticated_client: TestClient,
+) -> None:
+    """A ServiceCallTasks association starts a project-task job, not a ticket."""
+
+    work_page = authenticated_client.get("/work")
+    csrf_token = extract_csrf_token(work_page.text)
+    service_calls_response = authenticated_client.get("/work/service-calls?date=2026-07-30")
+    assert service_calls_response.status_code == 200
+    task_service_call = next(
+        option
+        for option in service_calls_response.json()["service_calls"]
+        if option.get("work_target_type") == "project_task"
+    )
+    assert task_service_call["service_call_association_id"] == 6203
+    assert task_service_call["target_title"] == "Mock assigned project task"
+
+    start_response = authenticated_client.post(
+        "/jobs/start/service-call",
+        data={
+            "csrf_token": csrf_token,
+            "work_target_type": "project_task",
+            "service_call_association_id": "6203",
+            "service_call_date": "2026-07-30",
+        },
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        assert active_job.work_target_type == WorkTargetType.PROJECT_TASK
+        assert active_job.project_task_id == 7001
+        assert active_job.project_id == 6001
+        assert active_job.project_name == "Mock client project"
+        assert active_job.ticket_number is None

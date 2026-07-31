@@ -10,7 +10,14 @@ from sqlalchemy import desc, func, or_, select
 from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.orm import Session
 
-from ticket_pilot.enums import EntryType, JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
+from ticket_pilot.enums import (
+    EntryType,
+    JobStatus,
+    TicketStatus,
+    TranscriptionStatus,
+    WorkLocation,
+    WorkTargetType,
+)
 from ticket_pilot.models import Job, SubmissionAttempt
 from ticket_pilot.services.autotask import (
     AutotaskSubmissionError,
@@ -38,6 +45,14 @@ MAX_ACTIVE_JOBS = 2
 MAX_CLIENT_NAME_LENGTH = 120
 MAX_TICKET_TITLE_LENGTH = 240
 MAX_TICKET_DESCRIPTION_LENGTH = 8000
+MAX_PROJECT_TASK_NUMBER_LENGTH = 50
+MAX_PROJECT_TASK_TITLE_LENGTH = 255
+MAX_PROJECT_TASK_DESCRIPTION_LENGTH = 8000
+MAX_PROJECT_NUMBER_LENGTH = 50
+MAX_PROJECT_NAME_LENGTH = 100
+MAX_TASK_STATUS_LABEL_LENGTH = 120
+AUTOTASK_COMPLETE_TASK_STATUS_ID = 5
+MAX_AUTOTASK_TASK_NOTE_DESCRIPTION_LENGTH = 3200
 MAX_NOTE_TITLE_LENGTH = 250
 ALLOWED_WORK_IN_PROGRESS_TIME_MINUTE_DELTA = {-15, 15}
 AI_CLEANUP_SOURCE_MOBILE = "mobile"
@@ -67,6 +82,10 @@ COMPLETE_SUBMISSION_ORDER_MESSAGE = (
     "Submit all other unsubmitted time entries and ticket notes for this ticket first. "
     "The entry with ticket status Complete must be submitted last."
 )
+COMPLETE_TASK_SUBMISSION_ORDER_MESSAGE = (
+    "Submit all other unsubmitted time entries and project task notes for this task first. "
+    "The entry with task status Complete must be submitted last."
+)
 DESCRIPTION_RECORDING_UNAVAILABLE_MESSAGE = (
     "Audio descriptions can only be recorded before the job has been submitted to Autotask."
 )
@@ -90,8 +109,16 @@ class ReviewFields:
     # ticket_description is read-only context from the selected Autotask ticket.
     ticket_description: str | None
 
-    # ticket_status is the requested ticket status from the allowed enum list.
-    ticket_status: TicketStatus
+    # work_target_type determines whether ticket or task identity/status applies.
+    work_target_type: WorkTargetType
+
+    # ticket_status is required only for ordinary ticket jobs.
+    ticket_status: TicketStatus | None
+
+    # task_status_id and label are required only for project-task jobs and must
+    # be verified against live/cached Autotask Tasks.status metadata by routes.
+    task_status_id: int | None
+    task_status_label: str | None
 
     # entry_type decides whether submission writes TimeEntries or TicketNotes.
     entry_type: EntryType
@@ -422,10 +449,16 @@ def ensure_job_can_record_description(job: Job) -> None:
 def ensure_job_ready_for_autotask_submission(job: Job) -> None:
     """Require every local field needed before any Autotask submission attempt."""
 
-    if not job.ticket_number:
-        raise JobWorkflowError("Ticket number is required before Autotask submission.")
-    if job.ticket_status is None:
-        raise JobWorkflowError("Ticket status is required before Autotask submission.")
+    if job.work_target_type == WorkTargetType.PROJECT_TASK:
+        if job.project_task_id is None or job.project_id is None:
+            raise JobWorkflowError("Project task is required before Autotask submission.")
+        if job.task_status_id is None or not (job.task_status_label or "").strip():
+            raise JobWorkflowError("Task status is required before Autotask submission.")
+    else:
+        if not job.ticket_number:
+            raise JobWorkflowError("Ticket number is required before Autotask submission.")
+        if job.ticket_status is None:
+            raise JobWorkflowError("Ticket status is required before Autotask submission.")
     if not (job.summary_notes or job.description_text or "").strip():
         if job.entry_type == EntryType.TICKET_NOTE:
             raise JobWorkflowError("Note description is required before Autotask submission.")
@@ -434,6 +467,14 @@ def ensure_job_ready_for_autotask_submission(job: Job) -> None:
     if job.entry_type == EntryType.TICKET_NOTE:
         if not (job.note_title or "").strip():
             raise JobWorkflowError("Note title is required before Autotask submission.")
+        if (
+            job.work_target_type == WorkTargetType.PROJECT_TASK
+            and len((job.summary_notes or job.description_text or "").strip())
+            > MAX_AUTOTASK_TASK_NOTE_DESCRIPTION_LENGTH
+        ):
+            raise JobWorkflowError(
+                "Project task note description must be 3,200 characters or fewer."
+            )
         return
 
     if job.rounded_end_utc is None:
@@ -723,6 +764,31 @@ def hidden_service_call_ticket_numbers_for_web_user(
     }
 
 
+def hidden_service_call_project_task_ids_for_web_user(
+    database_session: Session,
+    *,
+    web_user_id: str,
+    project_task_ids: set[int],
+) -> set[int]:
+    """Return project tasks already completed locally by the selected user."""
+
+    normalized_task_ids = {int(task_id) for task_id in project_task_ids if int(task_id) > 0}
+    if not normalized_task_ids:
+        return set()
+    return {
+        int(task_id)
+        for task_id in database_session.execute(
+            select(Job.project_task_id).where(
+                Job.web_user_id == web_user_id,
+                Job.work_target_type == WorkTargetType.PROJECT_TASK,
+                Job.task_status_id == AUTOTASK_COMPLETE_TASK_STATUS_ID,
+                Job.project_task_id.in_(normalized_task_ids),
+            )
+        ).scalars()
+        if task_id is not None
+    }
+
+
 def normalize_ticket_number(ticket_number: str | None, *, required: bool) -> str | None:
     """Return a normalized Autotask ticket number or raise a workflow error."""
 
@@ -757,6 +823,77 @@ def normalize_ticket_status(ticket_status: TicketStatus | str | None, *, require
         return TicketStatus(normalized_ticket_status)
     except ValueError as exc:
         raise JobWorkflowError("Ticket status is invalid.") from exc
+
+
+def normalize_work_target_type(work_target_type: WorkTargetType | str | None) -> WorkTargetType:
+    """Return a supported Autotask work-target type."""
+
+    if isinstance(work_target_type, WorkTargetType):
+        return work_target_type
+
+    normalized_target_type = str(work_target_type or WorkTargetType.TICKET.value).strip().lower()
+    try:
+        return WorkTargetType(normalized_target_type)
+    except ValueError as exc:
+        raise JobWorkflowError("Work target must be a ticket or project task.") from exc
+
+
+def normalize_positive_autotask_id(
+    raw_identifier: int | str | None,
+    *,
+    field_label: str,
+    required: bool = False,
+) -> int | None:
+    """Return a positive Autotask ID for a server-verified selected entity."""
+
+    if raw_identifier is None or (isinstance(raw_identifier, str) and not raw_identifier.strip()):
+        if required:
+            raise JobWorkflowError(f"{field_label} is required.")
+        return None
+    try:
+        normalized_identifier = int(raw_identifier)
+    except (TypeError, ValueError) as exc:
+        raise JobWorkflowError(f"{field_label} is invalid.") from exc
+    if normalized_identifier <= 0:
+        raise JobWorkflowError(f"{field_label} is invalid.")
+    return normalized_identifier
+
+
+def normalize_task_status_selection(
+    task_status_id: int | str | None,
+    task_status_label: str | None,
+    *,
+    required: bool = False,
+) -> tuple[int | None, str | None]:
+    """Normalize a route-verified Autotask Tasks.status choice."""
+
+    normalized_status_id = normalize_positive_autotask_id(
+        task_status_id,
+        field_label="Task status",
+        required=required,
+    )
+    normalized_status_label = _normalize_optional_text(
+        task_status_label,
+        max_length=MAX_TASK_STATUS_LABEL_LENGTH,
+    )
+    if required and normalized_status_label is None:
+        raise JobWorkflowError("Task status is required.")
+    return normalized_status_id, normalized_status_label
+
+
+def job_target_status_is_complete(
+    job: Job,
+    *,
+    ticket_status: TicketStatus | None = None,
+    task_status_id: int | None = None,
+) -> bool:
+    """Return whether the selected target-specific status is Complete."""
+
+    if job.work_target_type == WorkTargetType.PROJECT_TASK:
+        selected_task_status_id = task_status_id if task_status_id is not None else job.task_status_id
+        return selected_task_status_id == AUTOTASK_COMPLETE_TASK_STATUS_ID
+    selected_ticket_status = ticket_status if ticket_status is not None else job.ticket_status
+    return selected_ticket_status == TicketStatus.COMPLETE
 
 
 def normalize_entry_type(entry_type: EntryType | str | None) -> EntryType:
@@ -988,7 +1125,7 @@ def preserve_locked_active_autotask_client(
     still active.
     """
 
-    client_identity_is_locked = bool(job.ticket_number)
+    client_identity_is_locked = bool(job.ticket_number or job.project_task_id)
     if not client_identity_is_locked:
         return False
 
@@ -1020,6 +1157,16 @@ def start_job(
     entry_type: EntryType | str | None = EntryType.TIME_ENTRY,
     note_title: str | None = None,
     append_to_resolution: bool | str | None = True,
+    work_target_type: WorkTargetType | str | None = WorkTargetType.TICKET,
+    project_task_id: int | str | None = None,
+    project_task_number: str | None = None,
+    project_task_title: str | None = None,
+    project_task_description: str | None = None,
+    project_id: int | str | None = None,
+    project_number: str | None = None,
+    project_name: str | None = None,
+    task_status_id: int | str | None = None,
+    task_status_label: str | None = None,
 ) -> Job:
     """Create a new active job while enforcing the two-job overlap limit."""
 
@@ -1038,13 +1185,48 @@ def start_job(
         required=normalized_entry_type == EntryType.TICKET_NOTE,
     )
     normalized_append_to_resolution = normalize_append_to_resolution(append_to_resolution)
+    normalized_work_target_type = normalize_work_target_type(work_target_type)
+    normalized_project_task_id = normalize_positive_autotask_id(
+        project_task_id,
+        field_label="Project task",
+        required=normalized_work_target_type == WorkTargetType.PROJECT_TASK,
+    )
+    normalized_project_id = normalize_positive_autotask_id(
+        project_id,
+        field_label="Project",
+        required=normalized_work_target_type == WorkTargetType.PROJECT_TASK,
+    )
+    normalized_task_status_id, normalized_task_status_label = normalize_task_status_selection(
+        task_status_id,
+        task_status_label,
+        required=normalized_work_target_type == WorkTargetType.PROJECT_TASK,
+    )
     start_timestamp = now_utc()
     rounded_start_timestamp = round_start_for_technician(start_timestamp)
     job = Job(
         status=JobStatus.ACTIVE,
         web_user_id=web_user_id,
-        ticket_number=normalized_ticket_number,
-        ticket_status=normalized_ticket_status,
+        work_target_type=normalized_work_target_type,
+        ticket_number=normalized_ticket_number if normalized_work_target_type == WorkTargetType.TICKET else None,
+        ticket_status=normalized_ticket_status if normalized_work_target_type == WorkTargetType.TICKET else None,
+        project_task_id=normalized_project_task_id,
+        project_task_number=_normalize_optional_text(
+            project_task_number,
+            max_length=MAX_PROJECT_TASK_NUMBER_LENGTH,
+        ),
+        project_task_title=_normalize_optional_text(
+            project_task_title,
+            max_length=MAX_PROJECT_TASK_TITLE_LENGTH,
+        ),
+        project_task_description=_normalize_optional_text(
+            project_task_description,
+            max_length=MAX_PROJECT_TASK_DESCRIPTION_LENGTH,
+        ),
+        project_id=normalized_project_id,
+        project_number=_normalize_optional_text(project_number, max_length=MAX_PROJECT_NUMBER_LENGTH),
+        project_name=_normalize_optional_text(project_name, max_length=MAX_PROJECT_NAME_LENGTH),
+        task_status_id=normalized_task_status_id,
+        task_status_label=normalized_task_status_label,
         entry_type=normalized_entry_type,
         note_title=normalized_note_title,
         append_to_resolution=normalized_append_to_resolution,
@@ -1075,8 +1257,10 @@ def update_active_job_ticket_number(
     entry_type: EntryType | str | None = None,
     note_title: str | None = None,
     append_to_resolution: bool | str | None = None,
+    task_status_id: int | str | None = None,
+    task_status_label: str | None = None,
 ) -> Job:
-    """Update the optional Autotask ticket number and client while a job is active."""
+    """Update active-job fields while preserving server-selected target identity."""
 
     job = get_job_or_raise(database_session, job_id)
     if job.status != JobStatus.ACTIVE:
@@ -1119,7 +1303,18 @@ def update_active_job_ticket_number(
         job.work_location = normalized_work_location
 
     if ticket_status is not None:
+        if job.work_target_type != WorkTargetType.TICKET:
+            raise JobWorkflowError("Ticket status cannot be used for a project task.")
         job.ticket_status = normalize_ticket_status(ticket_status)
+
+    if task_status_id is not None or task_status_label is not None:
+        if job.work_target_type != WorkTargetType.PROJECT_TASK:
+            raise JobWorkflowError("Task status can only be used for a project task.")
+        job.task_status_id, job.task_status_label = normalize_task_status_selection(
+            task_status_id,
+            task_status_label,
+            required=True,
+        )
 
     if entry_type is not None:
         normalized_entry_type = normalize_entry_type(entry_type)
@@ -1516,15 +1711,26 @@ def validate_review_fields(
     """Validate and normalize editable review form values."""
 
     entry_type = normalize_entry_type(form_values.get("entry_type"))
-    ticket_number = normalize_ticket_number(form_values.get("ticket_number"), required=require_ticket_number)
-    if ticket_number is None and require_ticket_number:
+    work_target_type = normalize_work_target_type(form_values.get("work_target_type"))
+    is_project_task = work_target_type == WorkTargetType.PROJECT_TASK
+    ticket_number = normalize_ticket_number(
+        form_values.get("ticket_number"),
+        required=require_ticket_number and not is_project_task,
+    )
+    if ticket_number is None and require_ticket_number and not is_project_task:
         raise JobWorkflowError("Ticket number is required.")
     ticket_title = normalize_ticket_title(form_values.get("ticket_title")) if ticket_number else None
     ticket_description = normalize_ticket_description(form_values.get("ticket_description")) if ticket_number else None
 
-    ticket_status = normalize_ticket_status(form_values.get("ticket_status"), required=True)
-    if ticket_status is None:
-        raise JobWorkflowError("Ticket status is required.")
+    ticket_status = normalize_ticket_status(
+        form_values.get("ticket_status"),
+        required=not is_project_task,
+    )
+    task_status_id, task_status_label = normalize_task_status_selection(
+        form_values.get("task_status_id"),
+        form_values.get("task_status_label"),
+        required=is_project_task,
+    )
 
     note_title = normalize_note_title(
         form_values.get("note_title"),
@@ -1548,8 +1754,15 @@ def validate_review_fields(
             raise JobWorkflowError("Note description is required.")
         raise JobWorkflowError("Summary notes are required.")
 
-    if len(summary_notes) > 32000:
+    maximum_note_length = (
+        MAX_AUTOTASK_TASK_NOTE_DESCRIPTION_LENGTH
+        if is_project_task and entry_type == EntryType.TICKET_NOTE
+        else 32000
+    )
+    if len(summary_notes) > maximum_note_length:
         if entry_type == EntryType.TICKET_NOTE:
+            if is_project_task:
+                raise JobWorkflowError("Project task note description must be 3,200 characters or fewer.")
             raise JobWorkflowError("Note description must be 32,000 characters or fewer.")
         raise JobWorkflowError("Summary notes must be 32,000 characters or fewer.")
 
@@ -1603,7 +1816,10 @@ def validate_review_fields(
         ticket_number=ticket_number,
         ticket_title=ticket_title,
         ticket_description=ticket_description,
+        work_target_type=work_target_type,
         ticket_status=ticket_status,
+        task_status_id=task_status_id,
+        task_status_label=task_status_label,
         entry_type=entry_type,
         note_title=note_title,
         append_to_resolution=append_to_resolution,
@@ -1621,11 +1837,13 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
     """Apply validated review fields to a job."""
 
     ensure_job_is_not_locked_after_successful_submission(job)
+    if review_fields.work_target_type != job.work_target_type:
+        raise JobWorkflowError("The selected Autotask work target cannot be changed from Review.")
 
     if job.status == JobStatus.ACTIVE and review_fields.rounded_end_utc is not None:
         raise JobWorkflowError("Active jobs cannot receive an end time while active.")
 
-    if review_fields.ticket_number is not None:
+    if job.work_target_type == WorkTargetType.TICKET and review_fields.ticket_number is not None:
         ticket_number_changed = review_fields.ticket_number != job.ticket_number
         job.ticket_number = review_fields.ticket_number
         if review_fields.ticket_title is not None:
@@ -1635,7 +1853,11 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
         elif ticket_number_changed:
             job.ticket_title = None
             job.ticket_description = None
-    job.ticket_status = review_fields.ticket_status
+    if job.work_target_type == WorkTargetType.PROJECT_TASK:
+        job.task_status_id = review_fields.task_status_id
+        job.task_status_label = review_fields.task_status_label
+    else:
+        job.ticket_status = review_fields.ticket_status
     job.entry_type = review_fields.entry_type
     job.note_title = review_fields.note_title if review_fields.entry_type == EntryType.TICKET_NOTE else None
     job.append_to_resolution = review_fields.append_to_resolution
@@ -1663,10 +1885,16 @@ def _apply_submitted_entry_fields(job: Job, review_fields: ReviewFields) -> Job:
     ensure_job_is_successfully_submitted(job)
     if review_fields.entry_type != job.entry_type:
         raise JobWorkflowError("Submitted entries cannot be changed between time entry and ticket note.")
+    if review_fields.work_target_type != job.work_target_type:
+        raise JobWorkflowError("Submitted entries cannot change their Autotask work target.")
     if review_fields.entry_type == EntryType.TIME_ENTRY and review_fields.rounded_end_utc is None:
         raise JobWorkflowError("End time is required before editing a submitted Autotask entry.")
 
-    job.ticket_status = review_fields.ticket_status
+    if job.work_target_type == WorkTargetType.PROJECT_TASK:
+        job.task_status_id = review_fields.task_status_id
+        job.task_status_label = review_fields.task_status_label
+    else:
+        job.ticket_status = review_fields.ticket_status
     job.note_title = review_fields.note_title if review_fields.entry_type == EntryType.TICKET_NOTE else None
     job.append_to_resolution = review_fields.append_to_resolution
     job.summary_notes = review_fields.summary_notes
@@ -1688,26 +1916,51 @@ def ensure_complete_status_submits_last(
     job: Job,
     *,
     ticket_status: TicketStatus | None = None,
+    task_status_id: int | None = None,
 ) -> None:
-    """Block Complete while any other local entry for the same ticket is unsubmitted."""
+    """Block Complete while another local entry for the same target is unsubmitted."""
 
-    selected_ticket_status = ticket_status if ticket_status is not None else job.ticket_status
-    if selected_ticket_status != TicketStatus.COMPLETE:
+    if not job_target_status_is_complete(
+        job,
+        ticket_status=ticket_status,
+        task_status_id=task_status_id,
+    ):
         return
 
-    normalized_ticket_number = normalize_ticket_number(job.ticket_number, required=True)
-    blocking_job_id = database_session.scalar(
-        select(Job.id)
-        .where(
-            Job.id != job.id,
-            func.upper(func.trim(Job.ticket_number)) == normalized_ticket_number,
-            Job.status.in_(COMPLETE_SUBMISSION_BLOCKING_STATUSES),
-            Job.autotask_external_id.is_(None),
+    if job.work_target_type == WorkTargetType.PROJECT_TASK:
+        normalized_task_id = normalize_positive_autotask_id(
+            job.project_task_id,
+            field_label="Project task",
+            required=True,
         )
-        .limit(1)
-    )
+        blocking_job_id = database_session.scalar(
+            select(Job.id)
+            .where(
+                Job.id != job.id,
+                Job.work_target_type == WorkTargetType.PROJECT_TASK,
+                Job.project_task_id == normalized_task_id,
+                Job.status.in_(COMPLETE_SUBMISSION_BLOCKING_STATUSES),
+                Job.autotask_external_id.is_(None),
+            )
+            .limit(1)
+        )
+        blocking_message = COMPLETE_TASK_SUBMISSION_ORDER_MESSAGE
+    else:
+        normalized_ticket_number = normalize_ticket_number(job.ticket_number, required=True)
+        blocking_job_id = database_session.scalar(
+            select(Job.id)
+            .where(
+                Job.id != job.id,
+                Job.work_target_type == WorkTargetType.TICKET,
+                func.upper(func.trim(Job.ticket_number)) == normalized_ticket_number,
+                Job.status.in_(COMPLETE_SUBMISSION_BLOCKING_STATUSES),
+                Job.autotask_external_id.is_(None),
+            )
+            .limit(1)
+        )
+        blocking_message = COMPLETE_SUBMISSION_ORDER_MESSAGE
     if blocking_job_id is not None:
-        raise JobWorkflowError(COMPLETE_SUBMISSION_ORDER_MESSAGE)
+        raise JobWorkflowError(blocking_message)
 
 
 def update_submitted_job_autotask_entry(
@@ -1728,9 +1981,12 @@ def update_submitted_job_autotask_entry(
         database_session,
         job,
         ticket_status=review_fields.ticket_status,
+        task_status_id=review_fields.task_status_id,
     )
     previous_values = {
         "ticket_status": job.ticket_status,
+        "task_status_id": job.task_status_id,
+        "task_status_label": job.task_status_label,
         "entry_type": job.entry_type,
         "note_title": job.note_title,
         "append_to_resolution": job.append_to_resolution,
@@ -1750,6 +2006,7 @@ def update_submitted_job_autotask_entry(
                 external_id,
                 resource_id=resource_id,
                 previous_ticket_status=previous_values["ticket_status"],
+                previous_task_status_id=previous_values["task_status_id"],
             )
         else:
             submission_result = get_autotask_provider().update_time_entry(
@@ -1757,6 +2014,7 @@ def update_submitted_job_autotask_entry(
                 external_id,
                 resource_id=resource_id,
                 previous_ticket_status=previous_values["ticket_status"],
+                previous_task_status_id=previous_values["task_status_id"],
             )
     except AutotaskSubmissionError as exc:
         submission_result = None
@@ -1869,11 +2127,82 @@ def apply_selected_ticket_from_lookup(
     normalized_ticket_number = normalize_ticket_number(ticket_number, required=True)
     normalized_ticket_title = normalize_ticket_title(ticket_title)
     normalized_ticket_description = normalize_ticket_description(ticket_description)
+    job.work_target_type = WorkTargetType.TICKET
     job.ticket_number = normalized_ticket_number
     job.ticket_title = normalized_ticket_title
     job.ticket_description = normalized_ticket_description
+    job.project_task_id = None
+    job.project_task_number = None
+    job.project_task_title = None
+    job.project_task_description = None
+    job.project_id = None
+    job.project_number = None
+    job.project_name = None
+    job.task_status_id = None
+    job.task_status_label = None
     if ticket_status is not None:
         job.ticket_status = normalize_ticket_status(ticket_status)
+    return job
+
+
+def apply_selected_project_task_from_lookup(
+    job: Job,
+    *,
+    project_task_id: int,
+    project_task_number: str | None,
+    project_task_title: str,
+    project_task_description: str | None,
+    project_id: int,
+    project_number: str | None,
+    project_name: str,
+    task_status_id: int,
+    task_status_label: str,
+) -> Job:
+    """Store a project task selected from a server-verified Autotask lookup."""
+
+    ensure_job_is_not_locked_after_successful_submission(job)
+    normalized_task_id = normalize_positive_autotask_id(
+        project_task_id,
+        field_label="Project task",
+        required=True,
+    )
+    normalized_project_id = normalize_positive_autotask_id(
+        project_id,
+        field_label="Project",
+        required=True,
+    )
+    normalized_task_status_id, normalized_task_status_label = normalize_task_status_selection(
+        task_status_id,
+        task_status_label,
+        required=True,
+    )
+
+    job.work_target_type = WorkTargetType.PROJECT_TASK
+    job.ticket_number = None
+    job.ticket_title = None
+    job.ticket_description = None
+    job.ticket_status = None
+    job.project_task_id = normalized_task_id
+    job.project_task_number = _normalize_optional_text(
+        project_task_number,
+        max_length=MAX_PROJECT_TASK_NUMBER_LENGTH,
+    )
+    job.project_task_title = _normalize_optional_text(
+        project_task_title,
+        max_length=MAX_PROJECT_TASK_TITLE_LENGTH,
+    )
+    job.project_task_description = _normalize_optional_text(
+        project_task_description,
+        max_length=MAX_PROJECT_TASK_DESCRIPTION_LENGTH,
+    )
+    job.project_id = normalized_project_id
+    job.project_number = _normalize_optional_text(
+        project_number,
+        max_length=MAX_PROJECT_NUMBER_LENGTH,
+    )
+    job.project_name = _normalize_optional_text(project_name, max_length=MAX_PROJECT_NAME_LENGTH)
+    job.task_status_id = normalized_task_status_id
+    job.task_status_label = normalized_task_status_label
     return job
 
 
@@ -1915,9 +2244,19 @@ def reset_ticket_data(database_session: Session) -> dict[str, int]:
     jobs_reset = (
         database_session.execute(
             sqlalchemy_update(Job).values(
+                work_target_type=WorkTargetType.TICKET,
                 ticket_number=None,
                 ticket_title=None,
                 ticket_description=None,
+                project_task_id=None,
+                project_task_number=None,
+                project_task_title=None,
+                project_task_description=None,
+                project_id=None,
+                project_number=None,
+                project_name=None,
+                task_status_id=None,
+                task_status_label=None,
                 autotask_company_id=None,
                 ticket_status=None,
                 entry_type=EntryType.TIME_ENTRY,

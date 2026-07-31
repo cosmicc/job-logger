@@ -153,6 +153,12 @@
           {% set rounded_stop_utc = active_rounded_stop_times.get(active_job.id) if active_rounded_stop_times is defined else active_job.rounded_end_utc %}
           {% set selected_entry_type = active_job.entry_type.value if active_job.entry_type else "time_entry" %}
           {% set is_ticket_note = selected_entry_type == "ticket_note" %}
+          {% set is_project_task = active_job.work_target_type.value == "project_task" %}
+          {% set active_target_number = active_job.target_number or "" %}
+          {% if is_project_task and not active_target_number and active_job.project_task_id %}
+            {% set active_target_number = active_job.project_task_id %}
+          {% endif %}
+          {% set active_target_title = active_job.target_title %}
           <section
             class="work-panel active-job-panel active-job-panel-slot-{{ job_label }}"
             data-active-job-card="{{ active_job.id }}"
@@ -161,8 +167,8 @@
             <p class="eyebrow-text">Work in Progress</p>
             <div class="detail-heading-row active-detail-heading-row">
               <h2>
-                <span class="active-heading-mobile-title" data-active-ticket-heading>{{ active_job.ticket_title or active_job.ticket_number or "Unassigned Ticket" }}</span>
-                <span class="active-heading-desktop-label" data-active-ticket-heading>{{ active_job.ticket_title or active_job.ticket_number or "Unassigned Ticket" }}</span>
+                <span class="active-heading-mobile-title" data-active-ticket-heading>{{ active_target_title or active_target_number or "Unassigned Ticket" }}</span>
+                <span class="active-heading-desktop-label" data-active-ticket-heading>{{ active_target_title or active_target_number or "Unassigned Ticket" }}</span>
               </h2>
               <span class="status-chip status-{{ active_job.status.value }}">{{ active_job.status.value.replace("_", " ") }}</span>
             </div>
@@ -355,7 +361,7 @@
                         data-entry-type-input
                         {% if is_ticket_note %}checked{% endif %}
                       >
-                      <span>Ticket note</span>
+                      <span>{% if is_project_task %}Project task note{% else %}Ticket note{% endif %}</span>
                     </label>
                   </div>
                 </dd>
@@ -398,23 +404,36 @@
               </div>
               <div class="metric-card ticket-status-card">
                 <label>
-                  <span class="metric-label centered-field-label">Ticket status</span>
-                  <select
-                    name="ticket_status"
-                    form="active-ticket-form-{{ active_job.id }}"
-                    data-active-ticket-status-input
-                    aria-label="Ticket status"
-                  >
-                    {% set selected_ticket_status = active_job.ticket_status.value if active_job.ticket_status else "in_progress" %}
-                    {% for option_value, option_label in ticket_status_options %}
-                      <option value="{{ option_value }}" {% if selected_ticket_status == option_value %}selected{% endif %}>
-                        {{ option_label }}
-                      </option>
-                    {% endfor %}
-                  </select>
+                  <span class="metric-label centered-field-label">{% if is_project_task %}Task status{% else %}Ticket status{% endif %}</span>
+                  {% if is_project_task %}
+                    <select
+                      name="task_status_id"
+                      form="active-ticket-form-{{ active_job.id }}"
+                      data-active-task-status-input
+                      data-task-status-url="/review/{{ active_job.id }}/task-statuses"
+                      aria-label="Task status"
+                      required
+                    >
+                      <option value="{{ active_job.task_status_id or '' }}" selected>{{ active_job.task_status_label or "Loading status..." }}</option>
+                    </select>
+                  {% else %}
+                    <select
+                      name="ticket_status"
+                      form="active-ticket-form-{{ active_job.id }}"
+                      data-active-ticket-status-input
+                      aria-label="Ticket status"
+                    >
+                      {% set selected_ticket_status = active_job.ticket_status.value if active_job.ticket_status else "in_progress" %}
+                      {% for option_value, option_label in ticket_status_options %}
+                        <option value="{{ option_value }}" {% if selected_ticket_status == option_value %}selected{% endif %}>
+                          {{ option_label }}
+                        </option>
+                      {% endfor %}
+                    </select>
+                  {% endif %}
                 </label>
               </div>
-              {% set active_client_identity_locked = active_job.ticket_number %}
+              {% set active_client_identity_locked = active_job.ticket_number or active_job.project_task_id %}
               {% if not active_client_identity_locked %}
                 <div class="metric-card client-name-card">
                   <label>
@@ -442,17 +461,33 @@
                   <dd>{{ active_job.client_name or "Selected client" }}</dd>
                 </div>
               {% endif %}
+              {% if is_project_task %}
+                <div class="metric-card">
+                  <dt>Project</dt>
+                  <dd>{{ active_job.project_name or active_job.project_number or "Selected project" }}</dd>
+                </div>
+              {% endif %}
               <div
-                class="metric-card ticket-number-card {% if not active_job.ticket_number %}is-hidden{% endif %}"
+                class="metric-card ticket-number-card {% if not active_client_identity_locked %}is-hidden{% endif %}"
                 data-active-ticket-number-card
               >
                 <dt>
-                  <span class="active-ticket-label-mobile">Ticket number</span>
-                  <span class="active-ticket-label-desktop">Ticket name</span>
+                  <span class="active-ticket-label-mobile">{% if is_project_task %}Task number{% else %}Ticket number{% endif %}</span>
+                  <span class="active-ticket-label-desktop">{% if is_project_task %}Project task{% else %}Ticket name{% endif %}</span>
                 </dt>
                 <dd>
-                  <span class="active-ticket-value-mobile active-ticket-number-display" data-active-ticket-number-display>{{ active_job.ticket_number or "" }}</span>
-                  <span class="active-ticket-value-desktop active-ticket-title-display" data-active-ticket-title-display-desktop>{{ active_job.ticket_title or active_job.ticket_number or "" }}</span>
+                  <span class="active-ticket-value-mobile active-ticket-number-display" data-active-ticket-number-display>{{ active_target_number }}</span>
+                  <span class="active-ticket-value-desktop">
+                    <span class="selected-ticket-title-with-indicator">
+                      <span class="active-ticket-title-display" data-active-ticket-title-display-desktop>{{ active_target_title or active_target_number }}</span>
+                      <span
+                        class="customer-note-indicator is-hidden"
+                        data-selected-ticket-note-indicator
+                        aria-label="Customer note attached"
+                        title="Customer note attached"
+                      >Note</span>
+                    </span>
+                  </span>
                 </dd>
                 <div class="ticket-context-actions ticket-context-actions-desktop">
                   {% if navigation_app is defined and navigation_app != "none" %}
@@ -473,8 +508,8 @@
                     type="button"
                     data-ticket-notes-button
                     data-ticket-notes-url="/review/{{ active_job.id }}/ticket-notes"
-                    data-ticket-notes-ticket-number="{{ active_job.ticket_number or '' }}"
-                    aria-label="View ticket notes"
+                    data-ticket-notes-ticket-number="{{ active_target_number }}"
+                    aria-label="View {% if is_project_task %}project task notes{% else %}ticket notes{% endif %}"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M6 3h9l3 3v15H6z"></path>
@@ -482,14 +517,14 @@
                       <path d="M9 11h6"></path>
                       <path d="M9 15h6"></path>
                     </svg>
-                    <span data-ticket-context-label>Ticket notes</span>
+                    <span data-ticket-context-label>{% if is_project_task %}Project task notes{% else %}Ticket notes{% endif %}</span>
                   </button>
                   <button
                     class="secondary-button ticket-notes-button is-hidden"
                     type="button"
                     data-ticket-time-entries-button
                     data-ticket-time-entries-url="/review/{{ active_job.id }}/ticket-time-entries"
-                    data-ticket-time-entries-ticket-number="{{ active_job.ticket_number or '' }}"
+                    data-ticket-time-entries-ticket-number="{{ active_target_number }}"
                     aria-label="View past time entries"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -505,16 +540,26 @@
                 </div>
               </div>
               <div
-                class="metric-card ticket-title-card {% if not active_job.ticket_number %}is-hidden{% endif %}"
+                class="metric-card ticket-title-card {% if not active_client_identity_locked %}is-hidden{% endif %}"
                 data-active-ticket-title-card
               >
                 <dt>
-                  <span class="active-ticket-label-mobile">Ticket name</span>
-                  <span class="active-ticket-label-desktop">Ticket number</span>
+                  <span class="active-ticket-label-mobile">{% if is_project_task %}Project task{% else %}Ticket name{% endif %}</span>
+                  <span class="active-ticket-label-desktop">{% if is_project_task %}Task number{% else %}Ticket number{% endif %}</span>
                 </dt>
                 <dd>
-                  <span class="active-ticket-value-mobile active-ticket-title-display" data-active-ticket-title-display>{{ active_job.ticket_title or "" }}</span>
-                  <span class="active-ticket-value-desktop active-ticket-number-display" data-active-ticket-number-display-desktop>{{ active_job.ticket_number or "" }}</span>
+                  <span class="active-ticket-value-mobile">
+                    <span class="selected-ticket-title-with-indicator">
+                      <span class="active-ticket-title-display" data-active-ticket-title-display>{{ active_target_title or "" }}</span>
+                      <span
+                        class="customer-note-indicator is-hidden"
+                        data-selected-ticket-note-indicator
+                        aria-label="Customer note attached"
+                        title="Customer note attached"
+                      >Note</span>
+                    </span>
+                  </span>
+                  <span class="active-ticket-value-desktop active-ticket-number-display" data-active-ticket-number-display-desktop>{{ active_target_number }}</span>
                 </dd>
                 <div class="ticket-context-actions ticket-context-actions-mobile">
                   <button
@@ -522,8 +567,8 @@
                     type="button"
                     data-ticket-notes-button
                     data-ticket-notes-url="/review/{{ active_job.id }}/ticket-notes"
-                    data-ticket-notes-ticket-number="{{ active_job.ticket_number or '' }}"
-                    aria-label="View ticket notes"
+                    data-ticket-notes-ticket-number="{{ active_target_number }}"
+                    aria-label="View {% if is_project_task %}project task notes{% else %}ticket notes{% endif %}"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M6 3h9l3 3v15H6z"></path>
@@ -531,14 +576,14 @@
                       <path d="M9 11h6"></path>
                       <path d="M9 15h6"></path>
                     </svg>
-                    <span data-ticket-context-label>Ticket notes</span>
+                    <span data-ticket-context-label>{% if is_project_task %}Project task notes{% else %}Ticket notes{% endif %}</span>
                   </button>
                   <button
                     class="secondary-button ticket-notes-button is-hidden"
                     type="button"
                     data-ticket-time-entries-button
                     data-ticket-time-entries-url="/review/{{ active_job.id }}/ticket-time-entries"
-                    data-ticket-time-entries-ticket-number="{{ active_job.ticket_number or '' }}"
+                    data-ticket-time-entries-ticket-number="{{ active_target_number }}"
                     aria-label="View past time entries"
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -554,13 +599,13 @@
                 </div>
               </div>
               <div
-                class="metric-card ticket-description-card {% if not active_job.ticket_number %}is-hidden{% endif %}"
+                class="metric-card ticket-description-card {% if not active_client_identity_locked %}is-hidden{% endif %}"
                 data-active-ticket-description-card
               >
                 <div class="ticket-context-header">
-                  <dt class="centered-field-label">Ticket description</dt>
+                  <dt class="centered-field-label">{% if is_project_task %}Task description{% else %}Ticket description{% endif %}</dt>
                 </div>
-                <dd class="active-ticket-description-display" data-active-ticket-description-display>{{ active_job.ticket_description or "No description exists for this ticket." }}</dd>
+                <dd class="active-ticket-description-display" data-active-ticket-description-display>{{ active_job.target_description or ("No description exists for this project task." if is_project_task else "No description exists for this ticket.") }}</dd>
               </div>
             </dl>
 
@@ -609,10 +654,11 @@
                 name="ticket_description"
                 value="{{ active_job.ticket_description or '' }}"
               >
+              <input type="hidden" name="work_target_type" value="{{ active_job.work_target_type.value }}">
               <input type="hidden" class="active-job-summary" name="summary_notes" value="">
             </form>
 
-            {% if not active_job.ticket_number %}
+            {% if not active_job.ticket_number and not active_job.project_task_id %}
               <section
                 class="mobile-ticket-picker"
                 data-active-ticket-picker
@@ -622,9 +668,10 @@
               >
                 <div class="mobile-ticket-picker-header">
                   <h3>Open tickets</h3>
+                  <p class="muted-text">Assigned project tasks are included.</p>
                 </div>
                 <p class="ticket-picker-status muted-text" data-active-ticket-lookup-status aria-live="polite">
-                  {% if active_job.client_name %}Click this box to load open tickets.{% else %}Choose a client, then click this box to load open tickets.{% endif %}
+                  {% if active_job.client_name %}Click this box to load open tickets. Assigned project tasks are included.{% else %}Choose a client, then click this box to load open tickets. Assigned project tasks are included.{% endif %}
                 </p>
                 <div class="ticket-picker-results" data-active-ticket-lookup-results></div>
               </section>
@@ -660,9 +707,8 @@
                 >{{ active_job.summary_notes or active_job.description_text or "" }}</textarea>
               </label>
               <label
-                class="append-resolution-field"
+                class="append-resolution-field{% if selected_entry_type == 'ticket_note' %} is-hidden{% endif %}"
                 data-append-resolution-field
-                {% if selected_entry_type == "ticket_note" %}hidden{% endif %}
               >
                 <input type="hidden" name="append_to_resolution" value="false" form="active-ticket-form-{{ active_job.id }}">
                 <input
@@ -757,12 +803,21 @@
                       name="append_to_resolution"
                       value="{% if active_job.append_to_resolution %}true{% else %}false{% endif %}"
                     >
-                    <input
-                      type="hidden"
-                      class="end-ticket-status"
-                      name="ticket_status"
-                      value="{{ active_job.ticket_status.value if active_job.ticket_status else 'in_progress' }}"
-                    >
+                    {% if is_project_task %}
+                      <input
+                        type="hidden"
+                        class="end-task-status"
+                        name="task_status_id"
+                        value="{{ active_job.task_status_id or '' }}"
+                      >
+                    {% else %}
+                      <input
+                        type="hidden"
+                        class="end-ticket-status"
+                        name="ticket_status"
+                        value="{{ active_job.ticket_status.value if active_job.ticket_status else 'in_progress' }}"
+                      >
+                    {% endif %}
                     <input type="hidden" class="end-summary-notes" name="summary_notes" value="">
                     <button class="primary-button end-work-button" type="submit">
                       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -839,7 +894,7 @@
       <section class="work-panel concurrent-start-panel">
         <p class="eyebrow-text">Start another job</p>
         <h1>Add a concurrent job</h1>
-        <p class="muted-text">Up to two jobs can be active at once. Choose the client and open ticket after the job starts.</p>
+        <p class="muted-text">Up to two jobs can be active at once. Choose the client, then select a ticket or assigned project task after the job starts.</p>
         <form method="post" action="/jobs/start" class="start-work-form" data-page-loading-form data-loading-message="Starting another job...">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button class="primary-action-button" type="submit">

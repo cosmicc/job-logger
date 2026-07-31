@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ticket_pilot.config import settings
 from ticket_pilot.database import get_database_session
-from ticket_pilot.enums import JobStatus, NavigationApp, TicketStatus, WorkLocation
+from ticket_pilot.enums import JobStatus, NavigationApp, TicketStatus, WorkLocation, WorkTargetType
 from ticket_pilot.security import (
     SESSION_SHOW_PASSKEY_SETUP_PROMPT_KEY,
     add_flash_message,
@@ -32,8 +32,10 @@ from ticket_pilot.security import (
 from ticket_pilot.services.ai_cleanup import AiCleanupContext, AiCleanupError, cleanup_summary_text
 from ticket_pilot.services.audit import record_audit_event, record_job_submitted_to_autotask_event
 from ticket_pilot.services.autotask import (
+    AutotaskProjectTaskOption,
     AutotaskServiceCallOption,
     AutotaskSubmissionError,
+    AutotaskTaskStatusOption,
     AutotaskTicketOption,
     get_autotask_provider,
     is_customer_note_added_ticket_status,
@@ -44,6 +46,7 @@ from ticket_pilot.services.jobs import (
     adjust_active_job_rounded_start,
     adjust_active_job_rounded_stop,
     apply_manual_summary_to_job,
+    apply_selected_project_task_from_lookup,
     apply_selected_ticket_from_lookup,
     apply_transcription_result_to_job,
     delete_active_job,
@@ -53,6 +56,7 @@ from ticket_pilot.services.jobs import (
     expire_ai_cleanup_revert_state,
     expire_stale_ai_cleanup_revert_states,
     get_job_or_raise,
+    hidden_service_call_project_task_ids_for_web_user,
     hidden_service_call_ticket_numbers_for_web_user,
     list_active_jobs_for_web_user,
     list_jobs_for_hour_totals,
@@ -117,12 +121,16 @@ def _find_matching_ticket_option(ticket_options: list[AutotaskTicketOption], tic
 
 def _find_matching_service_call_option(
     service_call_options: list[AutotaskServiceCallOption],
-    service_call_ticket_id: int,
+    work_target_type: WorkTargetType,
+    service_call_association_id: int,
 ) -> AutotaskServiceCallOption | None:
-    """Return a service-call option by the server-rendered ticket association ID."""
+    """Return a service-call option by target type and association ID."""
 
     for service_call_option in service_call_options:
-        if service_call_option.service_call_ticket_id == service_call_ticket_id:
+        if (
+            service_call_option.work_target_type == work_target_type
+            and service_call_option.service_call_association_id == service_call_association_id
+        ):
             return service_call_option
 
     return None
@@ -174,6 +182,40 @@ def _default_status_for_selected_autotask_ticket() -> TicketStatus:
     """Return the local editable status for a selected ticket without writing to Autotask."""
 
     return TicketStatus.IN_PROGRESS
+
+
+def _find_matching_project_task_option(
+    task_options: list[AutotaskProjectTaskOption],
+    task_id: int,
+) -> AutotaskProjectTaskOption | None:
+    """Return one server-verified project task by Autotask ID."""
+
+    return next((option for option in task_options if option.task_id == task_id), None)
+
+
+def _default_task_status_option(
+    task_status_options: list[AutotaskTaskStatusOption],
+    selected_task: AutotaskProjectTaskOption,
+) -> AutotaskTaskStatusOption:
+    """Prefer In Progress, falling back to the current task status."""
+
+    in_progress = next(
+        (
+            option
+            for option in task_status_options
+            if "".join(character for character in option.label.casefold() if character.isalnum())
+            == "inprogress"
+        ),
+        None,
+    )
+    current = next(
+        (option for option in task_status_options if option.status_id == selected_task.status_id),
+        None,
+    )
+    selected = in_progress or current
+    if selected is None:
+        raise JobWorkflowError("Autotask did not return a usable status for the selected project task.")
+    return selected
 
 
 def _current_enabled_web_user(request: Request, database_session: Session):
@@ -277,13 +319,29 @@ def _filter_hidden_local_service_calls(
             for service_call_option in service_call_options
         },
     )
-    if not hidden_ticket_numbers:
+    hidden_project_task_ids = hidden_service_call_project_task_ids_for_web_user(
+        database_session,
+        web_user_id=web_user_id,
+        project_task_ids={
+            service_call_option.project_task_id
+            for service_call_option in service_call_options
+            if service_call_option.project_task_id is not None
+        },
+    )
+    if not hidden_ticket_numbers and not hidden_project_task_ids:
         return service_call_options
 
     return [
         service_call_option
         for service_call_option in service_call_options
-        if service_call_option.ticket_number.strip().upper() not in hidden_ticket_numbers
+        if (
+            service_call_option.work_target_type == WorkTargetType.TICKET
+            and service_call_option.ticket_number.strip().upper() not in hidden_ticket_numbers
+        )
+        or (
+            service_call_option.work_target_type == WorkTargetType.PROJECT_TASK
+            and service_call_option.project_task_id not in hidden_project_task_ids
+        )
     ]
 
 
@@ -299,7 +357,7 @@ def _service_call_location_class(service_call_option: AutotaskServiceCallOption)
 def _service_call_option_payload(service_call_option: AutotaskServiceCallOption) -> dict[str, object]:
     """Return the non-secret service-call fields needed by mobile JavaScript."""
 
-    return {
+    payload: dict[str, object] = {
         "service_call_ticket_id": service_call_option.service_call_ticket_id,
         "client_name": service_call_option.client_name,
         "ticket_title": service_call_option.ticket_title,
@@ -311,7 +369,18 @@ def _service_call_option_payload(service_call_option: AutotaskServiceCallOption)
         "work_location_label": service_call_option.work_location_label,
         "work_location_class": _service_call_location_class(service_call_option),
         "ticket_status_label": service_call_option.ticket_status_label,
+        "has_customer_notes": service_call_option.has_customer_notes,
     }
+    if service_call_option.work_target_type == WorkTargetType.PROJECT_TASK:
+        payload.update(
+            work_target_type=service_call_option.work_target_type.value,
+            service_call_association_id=service_call_option.service_call_association_id,
+            target_title=service_call_option.target_title,
+            target_number=service_call_option.project_task_number or service_call_option.project_task_id,
+            project_name=service_call_option.project_name,
+            target_status_label=service_call_option.task_status_label,
+        )
+    return payload
 
 
 def _normalize_audio_stream_content_type(raw_content_type: Any) -> str:
@@ -949,16 +1018,31 @@ async def start_work_from_service_call(
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
 
-    raw_service_call_ticket_id = form_data.get("service_call_ticket_id")
+    raw_target_type = str(
+        form_data.get("work_target_type") or WorkTargetType.TICKET.value
+    ).strip()
     try:
-        service_call_ticket_id = int(str(raw_service_call_ticket_id or "").strip())
+        work_target_type = WorkTargetType(raw_target_type)
+    except ValueError:
+        if wants_json_response:
+            return JSONResponse({"detail": "Selected service call type is invalid."}, status_code=400)
+        add_flash_message(request, "Selected service call type is invalid.", "error")
+        return RedirectResponse(url="/work", status_code=303)
+    raw_service_call_association_id = (
+        form_data.get("service_call_association_id")
+        or form_data.get("service_call_ticket_id")
+    )
+    try:
+        service_call_association_id = int(
+            str(raw_service_call_association_id or "").strip()
+        )
     except ValueError:
         if wants_json_response:
             return JSONResponse({"detail": "Selected service call is invalid."}, status_code=400)
         add_flash_message(request, "Selected service call is invalid.", "error")
         return RedirectResponse(url="/work", status_code=303)
 
-    if service_call_ticket_id <= 0:
+    if service_call_association_id <= 0:
         if wants_json_response:
             return JSONResponse({"detail": "Selected service call is invalid."}, status_code=400)
         add_flash_message(request, "Selected service call is invalid.", "error")
@@ -992,27 +1076,59 @@ async def start_work_from_service_call(
             web_user_id=web_user.id,
             service_call_options=service_call_options,
         )
-        selected_service_call = _find_matching_service_call_option(service_call_options, service_call_ticket_id)
+        selected_service_call = _find_matching_service_call_option(
+            service_call_options,
+            work_target_type,
+            service_call_association_id,
+        )
         if selected_service_call is None:
             raise JobWorkflowError("Selected service call is not assigned to this resource for that date.")
 
-        ticket_status = _default_status_for_selected_autotask_ticket()
-        job = start_job(
-            database_session,
-            web_user_id=web_user.id,
-            ticket_number=selected_service_call.ticket_number,
-            client_name=selected_service_call.client_name,
-            autotask_company_id=selected_service_call.autotask_company_id,
-            work_location=_service_call_start_work_location(selected_service_call),
-            ticket_status=ticket_status,
-        )
-        apply_selected_ticket_from_lookup(
-            job,
-            selected_service_call.ticket_number,
-            selected_service_call.ticket_title,
-            selected_service_call.ticket_description,
-            ticket_status=ticket_status,
-        )
+        if selected_service_call.work_target_type == WorkTargetType.PROJECT_TASK:
+            if (
+                selected_service_call.project_task_id is None
+                or selected_service_call.project_id is None
+                or selected_service_call.task_status_id is None
+                or not selected_service_call.task_status_label
+            ):
+                raise JobWorkflowError(
+                    "The selected service call no longer has complete project task details."
+                )
+            job = start_job(
+                database_session,
+                web_user_id=web_user.id,
+                work_target_type=WorkTargetType.PROJECT_TASK,
+                client_name=selected_service_call.client_name,
+                autotask_company_id=selected_service_call.autotask_company_id,
+                work_location=_service_call_start_work_location(selected_service_call),
+                project_task_id=selected_service_call.project_task_id,
+                project_task_number=selected_service_call.project_task_number,
+                project_task_title=selected_service_call.project_task_title,
+                project_task_description=selected_service_call.project_task_description,
+                project_id=selected_service_call.project_id,
+                project_number=selected_service_call.project_number,
+                project_name=selected_service_call.project_name,
+                task_status_id=selected_service_call.task_status_id,
+                task_status_label=selected_service_call.task_status_label,
+            )
+        else:
+            ticket_status = _default_status_for_selected_autotask_ticket()
+            job = start_job(
+                database_session,
+                web_user_id=web_user.id,
+                ticket_number=selected_service_call.ticket_number,
+                client_name=selected_service_call.client_name,
+                autotask_company_id=selected_service_call.autotask_company_id,
+                work_location=_service_call_start_work_location(selected_service_call),
+                ticket_status=ticket_status,
+            )
+            apply_selected_ticket_from_lookup(
+                job,
+                selected_service_call.ticket_number,
+                selected_service_call.ticket_title,
+                selected_service_call.ticket_description,
+                ticket_status=ticket_status,
+            )
         record_audit_event(
             database_session,
             actor=actor,
@@ -1024,12 +1140,28 @@ async def start_work_from_service_call(
                 "web_user_id": web_user.id,
                 "autotask_resource_id": web_user.autotask_resource_id,
                 "service_call_id": selected_service_call.service_call_id,
-                "service_call_ticket_id": selected_service_call.service_call_ticket_id,
+                "work_target_type": job.work_target_type.value,
+                "service_call_association_id": selected_service_call.service_call_association_id,
+                "service_call_ticket_id": (
+                    selected_service_call.service_call_ticket_id
+                    if job.work_target_type == WorkTargetType.TICKET
+                    else None
+                ),
                 "service_call_date": selected_service_call_date.isoformat(),
-                "ticket_number": job.ticket_number,
+                "target_number": job.target_number,
                 "ticket_status": job.ticket_status.value if job.ticket_status else None,
+                "task_status_id": job.task_status_id,
                 "ticket_status_source": "local_selection_default",
-                "autotask_ticket_status_label": selected_service_call.ticket_status_label,
+                "autotask_target_status_label": (
+                    selected_service_call.task_status_label
+                    if job.work_target_type == WorkTargetType.PROJECT_TASK
+                    else selected_service_call.ticket_status_label
+                ),
+                "autotask_ticket_status_label": (
+                    selected_service_call.ticket_status_label
+                    if job.work_target_type == WorkTargetType.TICKET
+                    else None
+                ),
                 "autotask_company_selected": job.autotask_company_id is not None,
                 "work_location": job.work_location.value,
                 "work_location_detected": selected_service_call.detected_work_location is not None,
@@ -1043,7 +1175,11 @@ async def start_work_from_service_call(
         )
         if wants_json_response:
             open_customer_note_overlay = is_customer_note_added_ticket_status(
-                selected_service_call.ticket_status_id,
+                (
+                    selected_service_call.ticket_status_id
+                    if job.work_target_type == WorkTargetType.TICKET
+                    else None
+                ),
                 settings.autotask_status_customer_note_added_id,
             )
             return JSONResponse(
@@ -1088,6 +1224,10 @@ async def save_ticket_number(
     submitted_work_location = str(raw_work_location) if raw_work_location is not None else None
     raw_ticket_status = form_data.get("ticket_status")
     submitted_ticket_status = str(raw_ticket_status) if raw_ticket_status is not None else None
+    raw_task_status_id = form_data.get("task_status_id")
+    submitted_task_status_id = (
+        str(raw_task_status_id) if raw_task_status_id is not None else None
+    )
     raw_job_date = form_data.get("job_date")
     submitted_job_date = str(raw_job_date) if raw_job_date is not None else None
     raw_entry_type = form_data.get("entry_type")
@@ -1104,6 +1244,7 @@ async def save_ticket_number(
         if (
             submitted_client_name is not None
             and not existing_job.ticket_number
+            and not existing_job.project_task_id
         ):
             verified_client_name, verified_company_id = verify_autotask_client_selection(
                 submitted_client_name,
@@ -1112,6 +1253,26 @@ async def save_ticket_number(
             )
             submitted_client_name = verified_client_name
             submitted_autotask_company_id = str(verified_company_id) if verified_company_id is not None else None
+        submitted_task_status_label = None
+        if existing_job.work_target_type == WorkTargetType.PROJECT_TASK:
+            try:
+                normalized_task_status_id = int(str(submitted_task_status_id or "").strip())
+            except ValueError as exc:
+                raise JobWorkflowError("Select a valid task status.") from exc
+            selected_task_status = next(
+                (
+                    option
+                    for option in get_autotask_provider().list_task_status_options()
+                    if option.status_id == normalized_task_status_id
+                ),
+                None,
+            )
+            if selected_task_status is None:
+                raise JobWorkflowError(
+                    "The selected task status is no longer available in Autotask."
+                )
+            submitted_task_status_id = str(selected_task_status.status_id)
+            submitted_task_status_label = selected_task_status.label
         job = update_active_job_ticket_number(
             database_session,
             job_id,
@@ -1121,6 +1282,8 @@ async def save_ticket_number(
             ticket_title=None,
             work_location=submitted_work_location,
             ticket_status=submitted_ticket_status,
+            task_status_id=submitted_task_status_id,
+            task_status_label=submitted_task_status_label,
             job_date=submitted_job_date,
             entry_type=submitted_entry_type,
             note_title=submitted_note_title,
@@ -1141,6 +1304,7 @@ async def save_ticket_number(
                 "summary_present": bool(job.summary_notes),
                 "work_location": job.work_location.value,
                 "ticket_status": job.ticket_status.value if job.ticket_status else None,
+                "task_status_id": job.task_status_id,
                 "entry_type": job.entry_type.value,
                 "note_title_present": bool(job.note_title),
                 "append_to_resolution": job.append_to_resolution,
@@ -1160,6 +1324,8 @@ async def save_ticket_number(
                     "ticket_description": job.ticket_description,
                     "work_location": job.work_location.value,
                     "ticket_status": job.ticket_status.value if job.ticket_status else None,
+                    "task_status_id": job.task_status_id,
+                    "task_status_label": job.task_status_label,
                     "entry_type": job.entry_type.value,
                     "note_title": job.note_title,
                     "append_to_resolution": job.append_to_resolution,
@@ -1182,11 +1348,18 @@ async def select_active_ticket(
     request: Request,
     database_session: Session = Depends(get_database_session),
 ) -> JSONResponse:
-    """Persist an active-job ticket chosen from the server-verified open-ticket list."""
+    """Persist an active-job ticket or assigned project task."""
 
     actor = require_authenticated_username(request)
     validate_csrf_header(request)
     payload = await request.json()
+    raw_target_type = str(
+        payload.get("work_target_type", WorkTargetType.TICKET.value)
+    ).strip()
+    try:
+        work_target_type = WorkTargetType(raw_target_type)
+    except ValueError:
+        return JSONResponse({"detail": "Selected work item type is invalid."}, status_code=400)
     submitted_ticket_number = str(payload.get("ticket_number", ""))
     try:
         web_user = _current_enabled_web_user(request, database_session)
@@ -1195,25 +1368,68 @@ async def select_active_ticket(
         if job.status != JobStatus.ACTIVE:
             raise JobWorkflowError("Tickets can only be selected from mobile during an active job.")
         if not job.client_name or job.autotask_company_id is None:
-            raise JobWorkflowError("Select a client from Autotask search results before selecting a ticket.")
+            raise JobWorkflowError(
+                "Select a client from Autotask search results before selecting a work item."
+            )
 
-        ticket_options = get_autotask_provider().list_open_tickets_for_client(
-            job.client_name,
-            job.autotask_company_id,
-            resource_id=web_user.autotask_resource_id,
-        )
-        selected_ticket_option = _find_matching_ticket_option(ticket_options, submitted_ticket_number)
-        if selected_ticket_option is None:
-            raise JobWorkflowError("Selected ticket was not found in the open-ticket list for this client.")
-
-        ticket_status = _default_status_for_selected_autotask_ticket()
-        apply_selected_ticket_from_lookup(
-            job,
-            selected_ticket_option.ticket_number,
-            selected_ticket_option.title,
-            selected_ticket_option.description,
-            ticket_status=ticket_status,
-        )
+        provider = get_autotask_provider()
+        selected_ticket_option: AutotaskTicketOption | None = None
+        selected_task_option: AutotaskProjectTaskOption | None = None
+        if work_target_type == WorkTargetType.PROJECT_TASK:
+            try:
+                submitted_task_id = int(str(payload.get("project_task_id", "")).strip())
+            except ValueError as exc:
+                raise JobWorkflowError("Selected project task is invalid.") from exc
+            task_options = provider.list_open_project_tasks_for_client(
+                job.client_name,
+                job.autotask_company_id,
+                resource_id=web_user.autotask_resource_id,
+            )
+            selected_task_option = _find_matching_project_task_option(
+                task_options,
+                submitted_task_id,
+            )
+            if selected_task_option is None:
+                raise JobWorkflowError(
+                    "Selected project task was not found in the assigned task list for this client."
+                )
+            selected_task_status = _default_task_status_option(
+                provider.list_task_status_options(),
+                selected_task_option,
+            )
+            apply_selected_project_task_from_lookup(
+                job,
+                project_task_id=selected_task_option.task_id,
+                project_task_number=selected_task_option.task_number,
+                project_task_title=selected_task_option.title,
+                project_task_description=selected_task_option.description,
+                project_id=selected_task_option.project_id,
+                project_number=selected_task_option.project_number,
+                project_name=selected_task_option.project_name,
+                task_status_id=selected_task_status.status_id,
+                task_status_label=selected_task_status.label,
+            )
+        else:
+            ticket_options = provider.list_open_tickets_for_client(
+                job.client_name,
+                job.autotask_company_id,
+                resource_id=web_user.autotask_resource_id,
+            )
+            selected_ticket_option = _find_matching_ticket_option(
+                ticket_options,
+                submitted_ticket_number,
+            )
+            if selected_ticket_option is None:
+                raise JobWorkflowError(
+                    "Selected ticket was not found in the open-ticket list for this client."
+                )
+            apply_selected_ticket_from_lookup(
+                job,
+                selected_ticket_option.ticket_number,
+                selected_ticket_option.title,
+                selected_ticket_option.description,
+                ticket_status=_default_status_for_selected_autotask_ticket(),
+            )
         record_audit_event(
             database_session,
             actor=actor,
@@ -1221,12 +1437,20 @@ async def select_active_ticket(
             job_id=job.id,
             request=request,
             details={
-                "ticket_number": job.ticket_number,
-                "ticket_title_present": bool(job.ticket_title),
-                "ticket_description_present": bool(job.ticket_description),
+                "work_target_type": job.work_target_type.value,
+                "target_number": job.target_number,
+                "target_title_present": bool(job.target_title),
+                "target_description_present": bool(job.target_description),
                 "ticket_status": job.ticket_status.value if job.ticket_status else None,
+                "task_status_id": job.task_status_id,
                 "ticket_status_source": "local_selection_default",
-                "autotask_ticket_status_label": selected_ticket_option.status_label,
+                "autotask_target_status_label": (
+                    selected_task_option.status_label
+                    if selected_task_option is not None
+                    else selected_ticket_option.status_label
+                    if selected_ticket_option is not None
+                    else None
+                ),
                 "autotask_company_selected": job.autotask_company_id is not None,
             },
         )
@@ -1245,19 +1469,44 @@ async def select_active_ticket(
         "ticket_title": job.ticket_title,
         "ticket_description": job.ticket_description,
         "ticket_status": job.ticket_status.value if job.ticket_status else None,
-        "ticket_status_label": selected_ticket_option.status_label,
+        "ticket_status_label": (
+            selected_ticket_option.status_label
+            if selected_ticket_option is not None
+            else None
+        ),
         "open_customer_note_overlay": is_customer_note_added_ticket_status(
-            selected_ticket_option.status_id,
+            selected_ticket_option.status_id if selected_ticket_option is not None else None,
             settings.autotask_status_customer_note_added_id,
         ),
     }
+    if job.work_target_type == WorkTargetType.PROJECT_TASK:
+        response_payload.update(
+            work_target_type=job.work_target_type.value,
+            target_number=job.target_number,
+            target_title=job.target_title,
+            target_description=job.target_description,
+            task_status_id=job.task_status_id,
+            task_status_label=job.task_status_label,
+            project_task_id=job.project_task_id,
+            project_task_number=job.project_task_number,
+            project_name=job.project_name,
+            project_number=job.project_number,
+        )
     if navigation_preferences.navigation_app != NavigationApp.NONE:
         try:
-            navigation_address = get_autotask_provider().get_ticket_navigation_address(
-                job.ticket_number,
-                job.autotask_company_id,
-                resource_id=web_user.autotask_resource_id,
-            )
+            if job.work_target_type == WorkTargetType.PROJECT_TASK:
+                navigation_address = provider.get_project_task_navigation_address(
+                    job.project_task_id,
+                    job.project_id,
+                    job.autotask_company_id,
+                    resource_id=web_user.autotask_resource_id,
+                )
+            else:
+                navigation_address = provider.get_ticket_navigation_address(
+                    job.ticket_number,
+                    job.autotask_company_id,
+                    resource_id=web_user.autotask_resource_id,
+                )
         except AutotaskSubmissionError:
             navigation_address = None
         response_payload.update(
@@ -1490,6 +1739,10 @@ async def end_work(
     submitted_work_location = str(raw_work_location) if raw_work_location is not None else None
     raw_ticket_status = form_data.get("ticket_status")
     submitted_ticket_status = str(raw_ticket_status) if raw_ticket_status is not None else None
+    raw_task_status_id = form_data.get("task_status_id")
+    submitted_task_status_id = (
+        str(raw_task_status_id) if raw_task_status_id is not None else None
+    )
     raw_job_date = form_data.get("job_date")
     submitted_job_date = str(raw_job_date) if raw_job_date is not None else None
     raw_entry_type = form_data.get("entry_type")
@@ -1507,6 +1760,7 @@ async def end_work(
         ensure_job_owned_by_web_user(existing_job, web_user.id)
         if (
             not existing_job.ticket_number
+            and not existing_job.project_task_id
             and (submitted_client_name is not None or existing_job.client_name is None)
         ):
             verified_client_name, verified_company_id = verify_autotask_client_selection(
@@ -1517,6 +1771,26 @@ async def end_work(
             )
             submitted_client_name = verified_client_name
             submitted_autotask_company_id = str(verified_company_id) if verified_company_id is not None else None
+        submitted_task_status_label = None
+        if existing_job.work_target_type == WorkTargetType.PROJECT_TASK:
+            try:
+                normalized_task_status_id = int(str(submitted_task_status_id or "").strip())
+            except ValueError as exc:
+                raise JobWorkflowError("Select a valid task status.") from exc
+            selected_task_status = next(
+                (
+                    option
+                    for option in get_autotask_provider().list_task_status_options()
+                    if option.status_id == normalized_task_status_id
+                ),
+                None,
+            )
+            if selected_task_status is None:
+                raise JobWorkflowError(
+                    "The selected task status is no longer available in Autotask."
+                )
+            submitted_task_status_id = str(selected_task_status.status_id)
+            submitted_task_status_label = selected_task_status.label
         update_active_job_ticket_number(
             database_session,
             job_id,
@@ -1525,6 +1799,8 @@ async def end_work(
             autotask_company_id=submitted_autotask_company_id,
             work_location=submitted_work_location,
             ticket_status=submitted_ticket_status,
+            task_status_id=submitted_task_status_id,
+            task_status_label=submitted_task_status_label,
             job_date=submitted_job_date,
             entry_type=submitted_entry_type,
             note_title=submitted_note_title,

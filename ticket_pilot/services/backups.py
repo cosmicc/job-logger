@@ -61,6 +61,18 @@ _LEGACY_THEME_HIGHLIGHT_COLORS = {
 }
 _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
     "jobs": {
+        # v2.1.0 added project-task targets. Older jobs always represented
+        # tickets, so legacy backups restore with no project/task identity.
+        "work_target_type": "ticket",
+        "project_task_id": None,
+        "project_task_number": None,
+        "project_task_title": None,
+        "project_task_description": None,
+        "project_id": None,
+        "project_number": None,
+        "project_name": None,
+        "task_status_id": None,
+        "task_status_label": None,
         # v1.2.0 added ticket-note mode. Older backups restore as the original
         # time-entry workflow with append-to-resolution enabled by default.
         "entry_type": "time_entry",
@@ -108,10 +120,10 @@ _BACKWARD_COMPATIBLE_COLUMN_DEFAULTS: dict[str, dict[str, Any]] = {
         # v2.0.0 added an independent quick-destination visibility option.
         # Older backups continue showing Home and Office navigation buttons.
         "hide_home_office_navigation_buttons": False,
-        # v2.0.1 keeps the existing automatic On-Site launch behavior unless
+        # v2.1.0 keeps the existing automatic On-Site launch behavior unless
         # the user explicitly turns it off.
         "automatically_open_onsite_navigation": True,
-        # v2.0.1 Review controls default to showing all entries and let the
+        # v2.1.0 Review controls default to showing all entries and let the
         # browser choose 10 mobile rows or 20 full-web rows on first use.
         "review_hide_submitted_entries": False,
         "review_page_size": None,

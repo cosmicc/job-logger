@@ -16,7 +16,7 @@ Important workflow service responsibilities include:
 - Enforcing the maximum of two simultaneous active jobs per managed web user.
 - Enforcing job ownership before any managed web user mutates a job.
 - Assigning Job 1 and Job 2 slots.
-- Updating active ticket/client/summary fields.
+- Updating active ticket/project-task/client/summary fields.
 - Adjusting rounded active start time in 15-minute increments.
 - Ending active jobs and moving them to review.
 - Deleting an active in-progress job when the user explicitly discards it.
@@ -136,17 +136,21 @@ Security and data-integrity requirements for start:
 - The `/work` page must render from local database state without running an
   Autotask API contactability check.
 - Blank Start Work must not call Autotask before creating the local active job.
-  Ticket and company data are attached later through explicit lookup flows.
+  Work-target and company data are attached later through explicit lookup
+  flows.
 - New blank mobile jobs intentionally start without client, company, or ticket
-  values. The route ignores stale or crafted pre-start client/ticket fields so
-  those values can only be attached through the active-job workflow.
-- Service-call starts must submit only the selected service-call ticket
-  association ID, the selected local service-call date, and CSRF. The route must
+  or project-task values. The route ignores stale or crafted pre-start
+  client/target fields so those values can only be attached through the
+  active-job workflow.
+- Service-call starts must submit only the target type, selected service-call
+  ticket or task association ID, selected local service-call date, and CSRF.
+  The route must
   resolve the service-call list server-side for that date and the logged-in
   managed web user's Autotask resource ID, verify the selected association
-  belongs to that list, then populate the job from the provider's ticket/client
-  data. Do not trust browser-submitted ticket number, title, description, client
-  name, company ID, or work-location values for this path.
+  and target type belong to that list, then populate the job from the
+  provider's target/client data. Do not trust browser-submitted ticket/task
+  number, title, description, project identity, status, client name, company
+  ID, or work-location values for this path.
 - The service layer must enforce the two-active-job limit for the current web
   user.
 
@@ -156,6 +160,10 @@ Active jobs support these updates before completion:
 - Selected ticket title from Autotask open-ticket lookup.
 - Selected ticket description from Autotask open-ticket lookup, displayed as
   read-only context after a ticket is chosen.
+- Project-task ID/number/title and parent-project ID/number/name populated only
+  by selecting an assigned Autotask project-task option.
+- Selected task description and current task status returned by that
+  server-verified lookup.
 - Open-ticket option work-location label inferred from ticket title/description
   text, displayed as Remote, On-Site, or Not specified in the picker.
 - Verified Autotask client selection while no open ticket has been selected for
@@ -164,14 +172,15 @@ Active jobs support these updates before completion:
   saved. A saved active-job client may be replaced by another verified
   client/company until a ticket is selected.
 - Summary notes.
-- Entry type, either Time entry or Ticket note. Time entry is the normal
-  default. Ticket note mode may be selected only before successful Autotask
-  submission.
-- Note title when the entry type is Ticket note. The title is required for
-  submission, but may be incomplete while the active Work in Progress card is
-  being edited.
+- Entry type, either Time entry or note. Time entry is the normal default.
+  Ticket targets label note mode **Ticket note**; project-task targets label it
+  **Project task note**. Note mode may be selected only before successful
+  Autotask submission.
+- Note title when the entry type is a Ticket note or Project task note. The
+  title is required for submission, but may be incomplete while the active
+  Work in Progress card is being edited.
 - Append to resolution for time entries, defaulting on. Hide and omit this
-  unsupported field for ticket notes.
+  unsupported field for Ticket notes and Project task notes.
 - Work location mode, either Remote or On-Site, which is stored separately from
   the visible notes. Changing this mode for an active time entry must preserve
   the start and recalculate only the stop to the later of the work-location
@@ -232,8 +241,9 @@ preserving their current values for a switch back to Time entry, hide the
 duration label, keep the Work type Remote/On-Site card visible but disabled
 and greyed out, show the note-title field above the note-description textarea,
 center the note-title label and text field, and change the finish/delete labels
-to **End Note** and **Delete Note**. Shared switch pills use green for Time
-entry or Remote selected states and orange for Ticket note or On-Site selected
+to **End Note** and **Delete Note**. Shared switch pills use the active
+highlight for Time entry or Remote selected states and that highlight's
+automatic complementary counterpart for Ticket note or On-Site selected
 states. If the user's **Submit from Work in Progress** preference is enabled,
 the finish label should be a submit-note label while still posting through the
 normal end-work route. This preference is not a workflow availability toggle;
@@ -270,18 +280,34 @@ page reload. If the selected ticket has no description, keep the description
 card visible and show the standard no-description message. Mobile and review
 open-ticket choices should use the same Remote/On-Site color treatment as service-call
 start cards, with `.ticket-option-button` location classes, a visible location
-badge, title, ticket status, and company metadata. This label is display
+badge, title, ticket status, and company metadata. Open-ticket and service-call
+choices with displayable notes should show the shared **Note** indicator in the
+active highlight's complementary counterpart color beside the ticket title.
+This label is display
 metadata only; do not trust it to override the active job's stored work-location
 or ticket-status values.
+
+The same load action returns a separate **Project tasks** group for assigned,
+non-complete tasks on eligible projects under the verified client. Clicking a
+task posts the target type and task ID to the same target-selection route. The
+server verifies the option again, stores the task and parent-project identity,
+clears ticket-only identity, and returns target-safe context. Project-task
+selection should reload the current page after success so every ticket-specific
+label and control is replaced consistently. The status control stays in the
+same layout position but reads **Task status** and uses active numeric options
+from the tenant's `Tasks.status` metadata. Never show the parent project status
+as the editable work status.
 If the server-verified selected ticket status ID matches the configured
 **Customer Note Added** observed status, automatically refresh and open the
 existing Ticket notes overlay once with the newest note selected. This applies
 to Work and Review selection. Closing the overlay or reloading must not reopen
 it; the user can still reopen it with **Ticket notes**.
-When a selected ticket has Autotask notes or time entries, Work in Progress may
-show compact **Ticket notes** and **Past time entries** buttons beside the
-ticket context. On phone-sized layouts, those buttons belong under the Work in
-Progress **Ticket name** card. On phone-sized Review, **Client name** belongs
+When a selected target has Autotask notes or time entries, Work in Progress may
+show compact **Ticket notes** or **Project task notes** plus **Past time
+entries** buttons beside the target context. Project-task note history and note
+submission must use `TaskNotes`; never use whole-project notes. On phone-sized
+layouts, those buttons belong under the Work in Progress target-name card. On
+phone-sized Review, **Client name** belongs
 directly above the centered **Ticket number** card, and a phone-only **Ticket
 name** card with the split-row **Ticket notes** and **Past time entries**
 buttons belongs above **Ticket description**. Review's read-only **Client
@@ -289,6 +315,11 @@ name** card should center its title and value on phone-sized layouts. Keep
 each button hidden until its authenticated server lookup confirms at least one
 row, and render results inside the shared closeable overlay, which should fill
 the phone viewport for both ticket notes and past time entries. When Work in
+Progress or Review confirms displayable notes, the selected Ticket name card
+must show the same counterpart-colored **Note** indicator and the **Ticket
+notes** button must use its counterpart highlighted state with that indicator.
+System-filtered notes
+must not trigger either treatment. When Work in
 Progress renders two active jobs, each job's visible **Ticket notes** and
 **Past time entries** buttons should refresh as a matched mobile/desktop pair
 for that job so the first active-job card cannot lose the past-time-entry
@@ -325,15 +356,16 @@ Service-call options are provided by
 `list_todays_service_calls_for_resource(resource_id=..., local_service_date=...)`,
 which derives Remote/On-Site from the service-call details text. The resource ID
 must come from the enabled managed web user, not config or browser input. Each
-rendered card should stay compact and show the client name, Remote/On-Site
-label, scheduled local date, local start/end time range, and associated ticket
-title, with different
+rendered card should stay compact and show the **Ticket** or **Project task**
+target label, client name, Remote/On-Site label, scheduled local date, local
+start/end time range, and associated target title, with different
 Remote and On-Site coloring for quick scanning. Use the specific
 `.service-call-option-button.service-call-location-*` styling hooks so these
-cards do not regress to the generic grey button treatment. Clicking a service
-call starts an active job with the associated ticket number, ticket title,
-bounded ticket description, client name, company ID, and detected work-location
-mode.
+cards do not regress to the generic grey button treatment. A service call with
+both ticket and task associations renders one card for each association.
+Clicking a service call starts an active job with the associated verified
+ticket metadata or project-task/parent-project metadata, client, company ID,
+and detected work-location mode.
 
 If the managed user enabled navigation and the verified service call is
 detected as On-Site, the JSON start path may return its transient Autotask
@@ -349,17 +381,18 @@ job.
 
 The `/work/service-calls` endpoint is only for drawing already-verified
 candidate cards in the browser. Before returning or accepting service-call
-options, route code must filter out tickets that already have a local TicketPilot
-job for the current managed web user with ticket status Complete or Follow up;
-this local filter applies even when that job has not been submitted to Autotask
-yet.
+options, route code must filter out tickets that already have a local
+TicketPilot job for the current managed web user with ticket status Complete or
+Follow up, and project tasks that already have a local job for that user with
+task status Complete. These local filters apply even when the job has not been
+submitted to Autotask yet.
 `POST /jobs/start/service-call` must still re-read the provider list for the
-submitted local service-call date, apply the same local Complete/Follow up
-filter, and verify the submitted service-call ticket association ID before
+submitted local service-call date, apply the same target-specific filter, and
+verify the submitted target type and service-call association ID before
 creating a job.
-Starting from a service call stores verified ticket/client metadata and defaults
-the local editable ticket status to In progress without patching Autotask ticket
-status. Mobile forms that navigate or redirect, including start, service-call
+Starting from a service call stores verified target/client metadata and
+defaults ticket status to In progress or preserves the task's current status
+without patching Autotask. Mobile forms that navigate or redirect, including start, service-call
 start, end, rounded-start adjustment, and active delete, should show the shared
 loading overlay once a submit is accepted so slow Autotask lookups do not look
 like ignored taps.
@@ -396,11 +429,12 @@ about a 25-line cap. A selected ticket with an empty description should still
 show the description card with the standard no-description message.
 
 The active mobile card should expose only one client entry point for each job.
-After an Autotask company is selected but before a ticket is selected, keep the
-client search editable so the user can choose another verified company and load
-that company's open tickets. After an open ticket is selected, the active job
+After an Autotask company is selected but before a work target is selected,
+keep the client search editable so the user can choose another verified company
+and load that company's open tickets and assigned project tasks. After a ticket
+or project task is selected, the active job
 displays the client as a read-only value and submits hidden copies only for
-normal form flow. The service layer still enforces the post-ticket lock because
+normal form flow. The service layer still enforces the post-selection lock because
 hidden fields and readonly inputs are not security controls.
 
 Active jobs can be discarded through `POST /jobs/{job_id}/delete` from mobile
@@ -432,7 +466,7 @@ Ending work requires:
 - Mandatory client name.
 - Valid selected company ID if one is submitted.
 - Current Work in Progress work-location mode.
-- Current Work in Progress ticket status.
+- Current Work in Progress ticket or task status.
 - Current entry type.
 - Current append-to-resolution setting.
 - Current summary notes carried from the mobile textarea.
@@ -451,18 +485,25 @@ Direct Work in Progress submission rules:
 
 - The preference is per-user, database-backed, and default off.
 - The route must still validate ownership, CSRF, active status, client,
-  selected company ID, entry type, ticket status, append-to-resolution, and
+  selected company ID, verified target identity, entry type, target status,
+  append-to-resolution, and
   submitted text. Time entries also require work location and rounded end time.
-  Ticket notes require a note title and note description instead of start/stop
-  time fields.
-- The browser may copy hidden work-location and ticket-status values from the
+  Ticket notes and Project task notes require a note title and note description
+  instead of start/stop time fields.
+- The browser may copy hidden work-location and target-status values from the
   active form for normal UX, but the server must validate those values again.
 - `submit_job_to_autotask()` remains the only submission service. Do not create
   a separate mobile-only Autotask path.
-- Direct submission must require ticket number and ticket status for both
-  record types. Time entries require rounded end time and non-empty summary
-  notes before any Autotask call is attempted. Ticket notes require note title
-  and non-empty note description before any Autotask call is attempted.
+- Direct submission must require verified ticket identity plus ticket status,
+  or verified task/parent-project identity plus a current tenant-valid task
+  status. Time entries require rounded end time and non-empty summary notes
+  before any Autotask call is attempted. Ticket notes and Project task notes
+  require note title and non-empty note description before any Autotask call is
+  attempted.
+- A project-task Complete submission must be blocked while any other user has
+  another Active, Ready for Review, or Submission Failed local record for that
+  task. The external TimeEntries or TaskNotes write must finish before
+  `Tasks.status` is set to Complete.
 - Missing local submission fields should roll back the transaction so the job
   stays active and can be fixed in Work in Progress.
 - Provider-level Autotask failures should use the existing submission-failed
@@ -481,8 +522,9 @@ Current behavior:
   share a compact two-button row with optional **AI Cleanup** in the Summary
   notes area. Review-detail recording remains available only for jobs that have
   not been successfully submitted to Autotask.
-- The active mobile **Record** button uses an orange treatment, and the button
-  label changes to **Stop recording** while browser recording is active. After
+- The active mobile **Record** button uses the active highlight's complementary
+  counterpart treatment, and the button label changes to **Stop recording**
+  while browser recording is active. After
   capture stops, the disabled button returns to the **Record** label and shows
   the shared loading spinner while the recording is still being sent or
   converted.

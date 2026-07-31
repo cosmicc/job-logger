@@ -2,15 +2,18 @@
 
 **Ticket Pilot for Autotask** is the formal name of TicketPilot. It is a
 security-focused Dockerized Python web application for quickly recording
-Autotask time entries or customer-visible ticket notes from a phone or web
-browser, reviewing or directly submitting recorded jobs, and sending accepted
-records to Autotask. Production use requires an Autotask service account and
-API access because the work workflow relies on Autotask resources, companies,
-tickets, service calls, time entries, and ticket notes.
+Autotask time entries, customer-visible ticket notes, or project-task notes
+from a phone or web browser, reviewing or directly submitting recorded jobs,
+and sending accepted records to Autotask. Production use requires an Autotask
+service account and API access because the work workflow relies on Autotask
+resources, companies, tickets, projects, tasks, service calls, time entries,
+TicketNotes, and TaskNotes.
 
 End users can use [USER_MANUAL.md](USER_MANUAL.md) for a full walkthrough of
 sign-in, password reset, Work in Progress, Review, Config, and common app
 messages.
+The in-app AI Help assistant uses [AI_HELPER.md](AI_HELPER.md) as its
+comprehensive end-user support knowledge base.
 
 ## Architecture
 
@@ -142,9 +145,11 @@ Autotask REST API references used by this app:
    background dropdown previews each option with three round palette swatches,
    while the separate highlight dropdown shows one color sample. Highlight
    shades adjust automatically for readable contrast on light or dark
-   backgrounds. Navigation icons and ordinary buttons follow the selected
-   highlight color while
-   status and destructive actions retain their established colors. The **Submit from Work in Progress** workflow
+   backgrounds. Every highlight also supplies a complementary counterpart for
+   On-Site, Ticket note, recording, customer-note, and second-job treatments.
+   Navigation icons and ordinary buttons follow the selected highlight color
+   while genuine warnings, status colors, and destructive actions retain their
+   established colors. The **Submit from Work in Progress** workflow
    option is not a workflow availability toggle. It is off by default; when
    enabled, ending work submits the completed time entry or ticket note to
    Autotask immediately instead of requiring Review first. The same page
@@ -715,7 +720,7 @@ Set these passkey variables for production when needed:
 
 TicketPilot uses source-controlled semantic versioning. The runtime version is
 defined in `ticket_pilot/version.py`, mirrored in `pyproject.toml` and the root
-`VERSION` file, and is currently `v2.0.1`. Version history starts at `v1.0.0`.
+`VERSION` file, and is currently `v2.1.0`. Version history starts at `v1.0.0`.
 
 Authenticated pages show a Help button in the shared header. `/help` starts
 with **Ask AI for help**, shows **Operational Status**, then shows the current
@@ -739,7 +744,7 @@ changelog views use the same authenticated session, shared theme variables,
 and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the authenticated Help button is yellow
 on desktop and phone layouts, and `/help` shows the current version with `DEV`,
-such as `v2.0.1 DEV`.
+such as `v2.1.0 DEV`.
 
 ## Provider Modes
 
@@ -806,9 +811,10 @@ The active-job and review-detail recorder streams `MediaRecorder` chunks to
 message carries metadata and the CSRF token, then binary audio chunks are sent
 as soon as the browser produces them. The server starts a best-effort interim
 transcription from the first buffered chunk. The **Record** button uses an
-orange treatment and sits beside **AI Cleanup** when cleanup is enabled on Work
-in Progress and review detail. It becomes a **Stop recording** button while
-browser capture is active. Stopping capture lets the browser flush the final
+automatic counterpart treatment for the selected highlight and sits beside
+**AI Cleanup** when cleanup is enabled on Work in Progress and review detail.
+It becomes a **Stop recording** button while browser capture is active.
+Stopping capture lets the browser flush the final
 chunk, sends WebSocket
 `finish`, returns the button to its idle label, keeps that disabled button in
 the shared loading state, and shows clear text progress:
@@ -965,9 +971,10 @@ TicketPilot appends `/chat/completions` when needed and also accepts a full
 `.../chat/completions` endpoint without appending it twice. The browser never
 sees the API key. Each answer is stateless: the app does not store help
 questions or answers in the database. The assistant uses bounded context from
-`USER_MANUAL.md`, `WEB_CHANGELOG.md`, `AGENTS.md`, agent skill files, and
-selected app source to answer end-user support questions. It refuses source
-code, deployment, secret, credential, and internal configuration questions.
+the comprehensive `AI_HELPER.md` end-user knowledge base plus matching
+`USER_MANUAL.md`, `WEB_CHANGELOG.md`, guidance, and selected app-source
+snippets. It refuses source code, deployment, secret, credential, and internal
+configuration questions.
 Keep `AI_HELP_INSTRUCTIONS` focused on how the assistant should answer end-user
 TicketPilot support questions, and do not put secrets or private deployment
 values in it.
@@ -1079,31 +1086,54 @@ records for another Active, Ready for Review, or Submission Failed time entry
 or ticket note with the same ticket number. Those entries must submit first so
 the Complete status always reaches Autotask last.
 
+Project tasks appear in a separate **Project tasks** group beside the selected
+company's **Tickets**. TicketPilot includes non-complete tasks assigned to the
+logged-in user's Autotask resource as a primary or secondary resource, and
+excludes Complete/Inactive projects plus Template and Baseline project types.
+Autotask task-time permission still comes from the resource's Projects security
+level; there is no task-level allow-time field.
+
+A selected project task uses the same Work and Review layout as a ticket:
+Ticket status becomes **Task status** in the same position, using the tenant's
+current Tasks status choices. The editable status belongs to the task, not the
+parent project. Time entries use `taskID` with Autotask's ProjectTask time-entry
+type. Note mode is labeled **Project task note** and creates or updates
+`TaskNotes` on that task; it never creates whole-project notes. **Project task
+notes** and **Past time entries** use the existing closeable history overlays.
+Task note descriptions are limited to 3,200 characters.
+
+Task status Complete uses the same cross-user ordering protection as ticket
+Complete: every other Active, Ready for Review, or Submission Failed local
+entry for that task must submit first. TicketPilot writes the task TimeEntry or
+TaskNote before it changes `Tasks.status` to Complete and never changes the
+parent project's status.
+
 Managed web users can enable **Submit from Work in Progress** on `/config`.
 This option is not a general workflow enable/disable setting. It only controls
 whether ending a completed Work in Progress entry sends it directly to
 Autotask or sends it to Review first. The option is off by default so existing
 accounts keep the review-first workflow. When enabled, the active Work in
 Progress finish button changes to **Submit to Autotask** for time entries or
-**Submit note** for ticket notes and uses the same idempotent Autotask
-submission service as Review acceptance.
-Direct time-entry submission still requires the selected ticket number, ticket
-status, rounded end time, verified Autotask client, and summary notes. Direct
-ticket-note submission requires the selected ticket, ticket status, note title,
-and note description. If those local fields are missing, the job stays active
-so the technician can correct it. If Autotask itself rejects the submission,
-the job moves to the failed submission review state with the safe error message
-and can be retried from Review.
+**Submit note** for Ticket notes and Project task notes and uses the same
+idempotent Autotask submission service as Review acceptance.
+Direct time-entry submission still requires a verified ticket or project task,
+the matching target status, rounded end time, verified Autotask client, and
+summary notes. Direct note submission requires the verified target, target
+status, note title, and note description. If those local fields are missing,
+the job stays active so the technician can correct it. If Autotask itself
+rejects the submission, the job moves to the failed submission review state
+with the safe error message and can be retried from Review.
 
 The mobile page can search Autotask companies while entering the client name.
 Selecting a company stores the verified display name and Autotask company ID
 with the job so open-ticket lookup targets the exact selected company. Typed
 client text that was not selected from Autotask search results is rejected and
 not saved. During active work, that selected Autotask client can still be
-changed until a ticket is selected, so the technician can switch clients and
-load the new client's open tickets. After ticket selection, the client is shown
-as read-only for the job so the client name cannot drift away from the selected
-ticket. Ticket numbers are populated from open-ticket selection instead of
+changed until a ticket or project task is selected, so the technician can
+switch clients and load the new client's open tickets and assigned project
+tasks. After target selection, the client is shown as read-only for the job so
+the client name cannot drift away from the selected target. Ticket numbers and
+project-task identity are populated from verified picker options instead of
 manual entry. If an active job is opened from Review before any client has been
 selected, Review detail shows the same authenticated Autotask
 company search and saves the first verified client/company choice before ticket
@@ -1126,17 +1156,18 @@ customer or ticket lists. For POST query pagination, TicketPilot follows
 `nextPageUrl` with POST and the original query body because Autotask rejects GET
 follow-up calls for those resources.
 
-The mobile and review pages can query open Autotask tickets from the selected
-job's stored Autotask company ID and verified client name. If no tickets have
-been loaded, the whole Open tickets panel is clickable and
+The mobile and review pages can query open Autotask tickets and assigned project
+tasks from the selected job's stored Autotask company ID and verified client
+name. If no targets have been loaded, the whole Open tickets panel is clickable and
 keyboard-activatable. On mobile, that panel saves the current verified
 active-job client selection before loading open tickets. On Review, an
 empty-client active job can first save a selected
 Autotask company through `/review/{job_id}/client`; after that, the normal open
-ticket lookup uses the stored company selection. Saved clients do not auto-load
-tickets when the Work in Progress card renders; click the panel to load them.
-Both mobile and review ticket lookup show the spinner loading state while
-Autotask data is being fetched or a selected ticket is being saved.
+target lookup uses the stored company selection. Saved clients do not auto-load
+targets when the Work in Progress card renders; click the panel to load them.
+Both mobile and review target lookup show the spinner loading state while
+Autotask data is being fetched or a selected target is being saved. Results use
+separate **Tickets** and **Project tasks** groups.
 Open-ticket choices show the ticket number, title, Autotask creation date as
 **Start**, `dueDateTime` as **Due by**, ticket status, company name, and
 detected `Remote`, `On-Site`, or `Not specified` work-location label from the
@@ -1161,7 +1192,11 @@ notes** and **Past time entries** buttons when the selected ticket has usable
 history, or disabled **No Notes** and **No past entries** buttons when none is
 available. Service Desk Notification ticket notes, notes with titles that
 start with Workflow Rule, and notes with titles that start with Some actions
-did not occur are treated as system noise and filtered out. Notes are shown
+did not occur are treated as system noise and filtered out. Open-ticket and
+service-call choices with usable notes show a **Note** badge using the active
+highlight's complementary counterpart color. After selection, the Ticket name
+shows the same badge and the **Ticket notes** button uses the same counterpart
+highlight. Notes are shown
 newest first with two-line title cards. Past time entries list the
 resource, local start/stop time, and hours, and selecting one shows its summary
 of work. Home, Office, and **Navigate to Destination** use the shared subtle
@@ -1178,6 +1213,13 @@ read-only identity/context fields; review save and submit use the stored values
 instead of trusting form posts. Once a job has a ticket number, the open-ticket
 picker is hidden for that job.
 
+Project-task choices show the task and parent-project context, current task
+status, schedule information when available, work-location detection, and a
+Note indicator when TaskNotes exist. After selection, Work in Progress and
+Review show read-only project, task number/title/description, **Task status**,
+**Project task notes**, and **Past time entries** context. The picker is hidden
+once either a ticket or project task has been selected.
+
 When an active job slot is available, the mobile start panel also lists Autotask
 service calls assigned to the logged-in web user's Autotask resource ID for the
 selected local date. The mobile page renders first with a loading state and no
@@ -1191,24 +1233,30 @@ other dates show the full month, ordinal day, and weekday, such as
 `June 19th (Friday)`, without the year.
 Each service-call choice shows the client name, the detected `Remote` or
 `On-Site` value from the service-call details text, its scheduled local date,
-the local start/end time range such as `4:00pm-5:00pm`, and the associated
-ticket title. Remote and
+the local start/end time range such as `4:00pm-5:00pm`, a **Ticket** or
+**Project task** label, and the associated target title. A service call tied to
+both a ticket and task shows a separate selectable card for each association.
+Remote and
 On-Site cards use stronger distinct accent colors and badges so scheduled call
-type is easy to scan without wasting mobile screen space.
+type is easy to scan without wasting mobile screen space. A counterpart-colored
+**Note** badge identifies service-call tickets with usable customer-note
+history.
 Service-call options are filtered by local TicketPilot history for the current
 managed user: if that user already has a job for the same ticket number with the
 editable local ticket status set to `Complete` or `Follow up`, the service call
-is hidden even when that time entry has not yet been submitted to Autotask. The
-start endpoint applies the same filter before accepting a submitted service-call
-ID.
+is hidden even when that time entry has not yet been submitted to Autotask. A
+project-task association is hidden when that user already has a local Complete
+entry for the same task. The start endpoint applies the same filter before
+accepting a submitted service-call association ID.
 Tapping a service call starts an active job with the server-verified ticket
-number, ticket title, bounded ticket description, client name, company ID, and
-detected work-location mode. It defaults the local editable ticket status to
-`In progress` without updating Autotask. The browser submits only the
-service-call ticket association ID, selected date, and CSRF token; the server
-re-checks that date's resource-specific service-call list before creating the
-job. If service-call lookup fails because permissions are missing, the blank
-Start Work path remains
+metadata or project-task/parent-project metadata, client name, company ID, and
+detected work-location mode. Ticket targets default the local editable status
+to `In progress`; task targets preserve their current task status. Neither path
+updates Autotask during selection. The browser submits only the target type,
+service-call association ID, selected date, and CSRF token; the server re-checks
+that date's resource-specific service-call list before creating the job. If
+service-call lookup fails because permissions are missing, the blank Start Work
+path remains
 available.
 
 Service-call lookup requires the Autotask API user to read `ServiceCalls`,
@@ -1256,37 +1304,42 @@ buttons; rounded start/stop `-15` and `+15` adjustments skip the full-page
 overlay so those small time changes feel immediate.
 Work in Progress and Review detail show the rounded duration centered under the
 start/end time controls. The value updates as those times change.
-Each Work in Progress card can switch between **Time entry** and **Ticket note**
-before Autotask submission. Ticket note mode changes **Job date** to **Note
-Date**, hides the start/end time controls while remembering their values, hides
-the duration, keeps Work type visible as a disabled greyed-out Remote/On-Site
-card, shows a left-aligned required note-title field above the note description,
-and changes the finish/delete labels to note wording. Shared switch pills use
-green for Time entry or Remote selections and orange for Ticket note or On-Site
+Each Work in Progress card can switch between **Time entry** and note mode
+before Autotask submission. A ticket labels note mode **Ticket note**; a
+project-task target labels it **Project task note**. Note mode changes **Job
+date** to **Note Date**, hides the start/end time controls while remembering
+their values, hides the duration, keeps Work type visible as a disabled
+greyed-out Remote/On-Site card, shows a left-aligned required note-title field
+above the note description, and changes the finish/delete labels to note
+wording. Shared switch pills use the active highlight for Time entry or Remote
+selections and its automatic complementary counterpart for note or On-Site
 selections. Time entries include an **Append to resolution** checkbox, checked
-by default. Ticket notes hide that control because Autotask TicketNotes does not
-support the field.
+by default. Ticket notes and Project task notes hide that control because
+Autotask notes do not support the field.
 In active mobile Work in Progress cards, **End Work**, **End Note**, or the
 direct-submit variant shares a row with the destructive delete action to keep
 the active-card controls compact, with save, recording, and AI Cleanup status
 messages directly below the action buttons. Active jobs selected on Review
 detail also show the matching end/delete labels, and the button returns to that
 review detail after the job is ended.
-The app also queries `Tickets` by `ticketNumber`, creates either a
-`TimeEntries` row or a customer-visible `TicketNotes` row, and records every
-attempt in `submission_attempts`.
+For ticket work, the app queries `Tickets` by `ticketNumber` and creates either
+a `TimeEntries` row or a customer-visible `TicketNotes` row. For project-task
+work, it verifies the stored task and parent project, then creates a task
+`TimeEntries` row or `TaskNotes` row. Every attempt is recorded in
+`submission_attempts`.
 
-After a job is successfully submitted to Autotask, ticket and client identity
+After a job is successfully submitted to Autotask, target and client identity
 stay read-only, and the entry type can no longer be changed. The selected
 review detail allows job date, start time, end time, summary notes, work
 location, append-to-resolution, and ticket status edits for time entries
 through **Submit changes**, which patches the existing `TimeEntries` row
-instead of creating a duplicate entry. For ticket notes, **Submit changes**
-updates the existing `TicketNotes` row with note title, note description, and
-ticket status. **Submit changes** also patches
-`Tickets.status` to match the selected TicketPilot status, including temporarily
-moving a previously `Complete` ticket to `In progress` before the external
-record patch when Autotask requires that sequence. Phone-sized workflow cards
+instead of creating a duplicate entry. For notes, **Submit changes** updates
+the existing `TicketNotes` or `TaskNotes` row with note title, note
+description, and target status. **Submit changes** also patches
+`Tickets.status` for tickets or `Tasks.status` for project tasks, including
+temporarily moving a previously Complete target to In progress before the
+external record patch when Autotask requires that sequence. It never changes
+the parent project's status. Phone-sized workflow cards
 use the same scan order on Review and Work in Progress: Entry type, Work type,
 Ticket status, Job date, Start time, End time, then duration. The selected
 Review detail then shows Ticket number and its ticket-history buttons before

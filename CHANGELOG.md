@@ -2,7 +2,7 @@
 
 All notable changes to TicketPilot are documented in this file.
 
-## 2.0.1 - 07.30.2026 - Review controls, workflow ordering, alerts, and Autotask compatibility
+## 2.1.0 - 07.31.2026 - Project tasks, Review controls, theme contrast, AI support, alerts, and Autotask compatibility
 
 ### Added
 
@@ -15,11 +15,26 @@ All notable changes to TicketPilot are documented in this file.
   external ticket state without adding those statuses to user dropdowns.
 - Added one-time automatic opening of the newest existing ticket note after
   selecting or starting a verified **Customer Note Added** ticket.
+- Added customer-note indicators to open tickets, service calls, selected
+  Ticket name cards, and highlighted **Ticket notes** buttons whenever the
+  authenticated note history contains a displayable note.
+- Added a contrast-adjusted complementary counterpart for every selectable
+  highlight color so alternate workflow controls remain visually distinct.
+- Added `AI_HELPER.md` as a comprehensive, non-technical end-user knowledge
+  base with workflow guidance, privacy explanations, troubleshooting, FAQs,
+  common messages, and a glossary.
 - Added persistent per-user Review controls for hiding submitted entries and
   showing 10, 20, 50, or 100 rows per page.
 - Added global, process-local administrator acknowledgement for the current
   application-health alert so repeated Pushover reminders pause until the
   monitored issue set changes.
+- Added assigned Autotask project tasks to the selected-company work picker in
+  a separate group, including primary and secondary resource assignments.
+- Added project-task time entries, tenant-driven Task status controls,
+  task-owned TaskNotes, project-task note and past-time-entry overlays, and
+  project-task navigation context.
+- Added `ServiceCallTasks` and `ServiceCallTaskResources` support so service
+  calls tied to tickets, project tasks, or both can be selected explicitly.
 
 ### Changed
 
@@ -35,15 +50,36 @@ All notable changes to TicketPilot are documented in this file.
   Autotask REST delete action.
 - Customer-note automatic opening reuses the authenticated Ticket notes
   overlay and stays closed after the user closes it or reloads the page.
+- On-Site options, Ticket note mode, customer-note indicators, recording
+  controls, and second-job shading now use the selected highlight's automatic
+  counterpart instead of a fixed amber treatment. Genuine warning and status
+  colors remain unchanged.
+- AI Help now prioritizes `AI_HELPER.md` and includes the knowledge base in
+  Docker and wheel artifacts, while still using bounded matching documentation
+  and source context.
+- Project-task Complete submissions now enforce the same global pending-entry
+  ordering as tickets, create or update the TimeEntry or TaskNote first, then
+  update only `Tasks.status` last without changing the parent project.
 
 ### Fixed
 
+- Corrected ticket-note creation and update to use Autotask's ticket-child
+  `/Tickets/{ticketID}/Notes` mutation endpoint instead of the root
+  `TicketNotes` URL that returned HTTP 404.
+- Ensured **Append to resolution** is fully hidden on Work and Review whenever
+  the entry is in Ticket note mode.
 - Removed unsupported `appendToResolution` fields from Autotask TicketNotes
   create and update payloads, correcting ticket-note submission compatibility.
 - Prevented a Complete ticket status from reaching Autotask before another
   unsubmitted local entry for that ticket.
 - Kept older navigation autosave requests compatible with the new automatic
   On-Site navigation preference.
+- Prevented Amber and Orange highlight selections from blending into On-Site,
+  Ticket note, customer-note, recording, and related alternate-workflow
+  treatments.
+- Prevented project-task note mode from using ticket or whole-project note
+  records; it now creates and updates the selected task's `TaskNotes` child
+  collection.
 
 ## 2.0.0 - 07.26.2026 - TicketPilot rename, themes, workflow, navigation, and reliability
 

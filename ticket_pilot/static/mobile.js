@@ -28,6 +28,7 @@ const activeEntryTypeInputs = document.querySelectorAll("[data-entry-type-input]
 const activeNoteTitleInputs = document.querySelectorAll("[data-note-title-input]");
 const activeAppendResolutionInputs = document.querySelectorAll("[data-append-resolution-input]");
 const activeTicketStatusInputs = document.querySelectorAll("[data-active-ticket-status-input]");
+const activeTaskStatusInputs = document.querySelectorAll("[data-active-task-status-input]");
 const activeJobDateInputs = document.querySelectorAll("[data-active-job-date-input]");
 const activeTimeForms = document.querySelectorAll("[data-active-time-form]");
 const serviceCallPanels = document.querySelectorAll("[data-service-call-panel]");
@@ -369,6 +370,7 @@ function syncEndJobClientFields(endJobForm) {
   const endNoteTitleField = endJobForm.querySelector(".end-note-title");
   const endAppendResolutionField = endJobForm.querySelector(".end-append-to-resolution");
   const endTicketStatusField = endJobForm.querySelector(".end-ticket-status");
+  const endTaskStatusField = endJobForm.querySelector(".end-task-status");
 
   if (endClientNameField) {
     endClientNameField.value = clientFields.clientName;
@@ -396,6 +398,38 @@ function syncEndJobClientFields(endJobForm) {
 
   if (endTicketStatusField && activeFormData) {
     endTicketStatusField.value = toSafeMapString(activeFormData.get("ticket_status") || endTicketStatusField.value);
+  }
+  if (endTaskStatusField && activeFormData) {
+    endTaskStatusField.value = toSafeMapString(activeFormData.get("task_status_id") || endTaskStatusField.value);
+  }
+}
+
+async function loadTaskStatusOptions(statusInput) {
+  const statusUrl = statusInput.dataset.taskStatusUrl || "";
+  if (!statusUrl) {
+    return;
+  }
+  const selectedStatusId = toSafeMapString(statusInput.value);
+  try {
+    const response = await fetch(statusUrl, {headers: {Accept: "application/json"}});
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.detail || "Task statuses could not be loaded.");
+    }
+    const statusOptions = Array.isArray(payload.task_statuses) ? payload.task_statuses : [];
+    if (!statusOptions.length) {
+      throw new Error("Autotask did not return any active task statuses.");
+    }
+    statusInput.replaceChildren();
+    for (const statusOption of statusOptions) {
+      const option = document.createElement("option");
+      option.value = toSafeMapString(statusOption.status_id);
+      option.textContent = statusOption.label || option.value;
+      option.selected = option.value === selectedStatusId;
+      statusInput.append(option);
+    }
+  } catch (error) {
+    statusInput.title = error.message || "Task statuses could not be loaded.";
   }
 }
 
@@ -460,7 +494,7 @@ function syncActiveEntryMode(activeJobCard) {
 
   const appendResolutionField = activeJobCard.querySelector("[data-append-resolution-field]");
   if (appendResolutionField) {
-    appendResolutionField.hidden = isTicketNote;
+    appendResolutionField.classList.toggle("is-hidden", isTicketNote);
   }
 
   const summaryLabel = activeJobCard.querySelector("[data-summary-label]");
@@ -1782,6 +1816,17 @@ function createTicketOptionSpan(className, textContent) {
   return spanElement;
 }
 
+function appendCustomerNoteIndicator(container, hasCustomerNotes) {
+  if (
+    hasCustomerNotes !== true
+    || !window.TicketPilotTicketNotes
+    || typeof window.TicketPilotTicketNotes.createCustomerNoteIndicator !== "function"
+  ) {
+    return;
+  }
+  container.append(window.TicketPilotTicketNotes.createCustomerNoteIndicator());
+}
+
 function renderTicketOptionButton(optionButton, ticketOption) {
   const ticketNumber = ticketOption.ticket_number || "No ticket number";
   const ticketTitle = ticketOption.title || "Untitled ticket";
@@ -1797,13 +1842,50 @@ function renderTicketOptionButton(optionButton, ticketOption) {
     createTicketOptionSpan("ticket-option-number", ticketNumber),
     createTicketOptionSpan("ticket-location-badge", locationLabel),
   );
+  const ticketTitleRow = createTicketOptionSpan("ticket-title-with-note-indicator", "");
+  ticketTitleRow.append(createTicketOptionSpan("ticket-option-title", ticketTitle));
+  appendCustomerNoteIndicator(ticketTitleRow, ticketOption.has_customer_notes);
   optionButton.className = `ticket-option-button ${locationClass}`;
   optionButton.replaceChildren(
     cardHeader,
-    createTicketOptionSpan("ticket-option-title", ticketTitle),
+    ticketTitleRow,
     createTicketOptionSpan("ticket-option-dates", `Start ${startDate} · Due by ${dueByDate}`),
     createTicketOptionSpan("ticket-option-meta", `${ticketStatus} | ${companyName}`),
   );
+}
+
+function renderProjectTaskOptionButton(optionButton, taskOption) {
+  const taskNumber = taskOption.task_number || `Task ${taskOption.task_id || ""}`.trim();
+  const taskTitle = taskOption.title || "Untitled project task";
+  const taskStatus = taskOption.status_label || "Unknown status";
+  const projectName = taskOption.project_name || "Unknown project";
+  const startDate = toSafeMapString(taskOption.start_date).trim() || "Not set";
+  const dueByDate = toSafeMapString(taskOption.due_by_date).trim() || "Not set";
+  const locationLabel = taskOption.work_location_label || "Not specified";
+  const locationClass = taskOption.work_location_class || "ticket-location-unknown";
+  const cardHeader = document.createElement("span");
+  cardHeader.className = "ticket-option-card-header";
+  cardHeader.append(
+    createTicketOptionSpan("ticket-option-number", taskNumber),
+    createTicketOptionSpan("ticket-location-badge", locationLabel),
+  );
+  const titleRow = createTicketOptionSpan("ticket-title-with-note-indicator", "");
+  titleRow.append(createTicketOptionSpan("ticket-option-title", taskTitle));
+  appendCustomerNoteIndicator(titleRow, taskOption.has_customer_notes);
+  optionButton.className = `ticket-option-button ${locationClass}`;
+  optionButton.replaceChildren(
+    cardHeader,
+    titleRow,
+    createTicketOptionSpan("ticket-option-dates", `Start ${startDate} · Due by ${dueByDate}`),
+    createTicketOptionSpan("ticket-option-meta", `${taskStatus} | ${projectName}`),
+  );
+}
+
+function appendTicketPickerSectionHeading(resultsElement, label) {
+  const heading = document.createElement("p");
+  heading.className = "ticket-picker-section-label";
+  heading.textContent = label;
+  resultsElement.append(heading);
 }
 
 function setTicketLookupStatus(statusElement, message, {isError = false, isLoading = false} = {}) {
@@ -1953,8 +2035,15 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
 
   const serviceCallTicketInput = document.createElement("input");
   serviceCallTicketInput.type = "hidden";
-  serviceCallTicketInput.name = "service_call_ticket_id";
-  serviceCallTicketInput.value = toSafeMapString(serviceCallOption.service_call_ticket_id);
+  serviceCallTicketInput.name = "service_call_association_id";
+  serviceCallTicketInput.value = toSafeMapString(
+    serviceCallOption.service_call_association_id || serviceCallOption.service_call_ticket_id,
+  );
+
+  const workTargetTypeInput = document.createElement("input");
+  workTargetTypeInput.type = "hidden";
+  workTargetTypeInput.name = "work_target_type";
+  workTargetTypeInput.value = toSafeMapString(serviceCallOption.work_target_type || "ticket");
 
   const serviceCallDateInput = document.createElement("input");
   serviceCallDateInput.type = "hidden";
@@ -1978,7 +2067,13 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
 
   const ticketTitle = document.createElement("span");
   ticketTitle.className = "service-call-ticket";
-  ticketTitle.textContent = serviceCallOption.ticket_title || "Untitled ticket";
+  const targetTypeLabel = serviceCallOption.work_target_type === "project_task" ? "Project task" : "Ticket";
+  const targetTitle = serviceCallOption.target_title || serviceCallOption.ticket_title || "Untitled work item";
+  ticketTitle.textContent = `${targetTypeLabel}: ${targetTitle}`;
+  const ticketTitleRow = document.createElement("span");
+  ticketTitleRow.className = "ticket-title-with-note-indicator";
+  ticketTitleRow.append(ticketTitle);
+  appendCustomerNoteIndicator(ticketTitleRow, serviceCallOption.has_customer_notes);
 
   const scheduledTimeRange = toSafeMapString(serviceCallOption.scheduled_time_range).trim();
   const scheduledDate = toSafeMapString(serviceCallOption.scheduled_date).trim();
@@ -1991,8 +2086,14 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
   if (timeRange.textContent) {
     optionButton.append(timeRange);
   }
-  optionButton.append(ticketTitle);
-  serviceCallForm.append(csrfInput, serviceCallTicketInput, serviceCallDateInput, optionButton);
+  optionButton.append(ticketTitleRow);
+  serviceCallForm.append(
+    csrfInput,
+    serviceCallTicketInput,
+    workTargetTypeInput,
+    serviceCallDateInput,
+    optionButton,
+  );
   serviceCallForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     optionButton.disabled = true;
@@ -2324,14 +2425,19 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
     }
 
     const ticketOptions = Array.isArray(payload.tickets) ? payload.tickets : [];
-    if (ticketOptions.length === 0) {
-      setTicketLookupStatus(statusElement, "No open tickets found. Click this box to try again.");
+    const taskOptions = Array.isArray(payload.project_tasks) ? payload.project_tasks : [];
+    const optionCount = ticketOptions.length + taskOptions.length;
+    if (optionCount === 0) {
+      setTicketLookupStatus(statusElement, "No tickets or assigned project tasks found. Click this box to try again.");
       setActiveTicketPickerClickable(ticketPicker, true);
       return;
     }
 
     activeTicketLookupLoaded.add(ticketPicker);
-    setTicketLookupStatus(statusElement, `${ticketOptions.length} open ticket(s) found.`);
+    setTicketLookupStatus(statusElement, `${optionCount} available work item(s) found.`);
+    if (ticketOptions.length) {
+      appendTicketPickerSectionHeading(resultsElement, "Tickets");
+    }
     for (const ticketOption of ticketOptions) {
       const optionButton = document.createElement("button");
       optionButton.type = "button";
@@ -2391,6 +2497,41 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
       });
       resultsElement.append(optionButton);
     }
+    if (taskOptions.length) {
+      appendTicketPickerSectionHeading(resultsElement, "Project tasks");
+    }
+    for (const taskOption of taskOptions) {
+      const optionButton = document.createElement("button");
+      optionButton.type = "button";
+      renderProjectTaskOptionButton(optionButton, taskOption);
+      optionButton.addEventListener("click", async () => {
+        optionButton.disabled = true;
+        ticketPicker.classList.add("is-loading");
+        ticketPicker.setAttribute("aria-busy", "true");
+        showMobilePageLoading("Selecting project task...");
+        setTicketLookupStatus(statusElement, "Selecting project task...", {isLoading: true});
+        resultsElement.replaceChildren();
+        try {
+          await persistActiveSelectedTicket(ticketSelectUrl, taskOption, "project_task");
+          window.location.assign("/work");
+        } catch (error) {
+          activeTicketLookupLoaded.delete(ticketPicker);
+          hideMobilePageLoading();
+          ticketPicker.classList.remove("is-loading");
+          ticketPicker.removeAttribute("aria-busy");
+          ticketPicker.hidden = false;
+          ticketPicker.classList.remove("is-hidden");
+          optionButton.disabled = false;
+          setTicketLookupStatus(
+            statusElement,
+            error.message || "Selected project task could not be saved.",
+            {isError: true},
+          );
+          setActiveTicketPickerClickable(ticketPicker, true);
+        }
+      });
+      resultsElement.append(optionButton);
+    }
   } catch (error) {
     setTicketLookupStatus(statusElement, error.message || "Autotask ticket lookup failed.", {isError: true});
     setActiveTicketPickerClickable(ticketPicker, true);
@@ -2403,7 +2544,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
   }
 }
 
-async function persistActiveSelectedTicket(ticketSelectUrl, ticketOption) {
+async function persistActiveSelectedTicket(ticketSelectUrl, ticketOption, workTargetType = "ticket") {
   const response = await fetch(ticketSelectUrl, {
     method: "POST",
     headers: {
@@ -2411,7 +2552,11 @@ async function persistActiveSelectedTicket(ticketSelectUrl, ticketOption) {
       "Content-Type": "application/json",
       "X-CSRF-Token": csrfToken,
     },
-    body: JSON.stringify({ticket_number: ticketOption.ticket_number || ""}),
+    body: JSON.stringify({
+      work_target_type: workTargetType,
+      ticket_number: ticketOption.ticket_number || "",
+      project_task_id: ticketOption.task_id || "",
+    }),
   });
   const payload = await response.json();
   if (!response.ok) {
@@ -2680,6 +2825,14 @@ for (const activeTimeForm of activeTimeForms) {
 for (const activeTicketStatusInput of activeTicketStatusInputs) {
   activeTicketStatusInput.addEventListener("change", () => {
     const activeTicketForm = document.getElementById(activeTicketStatusInput.getAttribute("form") || "");
+    queueActiveJobFormSave(activeTicketForm, true);
+  });
+}
+
+for (const activeTaskStatusInput of activeTaskStatusInputs) {
+  loadTaskStatusOptions(activeTaskStatusInput);
+  activeTaskStatusInput.addEventListener("change", () => {
+    const activeTicketForm = document.getElementById(activeTaskStatusInput.getAttribute("form") || "");
     queueActiveJobFormSave(activeTicketForm, true);
   });
 }

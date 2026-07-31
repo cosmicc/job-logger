@@ -18,6 +18,38 @@ function ticketNotesCreateElement(tagName, className, textContent = "") {
   return element;
 }
 
+function createCustomerNoteIndicator() {
+  const indicator = ticketNotesCreateElement("span", "customer-note-indicator", "Note");
+  indicator.dataset.customerNoteIndicator = "";
+  indicator.setAttribute("aria-label", "Customer note attached");
+  indicator.setAttribute("title", "Customer note attached");
+  return indicator;
+}
+
+function setSelectedTicketNoteIndicators(button, hasCustomerNotes) {
+  const selectedTicketRoot = button.closest(
+    "[data-active-job-card], [data-review-ticket-title-card], .review-ticket-title-card",
+  );
+  if (!selectedTicketRoot) {
+    return;
+  }
+  const indicators = selectedTicketRoot.querySelectorAll("[data-selected-ticket-note-indicator]");
+  for (const indicator of indicators) {
+    indicator.classList.toggle("is-hidden", !hasCustomerNotes);
+  }
+}
+
+function setTicketNotesButtonIndicator(button, hasCustomerNotes) {
+  let indicator = button.querySelector("[data-customer-note-indicator]");
+  if (!indicator) {
+    indicator = createCustomerNoteIndicator();
+    button.append(indicator);
+  }
+  indicator.classList.toggle("is-hidden", !hasCustomerNotes);
+  button.classList.toggle("has-customer-notes", hasCustomerNotes);
+  setSelectedTicketNoteIndicators(button, hasCustomerNotes);
+}
+
 function ticketNotesResourceNameForDisplay(rawResourceName) {
   const resourceName = ticketNotesSafeString(rawResourceName).trim();
   if (!resourceName) {
@@ -170,6 +202,9 @@ function resetTicketContextButton(button, fallbackLabel, countDatasetName, ariaL
   setTicketContextButtonLabel(button, button.dataset.ticketContextDefaultLabel, fallbackLabel);
   button.classList.add("is-hidden");
   button.classList.remove("is-empty-context");
+  if (button.matches("[data-ticket-notes-button]")) {
+    setTicketNotesButtonIndicator(button, false);
+  }
   button.disabled = true;
   button.setAttribute("aria-hidden", "true");
   button.setAttribute("aria-label", ariaLabel);
@@ -182,6 +217,7 @@ function setTicketNotesButtonReady(button, notes = []) {
   ticketContextDefaultLabel(button, "Ticket notes");
   button.classList.remove("is-hidden");
   button.classList.toggle("is-empty-context", !hasNotes);
+  setTicketNotesButtonIndicator(button, hasNotes);
   button.disabled = !hasNotes;
   button.setAttribute("aria-hidden", "false");
   button.setAttribute("aria-label", hasNotes ? "View ticket notes" : "No ticket notes");
@@ -228,6 +264,9 @@ async function fetchTicketNotesForButton(button) {
       const payload = await fetchTicketContextJson(notesUrl, "Ticket notes could not be loaded.");
 
       return {
+        target_type: ticketNotesSafeString(payload.target_type).trim() || "ticket",
+        target_number: ticketNotesSafeString(payload.target_number).trim(),
+        target_title: ticketNotesSafeString(payload.target_title).trim(),
         ticket_number: ticketNotesSafeString(payload.ticket_number).trim(),
         ticket_title: ticketNotesSafeString(payload.ticket_title).trim(),
         notes: Array.isArray(payload.notes) ? payload.notes : [],
@@ -258,6 +297,9 @@ async function fetchTicketTimeEntriesForButton(button) {
       const payload = await fetchTicketContextJson(timeEntriesUrl, "Ticket time entries could not be loaded.");
 
       return {
+        target_type: ticketNotesSafeString(payload.target_type).trim() || "ticket",
+        target_number: ticketNotesSafeString(payload.target_number).trim(),
+        target_title: ticketNotesSafeString(payload.target_title).trim(),
         ticket_number: ticketNotesSafeString(payload.ticket_number).trim(),
         ticket_title: ticketNotesSafeString(payload.ticket_title).trim(),
         time_entries: Array.isArray(payload.time_entries) ? payload.time_entries : [],
@@ -288,7 +330,10 @@ async function refreshTicketNotesButton(button) {
 
   try {
     const payload = await fetchTicketNotesForButton(button);
+    const defaultLabel = payload.target_type === "project_task" ? "Project task notes" : "Ticket notes";
+    const ariaLabel = payload.target_type === "project_task" ? "View project task notes" : "View ticket notes";
     for (const peerButton of peerButtons) {
+      resetTicketContextButton(peerButton, defaultLabel, "ticketNotesCount", ariaLabel);
       ticketNoteButtonCache.set(peerButton, payload);
       setTicketNotesButtonReady(peerButton, payload.notes);
     }
@@ -509,13 +554,14 @@ function openTicketNotesOverlay(button) {
     return;
   }
 
-  const ticketNumber = cachedPayload.ticket_number || ticketNotesSafeString(button.dataset.ticketNotesTicketNumber).trim();
-  const ticketTitle = cachedPayload.ticket_title;
+  const ticketNumber = cachedPayload.target_number || cachedPayload.ticket_number || ticketNotesSafeString(button.dataset.ticketNotesTicketNumber).trim();
+  const ticketTitle = cachedPayload.target_title || cachedPayload.ticket_title;
+  const isProjectTask = cachedPayload.target_type === "project_task";
   if (eyebrow) {
-    eyebrow.textContent = "Ticket notes";
+    eyebrow.textContent = isProjectTask ? "Project task notes" : "Ticket notes";
   }
   if (title) {
-    title.textContent = ticketTitle || ticketNumber || "Ticket notes";
+    title.textContent = ticketTitle || ticketNumber || (isProjectTask ? "Project task notes" : "Ticket notes");
   }
   if (subtitle) {
     const noteCount = cachedPayload.notes.length;
@@ -557,8 +603,8 @@ function openTicketTimeEntriesOverlay(button) {
     return;
   }
 
-  const ticketNumber = cachedPayload.ticket_number || ticketNotesSafeString(button.dataset.ticketTimeEntriesTicketNumber).trim();
-  const ticketTitle = cachedPayload.ticket_title;
+  const ticketNumber = cachedPayload.target_number || cachedPayload.ticket_number || ticketNotesSafeString(button.dataset.ticketTimeEntriesTicketNumber).trim();
+  const ticketTitle = cachedPayload.target_title || cachedPayload.ticket_title;
   if (eyebrow) {
     eyebrow.textContent = "Past time entries";
   }
@@ -638,6 +684,7 @@ function initializeTicketNotesOverlay() {
 }
 
 window.TicketPilotTicketNotes = {
+  createCustomerNoteIndicator,
   openNewestForButton: openNewestTicketNoteForButton,
   refreshButton: refreshTicketNotesButton,
   refreshTimeEntriesButton: refreshTicketTimeEntriesButton,

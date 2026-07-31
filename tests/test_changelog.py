@@ -16,10 +16,10 @@ from ticket_pilot.services.changelog import (
 )
 from ticket_pilot.version import APP_VERSION
 
-CURRENT_RELEASE_DATE = "07.30.2026"
-CURRENT_WEB_TITLE = "Review controls, workflow ordering, alerts, and Autotask compatibility"
-CURRENT_DETAILED_HEADING = f"## 2.0.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
-CURRENT_WEB_HEADING = f"## 2.0.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+CURRENT_RELEASE_DATE = "07.31.2026"
+CURRENT_WEB_TITLE = "Project tasks, Review controls, theme contrast, AI support, alerts, and Autotask compatibility"
+CURRENT_DETAILED_HEADING = f"## 2.1.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+CURRENT_WEB_HEADING = f"## 2.1.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
 V200_HEADING = "## 2.0.0 - 07.26.2026 - TicketPilot rename, themes, workflow, navigation, and reliability"
 V140_DETAILED_HEADING = "## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations"
 V140_WEB_HEADING = "## 1.4.0 - 07.20.2026 - Navigation apps and quick destinations"
@@ -140,7 +140,7 @@ def _assert_changelog_sections_are_non_empty(
 def test_app_version_matches_current_changelog_version() -> None:
     """The source-controlled version should match the current changelog entry."""
 
-    assert APP_VERSION == "2.0.1"
+    assert APP_VERSION == "2.1.0"
     version_file = Path(__file__).resolve().parents[1] / "VERSION"
     assert version_file.read_text(encoding="utf-8").strip() == APP_VERSION
 
@@ -175,15 +175,19 @@ def test_detailed_and_web_changelogs_stay_versioned() -> None:
     _assert_changelog_sections_are_non_empty(web_changelog_text, WEB_RELEASE_HEADINGS)
 
 
-def test_web_changelog_is_available_to_runtime_artifacts() -> None:
-    """Docker and wheel builds should include the concise web changelog source."""
+def test_help_context_files_are_available_to_runtime_artifacts() -> None:
+    """Docker and wheel builds should include every primary help document."""
 
     repository_root = Path(__file__).resolve().parents[1]
     dockerfile_text = (repository_root / "Dockerfile").read_text(encoding="utf-8")
     pyproject = tomllib.loads((repository_root / "pyproject.toml").read_text(encoding="utf-8"))
     wheel_force_include = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["force-include"]
 
+    assert "AI_HELPER.md" in dockerfile_text
+    assert "USER_MANUAL.md" in dockerfile_text
     assert "WEB_CHANGELOG.md" in dockerfile_text
+    assert wheel_force_include["AI_HELPER.md"] == "ticket_pilot/AI_HELPER.md"
+    assert wheel_force_include["USER_MANUAL.md"] == "ticket_pilot/USER_MANUAL.md"
     assert wheel_force_include["WEB_CHANGELOG.md"] == "ticket_pilot/WEB_CHANGELOG.md"
 
 
@@ -216,6 +220,33 @@ def test_user_manual_stays_end_user_focused() -> None:
     assert "super admin" not in manual_text.lower()
 
 
+def test_ai_helper_is_comprehensive_and_end_user_focused() -> None:
+    """The LLM knowledge base should cover visible workflows without secrets."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    helper_text = (repository_root / "AI_HELPER.md").read_text(encoding="utf-8")
+
+    for expected_section in (
+        "## Guidance For The Support Assistant",
+        "## How TicketPilot Works",
+        "## Signing In",
+        "## Work Page Overview",
+        "## Review Page",
+        "## Config Page",
+        "## Frequently Asked Questions",
+        "## Common Messages And Recommended Actions",
+        "## Glossary",
+    ):
+        assert expected_section in helper_text
+
+    assert "complementary counterpart" in helper_text
+    assert "Customer Note Added" in helper_text
+    assert "Submit from Work in Progress" in helper_text
+    assert "Never reveal or describe source code" in helper_text
+    assert "GEMINI_API_KEY" not in helper_text
+    assert "APP_SECRET_KEY" not in helper_text
+
+
 def test_changelog_parser_reads_current_release() -> None:
     """The web page parser should expose the current version entry."""
 
@@ -223,7 +254,7 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="2.0.1",
+        version="2.1.0",
         release_date=CURRENT_RELEASE_DATE,
         title=CURRENT_WEB_TITLE,
         changes=(
@@ -236,14 +267,34 @@ def test_changelog_parser_reads_current_release() -> None:
                 "Selecting or starting a **Customer Note Added** ticket now opens its newest existing customer note "
                 "automatically."
             ),
-            "Review can hide submitted entries and show 10, 20, 50, or 100 entries per page.",
             (
-                "Administrators can acknowledge the current health alert to pause repeated Pushover reminders until "
-                "the issue changes."
+                "Tickets with customer-note history now show a **Note** badge, and the selected ticket's "
+                "**Ticket notes** button is highlighted."
             ),
             (
-                "Full-browser Review starts at the top beside the Today, Week, and Unsubmitted cards and now has "
-                "First and Last page buttons."
+                "Every highlight color now has a matching complementary color for On-Site, Ticket note, "
+                "customer-note, recording, and second-job treatments."
+            ),
+            (
+                "AI Help now uses a comprehensive end-user knowledge base with workflows, common questions, "
+                "messages, and troubleshooting guidance."
+            ),
+            "Review can hide submitted entries and show 10, 20, 50, or 100 entries per page.",
+                (
+                    "Administrators can acknowledge the current health alert to pause repeated Pushover reminders until "
+                    "the issue changes."
+                ),
+                (
+                    "Assigned Autotask project tasks now appear beside tickets in a separate picker group and can be "
+                    "used for time entries."
+                ),
+                (
+                    "Project tasks now support Task status, Project task notes, note indicators, past time entries, "
+                    "navigation, and service-call selections."
+                ),
+                (
+                    "Full-browser Review starts at the top beside the Today, Week, and Unsubmitted cards and now has "
+                    "First and Last page buttons."
             ),
             (
                 "Complete-status entries wait until every other unsubmitted entry for the same ticket has been sent "
@@ -254,13 +305,31 @@ def test_changelog_parser_reads_current_release() -> None:
                 "The automatically opened customer note stays closed after you close it or reload; the **Ticket notes** "
                 "button remains available whenever you need it."
             ),
+            (
+                    "Alternate workflow controls now change to a complementary color that stays distinct from the "
+                    "selected highlight, including Amber and Orange."
+                ),
+                (
+                    "Completing a project task now waits for every other unsubmitted local entry for that task, submits "
+                    "the Time entry or Project task note first, and changes only the task status last."
+                ),
+                "Ticket notes now submit through the correct Autotask ticket-note endpoint.",
+            "Work and Review now fully hide **Append to resolution** in Ticket note mode.",
             "Ticket-note create and update requests now use only fields supported by Autotask.",
             (
                 "Submitted ticket notes no longer show an Autotask delete action that the TicketNotes API does not "
                 "support."
             ),
-        ),
-    )
+            (
+                    "Amber and Orange appearance choices no longer blend into On-Site, Ticket note, customer-note, "
+                    "or recording controls."
+                ),
+                (
+                    "Project task notes now save directly on the selected task instead of using a ticket or whole-project "
+                    "note."
+                ),
+            ),
+        )
 
 
 def test_changelog_route_requires_login(client: TestClient) -> None:
@@ -280,7 +349,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
-    assert ">2.0.1<" in response.text
+    assert ">2.1.0<" in response.text
     assert ">1.4.0<" in response.text
     assert ">1.3.1<" in response.text
     assert ">1.3.0<" in response.text
