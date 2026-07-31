@@ -659,7 +659,11 @@
                   placeholder="Type notes here, then refine with recorded speech if needed."
                 >{{ active_job.summary_notes or active_job.description_text or "" }}</textarea>
               </label>
-              <label class="append-resolution-field">
+              <label
+                class="append-resolution-field"
+                data-append-resolution-field
+                {% if selected_entry_type == "ticket_note" %}hidden{% endif %}
+              >
                 <input type="hidden" name="append_to_resolution" value="false" form="active-ticket-form-{{ active_job.id }}">
                 <input
                   type="checkbox"

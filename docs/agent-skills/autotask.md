@@ -107,8 +107,8 @@ Current provider responsibilities:
   review.
 - Create customer-visible `TicketNotes`.
 - Patch existing submitted `TicketNotes`.
-- Delete existing submitted `TicketNotes` when the local job must return to
-  review.
+- Reject submitted `TicketNotes` deletion because the Autotask REST entity
+  does not support that operation.
 - Return sanitized submission results.
 
 ## Mandatory Connectivity Test
@@ -416,7 +416,6 @@ Required local fields before ticket-note submission:
 - Ticket status.
 - Note title.
 - Note description.
-- Append to resolution.
 
 Direct Work in Progress submission must not bypass these requirements. If a
 required local field is missing, the end-work transaction should roll back and
@@ -467,16 +466,16 @@ older `Remote`, `Remote:`, `Remote -`, and matching On-Site prefixes.
 Ticket `TicketNotes` creation must query the selected `Tickets` row by
 `ticketNumber` to get `ticketID`. The payload must use the local note title as
 `title`, the unprefixed note description as `description`, the configured
-customer-visible publish value, the default ticket-note type value, and the
-local append-to-resolution setting. TicketPilot ticket notes must never be
-internal. Ticket-note submission and submitted-note updates do not require or
-send start time, end time, hours worked, work location, role ID, billing code,
-or time-entry type.
+customer-visible publish value, and the default ticket-note type value.
+TicketPilot ticket notes must never be internal. Ticket-note submission and
+submitted-note updates do not require or send append-to-resolution, start time,
+end time, hours worked, work location, role ID, billing code, or time-entry
+type. Autotask documents `appendToResolution` for `TimeEntries`, but not for
+`TicketNotes`, so the ticket-note payload must omit it.
 
-Both time entries and ticket notes must include the local
-append-to-resolution checkbox value in the Autotask payload. The local setting
-defaults on for newly created jobs and for restored legacy rows that did not
-have the column.
+Time entries must include the local append-to-resolution checkbox value in the
+Autotask payload. The local setting defaults on for newly created jobs and for
+restored legacy rows that did not have the column.
 
 User-scoped live calls must use the owning managed web user's Autotask resource
 ID for local `resourceID` payloads and resource filters. They must not send the
@@ -500,14 +499,16 @@ record actions: time-entry **Submit changes** validates one job date,
 start/end times, summary notes, work location, append-to-resolution, and ticket
 status, then patches the existing Autotask `TimeEntries` row by its stored
 external ID. Ticket-note **Submit changes** validates note title, note
-description, append-to-resolution, and ticket status, then patches the existing
+description and ticket status, then patches the existing
 Autotask `TicketNotes` row by its stored external ID. Both paths reassert the
 selected local ticket status on `Tickets.status`. A previously submitted
 `Complete` ticket may be moved to `In progress` before patching the external
 record, then moved to the selected final status after the record patch when
-needed. **Delete From Autotask** deletes `TimeEntries/{id}` or
-`TicketNotes/{id}` and returns the local job to review only after Autotask
-confirms the delete. If the delete fails, the selected review detail may offer
+needed. **Delete From Autotask** deletes `TimeEntries/{id}` and returns the
+local job to review only after Autotask confirms the delete. Autotask does not
+support deleting `TicketNotes` through this REST entity, so submitted ticket
+notes must not expose or call that action. If a time-entry delete fails, the
+selected review detail may offer
 a session-scoped, local-only purge fallback that removes the TicketPilot row
 while warning that the Autotask record may still exist. If either action fails,
 keep local state aligned with the last known successful Autotask state and

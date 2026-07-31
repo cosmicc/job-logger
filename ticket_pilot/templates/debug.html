@@ -12,7 +12,11 @@
     </div>
 
     {% if app_health_snapshot.degraded %}
-      <section class="diagnostics-health-banner diagnostics-health-banner-{{ app_health_snapshot.severity }}" aria-label="Application health alert">
+      <section
+        id="application-health"
+        class="diagnostics-health-banner diagnostics-health-banner-{{ app_health_snapshot.severity }}"
+        aria-label="Application health alert"
+      >
         <div>
           <h2>{{ app_health_snapshot.status_label }}</h2>
           <p class="muted-text">The checks below are reporting conditions that may need administrator attention.</p>
@@ -25,6 +29,14 @@
             </li>
           {% endfor %}
         </ul>
+        <form method="post" action="/diagnostics/app-health/acknowledge">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          {% if app_health_alert_acknowledged %}
+            <button class="secondary-button" type="button" disabled>Alert acknowledged</button>
+          {% else %}
+            <button class="secondary-button" type="submit">Acknowledge alert</button>
+          {% endif %}
+        </form>
       </section>
     {% endif %}
 

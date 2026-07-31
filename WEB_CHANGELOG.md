@@ -2,6 +2,26 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## 2.0.1 - 07.30.2026 - Review controls, workflow ordering, alerts, and Autotask compatibility
+
+### Added
+
+- Config can stop On-Site service calls from opening directions automatically while keeping the navigation button available.
+- TicketPilot now supports the Autotask **Mfg Trouble Ticket** status.
+- Review can hide submitted entries and show 10, 20, 50, or 100 entries per page.
+- Administrators can acknowledge the current health alert to pause repeated Pushover reminders until the issue changes.
+
+### Changed
+
+- Full-browser Review starts at the top beside the Today, Week, and Unsubmitted cards and now has First and Last page buttons.
+- Complete-status entries wait until every other unsubmitted entry for the same ticket has been sent to Autotask.
+- Text boxes now start entered text on the left.
+
+### Fixed
+
+- Ticket-note create and update requests now use only fields supported by Autotask.
+- Submitted ticket notes no longer show an Autotask delete action that the TicketNotes API does not support.
+
 ## 2.0.0 - 07.26.2026 - TicketPilot rename, themes, workflow, navigation, and reliability
 
 ### Added

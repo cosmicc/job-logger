@@ -232,6 +232,33 @@
               </div>
               <label
                 class="toggle-setting-card{% if selected_navigation_app == 'none' %} is-disabled{% endif %}"
+                data-automatic-onsite-navigation-setting
+              >
+                <span class="toggle-setting-copy">
+                  <strong>Automatically open On-Site directions</strong>
+                  <small>
+                    Turn this off to start On-Site work without opening navigation. You can still use the destination navigation button.
+                  </small>
+                </span>
+                <span class="setting-toggle">
+                  <input
+                    type="checkbox"
+                    name="automatically_open_onsite_navigation"
+                    value="true"
+                    data-automatic-onsite-navigation-option
+                    {% if automatically_open_onsite_navigation %}checked{% endif %}
+                    {% if selected_navigation_app == "none" %}disabled{% endif %}
+                  >
+                  <span class="setting-toggle-track" aria-hidden="true">
+                    <span class="setting-toggle-knob"></span>
+                  </span>
+                  <span class="setting-toggle-state" data-automatic-onsite-navigation-state>
+                    {% if automatically_open_onsite_navigation %}On{% else %}Off{% endif %}
+                  </span>
+                </span>
+              </label>
+              <label
+                class="toggle-setting-card{% if selected_navigation_app == 'none' %} is-disabled{% endif %}"
                 data-full-web-navigation-setting
               >
                 <span class="toggle-setting-copy">

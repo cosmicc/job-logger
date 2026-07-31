@@ -56,8 +56,10 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert "Apple Maps" in config_response.text
     assert "Allow navigation on full web version" in config_response.text
     assert "Hide Home and Office navigation buttons" in config_response.text
+    assert "Automatically open On-Site directions" in config_response.text
     assert re.search(r'name="allow_navigation_on_full_web"[^>]+disabled', config_response.text)
     assert re.search(r'name="hide_home_office_navigation_buttons"[^>]+disabled', config_response.text)
+    assert re.search(r'name="automatically_open_onsite_navigation"[^>]+disabled', config_response.text)
     assert "submits the completed entry to Autotask immediately" in config_response.text
     assert "data-direct-submit-option" in config_response.text
     assert "data-direct-submit-state" in config_response.text
@@ -303,6 +305,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
             "office_address": "",
             "allow_navigation_on_full_web": "true",
             "hide_home_office_navigation_buttons": "false",
+            "automatically_open_onsite_navigation": "false",
         },
     )
     assert missing_home_response.status_code == 400
@@ -318,6 +321,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
             "office_address": "20 Office Avenue, Detroit, MI 48202",
             "allow_navigation_on_full_web": "true",
             "hide_home_office_navigation_buttons": "false",
+            "automatically_open_onsite_navigation": "false",
         },
     )
     assert save_response.status_code == 200
@@ -326,6 +330,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
     assert save_response.json()["office_address_override_configured"] is True
     assert save_response.json()["allow_navigation_on_full_web"] is True
     assert save_response.json()["hide_home_office_navigation_buttons"] is False
+    assert save_response.json()["automatically_open_onsite_navigation"] is False
 
     home_response = authenticated_client.get("/work")
     assert 'data-navigation-app="waze"' in home_response.text
@@ -340,6 +345,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
         assert preference.home_address == "10 Home Road Detroit, MI 48201"
         assert preference.allow_navigation_on_full_web is True
         assert preference.hide_home_office_navigation_buttons is False
+        assert preference.automatically_open_onsite_navigation is False
         audit_event = database_session.scalars(
             select(AuditEvent).where(AuditEvent.action == "user.config.updated").order_by(AuditEvent.created_at_utc.desc())
         ).first()
@@ -347,6 +353,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
         assert audit_event.details["home_address_configured"] is True
         assert audit_event.details["allow_navigation_on_full_web"] is True
         assert audit_event.details["hide_home_office_navigation_buttons"] is False
+        assert audit_event.details["automatically_open_onsite_navigation"] is False
         assert "10 Home Road" not in str(audit_event.details)
         assert "20 Office Avenue" not in str(audit_event.details)
 
@@ -403,6 +410,29 @@ def test_navigation_office_address_loads_bounded_single_line_value(monkeypatch: 
     monkeypatch.setenv("NAVIGATION_OFFICE_ADDRESS", "x" * 301)
     with pytest.raises(ValueError, match="NAVIGATION_OFFICE_ADDRESS"):
         load_settings()
+
+
+def test_mfg_trouble_ticket_status_is_configurable_and_rendered(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The tenant-specific Mfg Trouble Ticket status should work end to end."""
+
+    monkeypatch.setenv("AUTOTASK_STATUS_MFG_TROUBLE_TICKET_ID", "42")
+    loaded_settings = load_settings()
+    assert loaded_settings.autotask_status_id_map["mfg_trouble_ticket"] == 42
+    work_response = authenticated_client.get("/work")
+    csrf_token = extract_csrf_token(work_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+    assert (
+        '<option value="mfg_trouble_ticket"'
+        in authenticated_client.get("/work").text
+    )
 
 
 def test_dev_build_flag_uses_strict_boolean_environment_value(monkeypatch) -> None:

@@ -817,6 +817,7 @@ def test_app_health_snapshot_includes_active_login_lockout(super_admin_client: T
 def test_app_health_pushover_notifications_repeat_hourly_until_restore(monkeypatch) -> None:
     """Pushover should repeat unresolved health alerts and announce recovery."""
 
+    app_health_monitor.clear_health_acknowledgement()
     sent_notifications: list[tuple[str, str, int]] = []
 
     def fake_send(title: str, message: str, *, priority: int, application_settings) -> bool:
@@ -896,6 +897,116 @@ def test_app_health_pushover_notifications_repeat_hourly_until_restore(monkeypat
     assert sent_notifications[2][2] == 1
     assert "Database unavailable" in sent_notifications[2][1]
     assert "passing again" in sent_notifications[3][1]
+
+
+def test_acknowledged_health_alert_suppresses_reminders_until_issue_changes(monkeypatch) -> None:
+    """An acknowledgement should pause repeats only for the exact active issue set."""
+
+    app_health_monitor.clear_health_acknowledgement()
+    sent_notifications: list[str] = []
+
+    def fake_send(title: str, message: str, *, priority: int, application_settings) -> bool:
+        del message, priority, application_settings
+        sent_notifications.append(title)
+        return True
+
+    monkeypatch.setattr(app_health_monitor, "send_pushover_notification", fake_send)
+    state = app_health_monitor.HealthNotificationState()
+    warning_snapshot = system_health.AppHealthSnapshot(
+        issues=(
+            system_health.AppHealthIssue(
+                code="disk-space",
+                label="Disk space nearing full",
+                severity="warning",
+                summary="Disk space nearing full.",
+            ),
+        )
+    )
+    changed_snapshot = system_health.AppHealthSnapshot(
+        issues=(
+            system_health.AppHealthIssue(
+                code="database-status",
+                label="Database unavailable",
+                severity="critical",
+                summary="Database unavailable.",
+            ),
+        )
+    )
+    notification_settings = replace(
+        settings,
+        pushover_enabled=True,
+        pushover_user_key="user-key",
+        pushover_app_key="app-key",
+        pushover_reminder_interval_seconds=1,
+    )
+
+    assert app_health_monitor.notify_if_health_changed(
+        warning_snapshot,
+        state,
+        application_settings=notification_settings,
+        observed_at=100,
+    ) == "degraded"
+    app_health_monitor.acknowledge_health_snapshot(warning_snapshot)
+    assert app_health_monitor.notify_if_health_changed(
+        warning_snapshot,
+        state,
+        application_settings=notification_settings,
+        observed_at=200,
+    ) is None
+    assert app_health_monitor.notify_if_health_changed(
+        changed_snapshot,
+        state,
+        application_settings=notification_settings,
+        observed_at=201,
+    ) == "changed"
+    assert sent_notifications == [
+        "TicketPilot health degraded",
+        "TicketPilot health changed",
+    ]
+
+
+def test_diagnostics_admin_can_acknowledge_current_health_alert(
+    super_admin_client: TestClient,
+    monkeypatch,
+) -> None:
+    """Diagnostics should expose a CSRF-protected global acknowledgement action."""
+
+    warning_snapshot = system_health.AppHealthSnapshot(
+        issues=(
+            system_health.AppHealthIssue(
+                code="disk-space",
+                label="Disk space nearing full",
+                severity="warning",
+                summary="Disk space nearing full.",
+            ),
+        )
+    )
+    monkeypatch.setattr(debug_routes, "collect_app_health_snapshot", lambda **_kwargs: warning_snapshot)
+
+    diagnostics_response = super_admin_client.get("/diagnostics")
+    assert diagnostics_response.status_code == 200
+    assert "Acknowledge alert" in diagnostics_response.text
+    csrf_token = extract_csrf_token(diagnostics_response.text)
+    acknowledge_response = super_admin_client.post(
+        "/diagnostics/app-health/acknowledge",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert acknowledge_response.status_code == 303
+    assert app_health_monitor.health_snapshot_is_acknowledged(warning_snapshot) is True
+
+    acknowledged_page = super_admin_client.get("/diagnostics")
+    assert "Alert acknowledged" in acknowledged_page.text
+    with database.SessionLocal() as database_session:
+        audit_event = database_session.scalars(
+            select(AuditEvent)
+            .where(AuditEvent.action == "diagnostics.health_alert.acknowledged")
+            .order_by(AuditEvent.created_at_utc.desc())
+        ).first()
+        assert audit_event is not None
+        assert audit_event.details["issue_fingerprint"] == [
+            {"code": "disk-space", "severity": "warning"}
+        ]
 
 
 def test_pushover_notifications_do_not_send_in_dev_build(monkeypatch) -> None:
@@ -2222,10 +2333,16 @@ def test_debug_restore_normalizes_legacy_theme_and_defaults_missing_preferences(
         row.pop("submit_from_work_in_progress", None)
         row.pop("allow_navigation_on_full_web", None)
         row.pop("hide_home_office_navigation_buttons", None)
+        row.pop("automatically_open_onsite_navigation", None)
+        row.pop("review_hide_submitted_entries", None)
+        row.pop("review_page_size", None)
     payload["schema"]["user_preferences"].remove("highlight_color")
     payload["schema"]["user_preferences"].remove("submit_from_work_in_progress")
     payload["schema"]["user_preferences"].remove("allow_navigation_on_full_web")
     payload["schema"]["user_preferences"].remove("hide_home_office_navigation_buttons")
+    payload["schema"]["user_preferences"].remove("automatically_open_onsite_navigation")
+    payload["schema"]["user_preferences"].remove("review_hide_submitted_entries")
+    payload["schema"]["user_preferences"].remove("review_page_size")
     legacy_backup_content = gzip.compress(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8"),
         mtime=0,
@@ -2257,6 +2374,9 @@ def test_debug_restore_normalizes_legacy_theme_and_defaults_missing_preferences(
         assert restored_preference.submit_from_work_in_progress is False
         assert restored_preference.allow_navigation_on_full_web is False
         assert restored_preference.hide_home_office_navigation_buttons is False
+        assert restored_preference.automatically_open_onsite_navigation is True
+        assert restored_preference.review_hide_submitted_entries is False
+        assert restored_preference.review_page_size is None
 
 
 def test_debug_restore_defaults_missing_web_session_invalidation_column(

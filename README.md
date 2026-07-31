@@ -593,6 +593,9 @@ and Office navigation buttons** option removes only those two quick buttons;
 ticket and service-call destination navigation remains available. Starting a verified On-Site service
 call opens directions only after the local job commits; Remote service calls
 never launch directions automatically.
+The default-on **Automatically open On-Site directions** preference can be
+turned off to start On-Site work without opening a map. The destination
+navigation button remains available.
 
 Set `NAVIGATION_OFFICE_ADDRESS` to provide the optional deployment-wide Office
 destination. A user may save a private office override, or leave it blank to
@@ -712,7 +715,7 @@ Set these passkey variables for production when needed:
 
 TicketPilot uses source-controlled semantic versioning. The runtime version is
 defined in `ticket_pilot/version.py`, mirrored in `pyproject.toml` and the root
-`VERSION` file, and is currently `v2.0.0`. Version history starts at `v1.0.0`.
+`VERSION` file, and is currently `v2.0.1`. Version history starts at `v1.0.0`.
 
 Authenticated pages show a Help button in the shared header. `/help` starts
 with **Ask AI for help**, shows **Operational Status**, then shows the current
@@ -736,7 +739,7 @@ changelog views use the same authenticated session, shared theme variables,
 and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the authenticated Help button is yellow
 on desktop and phone layouts, and `/help` shows the current version with `DEV`,
-such as `v2.0.0 DEV`.
+such as `v2.0.1 DEV`.
 
 ## Provider Modes
 
@@ -1052,6 +1055,7 @@ to update ticket workflow status. Configure all status IDs:
 - `AUTOTASK_STATUS_IN_PROGRESS_ID`
 - `AUTOTASK_STATUS_WAITING_CUSTOMER_ID`
 - `AUTOTASK_STATUS_WAITING_PARTS_ID`
+- `AUTOTASK_STATUS_MFG_TROUBLE_TICKET_ID`
 - `AUTOTASK_STATUS_FOLLOW_UP_ID`
 - `AUTOTASK_STATUS_COMPLETE_ID`
 
@@ -1060,6 +1064,10 @@ endpoint for status changes; they only default the local editable ticket status
 to `In progress`. Autotask ticket status writes wait until the complete time
 entry or ticket note is submitted, or until an already submitted record is
 explicitly edited.
+When a local entry selects **Complete**, TicketPilot checks every user's local
+records for another Active, Ready for Review, or Submission Failed time entry
+or ticket note with the same ticket number. Those entries must submit first so
+the Complete status always reaches Autotask last.
 
 Managed web users can enable **Submit from Work in Progress** on `/config`.
 This option is not a general workflow enable/disable setting. It only controls
@@ -1242,11 +1250,12 @@ Each Work in Progress card can switch between **Time entry** and **Ticket note**
 before Autotask submission. Ticket note mode changes **Job date** to **Note
 Date**, hides the start/end time controls while remembering their values, hides
 the duration, keeps Work type visible as a disabled greyed-out Remote/On-Site
-card, shows a centered required note-title field above the note description,
+card, shows a left-aligned required note-title field above the note description,
 and changes the finish/delete labels to note wording. Shared switch pills use
 green for Time entry or Remote selections and orange for Ticket note or On-Site
-selections. Both time entries and notes include an
-**Append to resolution** checkbox, checked by default.
+selections. Time entries include an **Append to resolution** checkbox, checked
+by default. Ticket notes hide that control because Autotask TicketNotes does not
+support the field.
 In active mobile Work in Progress cards, **End Work**, **End Note**, or the
 direct-submit variant shares a row with the destructive delete action to keep
 the active-card controls compact, with save, recording, and AI Cleanup status
@@ -1263,8 +1272,8 @@ review detail allows job date, start time, end time, summary notes, work
 location, append-to-resolution, and ticket status edits for time entries
 through **Submit changes**, which patches the existing `TimeEntries` row
 instead of creating a duplicate entry. For ticket notes, **Submit changes**
-updates the existing `TicketNotes` row with note title, note description,
-append-to-resolution, and ticket status. **Submit changes** also patches
+updates the existing `TicketNotes` row with note title, note description, and
+ticket status. **Submit changes** also patches
 `Tickets.status` to match the selected TicketPilot status, including temporarily
 moving a previously `Complete` ticket to `In progress` before the external
 record patch when Autotask requires that sequence. Phone-sized workflow cards
@@ -1273,9 +1282,11 @@ Ticket status, Job date, Start time, End time, then duration. The selected
 Review detail then shows Ticket number and its ticket-history buttons before
 Ticket description. The selected detail keeps the external Autotask record ID
 hidden because it is only needed internally for updates and deletion.
-The same submitted detail also has **Delete From Autotask**, which deletes the
-existing Autotask record and returns the local job to review without
-removing the local job record. If Autotask refuses the delete, the job remains
+Submitted time-entry detail also has **Delete From Autotask**, which deletes
+the existing `TimeEntries` record and returns the local job to review without
+removing the local job record. Submitted ticket notes show an unsupported-delete
+notice because Autotask does not support deleting TicketNotes through this REST
+entity. If Autotask refuses a time-entry delete, the job remains
 submitted and the safe failure message is shown in review. The selected detail
 then shows a dialog that can purge the local TicketPilot review entry only; that
 fallback warns that the Autotask record may still exist.
@@ -1431,6 +1442,10 @@ all monitored checks are restored. Enable this with
 `PUSHOVER_ENABLED=true`, `PUSHOVER_USER_KEY`, and `PUSHOVER_APP_KEY`.
 `PUSHOVER_REMINDER_INTERVAL_SECONDS` controls the repeat interval and defaults
 to `3600`.
+Diagnostics-authorized administrators can acknowledge the exact current health
+alert to pause unchanged reminders until the issue set changes or recovers.
+This acknowledgement is shared by the running app process and resets after an
+app restart.
 When `DEV_BUILD=true`, TicketPilot suppresses Pushover notifications regardless
 of `PUSHOVER_ENABLED` so dev/test deployments do not alert as production.
 The monitor runs inside the app process at
@@ -1533,8 +1548,11 @@ Work shows centered compact boxed total time-entry hours worked today and this
 week.
 Review starts directly below navigation with Today, Week, and Unsubmitted
 metric cards and no redundant page heading. On phones all three cards fit on
-one row with abbreviated durations; full-browser cards retain complete labels.
-Review lists jobs newest-first, 10 rows per page, and includes day-hours and
+one row with abbreviated durations; full-browser cards retain complete labels
+and align with the top of the job list. Review lists jobs newest-first, adds
+First and Last navigation, can hide submitted entries, and offers 10, 20, 50,
+or 100 rows per page. The first-use default is 20 on full web and 10 on mobile.
+Each choice persists per user. The list includes day-hours and
 week-hours columns for each job owner/date. Unsubmitted counts time entries in
 Active, Ready for Review, or Submission Failed status. Managed users see their
 own count, while the config super admin sees the all-owner review scope. Ticket

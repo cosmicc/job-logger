@@ -12,31 +12,60 @@
   </div>
 
   <section class="review-shell">
-    {% if today_work_hours_label or week_work_hours_label %}
-      <div class="review-hours-summary-row" aria-label="Time-entry hours worked">
-        <div class="review-hours-summary" aria-label="Hours worked today">
-          <span class="metric-label">Today</span>
-          <strong class="review-hours-full-value">{{ today_work_hours_label }}</strong>
-          <strong class="review-hours-compact-value" aria-label="{{ today_work_hours_label }}">
-            {{ today_work_hours_compact_label }}
-          </strong>
-        </div>
-        <div class="review-hours-summary" aria-label="Hours worked this week">
-          <span class="metric-label">Week</span>
-          <strong class="review-hours-full-value">{{ week_work_hours_label }}</strong>
-          <strong class="review-hours-compact-value" aria-label="{{ week_work_hours_label }}">
-            {{ week_work_hours_compact_label }}
-          </strong>
-        </div>
-        <div class="review-hours-summary" aria-label="Time entries not submitted to Autotask">
-          <span class="metric-label">Unsubmitted</span>
-          <strong>{{ unsubmitted_time_entry_count }}</strong>
-        </div>
-      </div>
-    {% endif %}
-
     <div class="review-layout">
+      {% if today_work_hours_label or week_work_hours_label %}
+        <div class="review-hours-summary-row" aria-label="Time-entry hours worked">
+          <div class="review-hours-summary" aria-label="Hours worked today">
+            <span class="metric-label">Today</span>
+            <strong class="review-hours-full-value">{{ today_work_hours_label }}</strong>
+            <strong class="review-hours-compact-value" aria-label="{{ today_work_hours_label }}">
+              {{ today_work_hours_compact_label }}
+            </strong>
+          </div>
+          <div class="review-hours-summary" aria-label="Hours worked this week">
+            <span class="metric-label">Week</span>
+            <strong class="review-hours-full-value">{{ week_work_hours_label }}</strong>
+            <strong class="review-hours-compact-value" aria-label="{{ week_work_hours_label }}">
+              {{ week_work_hours_compact_label }}
+            </strong>
+          </div>
+          <div class="review-hours-summary" aria-label="Time entries not submitted to Autotask">
+            <span class="metric-label">Unsubmitted</span>
+            <strong>{{ unsubmitted_time_entry_count }}</strong>
+          </div>
+        </div>
+      {% endif %}
+
       <section class="table-panel" aria-label="Recorded jobs">
+        <form
+          method="post"
+          action="/review/preferences"
+          class="review-list-controls"
+          data-review-list-preferences
+          data-review-page-size-explicit="{{ 'true' if review_page_size_explicit else 'false' }}"
+        >
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="hide_submitted_entries" value="false">
+          <label class="review-hide-submitted-control">
+            <input
+              type="checkbox"
+              name="hide_submitted_entries"
+              value="true"
+              {% if hide_submitted_entries %}checked{% endif %}
+            >
+            <span>Hide submitted entries</span>
+          </label>
+          <label class="review-page-size-control">
+            <span>Show</span>
+            <select name="page_size" aria-label="Entries shown per page">
+              {% for page_size_option in review_page_size_options %}
+                <option value="{{ page_size_option }}" {% if pagination.per_page == page_size_option %}selected{% endif %}>
+                  {{ page_size_option }}
+                </option>
+              {% endfor %}
+            </select>
+          </label>
+        </form>
         <div class="table-wrap">
           <table class="review-table">
             <thead>
@@ -111,8 +140,10 @@
         {% if pagination and pagination.total_jobs > pagination.per_page %}
           <nav class="review-pagination" aria-label="Review job pages">
             {% if pagination.has_previous %}
+              <a class="secondary-button" href="/review?page={{ pagination.first_page }}">First</a>
               <a class="secondary-button" href="/review?page={{ pagination.previous_page }}">Previous</a>
             {% else %}
+              <span class="secondary-button disabled-button" aria-disabled="true">First</span>
               <span class="secondary-button disabled-button" aria-disabled="true">Previous</span>
             {% endif %}
             <span class="review-pagination-status">
@@ -120,8 +151,10 @@
             </span>
             {% if pagination.has_next %}
               <a class="secondary-button" href="/review?page={{ pagination.next_page }}">Next</a>
+              <a class="secondary-button" href="/review?page={{ pagination.last_page }}">Last</a>
             {% else %}
               <span class="secondary-button disabled-button" aria-disabled="true">Next</span>
+              <span class="secondary-button disabled-button" aria-disabled="true">Last</span>
             {% endif %}
           </nav>
         {% endif %}
@@ -169,7 +202,7 @@
                 <span>
                   {% if can_modify_selected_job %}
                     {% if is_ticket_note %}
-                      Note title, note description, append-to-resolution, and ticket status can be updated with Submit changes.
+                      Note title, note description, and ticket status can be updated with Submit changes.
                     {% else %}
                       Date, start time, end time, summary notes, work type, append-to-resolution, and ticket status can be updated with Submit changes.
                     {% endif %}
@@ -584,7 +617,11 @@
               <span class="centered-field-label" data-review-summary-label>{% if is_ticket_note %}Note description{% else %}Summary notes{% endif %}</span>
               <textarea name="summary_notes" rows="8" data-review-summary-textarea>{{ selected_job_autotask_summary_notes }}</textarea>
             </label>
-            <label class="append-resolution-field review-append-resolution-field">
+            <label
+              class="append-resolution-field review-append-resolution-field"
+              data-review-append-resolution-field
+              {% if is_ticket_note %}hidden{% endif %}
+            >
               <input type="hidden" name="append_to_resolution" value="false">
               <input
                 type="checkbox"
@@ -652,27 +689,34 @@
                     </svg>
                     Submit changes
                   </button>
-                  <form
-                    method="post"
-                    action="/review/{{ selected_job.id }}/delete-entry"
-                    class="submitted-entry-delete-form review-inline-action-form"
-                    data-review-task-form
-                    data-review-loading-message="{% if is_ticket_note %}Deleting Autotask ticket note...{% else %}Deleting Autotask time entry...{% endif %}"
-                    data-confirm-message="{% if is_ticket_note %}This will delete the existing Autotask ticket note and return this job to review. Continue?{% else %}This will delete the existing Autotask time entry and return this job to review. Continue?{% endif %}"
-                  >
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button class="danger-outline-button" type="submit">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M3 6h18"></path>
-                        <path d="M8 6V4h8v2"></path>
-                        <path d="M10 11v6"></path>
-                        <path d="M14 11v6"></path>
-                        <path d="M9 10h6"></path>
-                      </svg>
-                      Delete From Autotask
-                    </button>
-                  </form>
+                  {% if not is_ticket_note %}
+                    <form
+                      method="post"
+                      action="/review/{{ selected_job.id }}/delete-entry"
+                      class="submitted-entry-delete-form review-inline-action-form"
+                      data-review-task-form
+                      data-review-loading-message="Deleting Autotask time entry..."
+                      data-confirm-message="This will delete the existing Autotask time entry and return this job to review. Continue?"
+                    >
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <button class="danger-outline-button" type="submit">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M3 6h18"></path>
+                          <path d="M8 6V4h8v2"></path>
+                          <path d="M10 11v6"></path>
+                          <path d="M14 11v6"></path>
+                          <path d="M9 10h6"></path>
+                        </svg>
+                        Delete From Autotask
+                      </button>
+                    </form>
+                  {% endif %}
                 </div>
+                {% if is_ticket_note %}
+                  <p class="muted-text review-ticket-note-delete-notice">
+                    Autotask does not support deleting submitted ticket notes through its REST API.
+                  </p>
+                {% endif %}
                 {% if show_delete_failure_purge_prompt %}
                   <dialog class="submitted-delete-fallback-dialog" data-submitted-delete-fallback-dialog>
                     <div class="submitted-delete-fallback-content">

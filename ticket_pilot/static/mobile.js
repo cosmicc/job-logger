@@ -402,6 +402,11 @@ function syncActiveEntryMode(activeJobCard) {
     noteTitleInput.required = isTicketNote;
   }
 
+  const appendResolutionField = activeJobCard.querySelector("[data-append-resolution-field]");
+  if (appendResolutionField) {
+    appendResolutionField.hidden = isTicketNote;
+  }
+
   const summaryLabel = activeJobCard.querySelector("[data-summary-label]");
   if (summaryLabel) {
     summaryLabel.textContent = isTicketNote ? "Note description" : "Summary notes";

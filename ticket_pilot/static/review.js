@@ -23,6 +23,7 @@ const reviewCompanyInputs = document.querySelectorAll("[data-review-company-inpu
 const confirmationForms = document.querySelectorAll("[data-confirm-message]");
 const reviewTaskForms = document.querySelectorAll("[data-review-task-form]");
 const submittedDeleteFallbackDialog = document.querySelector("[data-submitted-delete-fallback-dialog]");
+const reviewListPreferencesForm = document.querySelector("[data-review-list-preferences]");
 const reviewPageLoadingOverlay = document.querySelector("[data-review-page-loading]");
 const reviewPageLoadingMessage = document.querySelector("[data-review-page-loading-message]");
 const reviewEntryTypeInputs = document.querySelectorAll("[data-review-entry-type-input]");
@@ -758,6 +759,11 @@ function syncReviewEntryMode({syncSummaryPrefix = false} = {}) {
   if (reviewNoteTitleInput) {
     reviewNoteTitleInput.disabled = !isTicketNote;
     reviewNoteTitleInput.required = isTicketNote;
+  }
+
+  const appendResolutionField = document.querySelector("[data-review-append-resolution-field]");
+  if (appendResolutionField) {
+    appendResolutionField.hidden = isTicketNote;
   }
 
   const summaryLabel = document.querySelector("[data-review-summary-label]");
@@ -1869,6 +1875,29 @@ if (confirmationForms.length > 0) {
 
 if (reviewTaskForms.length > 0) {
   document.addEventListener("submit", handleReviewTaskFormSubmit);
+}
+
+if (reviewListPreferencesForm) {
+  const pageSizeInput = reviewListPreferencesForm.querySelector('select[name="page_size"]');
+  const hideSubmittedInput = reviewListPreferencesForm.querySelector(
+    'input[type="checkbox"][name="hide_submitted_entries"]',
+  );
+  const hasExplicitPageSize = reviewListPreferencesForm.dataset.reviewPageSizeExplicit === "true";
+  const navigationApi = window.TicketPilotNavigation;
+  if (
+    pageSizeInput
+    && !hasExplicitPageSize
+    && navigationApi
+    && typeof navigationApi.isMobileDevice === "function"
+  ) {
+    const deviceDefaultPageSize = navigationApi.isMobileDevice() ? "10" : "20";
+    if (pageSizeInput.value !== deviceDefaultPageSize) {
+      pageSizeInput.value = deviceDefaultPageSize;
+      reviewListPreferencesForm.requestSubmit();
+    }
+  }
+  pageSizeInput?.addEventListener("change", () => reviewListPreferencesForm.requestSubmit());
+  hideSubmittedInput?.addEventListener("change", () => reviewListPreferencesForm.requestSubmit());
 }
 
 showSubmittedDeleteFallbackDialog();

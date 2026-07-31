@@ -15,11 +15,16 @@ from starlette.websockets import WebSocketDisconnect
 from tests.conftest import extract_csrf_token, login_as_super_admin
 from ticket_pilot import database, ui
 from ticket_pilot.enums import EntryType, JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
-from ticket_pilot.models import AuditEvent, Job, SubmissionAttempt, WebUser
+from ticket_pilot.models import AuditEvent, Job, SubmissionAttempt, UserPreference, WebUser
 from ticket_pilot.services import system_health
 from ticket_pilot.services.ai_cleanup import AiCleanupResult
 from ticket_pilot.services.autotask import AutotaskSubmissionResult
-from ticket_pilot.services.jobs import count_unsubmitted_time_entries, get_active_job
+from ticket_pilot.services.jobs import (
+    JobWorkflowError,
+    count_unsubmitted_time_entries,
+    get_active_job,
+    submit_job_to_autotask,
+)
 from ticket_pilot.time_utils import format_local_time, local_date_for, round_start_for_technician
 from ticket_pilot.version import APP_VERSION
 
@@ -590,11 +595,11 @@ def test_ticket_note_can_be_submitted_from_review_without_time_fields(authentica
         assert attempt.request_snapshot["entry_type"] == "ticket_note"
         assert attempt.request_snapshot["noteTitleLength"] == len("Customer-facing update")
         assert attempt.request_snapshot["noteDescriptionLength"] == len("The customer can see this note.")
-        assert attempt.request_snapshot["appendToResolution"] is True
+        assert "appendToResolution" not in attempt.request_snapshot
 
 
-def test_submitted_ticket_note_can_be_updated_and_deleted(authenticated_client: TestClient) -> None:
-    """Submitted ticket notes should update and delete the existing Autotask note ID."""
+def test_submitted_ticket_note_can_be_updated_but_not_deleted(authenticated_client: TestClient) -> None:
+    """Submitted ticket notes should update while the unsupported delete stays blocked."""
 
     mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -677,7 +682,7 @@ def test_submitted_ticket_note_can_be_updated_and_deleted(authenticated_client: 
         assert job.append_to_resolution is False
         attempts = database_session.query(SubmissionAttempt).filter_by(job_id=active_job_id).all()
         assert attempts[-1].request_snapshot["operation"] == "update_ticket_note"
-        assert attempts[-1].request_snapshot["appendToResolution"] is False
+        assert "appendToResolution" not in attempts[-1].request_snapshot
 
     delete_response = authenticated_client.post(
         f"/review/{active_job_id}/delete-entry",
@@ -685,14 +690,16 @@ def test_submitted_ticket_note_can_be_updated_and_deleted(authenticated_client: 
         follow_redirects=False,
     )
     assert delete_response.status_code == 303
+    delete_result_page = authenticated_client.get(f"/review/{active_job_id}")
+    assert "Autotask does not support deleting submitted ticket notes" in delete_result_page.text
 
     with database.SessionLocal() as database_session:
         job = database_session.get(Job, active_job_id)
         assert job is not None
-        assert job.status == JobStatus.READY_FOR_REVIEW
-        assert job.autotask_external_id is None
+        assert job.status == JobStatus.SUBMITTED
+        assert job.autotask_external_id is not None
         attempts = database_session.query(SubmissionAttempt).filter_by(job_id=active_job_id).all()
-        assert attempts[-1].request_snapshot["operation"] == "delete_ticket_note"
+        assert attempts[-1].request_snapshot["operation"] == "update_ticket_note"
 
 
 def test_direct_work_in_progress_ticket_note_submit(authenticated_client: TestClient) -> None:
@@ -4156,6 +4163,46 @@ def test_onsite_service_call_starts_before_returning_navigation_destination(
     }
 
 
+def test_onsite_service_call_can_start_without_automatically_opening_navigation(
+    authenticated_client: TestClient,
+) -> None:
+    """The per-user navigation toggle should preserve manual destination navigation."""
+
+    config_response = authenticated_client.get("/config")
+    csrf_token = extract_csrf_token(config_response.text)
+    navigation_response = authenticated_client.post(
+        "/config",
+        headers={"Accept": "application/json", "X-CSRF-Token": csrf_token},
+        data={
+            "csrf_token": csrf_token,
+            "navigation_app": "waze",
+            "home_address": "10 Home Road, Detroit, MI 48201",
+            "office_address": "",
+            "automatically_open_onsite_navigation": "false",
+        },
+    )
+    assert navigation_response.status_code == 200
+    assert navigation_response.json()["automatically_open_onsite_navigation"] is False
+
+    start_response = authenticated_client.post(
+        "/jobs/start/service-call",
+        headers={"Accept": "application/json"},
+        data={
+            "csrf_token": csrf_token,
+            "service_call_ticket_id": "6101",
+            "service_call_date": "2026-06-20",
+        },
+    )
+    assert start_response.status_code == 200
+    assert start_response.json()["navigation_requested"] is False
+    assert start_response.json()["navigation_address"] is None
+
+    active_job_id = start_response.json()["job_id"]
+    destination_response = authenticated_client.get(f"/review/{active_job_id}/navigation")
+    assert destination_response.status_code == 200
+    assert destination_response.json()["available"] is True
+
+
 def test_remote_service_call_does_not_request_automatic_navigation(
     authenticated_client: TestClient,
 ) -> None:
@@ -4381,6 +4428,8 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
     assert "Day hours" in first_page_html
     assert "Week hours" in first_page_html
     assert "Page 1 of 2" in first_page_html
+    assert ">First<" in first_page_html
+    assert ">Last<" in first_page_html
     assert "5.5 Hours" in first_page_html
     assert "7.5 Hours" not in first_page_html
     assert created_ticket_numbers[0] in first_page_html
@@ -4451,6 +4500,144 @@ def test_review_job_list_paginates_newest_first_with_hour_totals(
         "    margin-left: auto;\n"
         "  }"
     ) in desktop_stylesheet
+
+
+def test_review_preferences_persist_page_size_and_hide_submitted_entries(
+    authenticated_client: TestClient,
+) -> None:
+    """Review controls should persist per user and filter only submitted rows."""
+
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        now = datetime(2026, 7, 30, 14, 0, tzinfo=UTC)
+        database_session.add_all(
+            [
+                Job(
+                    status=JobStatus.READY_FOR_REVIEW,
+                    web_user_id=user.id,
+                    ticket_number="T20260730.0001",
+                    ticket_status=TicketStatus.IN_PROGRESS,
+                    entry_type=EntryType.TIME_ENTRY,
+                    summary_notes="Still needs submission.",
+                    description_text="Still needs submission.",
+                    work_location=WorkLocation.REMOTE,
+                    raw_start_utc=now,
+                    raw_end_utc=now + timedelta(minutes=30),
+                    rounded_start_utc=now,
+                    rounded_end_utc=now + timedelta(minutes=30),
+                    local_work_date=local_date_for(now),
+                    idempotency_key="review-preference-ready",
+                ),
+                Job(
+                    status=JobStatus.SUBMITTED,
+                    web_user_id=user.id,
+                    ticket_number="T20260730.0002",
+                    ticket_status=TicketStatus.IN_PROGRESS,
+                    entry_type=EntryType.TIME_ENTRY,
+                    summary_notes="Already submitted.",
+                    description_text="Already submitted.",
+                    work_location=WorkLocation.REMOTE,
+                    raw_start_utc=now,
+                    raw_end_utc=now + timedelta(minutes=30),
+                    rounded_start_utc=now,
+                    rounded_end_utc=now + timedelta(minutes=30),
+                    local_work_date=local_date_for(now),
+                    autotask_external_id="submitted-review-preference",
+                    idempotency_key="review-preference-submitted",
+                ),
+            ]
+        )
+        database_session.commit()
+
+    review_response = authenticated_client.get("/review")
+    csrf_token = extract_csrf_token(review_response.text)
+    save_response = authenticated_client.post(
+        "/review/preferences",
+        data={
+            "csrf_token": csrf_token,
+            "hide_submitted_entries": "true",
+            "page_size": "20",
+        },
+        follow_redirects=False,
+    )
+    assert save_response.status_code == 303
+
+    filtered_response = authenticated_client.get("/review")
+    assert "T20260730.0001" in filtered_response.text
+    assert "T20260730.0002" not in filtered_response.text
+    assert 'data-review-page-size-explicit="true"' in filtered_response.text
+    assert re.search(r'<option value="20" selected>', filtered_response.text)
+
+    with database.SessionLocal() as database_session:
+        preference = database_session.scalar(
+            select(UserPreference).where(UserPreference.principal_key.like("web_user:%"))
+        )
+        assert preference is not None
+        assert preference.review_hide_submitted_entries is True
+        assert preference.review_page_size == 20
+
+
+def test_complete_entry_submits_after_other_ticket_entries_across_users(
+    authenticated_client: TestClient,
+) -> None:
+    """Complete should remain blocked until every other local ticket entry submits."""
+
+    del authenticated_client
+    start_time = datetime(2026, 7, 30, 13, 0, tzinfo=UTC)
+    with database.SessionLocal() as database_session:
+        user = database_session.scalar(select(WebUser).where(WebUser.username == "tech"))
+        assert user is not None
+        other_user = WebUser(
+            full_name="Other Technician",
+            username="other-tech",
+            username_normalized="other-tech",
+            password_hash="not-used",
+            autotask_resource_id=2,
+        )
+        database_session.add(other_user)
+        database_session.flush()
+        complete_entry = Job(
+            status=JobStatus.READY_FOR_REVIEW,
+            web_user_id=user.id,
+            ticket_number=" t20260730.0099 ",
+            ticket_status=TicketStatus.COMPLETE,
+            entry_type=EntryType.TIME_ENTRY,
+            summary_notes="Final completion work.",
+            description_text="Final completion work.",
+            work_location=WorkLocation.REMOTE,
+            raw_start_utc=start_time,
+            raw_end_utc=start_time + timedelta(minutes=30),
+            rounded_start_utc=start_time,
+            rounded_end_utc=start_time + timedelta(minutes=30),
+            local_work_date=local_date_for(start_time),
+            idempotency_key="complete-submits-last",
+        )
+        earlier_note = Job(
+            status=JobStatus.SUBMISSION_FAILED,
+            web_user_id=other_user.id,
+            ticket_number="T20260730.0099",
+            ticket_status=TicketStatus.FOLLOW_UP,
+            entry_type=EntryType.TICKET_NOTE,
+            note_title="Earlier update",
+            summary_notes="Earlier ticket note.",
+            description_text="Earlier ticket note.",
+            raw_start_utc=start_time,
+            rounded_start_utc=start_time,
+            local_work_date=local_date_for(start_time),
+            idempotency_key="earlier-ticket-note",
+        )
+        database_session.add_all([complete_entry, earlier_note])
+        database_session.flush()
+
+        with pytest.raises(JobWorkflowError, match="must be submitted last"):
+            submit_job_to_autotask(database_session, complete_entry, resource_id=1)
+
+        submit_job_to_autotask(database_session, earlier_note, resource_id=2)
+        assert earlier_note.status == JobStatus.SUBMITTED
+        database_session.commit()
+        submit_job_to_autotask(database_session, complete_entry, resource_id=1)
+        assert complete_entry.status == JobStatus.SUBMITTED
 
 
 def test_unsubmitted_time_entry_count_includes_only_actionable_autotask_work() -> None:

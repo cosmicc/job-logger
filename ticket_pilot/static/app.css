@@ -1857,6 +1857,11 @@ textarea {
   font-size: 15px;
 }
 
+input:not([type="checkbox"]):not([type="radio"]),
+textarea {
+  text-align: left;
+}
+
 textarea {
   min-height: 110px;
   resize: vertical;
@@ -2976,7 +2981,7 @@ a:focus-visible {
 
 .note-title-field input {
   width: 100%;
-  text-align: center;
+  text-align: left;
 }
 
 .append-resolution-field {
@@ -3418,6 +3423,21 @@ a:focus-visible {
   align-items: start;
 }
 
+.review-layout > .table-panel {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+
+.review-layout > .review-hours-summary-row {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.review-layout > .edit-panel {
+  grid-column: 2;
+  grid-row: 2;
+}
+
 .users-page-header,
 .config-page-header {
   display: flex;
@@ -3533,7 +3553,44 @@ td a {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
-  margin-bottom: 8px;
+  margin: 0;
+}
+
+.review-list-controls {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-muted);
+}
+
+.review-hide-submitted-control,
+.review-page-size-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.review-hide-submitted-control input[type="checkbox"] {
+  width: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.review-page-size-control select {
+  width: auto;
+  min-width: 76px;
+  min-height: 36px;
+  padding: 6px 28px 6px 9px;
 }
 
 .review-hours-summary {
@@ -5992,6 +6049,13 @@ td a {
   .users-layout,
   .config-layout {
     grid-template-columns: 1fr;
+  }
+
+  .review-layout > .table-panel,
+  .review-layout > .review-hours-summary-row,
+  .review-layout > .edit-panel {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .add-user-panel {

@@ -347,6 +347,10 @@ The optional Pushover health monitor is best-effort and in-process. It sends an
 initial degraded message, immediate changed-state messages, hourly
 still-degraded reminders by default, and one restored message. Configure the
 repeat cadence with `PUSHOVER_REMINDER_INTERVAL_SECONDS`, defaulting to 3600.
+Diagnostics-authorized administrators may globally acknowledge the exact
+current health issue fingerprint for the running process. Suppress only
+unchanged reminders; clear the acknowledgement when health changes or recovers.
+Process restart persistence is not required.
 It can send only while the app process is running; full
 host/container/process-down detection still belongs to an external monitor
 against `/health/live`. `DEV_BUILD=true` must suppress Pushover notifications
@@ -611,14 +615,15 @@ time entries, it may update only job date, start time, end time, summary notes,
 work location, append-to-resolution, and ticket status for the same submitted
 job, and it must patch the existing Autotask `TimeEntries` row instead of
 creating a new time entry. For submitted ticket notes, it may update only note
-title, note description, append-to-resolution, and ticket status, and it must
+title, note description, and ticket status, and it must
 patch the existing Autotask `TicketNotes` row instead of creating a new note.
 If the previous ticket status was Complete, the provider may temporarily move
 the ticket to In progress before the external-record patch and then apply the
 selected final status. Submit changes must always reassert the selected local
 ticket status in Autotask. A second CSRF-protected submitted action, **Delete
-From Autotask**, may delete the external `TimeEntries` or `TicketNotes` row and
-return the local job to review, but it must not delete the local job, audit
+From Autotask**, may delete the external `TimeEntries` row and return the local
+job to review. TicketNotes deletion is unsupported and must remain blocked.
+The time-entry action must not delete the local job, audit
 events, or submission attempts unless that remote delete fails and the user
 confirms the session-scoped local-only purge fallback.
 

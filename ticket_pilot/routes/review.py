@@ -65,8 +65,14 @@ from ticket_pilot.services.jobs import (
     verify_autotask_client_selection,
 )
 from ticket_pilot.services.preferences import (
+    REVIEW_PAGE_SIZE_OPTIONS,
+    UserPreferenceError,
     get_navigation_preferences_for_principal,
+    get_review_preferences_for_principal,
+    normalize_review_hide_submitted_entries,
+    normalize_review_page_size,
     preference_principal_from_session,
+    save_review_preferences_for_principal,
 )
 from ticket_pilot.services.users import WebUserError, get_enabled_web_user_by_id_or_raise
 from ticket_pilot.time_utils import (
@@ -90,7 +96,9 @@ SESSION_DELETE_AUTOTASK_FAILED_EXTERNAL_ID_KEY = "delete_autotask_failed_externa
 BROWSER_TEXT_SAVED_AUDIT_ACTION = "job.description.browser_text_saved"
 REVIEW_SAVED_AUDIT_ACTION = "job.review.saved"
 HIDDEN_AUDIT_TIMELINE_ACTIONS = {BROWSER_TEXT_SAVED_AUDIT_ACTION, REVIEW_SAVED_AUDIT_ACTION}
-REVIEW_JOBS_PER_PAGE = 10
+DEFAULT_REVIEW_JOBS_PER_PAGE = 10
+SESSION_REVIEW_HIDE_SUBMITTED_KEY = "review_hide_submitted_entries"
+SESSION_REVIEW_PAGE_SIZE_KEY = "review_page_size"
 
 
 @dataclass(frozen=True)
@@ -100,7 +108,7 @@ class ReviewPagination:
     current_page: int
     total_pages: int
     total_jobs: int
-    per_page: int = REVIEW_JOBS_PER_PAGE
+    per_page: int = DEFAULT_REVIEW_JOBS_PER_PAGE
 
     @property
     def has_previous(self) -> bool:
@@ -126,6 +134,18 @@ class ReviewPagination:
 
         return min(self.current_page + 1, self.total_pages)
 
+    @property
+    def first_page(self) -> int:
+        """Return the first review page."""
+
+        return 1
+
+    @property
+    def last_page(self) -> int:
+        """Return the final review page."""
+
+        return self.total_pages
+
 
 def _ticket_status_options() -> list[tuple[str, str]]:
     """Return ticket status options for the review form."""
@@ -134,6 +154,7 @@ def _ticket_status_options() -> list[tuple[str, str]]:
         (TicketStatus.IN_PROGRESS.value, "In progress"),
         (TicketStatus.WAITING_CUSTOMER.value, "Waiting customer"),
         (TicketStatus.WAITING_PARTS.value, "Waiting parts"),
+        (TicketStatus.MFG_TROUBLE_TICKET.value, "Mfg Trouble Ticket"),
         (TicketStatus.FOLLOW_UP.value, "Follow up"),
         (TicketStatus.COMPLETE.value, "Complete"),
     ]
@@ -161,24 +182,26 @@ def _review_page_for_jobs(
     *,
     selected_job_id: str | None,
     requested_page: int,
+    per_page: int = DEFAULT_REVIEW_JOBS_PER_PAGE,
 ) -> tuple[list[object], ReviewPagination]:
-    """Return one 10-row review page, keeping a selected job visible."""
+    """Return one configured-size Review page, keeping a selected job visible."""
 
     total_jobs = len(jobs)
-    total_pages = max((total_jobs + REVIEW_JOBS_PER_PAGE - 1) // REVIEW_JOBS_PER_PAGE, 1)
+    total_pages = max((total_jobs + per_page - 1) // per_page, 1)
     current_page = min(max(requested_page, 1), total_pages)
     if selected_job_id:
         for index, job in enumerate(jobs):
             if getattr(job, "id", None) == selected_job_id:
-                current_page = (index // REVIEW_JOBS_PER_PAGE) + 1
+                current_page = (index // per_page) + 1
                 break
 
-    start_index = (current_page - 1) * REVIEW_JOBS_PER_PAGE
-    end_index = start_index + REVIEW_JOBS_PER_PAGE
+    start_index = (current_page - 1) * per_page
+    end_index = start_index + per_page
     return jobs[start_index:end_index], ReviewPagination(
         current_page=current_page,
         total_pages=total_pages,
         total_jobs=total_jobs,
+        per_page=per_page,
     )
 
 
@@ -224,6 +247,53 @@ def review_page(
     """Render the desktop review page."""
 
     return _render_review(request, database_session, None)
+
+
+@router.post("/preferences")
+async def save_review_preferences(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Persist the current user's Review list filters and page size."""
+
+    actor = require_authenticated_username(request)
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+    raw_hide_submitted = str(form_data.get("hide_submitted_entries", ""))
+    raw_page_size = str(form_data.get("page_size", ""))
+    try:
+        principal = preference_principal_from_session(request.session)
+        if principal is not None:
+            user_preference = save_review_preferences_for_principal(
+                database_session,
+                principal_key=principal.key,
+                hide_submitted_entries=raw_hide_submitted,
+                page_size=raw_page_size,
+            )
+            record_audit_event(
+                database_session,
+                actor=actor,
+                action="user.review_preferences.updated",
+                request=request,
+                details={
+                    "principal_key": principal.key,
+                    "hide_submitted_entries": user_preference.review_hide_submitted_entries,
+                    "page_size": user_preference.review_page_size,
+                },
+            )
+            database_session.commit()
+        else:
+            # The config super admin has no database-backed user preferences,
+            # so keep these presentation-only values in the signed session.
+            request.session[SESSION_REVIEW_HIDE_SUBMITTED_KEY] = (
+                normalize_review_hide_submitted_entries(raw_hide_submitted)
+            )
+            request.session[SESSION_REVIEW_PAGE_SIZE_KEY] = normalize_review_page_size(raw_page_size)
+    except UserPreferenceError as exc:
+        database_session.rollback()
+        add_flash_message(request, str(exc), "error")
+
+    return RedirectResponse(url="/review", status_code=303)
 
 
 @router.get("/{job_id}", response_class=HTMLResponse)
@@ -566,6 +636,8 @@ def _submitted_delete_failure_purge_available(request: Request, selected_job: ob
 
     if selected_job is None or not is_job_locked_after_successful_submission(selected_job):
         return False
+    if getattr(selected_job, "entry_type", EntryType.TIME_ENTRY) == EntryType.TICKET_NOTE:
+        return False
 
     failed_job_id = request.session.get(SESSION_DELETE_AUTOTASK_FAILED_JOB_ID_KEY)
     failed_external_id = request.session.get(SESSION_DELETE_AUTOTASK_FAILED_EXTERNAL_ID_KEY)
@@ -599,6 +671,24 @@ def _render_review(
         web_user_id = web_user.id
         can_modify_jobs = True
 
+    preference_principal = preference_principal_from_session(request.session)
+    review_preferences = get_review_preferences_for_principal(
+        database_session,
+        preference_principal.key if preference_principal else None,
+    )
+    if is_super_admin:
+        hide_submitted_entries = normalize_review_hide_submitted_entries(
+            request.session.get(SESSION_REVIEW_HIDE_SUBMITTED_KEY, False)
+        )
+        stored_page_size = normalize_review_page_size(
+            request.session.get(SESSION_REVIEW_PAGE_SIZE_KEY)
+        )
+    else:
+        hide_submitted_entries = review_preferences.hide_submitted_entries
+        stored_page_size = review_preferences.page_size
+    review_page_size_explicit = stored_page_size is not None
+    review_page_size = stored_page_size or DEFAULT_REVIEW_JOBS_PER_PAGE
+
     try:
         if expire_stale_ai_cleanup_revert_states(
             database_session,
@@ -608,10 +698,21 @@ def _render_review(
             database_session.commit()
         current_time = now_utc()
         all_jobs = list_review_jobs(database_session, web_user_id=web_user_id)
+        visible_jobs = (
+            [
+                job
+                for job in all_jobs
+                if getattr(job, "status", None) != JobStatus.SUBMITTED
+                and not getattr(job, "autotask_external_id", None)
+            ]
+            if hide_submitted_entries
+            else all_jobs
+        )
         jobs, pagination = _review_page_for_jobs(
-            all_jobs,
+            visible_jobs,
             selected_job_id=selected_job_id,
             requested_page=_parse_review_page_number(request.query_params.get("page")),
+            per_page=review_page_size,
         )
         selected_job, audit_events = _selected_review_context(
             database_session,
@@ -635,7 +736,6 @@ def _render_review(
     except JobWorkflowError:
         return RedirectResponse(url="/review", status_code=303)
     show_delete_failure_purge_prompt = _submitted_delete_failure_purge_available(request, selected_job)
-    preference_principal = preference_principal_from_session(request.session)
     navigation_preferences = get_navigation_preferences_for_principal(
         database_session,
         preference_principal.key if preference_principal else None,
@@ -649,6 +749,9 @@ def _render_review(
             database_session=database_session,
             jobs=jobs,
             pagination=pagination,
+            review_page_size_options=REVIEW_PAGE_SIZE_OPTIONS,
+            review_page_size_explicit=review_page_size_explicit,
+            hide_submitted_entries=hide_submitted_entries,
             selected_job=selected_job,
             today_work_hours_label=format_duration_minutes(today_total_minutes) or "0 Hours",
             week_work_hours_label=format_duration_minutes(week_total_minutes) or "0 Hours",

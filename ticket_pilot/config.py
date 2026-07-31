@@ -457,6 +457,7 @@ class Settings:
     autotask_status_in_progress_id: int | None
     autotask_status_waiting_customer_id: int | None
     autotask_status_waiting_parts_id: int | None
+    autotask_status_mfg_trouble_ticket_id: int | None
     autotask_status_follow_up_id: int | None
     autotask_status_complete_id: int | None
 
@@ -486,6 +487,8 @@ class Settings:
             status_mapping["waiting_customer"] = self.autotask_status_waiting_customer_id
         if self.autotask_status_waiting_parts_id is not None:
             status_mapping["waiting_parts"] = self.autotask_status_waiting_parts_id
+        if self.autotask_status_mfg_trouble_ticket_id is not None:
+            status_mapping["mfg_trouble_ticket"] = self.autotask_status_mfg_trouble_ticket_id
         if self.autotask_status_follow_up_id is not None:
             status_mapping["follow_up"] = self.autotask_status_follow_up_id
         if self.autotask_status_complete_id is not None:
@@ -720,6 +723,9 @@ def load_settings() -> Settings:
         autotask_status_in_progress_id=_get_optional_integer("AUTOTASK_STATUS_IN_PROGRESS_ID"),
         autotask_status_waiting_customer_id=_get_optional_integer("AUTOTASK_STATUS_WAITING_CUSTOMER_ID"),
         autotask_status_waiting_parts_id=_get_optional_integer("AUTOTASK_STATUS_WAITING_PARTS_ID"),
+        autotask_status_mfg_trouble_ticket_id=_get_optional_integer(
+            "AUTOTASK_STATUS_MFG_TROUBLE_TICKET_ID"
+        ),
         autotask_status_follow_up_id=_get_optional_integer("AUTOTASK_STATUS_FOLLOW_UP_ID"),
         autotask_status_complete_id=_get_optional_integer("AUTOTASK_STATUS_COMPLETE_ID"),
         webauthn_rp_name=os.getenv("WEBAUTHN_RP_NAME", "TicketPilot").strip() or "TicketPilot",

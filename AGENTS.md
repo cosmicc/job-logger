@@ -206,6 +206,11 @@ navigation app and this explicit opt-in.
 preference that hides only those two quick destinations on Work. Disable and
 grey it out while Navigation is None, and never use it to hide ticket or
 service-call destination navigation.
+**Automatically open On-Site directions** is a separate default-on per-user
+preference. When it is off, starting an On-Site service call must create the
+job without requesting a navigation launch; the ticket destination navigation
+button remains available. Disable and grey out this checkbox while Navigation
+is None.
 For every future feature that must distinguish a mobile device from the full
 web version, reuse `window.TicketPilotNavigation.isMobileDevice()` from
 `ticket_pilot/static/navigation.js`; use
@@ -376,22 +381,23 @@ Recorded jobs follow this lifecycle:
    and selected ticket identity; they do not require start/stop times or
    Remote/On-Site work location. Time entries keep the existing date, start
    time, end time, summary notes, work location, and ticket status
-   requirements. Both record types expose **Append to resolution**, defaulting
-   on, and must send that setting to Autotask.
+   requirements. Time entries expose **Append to resolution**, defaulting on,
+   and send that setting to Autotask. Autotask TicketNotes does not support
+   `appendToResolution`; do not show or send that field for ticket notes.
 7. A successfully submitted Autotask job keeps ticket and client identity
    read-only. The entry type cannot be changed after successful submission.
    Time entries can change job date, start time, end time, summary notes, work
    location, append-to-resolution, and ticket status only through the audited
    **Submit changes** action, which updates the existing `TimeEntries` row
    instead of creating another entry. Ticket notes can change note title, note
-   description, append-to-resolution, and ticket status through the same
+   description and ticket status through the same
    audited action, which updates the existing `TicketNotes` row. **Submit
    changes** always patches `Tickets.status` to the selected local app status
    as part of the resubmission. When needed, it may temporarily move a
    previously Complete ticket to In progress before patching the external
    Autotask record, then move the ticket to the selected final status after the
-   record patch. The audited **Delete From Autotask** action may delete the
-   external Autotask record and move the local job back to review, but must not
+   record patch. The audited **Delete From Autotask** action may delete an
+   external `TimeEntries` record and move the local job back to review, but must not
    delete the local job record. If Delete From Autotask fails, the selected
    review detail may show an explicit local-only purge fallback that removes
    the TicketPilot review row while warning that the Autotask record may still
@@ -470,19 +476,25 @@ The required Autotask ticket-note fields for this application are:
 - Note description.
 
 Ticket notes created by TicketPilot must be customer-visible, never internal.
-Time entries and ticket notes both include the local **Append to resolution**
-setting in the Autotask payload.
+Time entries include the local **Append to resolution** setting in the Autotask
+payload. Ticket notes must omit the unsupported `appendToResolution` field.
 
 Supported ticket status values are:
 
 - In progress.
 - Waiting customer.
 - Waiting parts.
+- Mfg Trouble Ticket.
 - Follow up.
 - Complete.
 
 Autotask submission must be idempotent. A retry must not create duplicate
 TimeEntries or TicketNotes rows for the same accepted job.
+Before any Complete-status create or submitted-entry update, globally check all
+local owners for another entry with the same normalized ticket number in
+Active, Ready for Review, or Submission Failed state. Block the Complete
+submission until every such time entry or ticket note has submitted, so the
+Complete entry always reaches Autotask last.
 
 Autotask resource IDs are not global configuration. They belong to managed web
 users and are required before a user can start work. The app uses the logged-in
@@ -690,7 +702,7 @@ must mark the Help navigation button in yellow so dev instances are visually
 distinct from production without adding a separate pill. Full-browser
 authenticated headers also show the version under the left-side TicketPilot
 title, using `vX.Y.Z-DEV` for dev builds. The Help page itself must show the
-current version with `DEV`, such as `v2.0.0 DEV`.
+current version with `DEV`, such as `v2.0.1 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows compact route and status icons on the left,
@@ -757,8 +769,13 @@ rather than full metric cards. On full-browser Work, that summary should begin
 close below the navigation bar without the larger generic page-shell top gap.
 Review must omit the page title and description so its Today, Week, and
 Unsubmitted cards begin just below the navigation bar. On full-browser Review,
-the three-card summary row should match the width and right edge of the Review
-detail card below it, with three equal-width cards.
+the job list begins at the top of the left column, flush with the three-card
+summary row at the top of the right column. The summary should match the width
+and right edge of the Review detail card below it, with three equal-width cards.
+Persist each user's **Hide submitted entries** filter and page size choice of
+10, 20, 50, or 100. Use 20 as the first full-web default and 10 as the first
+mobile default through the shared navigation device detector. Pagination must
+include First, Previous, Next, and Last controls.
 On phones those three same-sized cards must fit on one row and use abbreviated
 duration values such as `15m`, `1h`, or `1.25h`; full-browser cards retain the
 complete duration labels. Unsubmitted counts only time-entry jobs in Active,
@@ -775,15 +792,15 @@ ticket or client identity to edits. Ticket-note mode keeps the Work type
 Remote/On-Site card visible but disabled and greyed out, changes the date label
 from **Job date** to **Note Date**, hides start/end time controls while
 preserving their values for switching back to Time entry, shows a required
-centered note-title field above the note description, and keeps the description
+left-aligned note-title input above the note description, and keeps the description
 unprefixed. Shared switch pills should show Time entry and Remote selected
 states in green and Ticket note and On-Site selected states in orange.
 On phone-sized Work in Progress and Review detail layouts, the editable
 workflow cards should appear in this order: **Entry type**, **Work type**,
 **Ticket status**, **Job date** or **Note Date**, **Start time**, **End time**,
 then **Work Duration**.
-**Append to resolution** should sit under the note description and above the
-action buttons. The
+**Append to resolution** should sit under time-entry summary notes and above
+the action buttons, but must be hidden in ticket-note mode. The
 selected Autotask
 client name, company ID, ticket number, and ticket title are read-only identity
 fields populated from Autotask lookup and must not be editable on the review
@@ -923,6 +940,10 @@ still-degraded, and restored app health only while the app process is running; f
 host/container/process-down alerts require an external monitor against
 `/health/live`. `DEV_BUILD=true` must suppress Pushover health notifications
 regardless of `PUSHOVER_ENABLED`.
+Diagnostics-authorized administrators may acknowledge the exact current issue
+fingerprint globally for the running app process. Acknowledgement suppresses
+unchanged reminder messages until the issue set changes or recovers and does
+not need to survive an app restart.
 
 Production Swarm deployment uses `docker-stack.yml`, the `tpapp` and `tpnginx`
 service names, private GHCR images selected by `TICKET_PILOT_APP_IMAGE` and
@@ -1340,30 +1361,35 @@ The normal workflow is:
     still active and has no selected client, Review
     detail can save the first client/company from the same server-backed
     Autotask company search before ticket lookup. Review detail groups action
-    controls into compact rows with at most two buttons per row; submitted
-    entries pair **Submit changes** with **Delete From Autotask**, while local
-    unsubmitted entries pair the submit action with **Delete time entry** or
-    **Delete note** when possible. Active jobs selected in Review show **End
+    controls into compact rows with at most two buttons per row; submitted time
+    entries pair **Submit changes** with **Delete From Autotask**. Submitted
+    ticket notes show **Submit changes** without an Autotask delete action
+    because that API does not document TicketNotes deletion. Local unsubmitted
+    entries pair the submit action with **Delete time entry** or **Delete note**
+    when possible. Active jobs selected in Review show **End
     Work** or **End Note** paired with the matching delete action and post to
     the normal end-work route. Directly
-    submitted jobs still appear in Review for submitted-entry
-    **Submit changes** and **Delete From Autotask** actions. Active jobs opened
-    in Review show the same rounded stop preview as Work in Progress, but review
+    submitted jobs still appear in Review for submitted-entry **Submit
+    changes** actions; only submitted time entries also expose **Delete From
+    Autotask**. Active jobs opened in Review show the same rounded stop preview
+    as Work in Progress, but review
     saves must not apply that displayed end time until the job is actually ended.
 15. Accept/retry submits a reviewed job to Autotask idempotently with the
     owning managed web user's resource ID.
 16. Successfully submitted jobs can use **Submit changes** for
     supported field updates against the existing Autotask `TimeEntries` or
-    `TicketNotes` row, or **Delete From Autotask** to remove the external
-    record and return the local job to review. The selected Review detail must
+    `TicketNotes` row. Submitted time entries may also use **Delete From
+    Autotask** to remove the external record and return the local job to review;
+    submitted ticket notes must not expose this unsupported action. The
+    selected Review detail must
     not display the stored Autotask external ID. **Submit changes** reasserts
     the selected local ticket status in Autotask every time it patches the
     existing external row. It may reopen previously Complete tickets to In
     progress before patching the external record, then apply the selected final
     status after the patch when needed.
-    If **Delete From Autotask** fails, a session-scoped dialog can offer a
-    local-only purge from TicketPilot review while warning that the Autotask
-    record may still exist.
+    If time-entry **Delete From Autotask** fails, a session-scoped dialog can
+    offer a local-only purge from TicketPilot review while warning that the
+    Autotask record may still exist.
     Ticket/client identity, local delete, accept/resend, and retry stay blocked
     while the job remains submitted.
 17. Submission attempts and important state changes are recorded for audit and

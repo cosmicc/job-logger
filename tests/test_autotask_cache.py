@@ -1444,21 +1444,6 @@ class FakeTimeEntryDeleteClient:
         return FakeAutotaskResponse({})
 
 
-class FakeTicketNoteDeleteClient:
-    """Fake Autotask client that captures the TicketNotes delete endpoint."""
-
-    def __init__(self) -> None:
-        """Initialize endpoint capture used by the TicketNotes delete test."""
-
-        self.deleted_endpoint: str | None = None
-
-    def delete(self, endpoint_path: str) -> FakeAutotaskResponse:
-        """Capture one TicketNotes DELETE request and return success."""
-
-        self.deleted_endpoint = endpoint_path
-        return FakeAutotaskResponse({})
-
-
 class FakeAutotaskClientContext:
     """Context manager that lets provider tests inject a fake Autotask client."""
 
@@ -1514,10 +1499,19 @@ def _live_test_provider() -> LiveAutotaskProvider:
         autotask_status_in_progress_id=1,
         autotask_status_waiting_customer_id=2,
         autotask_status_waiting_parts_id=3,
+        autotask_status_mfg_trouble_ticket_id=6,
         autotask_status_follow_up_id=4,
         autotask_status_complete_id=5,
     )
     return LiveAutotaskProvider(test_settings)
+
+
+def test_live_provider_resolves_mfg_trouble_ticket_status_id() -> None:
+    """The new local status should resolve to its tenant-specific Autotask ID."""
+
+    provider = _live_test_provider()
+
+    assert provider._ticket_status_id(TicketStatus.MFG_TROUBLE_TICKET, required=True) == 6
 
 
 def _clear_autotask_lookup_caches() -> None:
@@ -2280,7 +2274,6 @@ def test_ticket_note_creation_uses_customer_visible_payload() -> None:
         "description": "This customer-visible note should be sent to Autotask.",
         "publish": 1,
         "noteType": 1,
-        "appendToResolution": False,
         "ticketID": 123456,
     }
     assert "internal" not in fake_client.posted_payload
@@ -2373,7 +2366,7 @@ def test_complete_ticket_note_submission_updates_status_after_note_create(monkey
     assert fake_client.posted_payload is not None
     assert fake_client.posted_payload["title"] == "Complete note"
     assert fake_client.posted_payload["publish"] == 1
-    assert fake_client.posted_payload["appendToResolution"] is True
+    assert "appendToResolution" not in fake_client.posted_payload
     assert fake_client.operations == [
         (
             "/Tickets/query",
@@ -2806,7 +2799,6 @@ def test_ticket_note_update_patches_existing_note_fields_only() -> None:
         "description": "Updated customer-visible note body.",
         "publish": 1,
         "noteType": 1,
-        "appendToResolution": True,
         "id": 456789,
     }
     assert "ticketID" not in fake_client.patched_payload
@@ -2913,17 +2905,6 @@ def test_time_entry_delete_uses_existing_entry_endpoint() -> None:
     provider._delete_time_entry(fake_client, external_id="987654")
 
     assert fake_client.deleted_endpoint == "/TimeEntries/987654"
-
-
-def test_ticket_note_delete_uses_existing_note_endpoint() -> None:
-    """Submitted note deletes must target the existing TicketNotes row."""
-
-    provider = _live_test_provider()
-    fake_client = FakeTicketNoteDeleteClient()
-
-    provider._delete_ticket_note(fake_client, external_id="456789")
-
-    assert fake_client.deleted_endpoint == "/TicketNotes/456789"
 
 
 def test_time_entry_summary_notes_use_hidden_work_location_prefix() -> None:

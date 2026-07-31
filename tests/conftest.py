@@ -60,6 +60,7 @@ os.environ["AUTOMATIC_BACKUP_DIR"] = "/tmp/ticket-pilot-test-automatic-backups"
 from ticket_pilot import database  # noqa: E402
 from ticket_pilot.database import Base  # noqa: E402
 from ticket_pilot.main import create_app  # noqa: E402
+from ticket_pilot.services.app_health_monitor import clear_health_acknowledgement  # noqa: E402
 from ticket_pilot.services.system_health import reset_cached_autotask_health  # noqa: E402
 from ticket_pilot.services.users import create_web_user  # noqa: E402
 
@@ -107,7 +108,9 @@ def client() -> Generator[TestClient, None, None]:
 
     automatic_backup_dir = Path(os.environ["AUTOMATIC_BACKUP_DIR"])
     shutil.rmtree(automatic_backup_dir, ignore_errors=True)
+    clear_health_acknowledgement()
     reset_cached_autotask_health()
+    clear_health_acknowledgement()
     database.configure_database("sqlite+pysqlite://")
     Base.metadata.create_all(database.engine)
     with database.SessionLocal() as database_session:

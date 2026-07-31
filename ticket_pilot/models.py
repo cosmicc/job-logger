@@ -264,6 +264,25 @@ class UserPreference(Base):
         server_default="false",
         comment="Whether the Work page hides only the user's Home and Office quick-navigation buttons.",
     )
+    automatically_open_onsite_navigation: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+        comment="Whether starting an On-Site service call automatically opens its navigation destination.",
+    )
+    review_hide_submitted_entries: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Whether Review hides successfully submitted entries from the list.",
+    )
+    review_page_size: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Explicit Review list page size; null uses the browser device default.",
+    )
 
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(

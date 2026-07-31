@@ -1,6 +1,6 @@
 [project]
 name = "ticket-pilot"
-version = "2.0.0"
+version = "2.0.1"
 description = "Ticket Pilot for Autotask: secure mobile work logging, review, and submission."
 requires-python = ">=3.12"
 dependencies = [

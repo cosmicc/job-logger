@@ -2,6 +2,42 @@
 
 All notable changes to TicketPilot are documented in this file.
 
+## 2.0.1 - 07.30.2026 - Review controls, workflow ordering, alerts, and Autotask compatibility
+
+### Added
+
+- Added a per-user option to stop On-Site service-call starts from
+  automatically opening directions while keeping manual destination navigation.
+- Added the Autotask **Mfg Trouble Ticket** status and the tenant-specific
+  `AUTOTASK_STATUS_MFG_TROUBLE_TICKET_ID` mapping.
+- Added persistent per-user Review controls for hiding submitted entries and
+  showing 10, 20, 50, or 100 rows per page.
+- Added global, process-local administrator acknowledgement for the current
+  application-health alert so repeated Pushover reminders pause until the
+  monitored issue set changes.
+
+### Changed
+
+- Moved the full-browser Review list to the top of its column, aligned with the
+  Today, Week, and Unsubmitted cards, and added First and Last pagination.
+- Review now starts with 20 rows on full web and 10 rows on mobile, then saves
+  the user's selected row count.
+- Complete-status entries now submit only after every other active, ready, or
+  failed local entry for the same ticket has submitted, including entries owned
+  by other users and both time-entry and ticket-note record types.
+- Text inputs and text areas now left-align entered text.
+- Submitted ticket notes can be updated but no longer offer the unsupported
+  Autotask REST delete action.
+
+### Fixed
+
+- Removed unsupported `appendToResolution` fields from Autotask TicketNotes
+  create and update payloads, correcting ticket-note submission compatibility.
+- Prevented a Complete ticket status from reaching Autotask before another
+  unsubmitted local entry for that ticket.
+- Kept older navigation autosave requests compatible with the new automatic
+  On-Site navigation preference.
+
 ## 2.0.0 - 07.26.2026 - TicketPilot rename, themes, workflow, navigation, and reliability
 
 ### Added

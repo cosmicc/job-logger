@@ -170,7 +170,8 @@ Active jobs support these updates before completion:
 - Note title when the entry type is Ticket note. The title is required for
   submission, but may be incomplete while the active Work in Progress card is
   being edited.
-- Append to resolution, defaulting on for both time entries and ticket notes.
+- Append to resolution for time entries, defaulting on. Hide and omit this
+  unsupported field for ticket notes.
 - Work location mode, either Remote or On-Site, which is stored separately from
   the visible notes. Changing this mode for an active time entry must preserve
   the start and recalculate only the stop to the later of the work-location
@@ -585,8 +586,13 @@ The review page is `/review`, implemented by `ticket_pilot/routes/review.py`,
 Review supports:
 
 - Selecting jobs from the review list.
-- Listing jobs newest-first with 10 rows per page. A selected job URL may choose
-  the page containing that job so the selected row stays visible.
+- Listing jobs newest-first with First, Previous, Next, and Last navigation.
+  Persist a per-user page size of 10, 20, 50, or 100. On first use, select 20
+  for full web and 10 for mobile through the shared navigation device detector.
+  A selected job URL may choose the page containing that job so the selected
+  row stays visible.
+- Persisting a per-user **Hide submitted entries** filter that removes only
+  successfully submitted jobs from the list.
 - Showing time-entry hours worked today and this week near the top of Review,
   including `0 Hours` when no time-entry work exists for those periods.
 - Showing Today and Week time-entry hours as a compact boxed summary near the
@@ -596,8 +602,9 @@ Review supports:
 - Starting Review with equal Today, Week, and Unsubmitted cards directly below
   the navigation bar, without a page title or description. On phones all three
   cards stay on one row and abbreviate durations as `15m`, `1h`, or `1.25h`;
-  full-browser cards keep complete duration labels and the three-card row
-  matches the width and right edge of the Review detail card below it.
+  full-browser cards keep complete duration labels. The full-browser job list
+  begins at the top of the left column, flush with the three-card row at the top
+  of the right column; the cards match the detail card below.
   Unsubmitted counts time entries in Active, Ready for Review, or Submission
   Failed status only.
   Exclude ticket notes, rejected jobs, and successfully submitted jobs.
@@ -669,8 +676,9 @@ string for Time entry mode, including the leading `Remote. ` or `On-Site. `
 prefix. Review save, accept, retry, and submitted-entry update handlers must
 parse that prefix back into the stored work-location mode and keep the
 persisted note body clean. Ticket note mode must show the required **Note
-title** field, then an unprefixed **Note description** textarea, then
-**Append to resolution** directly above the action buttons. It must hide
+title** field with left-aligned entered text, then an unprefixed **Note
+description** textarea. Ticket-note mode must hide **Append to resolution**
+because Autotask TicketNotes does not support that field. It must keep
 the active Remote/On-Site choice by keeping the Work type card visible but
 disabled and greyed out, change **Job date** to **Note Date**, hide the start
 and end time controls while preserving their current values for a switch back
@@ -698,7 +706,8 @@ as compact paired rows on both phone and full-browser layouts. Use no more than
 two buttons per row. Pair **Record** with **AI Cleanup** under Summary notes,
 pair **End Work** or **End Note** with the matching local delete label for
 active jobs, pair **Submit changes** with **Delete From Autotask** for
-submitted entries, and pair **Accept and Submit** with **Delete time entry** or
+submitted time entries, show Submit changes alone with an unsupported-delete
+notice for submitted ticket notes, and pair **Accept and Submit** with **Delete time entry** or
 **Delete note** for normal unsubmitted entries.
 Submission-failed jobs may use one row for **Retry** and **Accept and Submit**,
 with destructive local delete on its own following row. Review detail should
@@ -741,20 +750,22 @@ or blocked, and it should not show the stored Autotask external ID in the
 selected detail. Date, start time, end time, summary notes, work location,
 append-to-resolution, and ticket status can stay editable for submitted time
 entries only when the submitted detail shows **Submit changes**. Note title,
-note description, append-to-resolution, and ticket status can stay editable for
-submitted ticket notes through the same action. That button must call the
+note description, and ticket status can stay editable for submitted ticket
+notes through the same action. That button must call the
 submitted-entry update route so the existing Autotask `TimeEntries` or
 `TicketNotes` row is patched before local values are kept. Submit changes must
 also reassert the selected local ticket status on `Tickets.status`; a
 previously submitted Complete ticket may be moved to In progress before
 patching the external record, then the selected final status may be applied
-after the record patch. The submitted detail can also show **Delete From
-Autotask**, which deletes the external Autotask record and moves the local job
-back to review only after Autotask confirms the delete. This action must not
-delete the local job, audit events, or submission attempts. If Delete From
-Autotask fails, the selected detail may show a session-scoped local-only purge
-dialog that warns the Autotask record may still exist before removing the
-TicketPilot review row.
+after the record patch. Submitted time-entry detail can also show **Delete From
+Autotask**, which deletes the external `TimeEntries` record and moves the local
+job back to review only after Autotask confirms the delete. Autotask does not
+document delete support for `TicketNotes`, so submitted ticket notes must not
+show or permit that action. Time-entry deletion must not delete the local job,
+audit events, or submission attempts. If Delete From Autotask fails, the
+selected time-entry detail may show a session-scoped local-only purge dialog
+that warns the Autotask record may still exist before removing the TicketPilot
+review row.
 
 The review detail uses one local job date with start and end times, and the
 **Job date** selector shows `(Today)`, `(Yesterday)`, or `(Tomorrow)` inside the

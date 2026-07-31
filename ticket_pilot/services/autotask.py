@@ -62,6 +62,7 @@ TICKET_STATUS_DISPLAY_LABELS = {
     TicketStatus.IN_PROGRESS: "In progress",
     TicketStatus.WAITING_CUSTOMER: "Waiting customer",
     TicketStatus.WAITING_PARTS: "Waiting parts",
+    TicketStatus.MFG_TROUBLE_TICKET: "Mfg Trouble Ticket",
     TicketStatus.FOLLOW_UP: "Follow up",
     TicketStatus.COMPLETE: "Complete",
 }
@@ -653,11 +654,6 @@ class BaseAutotaskProvider:
 
         raise NotImplementedError
 
-    def delete_ticket_note(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
-        """Delete an existing external ticket note for a submitted job."""
-
-        raise NotImplementedError
-
     def test_connectivity(self) -> AutotaskConnectivityResult:
         """Return whether this provider is ready for the job workflow."""
 
@@ -1118,7 +1114,6 @@ def build_safe_ticket_note_snapshot(job: Job) -> dict[str, Any]:
         "noteDescriptionLength": len(note_description),
         "publish": CUSTOMER_VISIBLE_TICKET_NOTE_PUBLISH_VALUE,
         "noteType": DEFAULT_TICKET_NOTE_TYPE,
-        "appendToResolution": _append_to_resolution_for_job(job),
     }
 
 
@@ -1227,24 +1222,6 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         snapshot["resourceID"] = resource_id
         snapshot["previous_ticket_status"] = previous_ticket_status.value if previous_ticket_status else None
         snapshot["ticketStatusUpdateAttempted"] = job.ticket_status is not None
-        return AutotaskSubmissionResult(
-            provider=self.provider_name,
-            succeeded=True,
-            external_id=external_id,
-            safe_error=None,
-            request_snapshot=snapshot,
-        )
-
-    def delete_ticket_note(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
-        """Return a deterministic success for submitted-note delete tests."""
-
-        snapshot = {
-            "operation": "delete_ticket_note",
-            "job_id": job.id,
-            "ticket_number": job.ticket_number,
-            "external_id": external_id,
-            "resourceID": resource_id,
-        }
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,
@@ -2167,6 +2144,9 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             "AUTOTASK_STATUS_IN_PROGRESS_ID": self.application_settings.autotask_status_in_progress_id,
             "AUTOTASK_STATUS_WAITING_CUSTOMER_ID": self.application_settings.autotask_status_waiting_customer_id,
             "AUTOTASK_STATUS_WAITING_PARTS_ID": self.application_settings.autotask_status_waiting_parts_id,
+            "AUTOTASK_STATUS_MFG_TROUBLE_TICKET_ID": (
+                self.application_settings.autotask_status_mfg_trouble_ticket_id
+            ),
             "AUTOTASK_STATUS_FOLLOW_UP_ID": self.application_settings.autotask_status_follow_up_id,
             "AUTOTASK_STATUS_COMPLETE_ID": self.application_settings.autotask_status_complete_id,
         }
@@ -3790,7 +3770,6 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             "description": note_description,
             "publish": CUSTOMER_VISIBLE_TICKET_NOTE_PUBLISH_VALUE,
             "noteType": DEFAULT_TICKET_NOTE_TYPE,
-            "appendToResolution": _append_to_resolution_for_job(job),
         }
         if ticket_id is not None:
             payload["ticketID"] = ticket_id
@@ -3833,21 +3812,6 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             json=payload,
         )
         self._raise_for_safe_response(response, "Autotask ticket note update")
-
-    def _delete_ticket_note(self, client: httpx.Client, external_id: str) -> None:
-        """Delete an existing Autotask TicketNotes row by remote ID."""
-
-        ticket_note_id = _coerce_positive_autotask_id(external_id)
-        if ticket_note_id is None:
-            raise AutotaskSubmissionError("Existing Autotask ticket note ID is required before deleting.")
-
-        response = self._api_request(
-            client,
-            "DELETE",
-            f"/TicketNotes/{ticket_note_id}",
-            "Autotask ticket note deletion",
-        )
-        self._raise_for_safe_response(response, "Autotask ticket note deletion")
 
     def _submit_ticket_note_job(self, job: Job, *, resource_id: int) -> AutotaskSubmissionResult:
         """Submit a reviewed job as a customer-visible Autotask ticket note."""
@@ -4137,42 +4101,6 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             )
 
         record_autotask_api_success(operation="Autotask ticket note update")
-        return AutotaskSubmissionResult(
-            provider=self.provider_name,
-            succeeded=True,
-            external_id=external_id,
-            safe_error=None,
-            request_snapshot=snapshot,
-        )
-
-    def delete_ticket_note(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
-        """Delete an existing Autotask ticket note from a submitted job."""
-
-        snapshot = {
-            "operation": "delete_ticket_note",
-            "job_id": job.id,
-            "ticket_number": job.ticket_number,
-            "external_id": external_id,
-            "resourceID": resource_id,
-            "resourceIDSource": "managed_web_user.autotask_resource_id",
-        }
-        try:
-            with self._client() as client:
-                self._delete_ticket_note(client, external_id)
-        except (httpx.HTTPError, AutotaskSubmissionError) as exc:
-            record_autotask_api_failure(
-                "Autotask ticket note deletion failed.",
-                operation="Autotask ticket note deletion",
-            )
-            return AutotaskSubmissionResult(
-                provider=self.provider_name,
-                succeeded=False,
-                external_id=external_id,
-                safe_error=str(exc),
-                request_snapshot=snapshot,
-            )
-
-        record_autotask_api_success(operation="Autotask ticket note deletion")
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,

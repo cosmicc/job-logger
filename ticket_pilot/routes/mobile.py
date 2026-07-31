@@ -163,6 +163,7 @@ def _ticket_status_options() -> list[tuple[str, str]]:
         (TicketStatus.IN_PROGRESS.value, "In progress"),
         (TicketStatus.WAITING_CUSTOMER.value, "Waiting customer"),
         (TicketStatus.WAITING_PARTS.value, "Waiting parts"),
+        (TicketStatus.MFG_TROUBLE_TICKET.value, "Mfg Trouble Ticket"),
         (TicketStatus.FOLLOW_UP.value, "Follow up"),
         (TicketStatus.COMPLETE.value, "Complete"),
     ]
@@ -980,7 +981,10 @@ async def start_work_from_service_call(
         service_call_options = get_autotask_provider().list_todays_service_calls_for_resource(
             resource_id=web_user.autotask_resource_id,
             local_service_date=selected_service_call_date,
-            include_navigation=navigation_preferences.navigation_app != NavigationApp.NONE,
+            include_navigation=(
+                navigation_preferences.navigation_app != NavigationApp.NONE
+                and navigation_preferences.automatically_open_onsite_navigation
+            ),
         )
         service_call_options = _filter_hidden_local_service_calls(
             database_session,
@@ -1034,6 +1038,7 @@ async def start_work_from_service_call(
         should_navigate = (
             selected_service_call.detected_work_location == WorkLocation.ON_SITE
             and navigation_preferences.navigation_app != NavigationApp.NONE
+            and navigation_preferences.automatically_open_onsite_navigation
         )
         if wants_json_response:
             return JSONResponse(

@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import desc, or_, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.orm import Session
 
@@ -58,6 +58,15 @@ UNSUBMITTED_TIME_ENTRY_STATUSES = {
     JobStatus.READY_FOR_REVIEW,
     JobStatus.SUBMISSION_FAILED,
 }
+COMPLETE_SUBMISSION_BLOCKING_STATUSES = {
+    JobStatus.ACTIVE,
+    JobStatus.READY_FOR_REVIEW,
+    JobStatus.SUBMISSION_FAILED,
+}
+COMPLETE_SUBMISSION_ORDER_MESSAGE = (
+    "Submit all other unsubmitted time entries and ticket notes for this ticket first. "
+    "The entry with ticket status Complete must be submitted last."
+)
 DESCRIPTION_RECORDING_UNAVAILABLE_MESSAGE = (
     "Audio descriptions can only be recorded before the job has been submitted to Autotask."
 )
@@ -1674,6 +1683,33 @@ def _apply_submitted_entry_fields(job: Job, review_fields: ReviewFields) -> Job:
     return job
 
 
+def ensure_complete_status_submits_last(
+    database_session: Session,
+    job: Job,
+    *,
+    ticket_status: TicketStatus | None = None,
+) -> None:
+    """Block Complete while any other local entry for the same ticket is unsubmitted."""
+
+    selected_ticket_status = ticket_status if ticket_status is not None else job.ticket_status
+    if selected_ticket_status != TicketStatus.COMPLETE:
+        return
+
+    normalized_ticket_number = normalize_ticket_number(job.ticket_number, required=True)
+    blocking_job_id = database_session.scalar(
+        select(Job.id)
+        .where(
+            Job.id != job.id,
+            func.upper(func.trim(Job.ticket_number)) == normalized_ticket_number,
+            Job.status.in_(COMPLETE_SUBMISSION_BLOCKING_STATUSES),
+            Job.autotask_external_id.is_(None),
+        )
+        .limit(1)
+    )
+    if blocking_job_id is not None:
+        raise JobWorkflowError(COMPLETE_SUBMISSION_ORDER_MESSAGE)
+
+
 def update_submitted_job_autotask_entry(
     database_session: Session,
     job: Job,
@@ -1688,6 +1724,11 @@ def update_submitted_job_autotask_entry(
     if not external_id:
         raise JobWorkflowError("This submitted job does not have an Autotask record ID to update.")
 
+    ensure_complete_status_submits_last(
+        database_session,
+        job,
+        ticket_status=review_fields.ticket_status,
+    )
     previous_values = {
         "ticket_status": job.ticket_status,
         "entry_type": job.entry_type,
@@ -1768,12 +1809,13 @@ def delete_submitted_job_autotask_entry(database_session: Session, job: Job, *, 
     external_id = (job.autotask_external_id or "").strip()
     if not external_id:
         raise JobWorkflowError("This submitted job does not have an Autotask record ID to delete.")
+    if job.entry_type == EntryType.TICKET_NOTE:
+        raise JobWorkflowError(
+            "Autotask does not support deleting submitted ticket notes through its REST API."
+        )
 
     try:
-        if job.entry_type == EntryType.TICKET_NOTE:
-            submission_result = get_autotask_provider().delete_ticket_note(job, external_id, resource_id=resource_id)
-        else:
-            submission_result = get_autotask_provider().delete_time_entry(job, external_id, resource_id=resource_id)
+        submission_result = get_autotask_provider().delete_time_entry(job, external_id, resource_id=resource_id)
     except AutotaskSubmissionError as exc:
         job.autotask_error = str(exc)
         job.autotask_provider = "configuration"
@@ -1910,6 +1952,7 @@ def submit_job_to_autotask(
         raise JobWorkflowError("Active jobs cannot be submitted.")
     ensure_job_is_not_locked_after_successful_submission(job)
     ensure_job_ready_for_autotask_submission(job)
+    ensure_complete_status_submits_last(database_session, job)
 
     try:
         submission_result = get_autotask_provider().submit_job(

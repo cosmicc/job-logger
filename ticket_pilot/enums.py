@@ -21,6 +21,7 @@ class TicketStatus(StrEnum):
     IN_PROGRESS = "in_progress"
     WAITING_CUSTOMER = "waiting_customer"
     WAITING_PARTS = "waiting_parts"
+    MFG_TROUBLE_TICKET = "mfg_trouble_ticket"
     FOLLOW_UP = "follow_up"
     COMPLETE = "complete"
 

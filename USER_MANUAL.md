@@ -163,7 +163,10 @@ visible but disabled because ticket notes do not use work type.
 
 Choose the status TicketPilot should send to Autotask when the record is
 submitted. Supported statuses are **In progress**, **Waiting customer**,
-**Waiting parts**, **Follow up**, and **Complete**.
+**Waiting parts**, **Mfg Trouble Ticket**, **Follow up**, and **Complete**.
+When Complete is selected, TicketPilot requires every other unsubmitted time
+entry or ticket note for the same ticket to be sent first. This keeps the
+Complete entry last even when another technician owns the earlier entry.
 
 **Job date** or **Note Date**
 
@@ -228,9 +231,11 @@ Ticket notes require a note title. Time entries do not use a note title.
 
 **Append to resolution**
 
-This option is available for time entries and ticket notes. When it is on,
+This option is available for time entries. When it is on,
 TicketPilot tells Autotask to append the submitted content to the ticket resolution
 where the Autotask workflow supports that behavior.
+Ticket notes do not show this option because Autotask TicketNotes does not
+support the field.
 
 ## Recording Notes
 
@@ -287,7 +292,11 @@ actions instead.
 
 The Review page starts with Today, Week, and Unsubmitted cards directly below
 the navigation bar, then lists your completed, failed, and submitted records
-newest first, with 10 records per page. On a phone, all three summary cards fit
+newest first. Use **Hide submitted entries** to focus on work that still needs
+attention. The Show menu offers 10, 20, 50, or 100 records per page, with 20
+as the initial full-browser default and 10 as the initial mobile default. Your
+choices are saved. First and Last buttons jump to the ends of the list. On a
+phone, all three summary cards fit
 on one row and abbreviate duration values, such as `15m`, `1h`, or `1.25h`. On
 a full browser, the summary row aligns with the Review detail card.
 
@@ -324,7 +333,7 @@ used on Work in Progress:
 - Start time and end time for time entries.
 - Summary notes for time entries.
 - Note title and note description for ticket notes.
-- Append to resolution.
+- Append to resolution for time entries.
 
 Time entries require ticket number, summary notes, ticket status, job date,
 start time, and end time.
@@ -348,12 +357,13 @@ any missing or invalid fields.
 Updates an Autotask record that was already submitted. Time entries can update
 date, start time, end time, summary notes, work type, append-to-resolution, and
 ticket status. Ticket notes can update note title, note description,
-append-to-resolution, and ticket status.
+and ticket status.
 
 **Delete From Autotask**
 
-Deletes the submitted Autotask record when that action is available and moves
-the local record back to Review. If Autotask cannot complete the delete,
+Deletes a submitted Autotask time entry and moves the local record back to
+Review. Autotask does not support deleting submitted ticket notes through this
+API, so that action is not shown for notes. If Autotask cannot complete a time-entry delete,
 TicketPilot may show a local-only cleanup option with a warning.
 
 **Delete time entry** or **Delete note**
@@ -406,6 +416,11 @@ as mobile devices. The option is disabled while Navigation is set to None.
 to remove only those two quick buttons from Work. Ticket and service-call
 **Navigate to Destination** controls remain available. This option is disabled
 while Navigation is set to None.
+
+**Automatically open On-Site directions** is on by default. Turn it off when
+you want an On-Site service call to start without opening a map. You can still
+select **Navigate to Destination** afterward. This option is disabled while
+Navigation is set to None.
 
 Device Default asks Android to use its registered map handler, uses Apple Maps
 on iPhone or iPad, and opens browser directions on an opted-in desktop.

@@ -603,3 +603,20 @@
 h1 {
   font-size: 32px;
 }
+/* Keep four-way Review pagination readable without wrapping the page label. */
+.review-pagination {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.review-pagination-status {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  text-align: center;
+}
+
+.review-pagination .secondary-button {
+  min-width: 0;
+  padding-inline: 6px;
+}

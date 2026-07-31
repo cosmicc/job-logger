@@ -121,6 +121,7 @@ def config_page(request: Request, database_session: Session = Depends(get_databa
             navigation_office_address=navigation_preferences.office_address_override or "",
             allow_navigation_on_full_web=navigation_preferences.allow_navigation_on_full_web,
             hide_home_office_navigation_buttons=navigation_preferences.hide_home_office_navigation_buttons,
+            automatically_open_onsite_navigation=navigation_preferences.automatically_open_onsite_navigation,
             global_navigation_office_configured=bool(settings.navigation_office_address),
             passkey_credentials=list_passkey_credentials_for_user(database_session, current_web_user.id),
             password_change_required=password_change_required,
@@ -162,6 +163,10 @@ async def save_config(
             submit_from_work_in_progress=submitted_submit_from_work_in_progress,
         )
         if navigation_fields_submitted:
+            current_navigation_preferences = get_navigation_preferences_for_principal(
+                database_session,
+                principal.key,
+            )
             user_preference = save_navigation_preferences_for_principal(
                 database_session,
                 principal_key=principal.key,
@@ -171,6 +176,12 @@ async def save_config(
                 allow_navigation_on_full_web=str(form_data.get("allow_navigation_on_full_web", "")),
                 hide_home_office_navigation_buttons=str(
                     form_data.get("hide_home_office_navigation_buttons", "")
+                ),
+                automatically_open_onsite_navigation=str(
+                    form_data.get(
+                        "automatically_open_onsite_navigation",
+                        current_navigation_preferences.automatically_open_onsite_navigation,
+                    )
                 ),
             )
         record_audit_event(
@@ -188,6 +199,7 @@ async def save_config(
                 "office_address_override_configured": bool(user_preference.office_address),
                 "allow_navigation_on_full_web": user_preference.allow_navigation_on_full_web,
                 "hide_home_office_navigation_buttons": user_preference.hide_home_office_navigation_buttons,
+                "automatically_open_onsite_navigation": user_preference.automatically_open_onsite_navigation,
             },
         )
         database_session.commit()
@@ -203,6 +215,7 @@ async def save_config(
                     "office_address_override_configured": bool(user_preference.office_address),
                     "allow_navigation_on_full_web": user_preference.allow_navigation_on_full_web,
                     "hide_home_office_navigation_buttons": user_preference.hide_home_office_navigation_buttons,
+                    "automatically_open_onsite_navigation": user_preference.automatically_open_onsite_navigation,
                     "message": "Configuration updated.",
                 }
             )

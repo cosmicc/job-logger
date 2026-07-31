@@ -18,6 +18,10 @@ from ticket_pilot.config import settings
 from ticket_pilot.database import get_database_session
 from ticket_pilot.models import AuditEvent, CloudflareIPBlock, Job, LoginAttempt, SubmissionAttempt, WebUser
 from ticket_pilot.security import add_flash_message, require_debug_access, validate_csrf_token
+from ticket_pilot.services.app_health_monitor import (
+    acknowledge_health_snapshot,
+    health_snapshot_is_acknowledged,
+)
 from ticket_pilot.services.audit import record_audit_event
 from ticket_pilot.services.autotask import AutotaskConnectivityResult, test_autotask_connectivity
 from ticket_pilot.services.backups import (
@@ -460,6 +464,7 @@ def debug_page(
             app_health_snapshot=app_health_snapshot,
             app_health_degraded=app_health_snapshot.degraded,
             app_health_alert_label=app_health_snapshot.alert_label,
+            app_health_alert_acknowledged=health_snapshot_is_acknowledged(app_health_snapshot),
             disk_usage=disk_usage,
             database_diagnostics=database_diagnostics,
             submission_attempts=submission_attempts_page.records,
@@ -523,6 +528,49 @@ def download_login_success_log(
             "Cache-Control": "no-store",
         },
     )
+
+
+@router.post("/app-health/acknowledge")
+@legacy_router.post("/app-health/acknowledge", include_in_schema=False)
+async def acknowledge_app_health_alert(
+    request: Request,
+    database_session: Session = Depends(get_database_session),
+) -> RedirectResponse:
+    """Acknowledge the current global health alert and suppress its reminders."""
+
+    try:
+        actor = require_debug_access(request, database_session)
+    except HTTPException as exc:
+        return _redirect_anonymous_or_raise(exc)
+
+    form_data = await request.form()
+    validate_csrf_token(request, str(form_data.get("csrf_token", "")))
+    snapshot = collect_app_health_snapshot(database_session=database_session)
+    try:
+        fingerprint = acknowledge_health_snapshot(snapshot)
+    except ValueError as exc:
+        add_flash_message(request, str(exc), "error")
+        return _debug_redirect("application-health")
+
+    record_audit_event(
+        database_session,
+        actor=actor,
+        action="diagnostics.health_alert.acknowledged",
+        request=request,
+        details={
+            "issue_fingerprint": [
+                {"code": issue_code, "severity": issue_severity}
+                for issue_code, issue_severity in fingerprint
+            ],
+        },
+    )
+    database_session.commit()
+    add_flash_message(
+        request,
+        "Application-health alert acknowledged. Pushover reminders are paused until the issue set changes.",
+        "success",
+    )
+    return _debug_redirect("application-health")
 
 
 @router.post("/login-failures/hide")

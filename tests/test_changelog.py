@@ -16,10 +16,11 @@ from ticket_pilot.services.changelog import (
 )
 from ticket_pilot.version import APP_VERSION
 
-CURRENT_RELEASE_DATE = "07.26.2026"
-CURRENT_WEB_TITLE = "TicketPilot rename, themes, workflow, navigation, and reliability"
-CURRENT_DETAILED_HEADING = f"## 2.0.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
-CURRENT_WEB_HEADING = f"## 2.0.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+CURRENT_RELEASE_DATE = "07.30.2026"
+CURRENT_WEB_TITLE = "Review controls, workflow ordering, alerts, and Autotask compatibility"
+CURRENT_DETAILED_HEADING = f"## 2.0.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+CURRENT_WEB_HEADING = f"## 2.0.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+V200_HEADING = "## 2.0.0 - 07.26.2026 - TicketPilot rename, themes, workflow, navigation, and reliability"
 V140_DETAILED_HEADING = "## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations"
 V140_WEB_HEADING = "## 1.4.0 - 07.20.2026 - Navigation apps and quick destinations"
 V131_DETAILED_HEADING = (
@@ -45,6 +46,7 @@ V120_RELEASE_DATE = "07.02.2026"
 RELEASE_HEADING_PATTERN = re.compile(r"^## \d+\.\d+\.\d+ - (?:\d{2}\.\d{2}\.\d{4} - .+|.+)")
 DETAILED_RELEASE_HEADINGS = (
     CURRENT_DETAILED_HEADING,
+    V200_HEADING,
     V140_DETAILED_HEADING,
     V131_DETAILED_HEADING,
     V130_HEADING,
@@ -66,6 +68,7 @@ DETAILED_RELEASE_HEADINGS = (
 )
 WEB_RELEASE_HEADINGS = (
     CURRENT_WEB_HEADING,
+    V200_HEADING,
     V140_WEB_HEADING,
     V131_WEB_HEADING,
     V130_HEADING,
@@ -137,7 +140,7 @@ def _assert_changelog_sections_are_non_empty(
 def test_app_version_matches_current_changelog_version() -> None:
     """The source-controlled version should match the current changelog entry."""
 
-    assert APP_VERSION == "2.0.0"
+    assert APP_VERSION == "2.0.1"
     version_file = Path(__file__).resolve().parents[1] / "VERSION"
     assert version_file.read_text(encoding="utf-8").strip() == APP_VERSION
 
@@ -220,80 +223,34 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="2.0.0",
+        version="2.0.1",
         release_date=CURRENT_RELEASE_DATE,
         title=CURRENT_WEB_TITLE,
         changes=(
-            "TicketPilot is now the application name across the web interface and installed app.",
             (
-                "Config now offers three comfortable light themes and five dark themes, including Midnight Black "
-                "and amber-accented Graphite Dark."
+                "Config can stop On-Site service calls from opening directions automatically while keeping the "
+                "navigation button available."
             ),
-            "Config now has ten independently selectable highlight colors with a visible sample for every option.",
-            "Review now shows how many actionable time entries have not been submitted to Autotask yet.",
-            "TicketPilot now uses its new logo and new high-resolution installed-app icon.",
+            "TicketPilot now supports the Autotask **Mfg Trouble Ticket** status.",
+            "Review can hide submitted entries and show 10, 20, 50, or 100 entries per page.",
             (
-                "Config can hide only the Home and Office quick-navigation buttons while keeping ticket "
-                "destinations available."
-            ),
-            "Account emails, Help content, and user documentation now use the TicketPilot name.",
-            (
-                "Full-browser Config now uses the available width with paired cards, and both blank and concurrent "
-                "Work start panels keep their controls left of Service calls."
+                "Administrators can acknowledge the current health alert to pause repeated Pushover reminders until "
+                "the issue changes."
             ),
             (
-                "Active Remote entries keep at least 15 minutes and On-Site entries keep at least 1 hour; changing "
-                "work type updates only the stop time and uses the current rounded block when it is later."
+                "Full-browser Review starts at the top beside the Today, Week, and Unsubmitted cards and now has "
+                "First and Last page buttons."
             ),
             (
-                "Dark themes use the white TicketPilot mark and light themes use the black mark in the full-browser "
-                "header and browser tab."
+                "Complete-status entries wait until every other unsubmitted entry for the same ticket has been sent "
+                "to Autotask."
             ),
+            "Text boxes now start entered text on the left.",
+            "Ticket-note create and update requests now use only fields supported by Autotask.",
             (
-                "Navigation icons and ordinary buttons now use the selected theme's highlight color while "
-                "action-specific colors remain easy to recognize."
+                "Submitted ticket notes no longer show an Autotask delete action that the TicketNotes API does not "
+                "support."
             ),
-            (
-                "The formal long application name is now Ticket Pilot for Autotask, reflecting that its work workflow "
-                "relies on Autotask."
-            ),
-            (
-                "Cloudflare Access enforcement now starts off by default and can be enabled after an Access application "
-                "is configured; a paid Cloudflare plan is not required."
-            ),
-            "Work now uses `/work` as its browser URL while old `/home` bookmarks continue to work.",
-            "Browser tab titles now put TicketPilot first, such as `TicketPilot - Time Entry`.",
-            (
-                "The login page now uses a neutral black, white, and grey appearance independently from your signed-in "
-                "appearance choices."
-            ),
-            (
-                "Background selection on Config is now a dropdown with three round palette samples for every choice."
-            ),
-            (
-                "Review now begins with its summary cards directly below navigation, and phones keep all three cards "
-                "on one row with shorter hour and minute labels."
-            ),
-            "Config now identifies the active account with its full name and username.",
-            "The blank Work panel now says **Start a time entry**.",
-            (
-                "Full-browser Work, Config, and Review now remove uneven top/card gaps and align their summary and "
-                "detail areas more consistently."
-            ),
-            "The installed-app icon now places its clock on the left so browser corner badges do not cover it.",
-            "Removed stale former-name labels from user-facing application pages and metadata.",
-            (
-                "Help and Config now begin closer to the navigation bar without redundant page titles or blank space."
-            ),
-            "Work Duration now updates immediately when a work-type change normalizes the active stop time.",
-            (
-                "Removed the former logo and app-icon artwork so browsers no longer discover stale branding assets."
-            ),
-            (
-                "Existing saved appearances keep their familiar highlight when upgraded to the new independent "
-                "color setting."
-            ),
-            "Signed-in background and highlight choices no longer affect the login page.",
         ),
     )
 
@@ -315,7 +272,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
-    assert ">2.0.0<" in response.text
+    assert ">2.0.1<" in response.text
     assert ">1.4.0<" in response.text
     assert ">1.3.1<" in response.text
     assert ">1.3.0<" in response.text
