@@ -36,6 +36,7 @@ from ticket_pilot.services.autotask import (
     AutotaskSubmissionError,
     AutotaskTicketOption,
     get_autotask_provider,
+    is_customer_note_added_ticket_status,
 )
 from ticket_pilot.services.jobs import (
     MAX_ACTIVE_JOBS,
@@ -1041,10 +1042,15 @@ async def start_work_from_service_call(
             and navigation_preferences.automatically_open_onsite_navigation
         )
         if wants_json_response:
+            open_customer_note_overlay = is_customer_note_added_ticket_status(
+                selected_service_call.ticket_status_id,
+                settings.autotask_status_customer_note_added_id,
+            )
             return JSONResponse(
                 {
                     "job_id": job.id,
                     "message": "Work started from service call.",
+                    "open_customer_note_overlay": open_customer_note_overlay,
                     "navigation_app": navigation_preferences.navigation_app.value,
                     "navigation_address": selected_service_call.navigation_address if should_navigate else None,
                     "navigation_requested": should_navigate,
@@ -1235,11 +1241,15 @@ async def select_active_ticket(
         principal.key if principal else None,
     )
     response_payload = {
-            "ticket_number": job.ticket_number,
-            "ticket_title": job.ticket_title,
-            "ticket_description": job.ticket_description,
-            "ticket_status": job.ticket_status.value if job.ticket_status else None,
-            "ticket_status_label": selected_ticket_option.status_label,
+        "ticket_number": job.ticket_number,
+        "ticket_title": job.ticket_title,
+        "ticket_description": job.ticket_description,
+        "ticket_status": job.ticket_status.value if job.ticket_status else None,
+        "ticket_status_label": selected_ticket_option.status_label,
+        "open_customer_note_overlay": is_customer_note_added_ticket_status(
+            selected_ticket_option.status_id,
+            settings.autotask_status_customer_note_added_id,
+        ),
     }
     if navigation_preferences.navigation_app != NavigationApp.NONE:
         try:

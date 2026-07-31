@@ -1050,14 +1050,24 @@ credentials and cannot query Autotask directly.
 Autotask ticket status picklist IDs vary by tenant. TicketPilot uses the selected
 local app status to patch `Tickets.status` during time-entry submission and
 submitted **Submit changes** resubmission, so the Autotask API user must be allowed
-to update ticket workflow status. Configure all status IDs:
+to update ticket workflow status. Configure all selectable and observed status
+IDs:
 
+- `AUTOTASK_STATUS_NEW_ID`
 - `AUTOTASK_STATUS_IN_PROGRESS_ID`
 - `AUTOTASK_STATUS_WAITING_CUSTOMER_ID`
 - `AUTOTASK_STATUS_WAITING_PARTS_ID`
 - `AUTOTASK_STATUS_MFG_TROUBLE_TICKET_ID`
 - `AUTOTASK_STATUS_FOLLOW_UP_ID`
 - `AUTOTASK_STATUS_COMPLETE_ID`
+- `AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID`
+
+**New** and **Customer Note Added** are read-only Autotask recognition
+statuses, so users cannot select them from TicketPilot's ticket-status
+dropdown. When a selected open ticket or started service call is in **Customer
+Note Added**, TicketPilot opens that ticket's existing notes once with the
+newest note selected. Closing the overlay or reloading the page does not reopen
+it.
 
 Open-ticket and service-call selection do not use the Autotask `Tickets`
 endpoint for status changes; they only default the local editable ticket status

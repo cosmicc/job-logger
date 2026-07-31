@@ -39,8 +39,10 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
             (async () => {
               const mobileScript = `${fs.readFileSync(MOBILE_SCRIPT_PATH, "utf8")}
               ;this.__mobileTestApi = {
+                consumeCustomerNoteOverlayJobId,
                 jobDateDisplayTextForDateValue,
                 jobDateLabelForDateValue,
+                rememberCustomerNoteOverlayForJob,
                 setDateWeekdayLabelText,
                 updateActiveDurationDisplay,
                 updateActiveTimeDisplays,
@@ -494,6 +496,7 @@ def test_mobile_ticket_selection_locks_client_input(tmp_path: Path) -> None:
         const mobileTimeEntriesButton = createFakeElement("button");
         const desktopTimeEntriesButton = createFakeElement("button");
         const refreshedNotesButtons = [];
+        const openedNotesButtons = [];
         const refreshedTimeEntriesButtons = [];
         const activeClientInput = createFakeElement("input");
         activeClientInput.type = "text";
@@ -533,6 +536,9 @@ def test_mobile_ticket_selection_locks_client_input(tmp_path: Path) -> None:
         };
 
         browserContext.window.TicketPilotTicketNotes = {
+          openNewestForButton(button) {
+            openedNotesButtons.push(button);
+          },
           refreshButton(button) {
             refreshedNotesButtons.push(button);
           },
@@ -577,14 +583,17 @@ def test_mobile_ticket_selection_locks_client_input(tmp_path: Path) -> None:
 
         ticketDescriptionCard.classList.add("is-hidden");
         browserContext.__mobileTestApi.updateActiveTicketDisplay("job-2", {
-          ticket_number: "T20260616.0003",
-          ticket_title: "Ticket without description",
-          ticket_description: "",
-          ticket_status: "in_progress",
+            ticket_number: "T20260616.0003",
+            ticket_title: "Ticket without description",
+            ticket_description: "",
+            ticket_status: "in_progress",
+            open_customer_note_overlay: true,
         });
 
         assert.strictEqual(ticketDescriptionDisplay.textContent, "No description exists for this ticket.");
         assert.strictEqual(ticketDescriptionCard.classList.contains("is-hidden"), false);
+        assert.deepStrictEqual(openedNotesButtons, [mobileTicketNotesButton]);
+        assert.deepStrictEqual(refreshedNotesButtons, [mobileTicketNotesButton]);
         """,
     )
 
@@ -601,6 +610,38 @@ def test_mobile_company_selection_stays_editable_until_ticket() -> None:
     assert 'resetActiveTicketPickerForClientChange(jobId, "Loading open tickets...");' in mobile_script
     assert "companyInput.readOnly = true;" not in mobile_script
     assert "lockActiveClientInputForSelectedTicket(jobId);" in mobile_script
+
+
+def test_customer_note_overlay_job_marker_is_consumed_once(tmp_path: Path) -> None:
+    """The service-call overlay marker should be same-tab and one-time."""
+
+    run_mobile_javascript_harness(
+        tmp_path,
+        """
+        const storedValues = new Map();
+        browserContext.window.sessionStorage = {
+          getItem(key) {
+            return storedValues.has(key) ? storedValues.get(key) : null;
+          },
+          removeItem(key) {
+            storedValues.delete(key);
+          },
+          setItem(key, value) {
+            storedValues.set(key, value);
+          },
+        };
+
+        browserContext.__mobileTestApi.rememberCustomerNoteOverlayForJob("job-2");
+        assert.strictEqual(
+          browserContext.__mobileTestApi.consumeCustomerNoteOverlayJobId(),
+          "job-2",
+        );
+        assert.strictEqual(
+          browserContext.__mobileTestApi.consumeCustomerNoteOverlayJobId(),
+          "",
+        );
+        """,
+    )
 
 
 def test_mobile_audio_stream_pastes_only_final_transcript(tmp_path: Path) -> None:

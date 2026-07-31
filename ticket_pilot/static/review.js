@@ -1662,8 +1662,15 @@ function bindTicketLookup() {
     }
     for (const ticketNotesButton of ticketNotesButtons) {
       ticketNotesButton.dataset.ticketNotesTicketNumber = selectedTicketNumber;
-      if (window.TicketPilotTicketNotes) {
-        window.TicketPilotTicketNotes.refreshButton(ticketNotesButton);
+    }
+    if (ticketNotesButtons.length && window.TicketPilotTicketNotes) {
+      if (
+        selectedTicket.open_customer_note_overlay
+        && typeof window.TicketPilotTicketNotes.openNewestForButton === "function"
+      ) {
+        window.TicketPilotTicketNotes.openNewestForButton(ticketNotesButtons[0]);
+      } else {
+        window.TicketPilotTicketNotes.refreshButton(ticketNotesButtons[0]);
       }
     }
     for (const ticketTimeEntriesButton of ticketTimeEntriesButtons) {

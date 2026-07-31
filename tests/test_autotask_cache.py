@@ -1496,12 +1496,14 @@ def _live_test_provider() -> LiveAutotaskProvider:
         autotask_username="api-user-key",
         autotask_secret="api-secret",
         autotask_api_integration_code="integration-code",
+        autotask_status_new_id=7,
         autotask_status_in_progress_id=1,
         autotask_status_waiting_customer_id=2,
         autotask_status_waiting_parts_id=3,
         autotask_status_mfg_trouble_ticket_id=6,
         autotask_status_follow_up_id=4,
         autotask_status_complete_id=5,
+        autotask_status_customer_note_added_id=8,
     )
     return LiveAutotaskProvider(test_settings)
 
@@ -1512,6 +1514,10 @@ def test_live_provider_resolves_mfg_trouble_ticket_status_id() -> None:
     provider = _live_test_provider()
 
     assert provider._ticket_status_id(TicketStatus.MFG_TROUBLE_TICKET, required=True) == 6
+    assert provider.application_settings.autotask_observed_status_id_map == {
+        "new": 7,
+        "customer_note_added": 8,
+    }
 
 
 def _clear_autotask_lookup_caches() -> None:

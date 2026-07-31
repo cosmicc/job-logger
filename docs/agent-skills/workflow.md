@@ -273,6 +273,11 @@ start cards, with `.ticket-option-button` location classes, a visible location
 badge, title, ticket status, and company metadata. This label is display
 metadata only; do not trust it to override the active job's stored work-location
 or ticket-status values.
+If the server-verified selected ticket status ID matches the configured
+**Customer Note Added** observed status, automatically refresh and open the
+existing Ticket notes overlay once with the newest note selected. This applies
+to Work and Review selection. Closing the overlay or reloading must not reopen
+it; the user can still reopen it with **Ticket notes**.
 When a selected ticket has Autotask notes or time entries, Work in Progress may
 show compact **Ticket notes** and **Past time entries** buttons beside the
 ticket context. On phone-sized layouts, those buttons belong under the Work in
@@ -358,6 +363,10 @@ status. Mobile forms that navigate or redirect, including start, service-call
 start, end, rounded-start adjustment, and active delete, should show the shared
 loading overlay once a submit is accepted so slow Autotask lookups do not look
 like ignored taps.
+When that verified service-call ticket is in **Customer Note Added**, the
+refreshed Work page should open its existing Ticket notes overlay once. A
+same-tab session-storage marker may carry only the created local job ID across
+the redirect or external navigation launch and must be consumed before opening.
 
 Selected-ticket Work in Progress and Review context may expose a **Navigate to
 Destination** button for the owning managed user when navigation is enabled and a server-side

@@ -16,6 +16,8 @@ from tests.conftest import extract_csrf_token, login_as_super_admin
 from ticket_pilot import database, ui
 from ticket_pilot.enums import EntryType, JobStatus, TicketStatus, TranscriptionStatus, WorkLocation
 from ticket_pilot.models import AuditEvent, Job, SubmissionAttempt, UserPreference, WebUser
+from ticket_pilot.routes import mobile as mobile_routes
+from ticket_pilot.routes import review as review_routes
 from ticket_pilot.services import system_health
 from ticket_pilot.services.ai_cleanup import AiCleanupResult
 from ticket_pilot.services.autotask import AutotaskSubmissionResult
@@ -192,6 +194,7 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         "ticket_description": "Mock ticket description for Acme Services.",
         "ticket_status": "in_progress",
         "ticket_status_label": "In Progress",
+        "open_customer_note_overlay": False,
     }
 
     end_response = authenticated_client.post(
@@ -3076,6 +3079,7 @@ def test_selected_ticket_title_drives_review_heading_and_hides_lookup(authentica
         "ticket_description": "Mock ticket description for Acme Services.",
         "ticket_status": "in_progress",
         "ticket_status_label": "In Progress",
+        "open_customer_note_overlay": False,
     }
 
     with database.SessionLocal() as database_session:
@@ -3879,6 +3883,7 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
         "ticket_description": "Mock follow-up description for Acme Services.",
         "ticket_status": "in_progress",
         "ticket_status_label": "Follow Up",
+        "open_customer_note_overlay": False,
     }
 
     with database.SessionLocal() as database_session:
@@ -3914,6 +3919,78 @@ def test_mobile_active_job_ticket_number_update(authenticated_client: TestClient
     active_ticket_description_card_index = updated_mobile_html.index("data-active-ticket-description-card")
     assert active_ticket_number_card_index < active_desktop_context_actions_index < active_ticket_title_card_index
     assert active_ticket_title_card_index < active_mobile_context_actions_index < active_ticket_description_card_index
+
+
+@pytest.mark.parametrize(
+    ("selection_path_prefix", "route_module"),
+    [
+        ("/jobs", mobile_routes),
+        ("/review", review_routes),
+    ],
+)
+def test_customer_note_added_ticket_selection_requests_existing_notes_overlay(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    selection_path_prefix: str,
+    route_module,
+) -> None:
+    """Work and Review selection should recognize the read-only status by ID."""
+
+    customer_note_status_id = 43
+    provider = mobile_routes.get_autotask_provider()
+    ticket_option = replace(
+        provider.list_open_tickets_for_client("Acme Services", 1001, resource_id=1)[0],
+        status_id=customer_note_status_id,
+        status_label="Customer Note Added",
+    )
+    monkeypatch.setattr(
+        provider,
+        "list_open_tickets_for_client",
+        lambda *_args, **_kwargs: [ticket_option],
+    )
+    monkeypatch.setattr(route_module, "get_autotask_provider", lambda: provider)
+    monkeypatch.setattr(
+        route_module,
+        "settings",
+        replace(
+            route_module.settings,
+            autotask_status_customer_note_added_id=customer_note_status_id,
+        ),
+    )
+
+    mobile_page_response = authenticated_client.get("/work")
+    csrf_token = extract_csrf_token(mobile_page_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        active_job_id = active_job.id
+
+    save_client_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Acme Services",
+            "autotask_company_id": "1001",
+        },
+        follow_redirects=False,
+    )
+    assert save_client_response.status_code == 303
+
+    selected_ticket_response = authenticated_client.post(
+        f"{selection_path_prefix}/{active_job_id}/ticket",
+        headers={"X-CSRF-Token": csrf_token},
+        json={"ticket_number": ticket_option.ticket_number},
+    )
+
+    assert selected_ticket_response.status_code == 200
+    assert selected_ticket_response.json()["ticket_status_label"] == "Customer Note Added"
+    assert selected_ticket_response.json()["open_customer_note_overlay"] is True
 
 
 def test_mobile_active_ticket_status_is_editable(authenticated_client: TestClient) -> None:
@@ -4161,6 +4238,58 @@ def test_onsite_service_call_starts_before_returning_navigation_destination(
         "navigation_app": "waze",
         "navigation_address": "200 Mock Boulevard, Detroit, MI 48202",
     }
+
+
+def test_customer_note_added_service_call_requests_overlay_after_work_starts(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A service-call start should carry a one-time customer-note overlay request."""
+
+    customer_note_status_id = 43
+    provider = mobile_routes.get_autotask_provider()
+    service_call_option = replace(
+        provider.list_todays_service_calls_for_resource(
+            resource_id=1,
+            local_service_date=date(2026, 6, 20),
+            include_navigation=False,
+        )[0],
+        ticket_status_id=customer_note_status_id,
+        ticket_status_label="Customer Note Added",
+    )
+    monkeypatch.setattr(
+        provider,
+        "list_todays_service_calls_for_resource",
+        lambda **_kwargs: [service_call_option],
+    )
+    monkeypatch.setattr(mobile_routes, "get_autotask_provider", lambda: provider)
+    monkeypatch.setattr(
+        mobile_routes,
+        "settings",
+        replace(
+            mobile_routes.settings,
+            autotask_status_customer_note_added_id=customer_note_status_id,
+        ),
+    )
+
+    work_response = authenticated_client.get("/work")
+    csrf_token = extract_csrf_token(work_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start/service-call",
+        headers={"Accept": "application/json"},
+        data={
+            "csrf_token": csrf_token,
+            "service_call_ticket_id": str(service_call_option.service_call_ticket_id),
+            "service_call_date": "2026-06-20",
+        },
+    )
+
+    assert start_response.status_code == 200
+    assert start_response.json()["open_customer_note_overlay"] is True
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        assert active_job.ticket_number == service_call_option.ticket_number
 
 
 def test_onsite_service_call_can_start_without_automatically_opening_navigation(

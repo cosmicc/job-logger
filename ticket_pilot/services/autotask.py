@@ -495,6 +495,19 @@ def filter_displayable_ticket_notes(ticket_notes: list[AutotaskTicketNote]) -> l
     return [ticket_note for ticket_note in ticket_notes if is_displayable_ticket_note_context(ticket_note)]
 
 
+def is_customer_note_added_ticket_status(
+    status_id: int | None,
+    configured_customer_note_added_status_id: int | None,
+) -> bool:
+    """Return whether a server-verified ticket has the configured customer-note status."""
+
+    return (
+        status_id is not None
+        and configured_customer_note_added_status_id is not None
+        and status_id == configured_customer_note_added_status_id
+    )
+
+
 @dataclass(frozen=True)
 class AutotaskTicketTimeEntry:
     """Safe Autotask time-entry data returned to authenticated job owners."""
@@ -594,6 +607,9 @@ class AutotaskServiceCallOption:
     # sorting, concise card display, and audit context.
     start_datetime_utc: datetime | None
     end_datetime_utc: datetime | None
+
+    # ticket_status_id is the current read-only Autotask status picklist value.
+    ticket_status_id: int | None = None
 
     # navigation_address follows service-call, ticket, then company priority.
     navigation_address: str | None = None
@@ -1466,6 +1482,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 autotask_company_id=1001,
                 start_datetime_utc=first_start_utc,
                 end_datetime_utc=first_end_utc,
+                ticket_status_id=1,
                 navigation_address="300 Mock On-Site Road, Detroit, MI 48203",
             ),
             AutotaskServiceCallOption(
@@ -1483,6 +1500,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 autotask_company_id=1001,
                 start_datetime_utc=second_start_utc,
                 end_datetime_utc=second_end_utc,
+                ticket_status_id=1,
                 navigation_address="400 Mock Remote Road, Detroit, MI 48204",
             ),
         ]
@@ -2129,6 +2147,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                         autotask_company_id=company_id,
                         start_datetime_utc=start_datetime_utc,
                         end_datetime_utc=end_datetime_utc,
+                        ticket_status_id=status_id if status_id >= 0 else None,
                         navigation_address=navigation_address,
                     )
                 )
@@ -2141,6 +2160,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         """Return missing settings that would prevent the full Autotask workflow."""
 
         required_workflow_values = {
+            "AUTOTASK_STATUS_NEW_ID": self.application_settings.autotask_status_new_id,
             "AUTOTASK_STATUS_IN_PROGRESS_ID": self.application_settings.autotask_status_in_progress_id,
             "AUTOTASK_STATUS_WAITING_CUSTOMER_ID": self.application_settings.autotask_status_waiting_customer_id,
             "AUTOTASK_STATUS_WAITING_PARTS_ID": self.application_settings.autotask_status_waiting_parts_id,
@@ -2149,6 +2169,9 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             ),
             "AUTOTASK_STATUS_FOLLOW_UP_ID": self.application_settings.autotask_status_follow_up_id,
             "AUTOTASK_STATUS_COMPLETE_ID": self.application_settings.autotask_status_complete_id,
+            "AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID": (
+                self.application_settings.autotask_status_customer_note_added_id
+            ),
         }
         return [setting_name for setting_name, setting_value in required_workflow_values.items() if setting_value is None]
 

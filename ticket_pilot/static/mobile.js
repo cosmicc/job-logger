@@ -7,6 +7,7 @@ const RECORDING_CHUNK_INTERVAL_MS = 2500;
 const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
 const ROUNDING_INTERVAL_MINUTES = 15;
 const LIVE_ROUNDED_STOP_UPDATE_MS = 30000;
+const AUTO_OPEN_CUSTOMER_NOTE_JOB_STORAGE_KEY = "ticketPilot.autoOpenCustomerNoteJobId";
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 const RECORD_AUDIO_LABEL = "Record";
 const STOP_RECORDING_LABEL = "Stop recording";
@@ -64,6 +65,61 @@ let activeAudioStopRequested = false;
 
 function toSafeMapString(value) {
   return String(value || "");
+}
+
+function customerNoteSessionStorage() {
+  try {
+    return window.sessionStorage || null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function rememberCustomerNoteOverlayForJob(jobId) {
+  const normalizedJobId = toSafeMapString(jobId).trim();
+  const sessionStorage = customerNoteSessionStorage();
+  if (!normalizedJobId || !sessionStorage) {
+    return;
+  }
+
+  try {
+    sessionStorage.setItem(AUTO_OPEN_CUSTOMER_NOTE_JOB_STORAGE_KEY, normalizedJobId);
+  } catch (_error) {
+    // Navigation may still continue when private browsing blocks session storage.
+  }
+}
+
+function consumeCustomerNoteOverlayJobId() {
+  const sessionStorage = customerNoteSessionStorage();
+  if (!sessionStorage) {
+    return "";
+  }
+
+  try {
+    const jobId = toSafeMapString(
+      sessionStorage.getItem(AUTO_OPEN_CUSTOMER_NOTE_JOB_STORAGE_KEY),
+    ).trim();
+    sessionStorage.removeItem(AUTO_OPEN_CUSTOMER_NOTE_JOB_STORAGE_KEY);
+    return jobId;
+  } catch (_error) {
+    return "";
+  }
+}
+
+function openNewestCustomerNoteForActiveJob(jobId) {
+  const normalizedJobId = toSafeMapString(jobId).trim();
+  const activeJobCard = Array.from(document.querySelectorAll("[data-active-job-card]"))
+    .find((card) => toSafeMapString(card.dataset.activeJobCard).trim() === normalizedJobId);
+  const ticketNotesButton = activeJobCard
+    ? activeJobCard.querySelector("[data-ticket-notes-button]")
+    : null;
+  if (
+    ticketNotesButton
+    && window.TicketPilotTicketNotes
+    && typeof window.TicketPilotTicketNotes.openNewestForButton === "function"
+  ) {
+    window.TicketPilotTicketNotes.openNewestForButton(ticketNotesButton);
+  }
 }
 
 function formDataBooleanValue(formData, fieldName) {
@@ -1952,6 +2008,9 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
       if (!response.ok) {
         throw new Error(payload.detail || "The service call could not be started.");
       }
+      if (payload.open_customer_note_overlay) {
+        rememberCustomerNoteOverlayForJob(payload.job_id);
+      }
       if (
         payload.navigation_requested
         && payload.navigation_address
@@ -2140,7 +2199,14 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
     ticketNotesButton.dataset.ticketNotesTicketNumber = ticketNumber;
   }
   if (ticketNotesButtons.length && window.TicketPilotTicketNotes) {
-    window.TicketPilotTicketNotes.refreshButton(ticketNotesButtons[0]);
+    if (
+      selectedTicket.open_customer_note_overlay
+      && typeof window.TicketPilotTicketNotes.openNewestForButton === "function"
+    ) {
+      window.TicketPilotTicketNotes.openNewestForButton(ticketNotesButtons[0]);
+    } else {
+      window.TicketPilotTicketNotes.refreshButton(ticketNotesButtons[0]);
+    }
   }
   for (const ticketTimeEntriesButton of ticketTimeEntriesButtons) {
     ticketTimeEntriesButton.dataset.ticketTimeEntriesTicketNumber = ticketNumber;
@@ -2724,6 +2790,7 @@ initializeLiveRoundedStopDisplays();
 initializeActiveDurationDisplays();
 initializeActiveEntryModes();
 markMobilePasskeyPromptSeen();
+openNewestCustomerNoteForActiveJob(consumeCustomerNoteOverlayJobId());
 
 if (document.readyState === "complete") {
   window.setTimeout(loadServiceCallPanelsAfterPageLoad, 0);

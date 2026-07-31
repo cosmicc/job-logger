@@ -8,6 +8,8 @@ Short release notes shown on the authenticated `/changelog` page.
 
 - Config can stop On-Site service calls from opening directions automatically while keeping the navigation button available.
 - TicketPilot now supports the Autotask **Mfg Trouble Ticket** status.
+- Selecting or starting a **Customer Note Added** ticket now opens its newest
+  existing customer note automatically.
 - Review can hide submitted entries and show 10, 20, 50, or 100 entries per page.
 - Administrators can acknowledge the current health alert to pause repeated Pushover reminders until the issue changes.
 
@@ -16,6 +18,8 @@ Short release notes shown on the authenticated `/changelog` page.
 - Full-browser Review starts at the top beside the Today, Week, and Unsubmitted cards and now has First and Last page buttons.
 - Complete-status entries wait until every other unsubmitted entry for the same ticket has been sent to Autotask.
 - Text boxes now start entered text on the left.
+- The automatically opened customer note stays closed after you close it or
+  reload; the **Ticket notes** button remains available whenever you need it.
 
 ### Fixed
 

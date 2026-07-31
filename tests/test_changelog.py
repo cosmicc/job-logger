@@ -232,6 +232,10 @@ def test_changelog_parser_reads_current_release() -> None:
                 "navigation button available."
             ),
             "TicketPilot now supports the Autotask **Mfg Trouble Ticket** status.",
+            (
+                "Selecting or starting a **Customer Note Added** ticket now opens its newest existing customer note "
+                "automatically."
+            ),
             "Review can hide submitted entries and show 10, 20, 50, or 100 entries per page.",
             (
                 "Administrators can acknowledge the current health alert to pause repeated Pushover reminders until "
@@ -246,6 +250,10 @@ def test_changelog_parser_reads_current_release() -> None:
                 "to Autotask."
             ),
             "Text boxes now start entered text on the left.",
+            (
+                "The automatically opened customer note stays closed after you close it or reload; the **Ticket notes** "
+                "button remains available whenever you need it."
+            ),
             "Ticket-note create and update requests now use only fields supported by Autotask.",
             (
                 "Submitted ticket notes no longer show an Autotask delete action that the TicketNotes API does not "

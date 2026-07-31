@@ -208,6 +208,13 @@ ticket. **Ticket notes** shows ticket-note history. **Past time entries** shows
 prior time entries for the ticket. Some Autotask-generated system notes are
 filtered out so this list focuses on useful ticket history.
 
+When you select a ticket whose current Autotask status is **Customer Note
+Added**, TicketPilot automatically opens **Ticket notes** once and selects the
+newest note. The same behavior applies when you start work from a service call
+for that status. Use the X in the top-right corner to close the overlay. It
+stays closed after you close it or reload the page; use **Ticket notes** to open
+it again when needed.
+
 When Autotask provides an address and navigation is enabled, **Navigate to Destination** opens
 directions to the selected ticket's client. The button is available in Work in
 Progress and Review, including after submission. It is available only for time

@@ -412,15 +412,21 @@ def test_navigation_office_address_loads_bounded_single_line_value(monkeypatch: 
         load_settings()
 
 
-def test_mfg_trouble_ticket_status_is_configurable_and_rendered(
+def test_autotask_ticket_status_ids_separate_observed_and_selectable_values(
     authenticated_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The tenant-specific Mfg Trouble Ticket status should work end to end."""
+    """Observed statuses should configure without entering the editable dropdown."""
 
+    monkeypatch.setenv("AUTOTASK_STATUS_NEW_ID", "41")
     monkeypatch.setenv("AUTOTASK_STATUS_MFG_TROUBLE_TICKET_ID", "42")
+    monkeypatch.setenv("AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID", "43")
     loaded_settings = load_settings()
     assert loaded_settings.autotask_status_id_map["mfg_trouble_ticket"] == 42
+    assert loaded_settings.autotask_observed_status_id_map == {
+        "new": 41,
+        "customer_note_added": 43,
+    }
     work_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(work_response.text)
     start_response = authenticated_client.post(
@@ -433,6 +439,8 @@ def test_mfg_trouble_ticket_status_is_configurable_and_rendered(
         '<option value="mfg_trouble_ticket"'
         in authenticated_client.get("/work").text
     )
+    assert '<option value="new"' not in authenticated_client.get("/work").text
+    assert '<option value="customer_note_added"' not in authenticated_client.get("/work").text
 
 
 def test_dev_build_flag_uses_strict_boolean_environment_value(monkeypatch) -> None:

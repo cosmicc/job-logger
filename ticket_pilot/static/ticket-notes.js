@@ -533,6 +533,15 @@ function openTicketNotesOverlay(button) {
   }
 }
 
+async function openNewestTicketNoteForButton(button) {
+  if (!button || !ticketNotesButtonHasTicket(button)) {
+    return;
+  }
+
+  await refreshTicketNotesButton(button);
+  openTicketNotesOverlay(button);
+}
+
 function openTicketTimeEntriesOverlay(button) {
   if (ticketContextButtonIsUnavailable(button)) {
     return;
@@ -629,6 +638,7 @@ function initializeTicketNotesOverlay() {
 }
 
 window.TicketPilotTicketNotes = {
+  openNewestForButton: openNewestTicketNoteForButton,
   refreshButton: refreshTicketNotesButton,
   refreshTimeEntriesButton: refreshTicketTimeEntriesButton,
   refreshWithin: refreshTicketNotesWithin,

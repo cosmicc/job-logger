@@ -589,6 +589,15 @@ resource/range metadata in list cards while keeping summary notes in the
 selected detail pane. Do not expose raw Autotask responses, credentials, or
 direct provider URLs to browser JavaScript.
 
+Automatic opening for the **Customer Note Added** Autotask status must be
+decided by comparing the server-verified numeric status ID with
+`AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID`. Do not trust display labels, hidden
+fields, or browser-supplied status. The browser may receive only a boolean
+presentation flag. A service-call redirect may store only the created local job
+ID in same-tab session storage and must consume it once; modified browser state
+cannot select provider data because the rendered job match and authenticated,
+owner-checked notes endpoint remain authoritative.
+
 Navigation destinations are sensitive location data. Store only bounded
 single-line home and optional office values in the owning user's preference
 row. Never include raw home, office, ticket, service-call, company-location, or

@@ -488,6 +488,18 @@ Supported ticket status values are:
 - Follow up.
 - Complete.
 
+`AUTOTASK_STATUS_NEW_ID` and
+`AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID` are read-only recognition mappings,
+not selectable local statuses. Never add **New** or **Customer Note Added** to
+the user ticket-status dropdown. Compare the server-verified numeric Autotask
+status ID with the configured mapping. When a user selects a **Customer Note
+Added** ticket from Work or Review, or starts it from a service call, request
+the existing Ticket notes overlay once with the newest note selected. Closing
+the overlay or reloading must not reopen it. Service-call navigation may carry
+only the new local job ID through same-tab session storage; browser state is
+presentation-only and the authenticated, owner-checked ticket-notes endpoint
+remains authoritative.
+
 Autotask submission must be idempotent. A retry must not create duplicate
 TimeEntries or TicketNotes rows for the same accepted job.
 Before any Complete-status create or submitted-entry update, globally check all

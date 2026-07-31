@@ -33,6 +33,7 @@ from ticket_pilot.services.autotask import (
     build_autotask_summary_notes,
     filter_displayable_ticket_notes,
     get_autotask_provider,
+    is_customer_note_added_ticket_status,
     resource_name_for_display,
 )
 from ticket_pilot.services.jobs import (
@@ -1347,11 +1348,15 @@ async def select_review_ticket(
         preference_principal.key if preference_principal else None,
     )
     response_payload = {
-            "ticket_number": job.ticket_number,
-            "ticket_title": job.ticket_title,
-            "ticket_description": job.ticket_description,
-            "ticket_status": job.ticket_status.value if job.ticket_status else None,
-            "ticket_status_label": selected_ticket_option.status_label,
+        "ticket_number": job.ticket_number,
+        "ticket_title": job.ticket_title,
+        "ticket_description": job.ticket_description,
+        "ticket_status": job.ticket_status.value if job.ticket_status else None,
+        "ticket_status_label": selected_ticket_option.status_label,
+        "open_customer_note_overlay": is_customer_note_added_ticket_status(
+            selected_ticket_option.status_id,
+            settings.autotask_status_customer_note_added_id,
+        ),
     }
     if navigation_preferences.navigation_app != NavigationApp.NONE:
         try:

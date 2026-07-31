@@ -213,6 +213,15 @@ client input read-only immediately after a successful ticket selection, and the
 service layer must reject crafted client/company changes after the ticket
 exists.
 
+The tenant mappings `AUTOTASK_STATUS_NEW_ID` and
+`AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID` are read-only observed statuses.
+Neither belongs in TicketPilot's editable status enum or dropdown. Selection
+routes must compare the server-verified numeric ticket status ID, not the
+display label, and may return only the safe
+`open_customer_note_overlay` presentation flag. For **Customer Note Added**,
+Work and Review reuse the existing Ticket notes overlay, refresh its
+authenticated data, and select the newest note.
+
 Ticket notes use `GET /review/{job_id}/ticket-notes`. This route must require
 an authenticated session, enforce normal review visibility and ownership rules,
 use the stored ticket number from the database, and call the server-side
@@ -286,6 +295,14 @@ work-location values from hidden fields for this path. Starting from a service
 call stores verified local job metadata and defaults local ticket status to
 In progress, but it must not patch Autotask ticket status or perform any other
 remote write before submission.
+
+When the verified service-call ticket status ID matches
+`AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID`, the JSON start response may request
+the same one-time Ticket notes overlay. Carry only the newly created local job
+ID through same-tab session storage when navigation or redirect separates the
+start response from the refreshed Work page. Consume that value once, match it
+against a rendered active job, and still load notes only through the
+authenticated server route.
 
 Navigation address priority is service-call `companylocationID`, ticket
 `companylocationID`, primary active CompanyLocation, then the Companies main
@@ -432,6 +449,8 @@ Required live Autotask values include:
   service-desk role.
 - Time entry type.
 - Tenant-specific ticket status picklist IDs for each selectable local status.
+- Tenant-specific `New` and `Customer Note Added` status IDs used only to
+  recognize server-verified ticket state.
 
 Ticket `TimeEntries` creation must query the selected `Tickets` row by
 `ticketNumber` and use `assignedResourceroleID` for `TimeEntries.roleID` when

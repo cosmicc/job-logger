@@ -143,6 +143,27 @@ def test_ticket_context_refreshes_matching_peer_buttons() -> None:
     assert "setTicketTimeEntriesButtonReady(peerButton, payload.time_entries);" in ticket_notes_script
 
 
+def test_customer_note_added_selection_reuses_existing_newest_first_overlay() -> None:
+    """Status-triggered notes should reuse the normal overlay without a new modal."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
+    ticket_notes_script = (repository_root / "ticket_pilot" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
+
+    assert "async function openNewestTicketNoteForButton(button)" in ticket_notes_script
+    assert "await refreshTicketNotesButton(button);" in ticket_notes_script
+    assert "openTicketNotesOverlay(button);" in ticket_notes_script
+    assert "openNewestForButton: openNewestTicketNoteForButton" in ticket_notes_script
+    assert "selectedTicket.open_customer_note_overlay" in mobile_script
+    assert "selectedTicket.open_customer_note_overlay" in review_script
+    assert "window.TicketPilotTicketNotes.openNewestForButton(ticketNotesButtons[0]);" in mobile_script
+    assert "window.TicketPilotTicketNotes.openNewestForButton(ticketNotesButtons[0]);" in review_script
+    assert "AUTO_OPEN_CUSTOMER_NOTE_JOB_STORAGE_KEY" in mobile_script
+    assert "rememberCustomerNoteOverlayForJob(payload.job_id);" in mobile_script
+    assert "openNewestCustomerNoteForActiveJob(consumeCustomerNoteOverlayJobId());" in mobile_script
+
+
 def test_shared_date_time_controls_replace_native_picker_and_add_time_dropdown() -> None:
     """Date choosers should use app controls, and time fields should offer 15-minute options."""
 

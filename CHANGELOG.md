@@ -10,6 +10,11 @@ All notable changes to TicketPilot are documented in this file.
   automatically opening directions while keeping manual destination navigation.
 - Added the Autotask **Mfg Trouble Ticket** status and the tenant-specific
   `AUTOTASK_STATUS_MFG_TROUBLE_TICKET_ID` mapping.
+- Added read-only `AUTOTASK_STATUS_NEW_ID` and
+  `AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID` tenant mappings for recognizing
+  external ticket state without adding those statuses to user dropdowns.
+- Added one-time automatic opening of the newest existing ticket note after
+  selecting or starting a verified **Customer Note Added** ticket.
 - Added persistent per-user Review controls for hiding submitted entries and
   showing 10, 20, 50, or 100 rows per page.
 - Added global, process-local administrator acknowledgement for the current
@@ -28,6 +33,8 @@ All notable changes to TicketPilot are documented in this file.
 - Text inputs and text areas now left-align entered text.
 - Submitted ticket notes can be updated but no longer offer the unsupported
   Autotask REST delete action.
+- Customer-note automatic opening reuses the authenticated Ticket notes
+  overlay and stays closed after the user closes it or reloads the page.
 
 ### Fixed
 
