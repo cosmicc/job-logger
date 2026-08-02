@@ -536,7 +536,12 @@ security combinations return a misleading HTTP 500 when `projectType` metadata
 or fields are queried. Treat project type as optional in that case: retry the
 Project query without `projectType`, retain project-status, task-status, and
 resource-assignment filtering, and do not block the ticket results. Without the
-field, Template and Baseline projects cannot be pre-filtered. Autotask does not
+field, Template and Baseline projects cannot be pre-filtered. If the core
+Project query is also denied, treat assigned project-task discovery as
+unavailable for that request: return the independently verified ticket results,
+an empty Project tasks list, no task-status options, and a bounded Projects
+permission warning. Never let a Projects permission failure discard valid
+ticket choices. Autotask does not
 expose a task-level allow-time-entry flag; actual time-entry authority remains
 governed by the resource's Autotask Projects security permission. Store the verified
 task ID, parent project ID, display metadata, and current task status locally,

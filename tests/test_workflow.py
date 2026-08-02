@@ -20,7 +20,7 @@ from ticket_pilot.routes import mobile as mobile_routes
 from ticket_pilot.routes import review as review_routes
 from ticket_pilot.services import system_health
 from ticket_pilot.services.ai_cleanup import AiCleanupResult
-from ticket_pilot.services.autotask import AutotaskSubmissionResult
+from ticket_pilot.services.autotask import AutotaskSubmissionError, AutotaskSubmissionResult
 from ticket_pilot.services.jobs import (
     JobWorkflowError,
     count_unsubmitted_time_entries,
@@ -5701,6 +5701,69 @@ def test_project_task_can_be_selected_reviewed_and_submitted(
         assert attempt.request_snapshot["work_target_type"] == "project_task"
         assert attempt.request_snapshot["taskID"] == 7001
         assert attempt.request_snapshot["taskStatusID"] == 5
+
+
+def test_project_permission_failure_keeps_ticket_picker_usable(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A denied Projects query should warn without discarding valid tickets."""
+
+    provider = review_routes.get_autotask_provider()
+
+    def deny_project_lookup(*_args, **_kwargs):
+        """Reproduce the tenant's Projects query permission response."""
+
+        raise AutotaskSubmissionError(
+            "Autotask project lookup failed with Autotask HTTP 500: "
+            "The logged in Resource does not have the adequate permissions "
+            "to query this entity projectType."
+        )
+
+    monkeypatch.setattr(
+        provider,
+        "list_open_project_tasks_for_client",
+        deny_project_lookup,
+    )
+    monkeypatch.setattr(
+        provider,
+        "list_task_status_options",
+        lambda: pytest.fail("Task statuses must not load after project lookup fails."),
+    )
+    monkeypatch.setattr(review_routes, "get_autotask_provider", lambda: provider)
+
+    work_page = authenticated_client.get("/work")
+    csrf_token = extract_csrf_token(work_page.text)
+    assert authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    ).status_code == 303
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        job_id = active_job.id
+    assert authenticated_client.post(
+        f"/jobs/{job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Acme Services",
+            "autotask_company_id": "1001",
+        },
+        follow_redirects=False,
+    ).status_code == 303
+
+    options_response = authenticated_client.get(f"/review/{job_id}/tickets")
+
+    assert options_response.status_code == 200
+    options_payload = options_response.json()
+    assert options_payload["tickets"]
+    assert options_payload["project_tasks"] == []
+    assert options_payload["task_statuses"] == []
+    assert options_payload["project_tasks_warning"] == (
+        "Project tasks are unavailable because the Autotask API user lacks Projects access. "
+        "Ticket lookup is still available."
+    )
 
 
 def test_project_task_complete_is_blocked_by_any_unsubmitted_entry(

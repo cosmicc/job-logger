@@ -243,7 +243,9 @@ The live provider must:
   tenant/API-user security combinations reject it with HTTP 500: retry without
   `projectType`, continue status and resource-assignment filtering, and keep
   ticket results usable. Template and Baseline projects cannot be pre-filtered
-  during that fallback.
+  during that fallback. If the field-free Project query is also denied, return
+  the already verified Tickets group with an empty Project tasks group and a
+  bounded Projects-access warning; do not fail the combined picker response.
 - Exclude projects whose current metadata labels identify them as Complete,
   Inactive, Template, or Baseline.
 - Query `Tasks` for the remaining projects.
@@ -254,6 +256,12 @@ The live provider must:
   TaskNotes-availability flag.
 - Cache the returned selection list briefly and verify a clicked task ID
   against that server-side list or a fresh query before storing it.
+
+Ticket lookup and project-task lookup are independent provider operations in
+the combined Work/Review picker response. Catch only project-task
+`AutotaskSubmissionError` failures after ticket lookup succeeds. Do not convert
+ticket lookup, authentication, ownership, or job-state failures into partial
+success.
 
 Autotask does not expose a task-level allow-time-entry field. Actual permission
 to enter task time comes from the resource's Autotask Projects security level,

@@ -103,6 +103,25 @@ HIDDEN_AUDIT_TIMELINE_ACTIONS = {BROWSER_TEXT_SAVED_AUDIT_ACTION, REVIEW_SAVED_A
 DEFAULT_REVIEW_JOBS_PER_PAGE = 10
 SESSION_REVIEW_HIDE_SUBMITTED_KEY = "review_hide_submitted_entries"
 SESSION_REVIEW_PAGE_SIZE_KEY = "review_page_size"
+PROJECT_TASK_PERMISSION_WARNING = (
+    "Project tasks are unavailable because the Autotask API user lacks Projects access. "
+    "Ticket lookup is still available."
+)
+PROJECT_TASK_UNAVAILABLE_WARNING = (
+    "Project tasks are temporarily unavailable. Ticket lookup is still available."
+)
+
+
+def _project_task_lookup_warning(exc: AutotaskSubmissionError) -> str:
+    """Return a bounded user-facing warning for an optional task lookup failure."""
+
+    normalized_error = " ".join(str(exc).split()).casefold()
+    if (
+        "adequate permissions to query this entity projecttype" in normalized_error
+        or "lacks projects access" in normalized_error
+    ):
+        return PROJECT_TASK_PERMISSION_WARNING
+    return PROJECT_TASK_UNAVAILABLE_WARNING
 
 
 @dataclass(frozen=True)
@@ -333,12 +352,25 @@ def review_ticket_options(
             job.autotask_company_id,
             resource_id=web_user.autotask_resource_id,
         )
-        task_options = provider.list_open_project_tasks_for_client(
-            job.client_name,
-            job.autotask_company_id,
-            resource_id=web_user.autotask_resource_id,
-        )
-        task_status_options = provider.list_task_status_options()
+        task_options: list[AutotaskProjectTaskOption] = []
+        task_status_options: list[AutotaskTaskStatusOption] = []
+        project_tasks_warning: str | None = None
+        try:
+            task_options = provider.list_open_project_tasks_for_client(
+                job.client_name,
+                job.autotask_company_id,
+                resource_id=web_user.autotask_resource_id,
+            )
+        except AutotaskSubmissionError as exc:
+            # Project-task selection is an optional extension of the ticket
+            # picker. A Projects permission or availability failure must not
+            # discard ticket results that were already verified successfully.
+            project_tasks_warning = _project_task_lookup_warning(exc)
+        else:
+            # Status metadata remains required before a task can be selected
+            # safely. Let failures here follow the route's normal error path.
+            if task_options:
+                task_status_options = provider.list_task_status_options()
     except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         return JSONResponse({"detail": str(getattr(exc, "detail", exc))}, status_code=400)
 
@@ -387,6 +419,7 @@ def review_ticket_options(
                 }
                 for task_option in task_options
             ],
+            "project_tasks_warning": project_tasks_warning,
             "task_statuses": [
                 _task_status_payload(status_option)
                 for status_option in task_status_options

@@ -40,8 +40,8 @@ Short release notes shown on the authenticated `/changelog` page.
 
 ### Fixed
 
-- Company work-item lookup now continues when Autotask denies optional Project
-  type metadata instead of hiding tickets and assigned project tasks.
+- Regular tickets now remain selectable when Autotask denies Projects access;
+  the Project tasks group shows a clear permission warning instead.
 - Ticket notes now submit through the correct Autotask ticket-note endpoint.
 - Work and Review now fully hide **Append to resolution** in Ticket note mode.
 - Ticket-note create and update requests now use only fields supported by Autotask.

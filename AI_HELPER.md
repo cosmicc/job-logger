@@ -1020,11 +1020,12 @@ Confirm the selected client. Then check the ticket or project-task assignment,
 project type, and Autotask Projects permission. Contact the app administrator
 if expected work is missing.
 
-If an older development build says the resource cannot query `projectType` or
-cannot find `type` in the Project entity, ask the administrator to install the
-newest 2.1.0 development package. The current build treats optional project-type
-metadata as unavailable and continues loading tickets and assigned project
-tasks using the remaining status and assignment checks.
+If the picker says **Project tasks are unavailable because the Autotask API
+user lacks Projects access**, regular ticket selection still works. Ask the app
+administrator to update the security level assigned to the Autotask API user so
+Projects query/view access is not None and its **Can enter time on** setting
+covers the assigned project work. TicketPilot cannot safely match tasks to the
+selected company without reading their parent Projects.
 
 ### Missing Required Fields
 

@@ -560,6 +560,12 @@ The selected client did not return usable open tickets or assigned project
 tasks. Confirm the client is correct, then check your Autotask assignment and
 project permissions or contact your app administrator.
 
+**Project tasks are unavailable because the Autotask API user lacks Projects access**
+
+You can continue selecting regular tickets. Assigned project tasks cannot be
+shown until your app administrator updates the Autotask API user's Projects
+permissions.
+
 **Missing required fields**
 
 Complete the required client, ticket or project task, status, date/time, title,

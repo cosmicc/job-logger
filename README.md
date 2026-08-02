@@ -1096,6 +1096,9 @@ excludes Complete/Inactive projects plus Template and Baseline project types.
 When Autotask denies optional Project-type metadata, TicketPilot continues with
 project status, task status, and resource-assignment filtering; Template and
 Baseline projects cannot be pre-filtered in that compatibility mode.
+If the API user cannot query Projects at all, regular tickets still appear and
+the **Project tasks** group shows a permission warning until an Autotask
+administrator grants that API user Projects access.
 Autotask task-time permission still comes from the resource's Projects security
 level; there is no task-level allow-time field.
 
@@ -1583,6 +1586,11 @@ Autotask API user cannot query Companies or Tickets, so use the preflight
 result and the `/diagnostics` failed-operation label when diagnosing Autotask HTTP
 500 or permission failures. Some Autotask permission denials are returned as
 HTTP 500 responses, so check the preflight detail before changing credentials.
+When the selected-company picker says Project tasks are unavailable because the
+API user lacks Projects access, update the security level assigned to
+`AUTOTASK_USERNAME` so Projects query/view access is not None and **Can enter
+time on** covers the required assigned work. Ticket lookup remains usable while
+that permission is being corrected.
 
 When Autotask rejects `TimeEntries` or `TicketNotes` creation/update,
 TicketPilot surfaces bounded body-level error details when Autotask provides them.

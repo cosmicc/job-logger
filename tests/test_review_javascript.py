@@ -251,6 +251,23 @@ def test_workflow_status_messages_share_one_line() -> None:
     assert "data-ai-cleanup-status" in review_template
 
 
+def test_shared_work_item_pickers_render_project_task_warnings() -> None:
+    """Work and Review should render a non-blocking Project tasks warning."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
+    app_styles = (repository_root / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
+
+    for picker_script in (mobile_script, review_script):
+        assert "payload.project_tasks_warning" in picker_script
+        assert "function appendTicketPickerWarning" in picker_script
+        assert 'appendTicketPickerSectionHeading(resultsElement, "Project tasks")' in picker_script
+        assert "appendTicketPickerWarning(resultsElement, projectTasksWarning);" in picker_script
+    assert ".ticket-picker-section-warning" in app_styles
+    assert "background: var(--warning-soft);" in app_styles
+
+
 def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
     """Review edits must save through the background save endpoint without a button."""
 

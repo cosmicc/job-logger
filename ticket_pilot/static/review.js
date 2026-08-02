@@ -1638,6 +1638,14 @@ function appendTicketPickerSectionHeading(resultsElement, label) {
   resultsElement.append(heading);
 }
 
+function appendTicketPickerWarning(resultsElement, message) {
+  const warning = document.createElement("p");
+  warning.className = "ticket-picker-section-warning";
+  warning.setAttribute("role", "status");
+  warning.textContent = message;
+  resultsElement.append(warning);
+}
+
 function setTicketLookupStatus(statusElement, message, {isError = false, isLoading = false} = {}) {
   if (!statusElement) {
     return;
@@ -1838,15 +1846,20 @@ function bindTicketLookup() {
 
       const ticketOptions = Array.isArray(payload.tickets) ? payload.tickets : [];
       const taskOptions = Array.isArray(payload.project_tasks) ? payload.project_tasks : [];
+      const projectTasksWarning = toSafeMapString(payload.project_tasks_warning).trim();
       const optionCount = ticketOptions.length + taskOptions.length;
-      if (optionCount === 0) {
+      if (optionCount === 0 && !projectTasksWarning) {
         setTicketLookupStatus(statusElement, "No tickets or assigned project tasks found. Click this box to try again.");
         setTicketPickerClickable(true);
         return;
       }
 
-      hasLoadedTicketOptions = true;
-      setTicketLookupStatus(statusElement, `${optionCount} available work item(s) found.`);
+      if (optionCount > 0) {
+        hasLoadedTicketOptions = true;
+        setTicketLookupStatus(statusElement, `${optionCount} available work item(s) found.`);
+      } else {
+        setTicketLookupStatus(statusElement, "No open tickets found. Project tasks are unavailable.");
+      }
       if (ticketOptions.length) {
         appendTicketPickerSectionHeading(resultsElement, "Tickets");
       }
@@ -1877,8 +1890,11 @@ function bindTicketLookup() {
         });
         resultsElement.append(optionButton);
       }
-      if (taskOptions.length) {
+      if (taskOptions.length || projectTasksWarning) {
         appendTicketPickerSectionHeading(resultsElement, "Project tasks");
+      }
+      if (projectTasksWarning) {
+        appendTicketPickerWarning(resultsElement, projectTasksWarning);
       }
       for (const taskOption of taskOptions) {
         const optionButton = document.createElement("button");
@@ -1907,6 +1923,9 @@ function bindTicketLookup() {
           }
         });
         resultsElement.append(optionButton);
+      }
+      if (optionCount === 0) {
+        setTicketPickerClickable(true);
       }
     } catch (error) {
       setTicketLookupStatus(statusElement, error.message || "Autotask ticket lookup failed.", {isError: true});

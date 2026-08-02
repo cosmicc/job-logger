@@ -2104,6 +2104,18 @@ a:focus-visible {
   text-transform: uppercase;
 }
 
+.ticket-picker-section-warning {
+  margin: 0;
+  border: 1px solid var(--warning);
+  border-radius: var(--radius);
+  background: var(--warning-soft);
+  color: var(--warning);
+  padding: 9px 11px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
 .company-option-button,
 .ticket-option-button {
   width: 100%;

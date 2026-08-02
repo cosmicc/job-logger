@@ -66,9 +66,9 @@ All notable changes to TicketPilot are documented in this file.
 
 ### Fixed
 
-- Made Autotask `Projects.projectType` metadata optional and added a core-field
-  retry so tenant-specific inadequate-permissions or missing-field HTTP 500
-  responses no longer block ticket and assigned project-task lookup.
+- Made Autotask `Projects.projectType` metadata optional, added a core-field
+  retry, and isolated Projects access failures so regular tickets remain
+  selectable while the Project tasks group shows a permission warning.
 - Corrected ticket-note creation and update to use Autotask's ticket-child
   `/Tickets/{ticketID}/Notes` mutation endpoint instead of the root
   `TicketNotes` URL that returned HTTP 404.
