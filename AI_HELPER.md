@@ -231,7 +231,8 @@ distinct.
 ## Starting Blank Work
 
 Select **Start Work** in the **Start a time entry** panel. TicketPilot creates
-a local Work in Progress record immediately. The user can then:
+a local Work in Progress record immediately and moves keyboard focus to the
+company search. The user can then:
 
 1. Select a verified client.
 2. Load the grouped choices and select a ticket or assigned project task.
@@ -239,6 +240,11 @@ a local Work in Progress record immediately. The user can then:
 4. Complete the remaining work fields.
 5. Record or type notes.
 6. Finish the record or submit it directly, depending on Config.
+
+After the user chooses a ticket or assigned project task, TicketPilot moves
+focus to that work record's summary field. Starting from a service call also
+focuses the new work summary after the Work in Progress card opens. These
+focus changes are one-time conveniences and do not repeat on later reloads.
 
 Starting blank work does not require TicketPilot to test every Autotask
 connection first. Provider data is loaded when the user searches for a client,

@@ -8,6 +8,7 @@ const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
 const ROUNDING_INTERVAL_MINUTES = 15;
 const LIVE_ROUNDED_STOP_UPDATE_MS = 30000;
 const AUTO_OPEN_CUSTOMER_NOTE_JOB_STORAGE_KEY = "ticketPilot.autoOpenCustomerNoteJobId";
+const NATURAL_WORK_FOCUS_STORAGE_KEY = "ticketPilot.naturalWorkFocus";
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 const RECORD_AUDIO_LABEL = "Record";
 const STOP_RECORDING_LABEL = "Stop recording";
@@ -105,6 +106,121 @@ function consumeCustomerNoteOverlayJobId() {
   } catch (_error) {
     return "";
   }
+}
+
+function rememberNaturalWorkFocus(jobId, target) {
+  const normalizedJobId = toSafeMapString(jobId).trim();
+  const normalizedTarget = toSafeMapString(target).trim();
+  const sessionStorage = customerNoteSessionStorage();
+  if (!normalizedJobId || normalizedTarget !== "summary" || !sessionStorage) {
+    return;
+  }
+
+  try {
+    sessionStorage.setItem(
+      NATURAL_WORK_FOCUS_STORAGE_KEY,
+      JSON.stringify({jobId: normalizedJobId, target: normalizedTarget}),
+    );
+  } catch (_error) {
+    // The explicit redirect query remains a fallback when storage is blocked.
+  }
+}
+
+function consumeNaturalWorkFocus() {
+  const sessionStorage = customerNoteSessionStorage();
+  if (!sessionStorage) {
+    return null;
+  }
+
+  try {
+    const storedValue = sessionStorage.getItem(NATURAL_WORK_FOCUS_STORAGE_KEY) || "null";
+    sessionStorage.removeItem(NATURAL_WORK_FOCUS_STORAGE_KEY);
+    const storedRequest = JSON.parse(storedValue);
+    if (
+      !storedRequest
+      || toSafeMapString(storedRequest.target).trim() !== "summary"
+      || !toSafeMapString(storedRequest.jobId).trim()
+    ) {
+      return null;
+    }
+    return {
+      jobId: toSafeMapString(storedRequest.jobId).trim(),
+      target: "summary",
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
+function naturalWorkFocusUrl(baseUrl, jobId, target) {
+  const focusUrl = new URL(baseUrl, window.location.origin);
+  focusUrl.searchParams.set("focus_target", toSafeMapString(target).trim());
+  focusUrl.searchParams.set("focus_job", toSafeMapString(jobId).trim());
+  return `${focusUrl.pathname}${focusUrl.search}${focusUrl.hash}`;
+}
+
+function focusNaturalTextEntry(control) {
+  if (!control || control.disabled || control.readOnly || typeof control.focus !== "function") {
+    return false;
+  }
+
+  control.focus();
+  if (typeof control.setSelectionRange === "function") {
+    const cursorPosition = toSafeMapString(control.value).length;
+    control.setSelectionRange(cursorPosition, cursorPosition);
+  }
+  return true;
+}
+
+function findActiveJobCard(jobId) {
+  const normalizedJobId = toSafeMapString(jobId).trim();
+  return Array.from(document.querySelectorAll("[data-active-job-card]"))
+    .find((card) => toSafeMapString(card.dataset.activeJobCard).trim() === normalizedJobId) || null;
+}
+
+function focusNaturalWorkControl(jobId, target) {
+  const normalizedTarget = toSafeMapString(target).trim();
+  const activeJobCard = findActiveJobCard(jobId);
+  if (!activeJobCard) {
+    return false;
+  }
+
+  const control = normalizedTarget === "company"
+    ? activeJobCard.querySelector("[data-active-client-source]")
+    : normalizedTarget === "summary"
+      ? findDescriptionTextarea(jobId)
+      : null;
+  return focusNaturalTextEntry(control);
+}
+
+function applyRequestedNaturalWorkFocus() {
+  let requestedFocus = null;
+  try {
+    const currentUrl = new URL(window.location.href);
+    const queryTarget = toSafeMapString(currentUrl.searchParams.get("focus_target")).trim();
+    const queryJobId = toSafeMapString(currentUrl.searchParams.get("focus_job")).trim();
+    if ((queryTarget === "company" || queryTarget === "summary") && queryJobId) {
+      requestedFocus = {jobId: queryJobId, target: queryTarget};
+    }
+    if (currentUrl.searchParams.has("focus_target") || currentUrl.searchParams.has("focus_job")) {
+      currentUrl.searchParams.delete("focus_target");
+      currentUrl.searchParams.delete("focus_job");
+      if (window.history && typeof window.history.replaceState === "function") {
+        window.history.replaceState({}, "", `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+      }
+    }
+  } catch (_error) {
+    // A browser without the URL API can still use the same-tab storage handoff.
+  }
+
+  const storedFocus = consumeNaturalWorkFocus();
+  const focusRequest = requestedFocus || storedFocus;
+  if (!focusRequest) {
+    return;
+  }
+  window.setTimeout(() => {
+    focusNaturalWorkControl(focusRequest.jobId, focusRequest.target);
+  }, 0);
 }
 
 function openNewestCustomerNoteForActiveJob(jobId) {
@@ -2109,6 +2225,7 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
       if (!response.ok) {
         throw new Error(payload.detail || "The service call could not be started.");
       }
+      rememberNaturalWorkFocus(payload.job_id, "summary");
       if (payload.open_customer_note_overlay) {
         rememberCustomerNoteOverlayForJob(payload.job_id);
       }
@@ -2130,7 +2247,7 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
       if (payload.navigation_requested && !payload.navigation_address) {
         window.alert("Work started, but Autotask did not provide a navigation address for this client.");
       }
-      window.location.assign("/work");
+      window.location.assign(naturalWorkFocusUrl("/work", payload.job_id, "summary"));
     } catch (error) {
       optionButton.disabled = false;
       optionButton.classList.remove("is-loading");
@@ -2471,6 +2588,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
             ticketPicker.hidden = true;
             ticketPicker.classList.add("is-hidden");
             hideMobilePageLoading();
+            focusNaturalWorkControl(jobId, "summary");
             return;
           }
 
@@ -2482,6 +2600,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
             ticketDescriptionInput.value = toSafeMapString(ticketOption.description).trim();
           }
           updateActiveTicketDisplay(jobId, ticketOption);
+          rememberNaturalWorkFocus(jobId, "summary");
           submitFormWithCurrentFields(activeTicketForm);
         } catch (error) {
           activeTicketLookupLoaded.delete(ticketPicker);
@@ -2513,7 +2632,8 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
         resultsElement.replaceChildren();
         try {
           await persistActiveSelectedTicket(ticketSelectUrl, taskOption, "project_task");
-          window.location.assign("/work");
+          rememberNaturalWorkFocus(jobId, "summary");
+          window.location.assign(naturalWorkFocusUrl("/work", jobId, "summary"));
         } catch (error) {
           activeTicketLookupLoaded.delete(ticketPicker);
           hideMobilePageLoading();
@@ -2943,6 +3063,7 @@ initializeLiveRoundedStopDisplays();
 initializeActiveDurationDisplays();
 initializeActiveEntryModes();
 markMobilePasskeyPromptSeen();
+applyRequestedNaturalWorkFocus();
 openNewestCustomerNoteForActiveJob(consumeCustomerNoteOverlayJobId());
 
 if (document.readyState === "complete") {

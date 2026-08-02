@@ -180,6 +180,24 @@ def test_customer_note_added_selection_reuses_existing_newest_first_overlay() ->
     assert "openNewestCustomerNoteForActiveJob(consumeCustomerNoteOverlayJobId());" in mobile_script
 
 
+def test_work_target_selection_focuses_the_next_summary_field() -> None:
+    """Blank, ticket, project-task, and service-call paths should advance focus."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    mobile_routes = (repository_root / "ticket_pilot" / "routes" / "mobile.py").read_text(encoding="utf-8")
+    mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
+
+    assert 'redirect_url = f"/work?focus_target=company&focus_job={job.id}"' in mobile_routes
+    assert 'focusNaturalWorkControl(jobId, "summary");' in mobile_script
+    assert 'rememberNaturalWorkFocus(payload.job_id, "summary");' in mobile_script
+    assert 'rememberNaturalWorkFocus(jobId, "summary");' in mobile_script
+    assert "applyRequestedNaturalWorkFocus();" in mobile_script
+    assert "focusReviewSummaryForContinuedWork();" in review_script
+    assert "window.location.assign(reviewSummaryFocusUrl());" in review_script
+    assert "applyRequestedReviewFocus();" in review_script
+
+
 def test_shared_date_time_controls_replace_native_picker_and_add_time_dropdown() -> None:
     """Date choosers should use app controls, and time fields should offer 15-minute options."""
 

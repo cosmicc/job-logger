@@ -12,6 +12,9 @@ TicketNotes, and TaskNotes.
 End users can use [USER_MANUAL.md](USER_MANUAL.md) for a full walkthrough of
 sign-in, password reset, Work in Progress, Review, Config, and common app
 messages.
+Work entry forms automatically move focus from Start Work to company selection,
+then from target selection to the summary field so keyboard users can continue
+without finding the next input manually.
 The in-app AI Help assistant uses [AI_HELPER.md](AI_HELPER.md) as its
 comprehensive end-user support knowledge base.
 

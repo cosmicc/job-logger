@@ -677,6 +677,11 @@ scan-friendly layout. Keep full-browser layout changes out of `phone.css` so
 the installed mobile phone experience remains unchanged unless explicitly
 requested. Do not use route names to select the mobile or desktop page version;
 presentation must follow client/browser and media behavior. Full-browser
+and mobile workflows should advance keyboard focus to the next natural input:
+blank Start Work focuses the new job's verified company search, while ticket,
+project-task, and service-call selection focuses that same job's summary field.
+Reload handoffs must be one-time and job-specific so concurrent jobs do not
+steal focus from each other or refocus after a later manual reload. Full-browser
 start-work panels should keep the **Service calls** heading visually raised
 above the date selector while the date selector and service-call list stay
 tightly stacked without a divider line above the section.

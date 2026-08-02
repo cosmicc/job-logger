@@ -974,6 +974,7 @@ async def start_work(
 ) -> RedirectResponse:
     """Start a new active work job."""
 
+    redirect_url = "/work"
     actor = require_authenticated_username(request)
     form_data = await request.form()
     validate_csrf_token(request, str(form_data.get("csrf_token", "")))
@@ -998,12 +999,13 @@ async def start_work(
             },
         )
         database_session.commit()
+        redirect_url = f"/work?focus_target=company&focus_job={job.id}"
         add_flash_message(request, "Work started.", "success")
     except (HTTPException, AutotaskSubmissionError, JobWorkflowError, WebUserError) as exc:
         database_session.rollback()
         add_flash_message(request, str(getattr(exc, "detail", exc)), "error")
 
-    return RedirectResponse(url="/work", status_code=303)
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @router.post("/jobs/start/service-call")

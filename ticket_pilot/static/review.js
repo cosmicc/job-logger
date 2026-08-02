@@ -507,6 +507,42 @@ function findReviewSummaryTextarea() {
   return document.querySelector('textarea[name="summary_notes"]');
 }
 
+function focusReviewSummaryForContinuedWork() {
+  const summaryTextarea = findReviewSummaryTextarea();
+  if (!summaryTextarea || summaryTextarea.disabled || summaryTextarea.readOnly) {
+    return false;
+  }
+
+  summaryTextarea.focus();
+  if (typeof summaryTextarea.setSelectionRange === "function") {
+    const cursorPosition = toSafeMapString(summaryTextarea.value).length;
+    summaryTextarea.setSelectionRange(cursorPosition, cursorPosition);
+  }
+  return true;
+}
+
+function reviewSummaryFocusUrl() {
+  const focusUrl = new URL(window.location.pathname, window.location.origin);
+  focusUrl.searchParams.set("focus_target", "summary");
+  return `${focusUrl.pathname}${focusUrl.search}`;
+}
+
+function applyRequestedReviewFocus() {
+  try {
+    const currentUrl = new URL(window.location.href);
+    if (currentUrl.searchParams.get("focus_target") !== "summary") {
+      return;
+    }
+    currentUrl.searchParams.delete("focus_target");
+    if (window.history && typeof window.history.replaceState === "function") {
+      window.history.replaceState({}, "", `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+    }
+    window.setTimeout(focusReviewSummaryForContinuedWork, 0);
+  } catch (_error) {
+    // Focus progression is a convenience and must never block Review.
+  }
+}
+
 function setReviewRecordingStatus(jobId, message, isError = false) {
   const statusElement = findReviewRecordingStatus(jobId);
   setInlineLoadingStatus(statusElement, message, {isError});
@@ -1828,6 +1864,7 @@ function bindTicketLookup() {
             const selectedTicket = await persistSelectedTicket(ticketOption);
             updateSelectedTicketDisplay(selectedTicket);
             ticketPicker.hidden = true;
+            focusReviewSummaryForContinuedWork();
           } catch (error) {
             ticketPicker.classList.remove("is-loading");
             ticketPicker.removeAttribute("aria-busy");
@@ -1855,7 +1892,7 @@ function bindTicketLookup() {
           resultsElement.replaceChildren();
           try {
             await persistSelectedTicket(taskOption, "project_task");
-            window.location.assign(window.location.pathname);
+            window.location.assign(reviewSummaryFocusUrl());
           } catch (error) {
             ticketPicker.classList.remove("is-loading");
             ticketPicker.removeAttribute("aria-busy");
@@ -1929,6 +1966,7 @@ loadReviewTaskStatusOptions();
 syncReviewEntryMode();
 bindReviewAutosave();
 bindReviewWorkLocationControls();
+applyRequestedReviewFocus();
 
 for (const reviewEntryTypeInput of reviewEntryTypeInputs) {
   reviewEntryTypeInput.addEventListener("change", () => {

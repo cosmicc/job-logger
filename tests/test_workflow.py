@@ -166,6 +166,10 @@ def test_complete_mock_job_workflow(authenticated_client: TestClient) -> None:
         active_job_id = active_job.id
         assert active_job.ticket_number is None
 
+    assert start_response.headers["location"] == (
+        f"/work?focus_target=company&focus_job={active_job_id}"
+    )
+
     text_response = authenticated_client.post(
         f"/jobs/{active_job_id}/description/text",
         headers={"X-CSRF-Token": csrf_token},

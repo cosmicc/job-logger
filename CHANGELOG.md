@@ -38,6 +38,9 @@ All notable changes to TicketPilot are documented in this file.
 
 ### Changed
 
+- Work and Review now move focus to the next natural field: blank Start Work
+  opens company search, and verified ticket, project-task, or service-call
+  selection opens the matching work summary with the cursor ready to type.
 - Moved the full-browser Review list to the top of its column, aligned with the
   Today, Week, and Unsubmitted cards, and added First and Last pagination.
 - Review now starts with 20 rows on full web and 10 rows on mobile, then saves

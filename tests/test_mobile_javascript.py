@@ -40,9 +40,12 @@ def run_mobile_javascript_harness(tmp_path: Path, javascript_assertions: str) ->
               const mobileScript = `${fs.readFileSync(MOBILE_SCRIPT_PATH, "utf8")}
               ;this.__mobileTestApi = {
                 consumeCustomerNoteOverlayJobId,
+                consumeNaturalWorkFocus,
+                focusNaturalTextEntry,
                 jobDateDisplayTextForDateValue,
                 jobDateLabelForDateValue,
                 rememberCustomerNoteOverlayForJob,
+                rememberNaturalWorkFocus,
                 setDateWeekdayLabelText,
                 updateActiveDurationDisplay,
                 updateActiveTimeDisplays,
@@ -640,6 +643,54 @@ def test_customer_note_overlay_job_marker_is_consumed_once(tmp_path: Path) -> No
           browserContext.__mobileTestApi.consumeCustomerNoteOverlayJobId(),
           "",
         );
+        """,
+    )
+
+
+def test_natural_work_focus_is_job_specific_and_places_cursor_at_end(tmp_path: Path) -> None:
+    """Reload focus requests should be one-time, and typing should continue at the end."""
+
+    run_mobile_javascript_harness(
+        tmp_path,
+        """
+        const storedValues = new Map();
+        browserContext.window.sessionStorage = {
+          getItem(key) {
+            return storedValues.has(key) ? storedValues.get(key) : null;
+          },
+          removeItem(key) {
+            storedValues.delete(key);
+          },
+          setItem(key, value) {
+            storedValues.set(key, value);
+          },
+        };
+
+        browserContext.__mobileTestApi.rememberNaturalWorkFocus("job-2", "summary");
+        const storedFocus = browserContext.__mobileTestApi.consumeNaturalWorkFocus();
+        assert.strictEqual(storedFocus.jobId, "job-2");
+        assert.strictEqual(storedFocus.target, "summary");
+        assert.strictEqual(browserContext.__mobileTestApi.consumeNaturalWorkFocus(), null);
+
+        let focused = false;
+        let selectedRange = null;
+        const summaryControl = {
+          disabled: false,
+          readOnly: false,
+          value: "Existing summary",
+          focus() {
+            focused = true;
+          },
+          setSelectionRange(start, end) {
+            selectedRange = [start, end];
+          },
+        };
+        assert.strictEqual(
+          browserContext.__mobileTestApi.focusNaturalTextEntry(summaryControl),
+          true,
+        );
+        assert.strictEqual(focused, true);
+        assert.deepStrictEqual(selectedRange, [16, 16]);
         """,
     )
 

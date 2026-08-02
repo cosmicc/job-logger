@@ -125,6 +125,15 @@ New blank work starts through `POST /jobs/start`. A user can also start work
 from an Autotask service call selected in the mobile day navigator through
 `POST /jobs/start/service-call`.
 
+After blank Start Work succeeds, browser focus moves to the new job's verified
+company search. After a ticket, assigned project task, or service call is
+selected, focus moves to that job's editable summary field with the cursor at
+the end of any existing text. In-place selections focus immediately. Selection
+paths that reload or temporarily leave for navigation use a one-time,
+job-specific handoff and consume it on return. Never apply a persistent global
+autofocus that can steal focus on an unrelated reload or from another active
+job.
+
 Only database-managed web users can start or mutate jobs. The config super
 admin can view review data but cannot start, edit, submit, delete, record audio,
 or run AI cleanup because it has no Autotask resource ID.

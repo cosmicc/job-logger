@@ -134,6 +134,10 @@ create a Work in Progress card. TicketPilot supports up to two active work
 records at the same time. When two are active, the most recently started record
 appears above the earlier record.
 
+After **Start Work**, TicketPilot moves the cursor to the company search. After
+you choose a ticket, project task, or service call, it moves the cursor to that
+work record's summary field so you can continue typing.
+
 Each Work in Progress card belongs to your user account. Other users do not use
 your active cards.
 
