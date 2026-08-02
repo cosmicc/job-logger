@@ -1646,6 +1646,17 @@ function appendTicketPickerWarning(resultsElement, message) {
   resultsElement.append(warning);
 }
 
+function setTicketPickerHeading(ticketPicker, optionCount = null) {
+  const headingElement = ticketPicker.querySelector("[data-ticket-picker-heading]");
+  if (!headingElement) {
+    return;
+  }
+
+  headingElement.textContent = Number.isInteger(optionCount)
+    ? `Open Tickets (${optionCount})`
+    : "Open Tickets";
+}
+
 function setTicketLookupStatus(statusElement, message, {isError = false, isLoading = false} = {}) {
   if (!statusElement) {
     return;
@@ -1856,7 +1867,8 @@ function bindTicketLookup() {
 
       if (optionCount > 0) {
         hasLoadedTicketOptions = true;
-        setTicketLookupStatus(statusElement, `${optionCount} available work item(s) found.`);
+        setTicketPickerHeading(ticketPicker, optionCount);
+        setTicketLookupStatus(statusElement, "");
       } else {
         setTicketLookupStatus(statusElement, "No open tickets found. Project tasks are unavailable.");
       }

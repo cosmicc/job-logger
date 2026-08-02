@@ -305,7 +305,10 @@ selection should reload the current page after success so every ticket-specific
 label and control is replaced consistently. The status control stays in the
 same layout position but reads **Task status** and uses active numeric options
 from the tenant's `Tasks.status` metadata. Never show the parent project status
-as the editable work status.
+as the editable work status. Once the grouped options are visible, show their
+combined count only in the picker heading as **Open Tickets (N)**. Do not keep
+a separate available-work-items success message or the redundant assigned-task
+helper sentence.
 If the server-verified selected ticket status ID matches the configured
 **Customer Note Added** observed status, automatically refresh and open the
 existing Ticket notes overlay once with the newest note selected. This applies

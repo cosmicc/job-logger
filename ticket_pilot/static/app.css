@@ -2143,11 +2143,12 @@ a:focus-visible {
 }
 
 .company-search-status:not(:empty),
-.ticket-picker-status {
+.ticket-picker-status:not(:empty) {
   min-height: 20px;
 }
 
-.company-search-status:empty {
+.company-search-status:empty,
+.ticket-picker-status:empty {
   display: none;
 }
 

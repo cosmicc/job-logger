@@ -379,7 +379,9 @@ selected. After target selection, the client becomes read-only for that record.
 ### Ticket Or Project Task Selection
 
 After selecting a verified client, load the grouped **Tickets** and **Project
-tasks** choices and select the correct work target.
+tasks** choices and select the correct work target. Once loaded, the **Open
+Tickets (N)** heading shows the combined number of ticket and project-task
+choices.
 
 Ticket choices can show:
 

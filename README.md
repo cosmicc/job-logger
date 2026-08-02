@@ -1176,7 +1176,9 @@ target lookup uses the stored company selection. Saved clients do not auto-load
 targets when the Work in Progress card renders; click the panel to load them.
 Both mobile and review target lookup show the spinner loading state while
 Autotask data is being fetched or a selected target is being saved. Results use
-separate **Tickets** and **Project tasks** groups.
+separate **Tickets** and **Project tasks** groups. Once loaded, the **Open
+Tickets (N)** heading shows the combined number of choices without a separate
+success message.
 Open-ticket choices show the ticket number, title, Autotask creation date as
 **Start**, `dueDateTime` as **Due by**, ticket status, company name, and
 detected `Remote`, `On-Site`, or `Not specified` work-location label from the

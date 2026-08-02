@@ -526,7 +526,10 @@ system-note exclusions as the authenticated overlay; browser code must never
 query Autotask directly.
 
 The selected-company work picker must return separate **Tickets** and
-**Project tasks** groups. Project-task options come only from non-complete
+**Project tasks** groups. After options load, the **Open Tickets (N)** panel
+heading shows their combined count. Do not repeat that count in a separate
+success message or show a redundant project-task helper sentence. Project-task
+options come only from non-complete
 tasks on non-complete, non-inactive, non-template, non-baseline projects for the
 verified company, and only when the logged-in managed user's Autotask resource
 is the task's primary or secondary resource. Use the documented

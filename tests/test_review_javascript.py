@@ -268,6 +268,27 @@ def test_shared_work_item_pickers_render_project_task_warnings() -> None:
     assert "background: var(--warning-soft);" in app_styles
 
 
+def test_shared_work_item_pickers_move_result_count_into_heading() -> None:
+    """Work and Review should use one compact combined-count heading."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    mobile_template = (repository_root / "ticket_pilot" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (repository_root / "ticket_pilot" / "templates" / "review.html").read_text(encoding="utf-8")
+    mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
+    app_styles = (repository_root / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
+
+    for picker_template in (mobile_template, review_template):
+        assert '<h3 data-ticket-picker-heading>Open Tickets</h3>' in picker_template
+        assert "Assigned project tasks are included." not in picker_template
+    for picker_script in (mobile_script, review_script):
+        assert "function setTicketPickerHeading" in picker_script
+        assert "`Open Tickets (${optionCount})`" in picker_script
+        assert "available work item(s) found." not in picker_script
+        assert 'setTicketLookupStatus(statusElement, "");' in picker_script
+    assert ".ticket-picker-status:empty" in app_styles
+
+
 def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
     """Review edits must save through the background save endpoint without a button."""
 

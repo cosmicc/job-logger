@@ -215,7 +215,8 @@ record.
 **Ticket** or **Project task**
 
 After selecting a verified client, load the grouped **Tickets** and **Project
-tasks** choices. Ticket choices include **Start** and **Due by** dates when
+tasks** choices. When the choices appear, **Open Tickets (N)** shows their
+combined total. Ticket choices include **Start** and **Due by** dates when
 Autotask provides them. Project-task choices show the task and its parent
 project. Only non-complete tasks assigned to you as a primary or secondary
 Autotask resource are shown. TicketPilot saves the selected target's verified

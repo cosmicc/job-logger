@@ -2461,8 +2461,13 @@ def test_mobile_active_job_page_keeps_client_editable_until_ticket(authenticated
     assert 'data-active-ticket-lookup-button' not in page_html
     assert "Find tickets" not in page_html
     assert "Click this box to load open tickets." in page_html
-    assert page_html.index('<span class="metric-label">Client name</span>') < page_html.index("<h3>Open tickets</h3>")
-    assert page_html.index(f'id="active-ticket-form-{active_job_id}"') < page_html.index("<h3>Open tickets</h3>")
+    assert "Assigned project tasks are included." not in page_html
+    assert page_html.index('<span class="metric-label">Client name</span>') < page_html.index(
+        '<h3 data-ticket-picker-heading>Open Tickets</h3>'
+    )
+    assert page_html.index(f'id="active-ticket-form-{active_job_id}"') < page_html.index(
+        '<h3 data-ticket-picker-heading>Open Tickets</h3>'
+    )
     assert 'class="secondary-button active-save-button"' not in page_html
     assert "Save Active Changes" not in page_html
     assert "submit-notes-button" not in page_html

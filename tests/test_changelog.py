@@ -293,6 +293,10 @@ def test_changelog_parser_reads_current_release() -> None:
                     "navigation, and service-call selections."
                 ),
                 (
+                    "Work and Review now show the combined target count in **Open Tickets (N)** without the repeated "
+                    "availability text."
+                ),
+                (
                     "Start Work now moves the cursor to company search, and choosing a ticket, project task, or "
                     "service call moves it to the matching summary field."
                 ),

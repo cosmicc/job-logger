@@ -25,6 +25,8 @@ Short release notes shown on the authenticated `/changelog` page.
 
 ### Changed
 
+- Work and Review now show the combined target count in **Open Tickets (N)**
+  without the repeated availability text.
 - Start Work now moves the cursor to company search, and choosing a ticket,
   project task, or service call moves it to the matching summary field.
 - Full-browser Review starts at the top beside the Today, Week, and Unsubmitted cards and now has First and Last page buttons.

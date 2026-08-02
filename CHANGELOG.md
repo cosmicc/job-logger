@@ -38,6 +38,9 @@ All notable changes to TicketPilot are documented in this file.
 
 ### Changed
 
+- Simplified the Work and Review target picker by moving the combined ticket
+  and project-task count into **Open Tickets (N)** and removing redundant
+  success and helper text.
 - Work and Review now move focus to the next natural field: blank Start Work
   opens company search, and verified ticket, project-task, or service-call
   selection opens the matching work summary with the cursor ready to type.
