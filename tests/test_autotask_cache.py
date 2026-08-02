@@ -3081,17 +3081,34 @@ class FakeProjectTaskSubmissionClient:
 class FakeProjectLookupContractClient:
     """Capture Projects metadata and query fields used by task discovery."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        deny_project_type_metadata: bool = False,
+        deny_project_type_query: bool = False,
+    ) -> None:
         """Initialize captured GET and POST requests."""
 
         self.get_paths: list[str] = []
         self.post_requests: list[tuple[str, dict[str, Any]]] = []
+        self.deny_project_type_metadata = deny_project_type_metadata
+        self.deny_project_type_query = deny_project_type_query
 
     def get(self, endpoint_path: str) -> FakeAutotaskResponse:
-        """Return the Projects.type picklist from the documented field path."""
+        """Return or deny the Projects.projectType picklist metadata."""
 
         self.get_paths.append(endpoint_path)
-        if endpoint_path == "/Projects/entityInformation/fields/type":
+        if endpoint_path == "/Projects/entityInformation/fields/projectType":
+            if self.deny_project_type_metadata:
+                return FakeAutotaskResponse(
+                    {
+                        "errors": [
+                            "The logged in Resource does not have the adequate permissions "
+                            "to query this entity projectType."
+                        ]
+                    },
+                    status_code=500,
+                )
             return FakeAutotaskResponse(
                 {
                     "picklistValues": [
@@ -3107,7 +3124,17 @@ class FakeProjectLookupContractClient:
 
         self.post_requests.append((endpoint_path, dict(json)))
         if endpoint_path == "/Projects/query":
-            return FakeAutotaskResponse({"items": [], "pageDetails": {}})
+            if self.deny_project_type_query and "projectType" in json["IncludeFields"]:
+                return FakeAutotaskResponse(
+                    {"errors": ["Unable to query projectType in the Project Entity."]},
+                    status_code=500,
+                )
+            return FakeAutotaskResponse(
+                {
+                    "items": [{"id": 6001, "companyID": 1001, "status": 1}],
+                    "pageDetails": {},
+                }
+            )
         raise AssertionError(f"Unexpected project lookup POST endpoint: {endpoint_path}")
 
 
@@ -3137,36 +3164,89 @@ def _project_task_job(*, entry_type: EntryType) -> Job:
     )
 
 
-def test_project_lookup_uses_documented_projects_type_field() -> None:
-    """Project discovery must never query the invalid projectType field."""
+def test_project_lookup_uses_documented_project_type_when_available() -> None:
+    """Project discovery should use projectType when tenant metadata permits it."""
 
     provider = _live_test_provider()
     fake_client = FakeProjectLookupContractClient()
     _PROJECT_TYPE_CACHE.clear()
 
-    assert provider._query_project_type_labels(fake_client) == {
+    assert provider._query_project_type_labels_without_blocking_lookup(fake_client) == {
         1: "Client",
         5: "Template",
     }
-    provider._query_projects_for_company(fake_client, 1001)
-    provider._query_projects_by_ids(fake_client, [6001])
+    provider._query_projects_for_company(
+        fake_client,
+        1001,
+        include_project_type=True,
+    )
+    provider._query_projects_by_ids(
+        fake_client,
+        [6001],
+        include_project_type=True,
+    )
 
-    assert fake_client.get_paths == ["/Projects/entityInformation/fields/type"]
+    assert fake_client.get_paths == ["/Projects/entityInformation/fields/projectType"]
     assert len(fake_client.post_requests) == 2
     for endpoint_path, query_payload in fake_client.post_requests:
         assert endpoint_path == "/Projects/query"
-        assert "type" in query_payload["IncludeFields"]
-        assert "projectType" not in query_payload["IncludeFields"]
+        assert "projectType" in query_payload["IncludeFields"]
 
     eligible_projects = provider._eligible_project_records(
         [
-            {"id": 6001, "status": 1, "type": 1},
-            {"id": 6002, "status": 1, "type": 5},
+            {"id": 6001, "status": 1, "projectType": 1},
+            {"id": 6002, "status": 1, "projectType": 5},
         ],
         project_status_labels={1: "In Progress"},
         project_type_labels={1: "Client", 5: "Template"},
     )
     assert [project["id"] for project in eligible_projects] == [6001]
+
+
+def test_project_lookup_continues_when_project_type_metadata_is_denied() -> None:
+    """Optional projectType denial must not hide tickets or assigned project tasks."""
+
+    provider = _live_test_provider()
+    fake_client = FakeProjectLookupContractClient(
+        deny_project_type_metadata=True,
+    )
+    _PROJECT_TYPE_CACHE.clear()
+
+    project_type_labels = provider._query_project_type_labels_without_blocking_lookup(
+        fake_client
+    )
+    assert provider._query_project_type_labels_without_blocking_lookup(fake_client) == {}
+    project_records = provider._query_projects_for_company(
+        fake_client,
+        1001,
+        include_project_type=bool(project_type_labels),
+    )
+
+    assert project_type_labels == {}
+    assert fake_client.get_paths == ["/Projects/entityInformation/fields/projectType"]
+    assert [project["id"] for project in project_records] == [6001]
+    assert len(fake_client.post_requests) == 1
+    assert "projectType" not in fake_client.post_requests[0][1]["IncludeFields"]
+
+
+def test_project_lookup_retries_without_project_type_when_query_denies_field() -> None:
+    """A query-level projectType denial should retry once with core fields only."""
+
+    provider = _live_test_provider()
+    fake_client = FakeProjectLookupContractClient(deny_project_type_query=True)
+
+    project_records = provider._query_projects_for_company(
+        fake_client,
+        1001,
+        include_project_type=True,
+    )
+
+    assert [project["id"] for project in project_records] == [6001]
+    assert len(fake_client.post_requests) == 2
+    assert "projectType" in fake_client.post_requests[0][1]["IncludeFields"]
+    assert "projectType" not in fake_client.post_requests[1][1]["IncludeFields"]
+    assert provider._query_project_type_labels_without_blocking_lookup(fake_client) == {}
+    assert fake_client.get_paths == []
 
 
 def test_project_task_time_entry_uses_task_id_type_six_and_completes_last(

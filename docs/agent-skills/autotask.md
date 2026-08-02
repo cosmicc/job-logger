@@ -238,10 +238,12 @@ assignment claims as authority.
 The live provider must:
 
 - Query `Projects` for the verified company.
-- Read project-kind IDs and labels through the documented `Projects.type`
-  field and `/Projects/entityInformation/fields/type`; never request the
-  nonexistent `projectType` field, which Autotask may reject as an HTTP 500
-  permission error.
+- Read project-kind IDs and labels through the documented
+  `Projects.projectType` field. Treat this metadata as optional because some
+  tenant/API-user security combinations reject it with HTTP 500: retry without
+  `projectType`, continue status and resource-assignment filtering, and keep
+  ticket results usable. Template and Baseline projects cannot be pre-filtered
+  during that fallback.
 - Exclude projects whose current metadata labels identify them as Complete,
   Inactive, Template, or Baseline.
 - Query `Tasks` for the remaining projects.

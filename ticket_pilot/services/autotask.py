@@ -2337,27 +2337,48 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         self,
         client: httpx.Client,
         project_ids: list[int],
+        *,
+        include_project_type: bool,
     ) -> dict[int, dict[str, Any]]:
         """Return safe project records keyed by Autotask project ID."""
 
         project_records_by_id: dict[int, dict[str, Any]] = {}
         for project_id_chunk in _chunked_autotask_ids(project_ids):
-            records = self._query_paginated_items(
-                client,
-                endpoint_path="/Projects/query",
-                query_payload={
-                    "IncludeFields": [
-                        "id",
-                        "companyID",
-                        "projectName",
-                        "projectNumber",
-                        "type",
-                        "status",
-                    ],
-                    "filter": [{"op": "in", "field": "id", "value": project_id_chunk}],
-                },
-                action_description="Autotask service-call project detail lookup",
-            )
+            include_fields = [
+                "id",
+                "companyID",
+                "projectName",
+                "projectNumber",
+                "status",
+            ]
+            if include_project_type:
+                include_fields.insert(4, "projectType")
+            query_payload = {
+                "IncludeFields": include_fields,
+                "filter": [{"op": "in", "field": "id", "value": project_id_chunk}],
+            }
+            try:
+                records = self._query_paginated_items(
+                    client,
+                    endpoint_path="/Projects/query",
+                    query_payload=query_payload,
+                    action_description="Autotask service-call project detail lookup",
+                )
+            except AutotaskSubmissionError as exc:
+                if not include_project_type or not self._is_project_type_field_error(exc):
+                    raise
+                self._cache_project_type_unavailable()
+                query_payload["IncludeFields"] = [
+                    field_name
+                    for field_name in include_fields
+                    if field_name != "projectType"
+                ]
+                records = self._query_paginated_items(
+                    client,
+                    endpoint_path="/Projects/query",
+                    query_payload=query_payload,
+                    action_description="Autotask service-call project detail lookup",
+                )
             for record in records:
                 project_id = _coerce_positive_autotask_id(record.get("id"))
                 if project_id is not None:
@@ -3185,14 +3206,47 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         )
 
     def _query_project_type_labels(self, client: httpx.Client) -> dict[int, str]:
-        """Return Projects.type picklist values."""
+        """Return Projects.projectType picklist values."""
 
         return self._query_ticket_picklist_labels(
             client,
-            field_name="type",
+            field_name="projectType",
             cache_store=_PROJECT_TYPE_CACHE,
             action_description="Autotask project type metadata query",
             entity_name="Projects",
+        )
+
+    @staticmethod
+    def _is_project_type_field_error(exc: AutotaskSubmissionError) -> bool:
+        """Return whether Autotask rejected optional Project type access."""
+
+        normalized_error = " ".join(str(exc).split()).casefold()
+        return "projecttype" in normalized_error or (
+            "unable to find type" in normalized_error
+            and "project entity" in normalized_error
+        )
+
+    def _query_project_type_labels_without_blocking_lookup(
+        self,
+        client: httpx.Client,
+    ) -> dict[int, str]:
+        """Return optional Project type labels without blocking task discovery."""
+
+        try:
+            return self._query_project_type_labels(client)
+        except AutotaskSubmissionError as exc:
+            if self._is_project_type_field_error(exc):
+                self._cache_project_type_unavailable()
+                return {}
+            raise
+
+    def _cache_project_type_unavailable(self) -> None:
+        """Temporarily remember that optional Project type data is unavailable."""
+
+        _set_cached_value(
+            _PROJECT_TYPE_CACHE,
+            self._cache_namespace(),
+            {},
         )
 
     def _query_companies_by_name(
@@ -3509,27 +3563,48 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         self,
         client: httpx.Client,
         company_id: int,
+        *,
+        include_project_type: bool,
     ) -> list[dict[str, Any]]:
         """Return projects for one verified company."""
 
-        return self._query_paginated_items(
-            client,
-            endpoint_path="/Projects/query",
-            query_payload={
-                "IncludeFields": [
-                    "id",
-                    "companyID",
-                    "projectName",
-                    "projectNumber",
-                    "type",
-                    "status",
-                    "startDateTime",
-                    "endDateTime",
-                ],
-                "filter": [{"op": "eq", "field": "companyID", "value": company_id}],
-            },
-            action_description="Autotask project lookup",
-        )
+        include_fields = [
+            "id",
+            "companyID",
+            "projectName",
+            "projectNumber",
+            "status",
+            "startDateTime",
+            "endDateTime",
+        ]
+        if include_project_type:
+            include_fields.insert(4, "projectType")
+        query_payload = {
+            "IncludeFields": include_fields,
+            "filter": [{"op": "eq", "field": "companyID", "value": company_id}],
+        }
+        try:
+            return self._query_paginated_items(
+                client,
+                endpoint_path="/Projects/query",
+                query_payload=query_payload,
+                action_description="Autotask project lookup",
+            )
+        except AutotaskSubmissionError as exc:
+            if not include_project_type or not self._is_project_type_field_error(exc):
+                raise
+            self._cache_project_type_unavailable()
+            query_payload["IncludeFields"] = [
+                field_name
+                for field_name in include_fields
+                if field_name != "projectType"
+            ]
+            return self._query_paginated_items(
+                client,
+                endpoint_path="/Projects/query",
+                query_payload=query_payload,
+                action_description="Autotask project lookup",
+            )
 
     def _eligible_project_records(
         self,
@@ -3543,7 +3618,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         eligible_projects: list[dict[str, Any]] = []
         for project_record in project_records:
             project_status_id = _coerce_positive_autotask_id(project_record.get("status"))
-            project_type_id = _coerce_positive_autotask_id(project_record.get("type"))
+            project_type_id = _coerce_positive_autotask_id(project_record.get("projectType"))
             status_label = " ".join(project_status_labels.get(project_status_id or -1, "").split()).casefold()
             type_label = " ".join(project_type_labels.get(project_type_id or -1, "").split()).casefold()
             if status_label in {"complete", "completed", "inactive"}:
@@ -4296,9 +4371,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     "The selected Autotask company no longer matches the stored client name."
                 )
             project_status_labels = self._query_project_status_labels(client)
-            project_type_labels = self._query_project_type_labels(client)
+            project_type_labels = self._query_project_type_labels_without_blocking_lookup(client)
             project_records = self._eligible_project_records(
-                self._query_projects_for_company(client, autotask_company_id),
+                self._query_projects_for_company(
+                    client,
+                    autotask_company_id,
+                    include_project_type=bool(project_type_labels),
+                ),
                 project_status_labels=project_status_labels,
                 project_type_labels=project_type_labels,
             )
@@ -4398,7 +4477,11 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 max_records=1,
                 follow_pagination=False,
             )
-            projects = self._query_projects_by_ids(client, [project_id])
+            projects = self._query_projects_by_ids(
+                client,
+                [project_id],
+                include_project_type=False,
+            )
             task = tasks[0] if tasks else None
             project = projects.get(project_id)
             if (
@@ -4707,9 +4790,13 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     if (project_id := _coerce_positive_autotask_id(task_record.get("projectID")))
                     is not None
                 ]
-                project_records_by_id = self._query_projects_by_ids(client, project_ids)
                 project_status_labels = self._query_project_status_labels(client)
-                project_type_labels = self._query_project_type_labels(client)
+                project_type_labels = self._query_project_type_labels_without_blocking_lookup(client)
+                project_records_by_id = self._query_projects_by_ids(
+                    client,
+                    project_ids,
+                    include_project_type=bool(project_type_labels),
+                )
                 eligible_project_ids = {
                     project_id
                     for project_record in self._eligible_project_records(

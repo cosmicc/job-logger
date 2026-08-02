@@ -318,8 +318,8 @@ def test_changelog_parser_reads_current_release() -> None:
                     "the Time entry or Project task note first, and changes only the task status last."
                 ),
                 (
-                    "Company work-item lookup no longer fails with a misleading `projectType` permission error while "
-                    "loading assigned project tasks."
+                    "Company work-item lookup now continues when Autotask denies optional Project type metadata "
+                    "instead of hiding tickets and assigned project tasks."
                 ),
                 "Ticket notes now submit through the correct Autotask ticket-note endpoint.",
             "Work and Review now fully hide **Append to resolution** in Ticket note mode.",

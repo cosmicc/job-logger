@@ -529,12 +529,16 @@ The selected-company work picker must return separate **Tickets** and
 **Project tasks** groups. Project-task options come only from non-complete
 tasks on non-complete, non-inactive, non-template, non-baseline projects for the
 verified company, and only when the logged-in managed user's Autotask resource
-is the task's primary or secondary resource. Autotask does not expose a
-`Projects.projectType` field; project-kind filtering must query the documented
-`Projects.type` picklist and record field. Autotask can return a misleading
-HTTP 500 permission error when an unknown project field is requested. Autotask
-does not expose a task-level allow-time-entry flag; actual time-entry authority
-remains governed by the resource's Autotask Projects security permission. Store the verified
+is the task's primary or secondary resource. Use the documented
+`Projects.projectType` picklist and record field to exclude Template and
+Baseline projects when the tenant permits that metadata. Some tenant/API-user
+security combinations return a misleading HTTP 500 when `projectType` metadata
+or fields are queried. Treat project type as optional in that case: retry the
+Project query without `projectType`, retain project-status, task-status, and
+resource-assignment filtering, and do not block the ticket results. Without the
+field, Template and Baseline projects cannot be pre-filtered. Autotask does not
+expose a task-level allow-time-entry flag; actual time-entry authority remains
+governed by the resource's Autotask Projects security permission. Store the verified
 task ID, parent project ID, display metadata, and current task status locally,
 then keep that target identity read-only. Task-status choices must be read from
 the tenant's active `Tasks.status` picklist metadata and rendered in the same
