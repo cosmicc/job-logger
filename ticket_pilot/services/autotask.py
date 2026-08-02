@@ -2351,7 +2351,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                         "companyID",
                         "projectName",
                         "projectNumber",
-                        "projectType",
+                        "type",
                         "status",
                     ],
                     "filter": [{"op": "in", "field": "id", "value": project_id_chunk}],
@@ -3185,11 +3185,11 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         )
 
     def _query_project_type_labels(self, client: httpx.Client) -> dict[int, str]:
-        """Return Projects.projectType picklist values."""
+        """Return Projects.type picklist values."""
 
         return self._query_ticket_picklist_labels(
             client,
-            field_name="projectType",
+            field_name="type",
             cache_store=_PROJECT_TYPE_CACHE,
             action_description="Autotask project type metadata query",
             entity_name="Projects",
@@ -3521,7 +3521,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     "companyID",
                     "projectName",
                     "projectNumber",
-                    "projectType",
+                    "type",
                     "status",
                     "startDateTime",
                     "endDateTime",
@@ -3543,7 +3543,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         eligible_projects: list[dict[str, Any]] = []
         for project_record in project_records:
             project_status_id = _coerce_positive_autotask_id(project_record.get("status"))
-            project_type_id = _coerce_positive_autotask_id(project_record.get("projectType"))
+            project_type_id = _coerce_positive_autotask_id(project_record.get("type"))
             status_label = " ".join(project_status_labels.get(project_status_id or -1, "").split()).casefold()
             type_label = " ".join(project_type_labels.get(project_type_id or -1, "").split()).casefold()
             if status_label in {"complete", "completed", "inactive"}:

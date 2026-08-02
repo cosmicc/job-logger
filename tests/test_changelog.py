@@ -317,6 +317,10 @@ def test_changelog_parser_reads_current_release() -> None:
                     "Completing a project task now waits for every other unsubmitted local entry for that task, submits "
                     "the Time entry or Project task note first, and changes only the task status last."
                 ),
+                (
+                    "Company work-item lookup no longer fails with a misleading `projectType` permission error while "
+                    "loading assigned project tasks."
+                ),
                 "Ticket notes now submit through the correct Autotask ticket-note endpoint.",
             "Work and Review now fully hide **Append to resolution** in Ticket note mode.",
             "Ticket-note create and update requests now use only fields supported by Autotask.",

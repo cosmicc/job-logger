@@ -238,6 +238,10 @@ assignment claims as authority.
 The live provider must:
 
 - Query `Projects` for the verified company.
+- Read project-kind IDs and labels through the documented `Projects.type`
+  field and `/Projects/entityInformation/fields/type`; never request the
+  nonexistent `projectType` field, which Autotask may reject as an HTTP 500
+  permission error.
 - Exclude projects whose current metadata labels identify them as Complete,
   Inactive, Template, or Baseline.
 - Query `Tasks` for the remaining projects.

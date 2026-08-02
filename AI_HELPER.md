@@ -1020,6 +1020,11 @@ Confirm the selected client. Then check the ticket or project-task assignment,
 project type, and Autotask Projects permission. Contact the app administrator
 if expected work is missing.
 
+If the message specifically says the resource cannot query `projectType`, the
+TicketPilot development build is outdated. Ask the administrator to install the
+newest 2.1.0 development package; that older build requested the wrong Autotask
+project field.
+
 ### Missing Required Fields
 
 Complete the client, ticket or project task, target status, date/time, title, or

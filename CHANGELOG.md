@@ -66,6 +66,9 @@ All notable changes to TicketPilot are documented in this file.
 
 ### Fixed
 
+- Corrected project discovery to query Autotask's documented `Projects.type`
+  field instead of the nonexistent `projectType` field that produced a
+  misleading HTTP 500 inadequate-permissions error after company selection.
 - Corrected ticket-note creation and update to use Autotask's ticket-child
   `/Tickets/{ticketID}/Notes` mutation endpoint instead of the root
   `TicketNotes` URL that returned HTTP 404.

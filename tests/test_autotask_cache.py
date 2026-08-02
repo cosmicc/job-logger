@@ -20,6 +20,7 @@ from ticket_pilot.services.autotask import (
     _COMPANY_ID_CACHE,
     _COMPANY_SEARCH_CACHE,
     _OPEN_TICKET_SELECTION_CACHE,
+    _PROJECT_TYPE_CACHE,
     _RESOURCE_SEARCH_CACHE,
     _SERVICE_CALL_SELECTION_CACHE,
     _TICKET_SOURCE_CACHE,
@@ -3077,6 +3078,39 @@ class FakeProjectTaskSubmissionClient:
         raise AssertionError(f"Unexpected project-task PATCH endpoint: {endpoint_path}")
 
 
+class FakeProjectLookupContractClient:
+    """Capture Projects metadata and query fields used by task discovery."""
+
+    def __init__(self) -> None:
+        """Initialize captured GET and POST requests."""
+
+        self.get_paths: list[str] = []
+        self.post_requests: list[tuple[str, dict[str, Any]]] = []
+
+    def get(self, endpoint_path: str) -> FakeAutotaskResponse:
+        """Return the Projects.type picklist from the documented field path."""
+
+        self.get_paths.append(endpoint_path)
+        if endpoint_path == "/Projects/entityInformation/fields/type":
+            return FakeAutotaskResponse(
+                {
+                    "picklistValues": [
+                        {"value": "1", "label": "Client"},
+                        {"value": "5", "label": "Template"},
+                    ]
+                }
+            )
+        raise AssertionError(f"Unexpected project lookup GET endpoint: {endpoint_path}")
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return no projects while preserving the exact query for assertions."""
+
+        self.post_requests.append((endpoint_path, dict(json)))
+        if endpoint_path == "/Projects/query":
+            return FakeAutotaskResponse({"items": [], "pageDetails": {}})
+        raise AssertionError(f"Unexpected project lookup POST endpoint: {endpoint_path}")
+
+
 def _project_task_job(*, entry_type: EntryType) -> Job:
     """Return one complete project-task job for live provider payload tests."""
 
@@ -3101,6 +3135,38 @@ def _project_task_job(*, entry_type: EntryType) -> Job:
         rounded_start_utc=rounded_start_utc,
         rounded_end_utc=rounded_start_utc + timedelta(minutes=30),
     )
+
+
+def test_project_lookup_uses_documented_projects_type_field() -> None:
+    """Project discovery must never query the invalid projectType field."""
+
+    provider = _live_test_provider()
+    fake_client = FakeProjectLookupContractClient()
+    _PROJECT_TYPE_CACHE.clear()
+
+    assert provider._query_project_type_labels(fake_client) == {
+        1: "Client",
+        5: "Template",
+    }
+    provider._query_projects_for_company(fake_client, 1001)
+    provider._query_projects_by_ids(fake_client, [6001])
+
+    assert fake_client.get_paths == ["/Projects/entityInformation/fields/type"]
+    assert len(fake_client.post_requests) == 2
+    for endpoint_path, query_payload in fake_client.post_requests:
+        assert endpoint_path == "/Projects/query"
+        assert "type" in query_payload["IncludeFields"]
+        assert "projectType" not in query_payload["IncludeFields"]
+
+    eligible_projects = provider._eligible_project_records(
+        [
+            {"id": 6001, "status": 1, "type": 1},
+            {"id": 6002, "status": 1, "type": 5},
+        ],
+        project_status_labels={1: "In Progress"},
+        project_type_labels={1: "Client", 5: "Template"},
+    )
+    assert [project["id"] for project in eligible_projects] == [6001]
 
 
 def test_project_task_time_entry_uses_task_id_type_six_and_completes_last(

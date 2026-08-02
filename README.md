@@ -1093,6 +1093,7 @@ Project tasks appear in a separate **Project tasks** group beside the selected
 company's **Tickets**. TicketPilot includes non-complete tasks assigned to the
 logged-in user's Autotask resource as a primary or secondary resource, and
 excludes Complete/Inactive projects plus Template and Baseline project types.
+Project-type filtering uses Autotask's documented `Projects.type` field.
 Autotask task-time permission still comes from the resource's Projects security
 level; there is no task-level allow-time field.
 
