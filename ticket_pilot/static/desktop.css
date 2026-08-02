@@ -171,6 +171,26 @@
     margin-bottom: 18px;
   }
 
+  .config-appearance-form {
+    grid-template-columns: minmax(0, 480px) minmax(0, 360px);
+    align-items: start;
+    justify-content: space-between;
+    column-gap: 24px;
+  }
+
+  .config-appearance-form > .theme-card-fieldset {
+    grid-column: 1;
+  }
+
+  .config-appearance-form > .highlight-color-fieldset {
+    grid-column: 2;
+    margin-top: 0;
+  }
+
+  .config-appearance-form > .config-save-status {
+    grid-column: 1 / -1;
+  }
+
   .config-main-stack-standard > .config-password-panel,
   .config-main-stack-standard > .config-workflow-panel,
   .config-main-stack-standard > .config-navigation-panel,

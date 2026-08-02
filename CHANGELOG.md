@@ -38,6 +38,9 @@ All notable changes to TicketPilot are documented in this file.
 
 ### Changed
 
+- Balanced the full-browser Config Appearance card by keeping Background on
+  the left and moving Highlight color to the right while preserving stacked
+  phone controls.
 - Simplified the Work and Review target picker by moving the combined ticket
   and project-task count into **Open Tickets (N)** and removing redundant
   success and helper text.

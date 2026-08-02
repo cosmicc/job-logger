@@ -435,7 +435,9 @@ treatments use the counterpart. Genuine warnings and other status colors keep
 their normal meaning.
 
 On a full browser, Config uses a wide two-column card layout. On phones, the
-same cards remain stacked in the documented order.
+same cards remain stacked in the documented order. Inside the full-width
+desktop Appearance card, Background stays on the left and Highlight color sits
+on the right.
 
 ### Password
 

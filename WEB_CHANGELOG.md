@@ -25,6 +25,8 @@ Short release notes shown on the authenticated `/changelog` page.
 
 ### Changed
 
+- Full-browser Config now balances the Appearance card with Background on the
+  left and Highlight color on the right.
 - Work and Review now show the combined target count in **Open Tickets (N)**
   without the repeated availability text.
 - Start Work now moves the cursor to company search, and choosing a ticket,

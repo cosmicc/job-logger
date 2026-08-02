@@ -39,6 +39,7 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert "Settings for tech." not in config_response.text
     assert 'class="muted-text config-page-intro"' in config_response.text
     assert 'class="edit-panel config-panel config-appearance-panel config-grid-full"' in config_response.text
+    assert 'class="stack-form config-form config-appearance-form"' in config_response.text
     assert 'action="/config/password"' in config_response.text
     assert "Change password" in config_response.text
     assert "Password requirements" in config_response.text
@@ -81,6 +82,25 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
         "}"
     ) in stylesheet
     desktop_stylesheet = authenticated_client.get("/static/desktop.css").text
+    assert (
+        ".config-appearance-form {\n"
+        "    grid-template-columns: minmax(0, 480px) minmax(0, 360px);\n"
+        "    align-items: start;\n"
+        "    justify-content: space-between;\n"
+        "    column-gap: 24px;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".config-appearance-form > .highlight-color-fieldset {\n"
+        "    grid-column: 2;\n"
+        "    margin-top: 0;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".config-appearance-form > .config-save-status {\n"
+        "    grid-column: 1 / -1;\n"
+        "  }"
+    ) in desktop_stylesheet
     assert (
         ".config-main-stack-standard > .config-workflow-panel {\n"
         "    clear: left;\n"

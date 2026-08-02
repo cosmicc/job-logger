@@ -293,6 +293,10 @@ def test_changelog_parser_reads_current_release() -> None:
                     "navigation, and service-call selections."
                 ),
                 (
+                    "Full-browser Config now balances the Appearance card with Background on the left and Highlight "
+                    "color on the right."
+                ),
+                (
                     "Work and Review now show the combined target count in **Open Tickets (N)** without the repeated "
                     "availability text."
                 ),

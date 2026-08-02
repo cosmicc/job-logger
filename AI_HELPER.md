@@ -704,6 +704,9 @@ and disabled controls keep their established semantic colors.
 
 The default appearance is Default Dark with Teal.
 
+On a full browser, the full-width Appearance card places Background on the
+left and Highlight color on the right. Phones keep those controls stacked.
+
 ### Password
 
 Enter the new password twice, then select **Change password**. Password changes

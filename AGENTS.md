@@ -706,11 +706,14 @@ control on the left, with Service calls on the right. The Help page must begin
 with its first card without a redundant Support/Help page heading. Config must
 begin with the compact **User Settings for &lt;full name&gt;
 (&lt;username&gt;)** line, omit a separate Config heading, use the full desktop
-content width, and retain one-card-per-row stacking on phones. On full-browser
-Config, keep Password with Workflow in the left column and Navigation with
-Device sign-in in the right column so Workflow sits directly below Password
-without inheriting Navigation's taller card height. The phone card order remains
-Appearance, Password, Navigation, Workflow, then Device sign-in.
+content width, and retain one-card-per-row stacking on phones. In the
+full-width desktop Appearance card, keep Background aligned to the left and
+Highlight color aligned to the right; phones retain their stacked order. On
+full-browser Config, keep Password with Workflow in the left column and
+Navigation with Device sign-in in the right column so Workflow sits directly
+below Password without inheriting Navigation's taller card height. The phone
+card order remains Appearance, Password, Navigation, Workflow, then Device
+sign-in.
 When no service calls are available for a selected day, the full-browser
 empty-state message should be centered. Phone spacing should remain governed by
 the shared/mobile CSS.
