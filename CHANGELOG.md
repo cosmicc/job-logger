@@ -2,7 +2,7 @@
 
 All notable changes to TicketPilot are documented in this file.
 
-## 2.1.0 - 07.31.2026 - Project tasks, Review controls, theme contrast, AI support, alerts, and Autotask compatibility
+## 2.1.0 - 08.05.2026 - Project tasks, Review controls, theme contrast, AI support, alerts, and Autotask compatibility
 
 ### Added
 

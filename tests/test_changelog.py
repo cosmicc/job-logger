@@ -16,7 +16,7 @@ from ticket_pilot.services.changelog import (
 )
 from ticket_pilot.version import APP_VERSION
 
-CURRENT_RELEASE_DATE = "07.31.2026"
+CURRENT_RELEASE_DATE = "08.05.2026"
 CURRENT_WEB_TITLE = "Project tasks, Review controls, theme contrast, AI support, alerts, and Autotask compatibility"
 CURRENT_DETAILED_HEADING = f"## 2.1.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
 CURRENT_WEB_HEADING = f"## 2.1.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
