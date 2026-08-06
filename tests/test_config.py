@@ -32,12 +32,14 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert 'class="theme-palette-dots theme-palette-dots-dark"' in config_response.text
     assert 'data-theme-current-label>Default Dark</span>' in config_response.text
     assert 'class="highlight-color-dropdown"' in config_response.text
+    assert "the automatic counterpart color adjust for readable contrast" in config_response.text
     assert 'role="radiogroup" aria-label="Highlight color"' in config_response.text
     assert "<h1>Config</h1>" not in config_response.text
     assert "User Settings for Test Technician (tech)" in config_response.text
     assert "Settings for tech." not in config_response.text
     assert 'class="muted-text config-page-intro"' in config_response.text
     assert 'class="edit-panel config-panel config-appearance-panel config-grid-full"' in config_response.text
+    assert 'class="stack-form config-form config-appearance-form"' in config_response.text
     assert 'action="/config/password"' in config_response.text
     assert "Change password" in config_response.text
     assert "Password requirements" in config_response.text
@@ -56,8 +58,10 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
     assert "Apple Maps" in config_response.text
     assert "Allow navigation on full web version" in config_response.text
     assert "Hide Home and Office navigation buttons" in config_response.text
+    assert "Automatically open On-Site directions" in config_response.text
     assert re.search(r'name="allow_navigation_on_full_web"[^>]+disabled', config_response.text)
     assert re.search(r'name="hide_home_office_navigation_buttons"[^>]+disabled', config_response.text)
+    assert re.search(r'name="automatically_open_onsite_navigation"[^>]+disabled', config_response.text)
     assert "submits the completed entry to Autotask immediately" in config_response.text
     assert "data-direct-submit-option" in config_response.text
     assert "data-direct-submit-state" in config_response.text
@@ -78,6 +82,25 @@ def test_web_user_config_defaults_to_dark_and_autosaves_light_theme(authenticate
         "}"
     ) in stylesheet
     desktop_stylesheet = authenticated_client.get("/static/desktop.css").text
+    assert (
+        ".config-appearance-form {\n"
+        "    grid-template-columns: minmax(0, 480px) minmax(0, 360px);\n"
+        "    align-items: start;\n"
+        "    justify-content: space-between;\n"
+        "    column-gap: 24px;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".config-appearance-form > .highlight-color-fieldset {\n"
+        "    grid-column: 2;\n"
+        "    margin-top: 0;\n"
+        "  }"
+    ) in desktop_stylesheet
+    assert (
+        ".config-appearance-form > .config-save-status {\n"
+        "    grid-column: 1 / -1;\n"
+        "  }"
+    ) in desktop_stylesheet
     assert (
         ".config-main-stack-standard > .config-workflow-panel {\n"
         "    clear: left;\n"
@@ -263,7 +286,7 @@ def test_config_autosaves_additional_visual_themes(
 
 
 def test_theme_highlights_color_navigation_icons_and_ordinary_buttons() -> None:
-    """Independent highlight profiles should color navigation and neutral buttons."""
+    """Highlights and their counterparts should color distinct workflow roles."""
 
     stylesheet = (Path(__file__).resolve().parents[1] / "ticket_pilot" / "static" / "app.css").read_text(
         encoding="utf-8"
@@ -274,6 +297,11 @@ def test_theme_highlights_color_navigation_icons_and_ordinary_buttons() -> None:
     assert "html:is(.theme-light, .theme-light-sage, .theme-light-sky).highlight-amber {" in stylesheet
     assert "--accent: #6699e8;" in stylesheet
     assert "--accent: #f2b84b;" in stylesheet
+    assert "--counterpart: #6b9df2;" in stylesheet
+    assert "--counterpart: #3267b1;" in stylesheet
+    assert "--counterpart-soft: rgba(var(--counterpart-rgb), 0.16);" in stylesheet
+    assert "--counterpart-soft: rgba(var(--counterpart-rgb), 0.12);" in stylesheet
+    assert "--on-counterpart: #ffffff;" in stylesheet
     assert "--nav-action: var(--accent);" in stylesheet
     assert "--nav-action-bg: var(--accent-soft);" in stylesheet
     assert "background: var(--nav-action-bg-hover);" in stylesheet
@@ -284,6 +312,47 @@ def test_theme_highlights_color_navigation_icons_and_ordinary_buttons() -> None:
         "  color: var(--accent);\n"
         "}"
     ) in stylesheet
+    assert "background: var(--counterpart);" in stylesheet
+    assert "color: var(--on-counterpart);" in stylesheet
+    assert "rgba(var(--counterpart-rgb), 0.74)" in stylesheet
+    assert "rgba(var(--counterpart-rgb), 0.82)" in stylesheet
+    assert ".status-ready_for_review" in stylesheet
+    assert "background: var(--warning-soft);" in stylesheet
+
+    for highlight_name in (
+        "teal",
+        "sage",
+        "sky",
+        "blue",
+        "indigo",
+        "amber",
+        "orange",
+        "mint",
+        "lavender",
+        "rose",
+    ):
+        dark_profile_match = re.search(
+            rf"html\.highlight-{highlight_name} \{{(?P<body>.*?)\n\}}",
+            stylesheet,
+            flags=re.DOTALL,
+        )
+        assert dark_profile_match is not None
+        assert "--counterpart-rgb:" in dark_profile_match.group("body")
+        assert "--counterpart:" in dark_profile_match.group("body")
+        assert "--on-counterpart:" in dark_profile_match.group("body")
+
+        light_profile_match = re.search(
+            (
+                r"html:is\(\.theme-light, \.theme-light-sage, \.theme-light-sky\)"
+                rf"\.highlight-{highlight_name} \{{(?P<body>.*?)\n\}}"
+            ),
+            stylesheet,
+            flags=re.DOTALL,
+        )
+        assert light_profile_match is not None
+        assert "--counterpart-rgb:" in light_profile_match.group("body")
+        assert "--counterpart:" in light_profile_match.group("body")
+        assert "--on-counterpart: #ffffff;" in light_profile_match.group("body")
 
 
 def test_navigation_preferences_require_home_and_do_not_audit_addresses(
@@ -303,6 +372,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
             "office_address": "",
             "allow_navigation_on_full_web": "true",
             "hide_home_office_navigation_buttons": "false",
+            "automatically_open_onsite_navigation": "false",
         },
     )
     assert missing_home_response.status_code == 400
@@ -318,6 +388,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
             "office_address": "20 Office Avenue, Detroit, MI 48202",
             "allow_navigation_on_full_web": "true",
             "hide_home_office_navigation_buttons": "false",
+            "automatically_open_onsite_navigation": "false",
         },
     )
     assert save_response.status_code == 200
@@ -326,6 +397,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
     assert save_response.json()["office_address_override_configured"] is True
     assert save_response.json()["allow_navigation_on_full_web"] is True
     assert save_response.json()["hide_home_office_navigation_buttons"] is False
+    assert save_response.json()["automatically_open_onsite_navigation"] is False
 
     home_response = authenticated_client.get("/work")
     assert 'data-navigation-app="waze"' in home_response.text
@@ -340,6 +412,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
         assert preference.home_address == "10 Home Road Detroit, MI 48201"
         assert preference.allow_navigation_on_full_web is True
         assert preference.hide_home_office_navigation_buttons is False
+        assert preference.automatically_open_onsite_navigation is False
         audit_event = database_session.scalars(
             select(AuditEvent).where(AuditEvent.action == "user.config.updated").order_by(AuditEvent.created_at_utc.desc())
         ).first()
@@ -347,6 +420,7 @@ def test_navigation_preferences_require_home_and_do_not_audit_addresses(
         assert audit_event.details["home_address_configured"] is True
         assert audit_event.details["allow_navigation_on_full_web"] is True
         assert audit_event.details["hide_home_office_navigation_buttons"] is False
+        assert audit_event.details["automatically_open_onsite_navigation"] is False
         assert "10 Home Road" not in str(audit_event.details)
         assert "20 Office Avenue" not in str(audit_event.details)
 
@@ -403,6 +477,37 @@ def test_navigation_office_address_loads_bounded_single_line_value(monkeypatch: 
     monkeypatch.setenv("NAVIGATION_OFFICE_ADDRESS", "x" * 301)
     with pytest.raises(ValueError, match="NAVIGATION_OFFICE_ADDRESS"):
         load_settings()
+
+
+def test_autotask_ticket_status_ids_separate_observed_and_selectable_values(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Observed statuses should configure without entering the editable dropdown."""
+
+    monkeypatch.setenv("AUTOTASK_STATUS_NEW_ID", "41")
+    monkeypatch.setenv("AUTOTASK_STATUS_MFG_TROUBLE_TICKET_ID", "42")
+    monkeypatch.setenv("AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID", "43")
+    loaded_settings = load_settings()
+    assert loaded_settings.autotask_status_id_map["mfg_trouble_ticket"] == 42
+    assert loaded_settings.autotask_observed_status_id_map == {
+        "new": 41,
+        "customer_note_added": 43,
+    }
+    work_response = authenticated_client.get("/work")
+    csrf_token = extract_csrf_token(work_response.text)
+    start_response = authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    )
+    assert start_response.status_code == 303
+    assert (
+        '<option value="mfg_trouble_ticket"'
+        in authenticated_client.get("/work").text
+    )
+    assert '<option value="new"' not in authenticated_client.get("/work").text
+    assert '<option value="customer_note_added"' not in authenticated_client.get("/work").text
 
 
 def test_dev_build_flag_uses_strict_boolean_environment_value(monkeypatch) -> None:

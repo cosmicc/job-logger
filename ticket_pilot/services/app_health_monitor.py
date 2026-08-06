@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 from dataclasses import dataclass
 
@@ -17,6 +18,8 @@ from ticket_pilot.services.system_health import AppHealthSnapshot, collect_app_h
 logger = logging.getLogger(__name__)
 
 HealthFingerprint = tuple[tuple[str, str], ...]
+_acknowledgement_lock = threading.Lock()
+_acknowledged_health_fingerprint: HealthFingerprint = ()
 
 
 @dataclass
@@ -47,6 +50,36 @@ def health_snapshot_message(snapshot: AppHealthSnapshot) -> str:
     return "\n".join(lines)
 
 
+def acknowledge_health_snapshot(snapshot: AppHealthSnapshot) -> HealthFingerprint:
+    """Acknowledge the current degraded issue set until its fingerprint changes."""
+
+    fingerprint = health_snapshot_fingerprint(snapshot)
+    if not fingerprint:
+        raise ValueError("Only a degraded application-health alert can be acknowledged.")
+    global _acknowledged_health_fingerprint
+    with _acknowledgement_lock:
+        _acknowledged_health_fingerprint = fingerprint
+    return fingerprint
+
+
+def health_snapshot_is_acknowledged(snapshot: AppHealthSnapshot) -> bool:
+    """Return whether administrators acknowledged this exact degraded issue set."""
+
+    fingerprint = health_snapshot_fingerprint(snapshot)
+    if not fingerprint:
+        return False
+    with _acknowledgement_lock:
+        return fingerprint == _acknowledged_health_fingerprint
+
+
+def clear_health_acknowledgement() -> None:
+    """Clear the process-local health acknowledgement."""
+
+    global _acknowledged_health_fingerprint
+    with _acknowledgement_lock:
+        _acknowledged_health_fingerprint = ()
+
+
 def notify_if_health_changed(
     snapshot: AppHealthSnapshot,
     state: HealthNotificationState,
@@ -59,6 +92,16 @@ def notify_if_health_changed(
     current_fingerprint = health_snapshot_fingerprint(snapshot)
     previous_fingerprint = state.active_fingerprint
     current_observed_at = time.monotonic() if observed_at is None else observed_at
+    if current_fingerprint and health_snapshot_is_acknowledged(snapshot):
+        # Keep monitoring, but suppress repeats for the exact issue set an
+        # administrator has already reviewed.
+        state.active_fingerprint = current_fingerprint
+        return None
+    with _acknowledgement_lock:
+        acknowledged_fingerprint = _acknowledged_health_fingerprint
+    if acknowledged_fingerprint and acknowledged_fingerprint != current_fingerprint:
+        clear_health_acknowledgement()
+
     if current_fingerprint == previous_fingerprint:
         if not current_fingerprint:
             return None

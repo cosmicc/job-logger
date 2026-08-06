@@ -21,15 +21,27 @@ class TicketStatus(StrEnum):
     IN_PROGRESS = "in_progress"
     WAITING_CUSTOMER = "waiting_customer"
     WAITING_PARTS = "waiting_parts"
+    MFG_TROUBLE_TICKET = "mfg_trouble_ticket"
     FOLLOW_UP = "follow_up"
     COMPLETE = "complete"
 
 
 class EntryType(StrEnum):
-    """Supported Autotask record types that a local job can submit."""
+    """Supported Autotask record types that a local job can submit.
+
+    ``ticket_note`` is retained as the stored compatibility value, but it also
+    represents a TaskNotes record when the work target is a project task.
+    """
 
     TIME_ENTRY = "time_entry"
     TICKET_NOTE = "ticket_note"
+
+
+class WorkTargetType(StrEnum):
+    """Autotask entity that owns a job's time entry or note."""
+
+    TICKET = "ticket"
+    PROJECT_TASK = "project_task"
 
 
 class WorkLocation(StrEnum):

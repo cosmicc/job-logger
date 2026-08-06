@@ -13,6 +13,8 @@ on:
       - "alembic.ini"
       - "pyproject.toml"
       - "README.md"
+      - "AI_HELPER.md"
+      - "USER_MANUAL.md"
       - "WEB_CHANGELOG.md"
       - "docker-stack.yml"
       - "docker-stack.dev.yml"

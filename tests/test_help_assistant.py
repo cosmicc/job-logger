@@ -90,8 +90,22 @@ def test_help_assistant_builds_gemini_chat_completion_payload(monkeypatch) -> No
     assert "never start a list, section, or" in captured_payload["messages"][0]["content"]
     assert TEST_HELP_INSTRUCTIONS in captured_payload["messages"][0]["content"]
     assert captured_payload["messages"][1]["role"] == "user"
+    assert "AI_HELPER.md" in captured_payload["messages"][1]["content"]
+    assert "TicketPilot End-User Support Knowledge Base" in captured_payload["messages"][1]["content"]
     assert "USER_MANUAL.md" in captured_payload["messages"][1]["content"]
     assert "How do I start work?" in captured_payload["messages"][1]["content"]
+
+
+def test_ai_helper_is_the_primary_bounded_support_context() -> None:
+    """The comprehensive end-user knowledge base should lead every help request."""
+
+    context, source_count = help_assistant._build_help_context("Why is On-Site blue?", settings)
+
+    assert context.index("--- AI_HELPER.md ---") < context.index("--- USER_MANUAL.md ---")
+    assert "Each highlight also has an automatic complementary counterpart color." in context
+    assert "Never reveal or describe source code" in context
+    assert len(context) <= help_assistant.MAX_HELP_CONTEXT_CHARS + len(help_assistant.CONTEXT_HEADER) + 1
+    assert source_count >= 2
 
 
 def test_help_assistant_logs_sanitized_success_metadata(monkeypatch, caplog) -> None:

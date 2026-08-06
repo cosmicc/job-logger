@@ -289,7 +289,17 @@
     const hideHomeOfficeInput = form.querySelector("[data-home-office-navigation-option]");
     const hideHomeOfficeSetting = form.querySelector("[data-home-office-navigation-setting]");
     const hideHomeOfficeState = form.querySelector("[data-home-office-navigation-state]");
-    if (!appInput || !homeInput || !officeInput || !allowFullWebInput || !hideHomeOfficeInput) {
+    const automaticOnsiteInput = form.querySelector("[data-automatic-onsite-navigation-option]");
+    const automaticOnsiteSetting = form.querySelector("[data-automatic-onsite-navigation-setting]");
+    const automaticOnsiteState = form.querySelector("[data-automatic-onsite-navigation-state]");
+    if (
+      !appInput
+      || !homeInput
+      || !officeInput
+      || !allowFullWebInput
+      || !hideHomeOfficeInput
+      || !automaticOnsiteInput
+    ) {
       return;
     }
 
@@ -299,6 +309,7 @@
       officeAddress: officeInput.value,
       allowNavigationOnFullWeb: allowFullWebInput.checked,
       hideHomeOfficeNavigationButtons: hideHomeOfficeInput.checked,
+      automaticallyOpenOnsiteNavigation: automaticOnsiteInput.checked,
     };
     let saveSequence = 0;
 
@@ -307,6 +318,7 @@
       homeInput.required = navigationEnabled;
       allowFullWebInput.disabled = !navigationEnabled;
       hideHomeOfficeInput.disabled = !navigationEnabled;
+      automaticOnsiteInput.disabled = !navigationEnabled;
       if (!navigationEnabled) {
         allowFullWebInput.checked = false;
         hideHomeOfficeInput.checked = false;
@@ -322,6 +334,12 @@
       }
       if (hideHomeOfficeState) {
         hideHomeOfficeState.textContent = hideHomeOfficeInput.checked ? "On" : "Off";
+      }
+      if (automaticOnsiteSetting) {
+        automaticOnsiteSetting.classList.toggle("is-disabled", !navigationEnabled);
+      }
+      if (automaticOnsiteState) {
+        automaticOnsiteState.textContent = automaticOnsiteInput.checked ? "On" : "Off";
       }
     }
 
@@ -347,6 +365,10 @@
           "hide_home_office_navigation_buttons",
           hideHomeOfficeInput.checked ? "true" : "false",
         );
+        formData.set(
+          "automatically_open_onsite_navigation",
+          automaticOnsiteInput.checked ? "true" : "false",
+        );
         const response = await fetch(form.action, {
           method: "POST",
           headers: {
@@ -368,6 +390,7 @@
           officeAddress: officeInput.value,
           allowNavigationOnFullWeb: allowFullWebInput.checked,
           hideHomeOfficeNavigationButtons: hideHomeOfficeInput.checked,
+          automaticallyOpenOnsiteNavigation: automaticOnsiteInput.checked,
         };
         updateNavigationDependencies();
         setStatus(form, payload.message || "Configuration updated.", false);
@@ -380,6 +403,7 @@
         officeInput.value = lastSavedValues.officeAddress;
         allowFullWebInput.checked = lastSavedValues.allowNavigationOnFullWeb;
         hideHomeOfficeInput.checked = lastSavedValues.hideHomeOfficeNavigationButtons;
+        automaticOnsiteInput.checked = lastSavedValues.automaticallyOpenOnsiteNavigation;
         updateNavigationDependencies();
         setStatus(form, error.message || "Navigation configuration update failed.", true);
       }
@@ -391,6 +415,7 @@
     officeInput.addEventListener("change", saveNavigationConfig);
     allowFullWebInput.addEventListener("change", saveNavigationConfig);
     hideHomeOfficeInput.addEventListener("change", saveNavigationConfig);
+    automaticOnsiteInput.addEventListener("change", saveNavigationConfig);
     updateNavigationDependencies();
   }
 

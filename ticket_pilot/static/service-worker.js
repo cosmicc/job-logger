@@ -1,6 +1,6 @@
 "use strict";
 
-const SERVICE_WORKER_VERSION = "ticket-pilot-pwa-2.0.0";
+const SERVICE_WORKER_VERSION = "ticket-pilot-pwa-2.1.0";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());

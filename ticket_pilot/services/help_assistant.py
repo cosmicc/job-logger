@@ -1,9 +1,10 @@
 """Gemini-backed end-user help assistant service.
 
-The help assistant is intentionally stateless inside TicketPilot. It reads
-bounded source-controlled help context, sends one question to Gemini from the
-server through the OpenAI-compatible chat-completions API, and returns only the
-answer text to the browser.
+The help assistant is intentionally stateless inside TicketPilot. It reads the
+bounded source-controlled end-user knowledge base and matching supplemental
+context, sends one question to Gemini from the server through the
+OpenAI-compatible chat-completions API, and returns only the answer text to the
+browser.
 """
 
 from __future__ import annotations
@@ -29,11 +30,13 @@ AI_HELP_TIMEOUT_SECONDS = 20.0
 CONTEXT_HEADER = "Local TicketPilot help context"
 DEFAULT_TRACE_ID = "-"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+PACKAGED_CONTEXT_ROOT = Path(__file__).resolve().parents[1]
 PRIMARY_HELP_CONTEXT_FILES = (
-    Path("USER_MANUAL.md"),
-    Path("WEB_CHANGELOG.md"),
+    Path("AI_HELPER.md"),
 )
 SUPPORT_CONTEXT_GLOBS = (
+    "USER_MANUAL.md",
+    "WEB_CHANGELOG.md",
     "AGENTS.md",
     "docs/agent-skills/*.md",
     "ticket_pilot/routes/*.py",
@@ -192,16 +195,17 @@ def _looks_like_internal_question(question: str) -> bool:
 
 
 def _read_text_file(relative_path: Path) -> str:
-    """Read a UTF-8 source file from the repository, returning blank on failure."""
+    """Read a UTF-8 context file from source or an installed package."""
 
-    try:
-        resolved_path = (REPOSITORY_ROOT / relative_path).resolve()
-        resolved_path.relative_to(REPOSITORY_ROOT)
-        if not resolved_path.is_file():
-            return ""
-        return resolved_path.read_text(encoding="utf-8", errors="replace")
-    except (OSError, ValueError):
-        return ""
+    for context_root in (REPOSITORY_ROOT, PACKAGED_CONTEXT_ROOT):
+        try:
+            resolved_path = (context_root / relative_path).resolve()
+            resolved_path.relative_to(context_root)
+            if resolved_path.is_file():
+                return resolved_path.read_text(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            continue
+    return ""
 
 
 def _format_context_block(relative_path: Path, body: str) -> str:

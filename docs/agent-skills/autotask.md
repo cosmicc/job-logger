@@ -4,8 +4,8 @@ TicketPilot's formal long name is **Ticket Pilot for Autotask** because the
 production workflow requires the Autotask service and API.
 
 Read this file before changing Autotask configuration, company lookup, ticket
-lookup, connectivity checks, ticket status handling, submission payloads, or
-Autotask diagnostics.
+or project-task lookup, connectivity checks, ticket/task status handling,
+submission payloads, or Autotask diagnostics.
 
 ## Production Requirement
 
@@ -21,7 +21,7 @@ The initial `/work` page and blank Start Work route must not run an Autotask
 contactability probe. The mobile screen should render from local state first,
 then service-call cards can load through `/work/service-calls` after the page
 has loaded. Autotask is queried only when a workflow actually needs provider
-data, such as service-call loading, company search, open-ticket lookup,
+  data, such as service-call loading, company search, work-target lookup,
 service-call start verification, or Autotask submission/update/delete actions.
 
 Mock mode remains available for tests and isolated development only.
@@ -85,14 +85,21 @@ Current provider responsibilities:
 - Search Resources for super-admin managed-user setup.
 - Query one selected company by ID.
 - Query open tickets for a company.
+- Query time-eligible projects and non-complete tasks assigned to the managed
+  user's Autotask resource as either primary or secondary resource.
+- Query active tenant `Tasks.status` picklist metadata.
 - Resolve transient ticket and service-call navigation destinations from
   `CompanyLocations` and company main-address fields.
 - Query selected-day service calls for the logged-in managed web user's
   resource.
 - Resolve service-call ticket/resource relationships before starting a job from
   a service call.
+- Resolve service-call task/resource relationships without collapsing them
+  into ticket associations.
 - Query bounded read-only `TicketNotes` rows for a selected ticket number.
+- Query bounded read-only `TaskNotes` rows for a selected project task.
 - Query bounded read-only `TimeEntries` rows for a selected ticket number.
+- Query bounded read-only `TimeEntries` rows for a selected project task.
 - Query ticket status picklist metadata.
 - Query a ticket ID from a ticket number.
 - Keep service-call and open-ticket selection read-only against Autotask while
@@ -107,8 +114,12 @@ Current provider responsibilities:
   review.
 - Create customer-visible `TicketNotes`.
 - Patch existing submitted `TicketNotes`.
-- Delete existing submitted `TicketNotes` when the local job must return to
-  review.
+- Create and patch task-owned `TaskNotes`; never use `ProjectNotes`.
+- Create task `TimeEntries` with `taskID` and time-entry type `6`.
+- Patch only `Tasks.status` for project-task work and never patch the parent
+  `Projects.status`.
+- Reject submitted `TicketNotes` deletion because the Autotask REST entity
+  does not support that operation.
 - Return sanitized submission results.
 
 ## Mandatory Connectivity Test
@@ -205,13 +216,81 @@ client/company through `POST /review/{job_id}/client` before ticket lookup.
 Open-ticket options should include a display-only Remote, On-Site, or Not
 specified label inferred from safe ticket title/description text, falling
 back to remote-only ticket source labels when text has no result, and expose the
-matching `.ticket-location-*` CSS class for the browser. After mobile or review
+matching `.ticket-location-*` CSS class for the browser. They should also
+include a safe `has_customer_notes` boolean from one batched, bounded
+`TicketNotes` query across the returned ticket IDs. Apply the same system-note
+filter used by the overlay before setting that boolean. A note-availability
+lookup failure must default the indicator off without blocking the primary
+open-ticket lookup. After mobile or review
 selection succeeds, the UI hides the open-ticket list and updates visible ticket
 number/title/description fields from the verified JSON response rather than
 trusting the clicked browser option. The mobile UI must also make the current
 client input read-only immediately after a successful ticket selection, and the
 service layer must reject crafted client/company changes after the ticket
 exists.
+
+## Project Task Lookup
+
+The same selected-company work picker also returns a separate **Project tasks**
+group. The browser must not submit task titles, project names, task statuses, or
+assignment claims as authority.
+
+The live provider must:
+
+- Query `Projects` for the verified company.
+- Read project-kind IDs and labels through the documented
+  `Projects.projectType` field. Treat this metadata as optional because some
+  tenant/API-user security combinations reject it with HTTP 500: retry without
+  `projectType`, continue status and resource-assignment filtering, and keep
+  ticket results usable. Template and Baseline projects cannot be pre-filtered
+  during that fallback. If the field-free Project query is also denied, return
+  the already verified Tickets group with an empty Project tasks group and a
+  bounded Projects-access warning; do not fail the combined picker response.
+- Exclude projects whose current metadata labels identify them as Complete,
+  Inactive, Template, or Baseline.
+- Query `Tasks` for the remaining projects.
+- Include only non-complete tasks where the managed user's Autotask resource ID
+  is `Tasks.assignedResourceID` or appears in `TaskSecondaryResources`.
+- Return bounded task number, title, description, project number/name,
+  task-status label, schedule context, location detection, and a safe
+  TaskNotes-availability flag.
+- Cache the returned selection list briefly and verify a clicked task ID
+  against that server-side list or a fresh query before storing it.
+
+Ticket lookup and project-task lookup are independent provider operations in
+the combined Work/Review picker response. Catch only project-task
+`AutotaskSubmissionError` failures after ticket lookup succeeds. Do not convert
+ticket lookup, authentication, ownership, or job-state failures into partial
+success.
+
+Autotask does not expose a task-level allow-time-entry field. Actual permission
+to enter task time comes from the resource's Autotask Projects security level,
+including its **Can enter time on** setting. The picker narrows choices to
+assigned tasks on project types where Autotask permits time entry; the provider
+must still surface a safe Autotask rejection if tenant security denies the
+submission.
+
+After selection, store `work_target_type=project_task`, task ID/number/title,
+parent project ID/number/name, and the selected task status. Clear ticket-only
+identity fields. Keep client, task, and parent-project identity read-only from
+then on.
+
+Task status is independent from project status. Fetch active options from
+`Tasks.status` entity metadata, validate the submitted numeric ID server-side,
+and show the field in the same workflow position as ticket status under the
+label **Task status**. Do not map task statuses through
+`AUTOTASK_STATUS_*_ID`, and never use `Projects.status` as the work status.
+Autotask documents task Complete as status ID `5`; use that value only for the
+special completion ordering rule.
+
+The tenant mappings `AUTOTASK_STATUS_NEW_ID` and
+`AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID` are read-only observed statuses.
+Neither belongs in TicketPilot's editable status enum or dropdown. Selection
+routes must compare the server-verified numeric ticket status ID, not the
+display label, and may return only the safe
+`open_customer_note_overlay` presentation flag. For **Customer Note Added**,
+Work and Review reuse the existing Ticket notes overlay, refresh its
+authenticated data, and select the newest note.
 
 Ticket notes use `GET /review/{job_id}/ticket-notes`. This route must require
 an authenticated session, enforce normal review visibility and ownership rules,
@@ -230,7 +309,10 @@ authenticated lookup has completed. If the lookup returns zero displayable
 notes, show a disabled
 same-place **No Notes** button instead of opening the overlay. The overlay list
 cards should render only note titles; note body text and author metadata belong
-in the selected note detail.
+in the selected note detail. When displayable notes exist, show the shared
+**Note** indicator in the active highlight's complementary counterpart color
+beside the selected Ticket name and inside the counterpart-highlighted
+**Ticket notes** button.
 
 Past time entries use `GET /review/{job_id}/ticket-time-entries`. This route
 must require an authenticated session, enforce normal review visibility and
@@ -245,6 +327,14 @@ exists and the authenticated lookup has completed. If the lookup returns zero
 rows, show a disabled same-place **No past entries** button instead of opening
 the overlay. The overlay list cards should show resource and time range only;
 summary notes belong in the selected detail pane.
+
+For project-task targets, reuse those authenticated overlay routes and safe
+view models but dispatch reads to `TaskNotes` by stored task ID and
+`TimeEntries` by `taskID`. User-facing labels must say **Project task notes**,
+not Ticket notes or Project notes. The note indicator uses the same bounded,
+optional lookup and counterpart color. A task-note lookup failure must not
+block task selection or time entry. The parent project must not be queried for
+notes.
 
 ## Service Call Lookup
 
@@ -262,7 +352,13 @@ it needs several related Autotask entities:
 - `ServiceCallTickets` to identify tickets associated with each service call.
 - `ServiceCallTicketResources` to verify the user's resource is assigned to
   that specific service-call ticket row.
+- `ServiceCallTasks` to identify project tasks associated with each service
+  call.
+- `ServiceCallTaskResources` to verify the user's resource is assigned to that
+  specific service-call task row.
 - `Tickets` for ticket number, title, bounded description, status, and source.
+- `Tasks` and `Projects` for task, parent-project, company, status, schedule,
+  role, and navigation context.
 - `Companies` for the client name stored with the new active job.
 - `CompanyLocations` for service-call, ticket, and primary company navigation
   destinations.
@@ -273,19 +369,36 @@ managed user has enabled both a navigation app and the default-off **Allow
 navigation on full web version** preference. Phones, tablets, iPads, and iPods
 remain eligible whenever navigation itself is enabled.
 
-The browser must submit only `service_call_ticket_id`, `service_call_date`, and
-CSRF to `POST /jobs/start/service-call`. The route re-reads the provider's
-server-verified list for the selected local date and current managed web user's
-resource, filters out tickets that already have a local TicketPilot job for that
-user with ticket status Complete or Follow up, and only then creates a job.
+The browser must submit only the target type, the selected service-call
+association ID, `service_call_date`, and CSRF to
+`POST /jobs/start/service-call`. Continue accepting the legacy
+`service_call_ticket_id` field for ticket associations. The route re-reads the
+provider's server-verified list for the selected local date and current managed
+web user's resource, matches both the target type and association ID, and only
+then creates a job.
+If one service call has ticket and task associations, return one clearly
+labeled card for each association rather than merging or preferring one.
+Filter out ticket associations that already have a local TicketPilot job for
+that user with ticket status Complete or Follow up. Filter out task
+associations when that user already has a local job for the same task with task
+status Complete.
 Apply the same local Complete/Follow up filter to `/work/service-calls`
-responses; this is local workflow state and should not be pushed into the
-provider query. Never accept ticket
-number, ticket title, ticket description, client name, company ID, or
-work-location values from hidden fields for this path. Starting from a service
-call stores verified local job metadata and defaults local ticket status to
-In progress, but it must not patch Autotask ticket status or perform any other
-remote write before submission.
+responses for tickets and the task Complete filter for project tasks; this is
+local workflow state and should not be pushed into the provider query. Never
+accept target number, title, description, client name, company ID, project
+identity, status, or work-location values from hidden fields for this path.
+Starting from a service call stores verified local job metadata and defaults
+ticket status to In progress or preserves the task's current status, but it
+must not patch Autotask status or perform another remote write before
+submission.
+
+When the verified service-call ticket status ID matches
+`AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID`, the JSON start response may request
+the same one-time Ticket notes overlay. Carry only the newly created local job
+ID through same-tab session storage when navigation or redirect separates the
+start response from the refreshed Work page. Consume that value once, match it
+against a rendered active job, and still load notes only through the
+authenticated server route.
 
 Navigation address priority is service-call `companylocationID`, ticket
 `companylocationID`, primary active CompanyLocation, then the Companies main
@@ -298,7 +411,11 @@ The `/work/service-calls` response includes a preformatted local scheduled date
 and may include a local start/end time range for display, such as
 `06/20/2026 · 4:00pm-5:00pm`. Treat that context as
 read-only card context; it must not be submitted back by the browser or used as
-the authorization source for starting a job.
+the authorization source for starting a job. Service-call choices should also
+receive the same safe `has_customer_notes` boolean from one batched, bounded
+TicketNotes availability lookup and show the shared counterpart-colored
+**Note** indicator when true. A failed optional note lookup must not hide
+otherwise valid service calls.
 
 ## Resource Lookup
 
@@ -389,14 +506,14 @@ validates a clicked ticket against it before persisting the ticket number.
 
 Autotask submission happens after review acceptance or retry by default. A
 managed web user can opt in to **Submit from Work in Progress** on `/config`;
-when enabled, ending an active job submits the selected Time entry or Ticket
-note through the same service immediately after local end-work validation
-succeeds.
+when enabled, ending an active job submits the selected Time entry, Ticket
+note, or Project task note through the same service immediately after local
+end-work validation succeeds.
 
 Required local fields before time-entry submission:
 
-- Ticket number.
-- Ticket status.
+- Verified ticket number or project-task and parent-project IDs.
+- Ticket status or task status.
 - One local job date.
 - Start time.
 - End time.
@@ -416,7 +533,10 @@ Required local fields before ticket-note submission:
 - Ticket status.
 - Note title.
 - Note description.
-- Append to resolution.
+
+Project-task-note submission requires the verified task and parent project,
+tenant-validated task status, note title, and note description. It must not
+require time fields, work location, or append-to-resolution.
 
 Direct Work in Progress submission must not bypass these requirements. If a
 required local field is missing, the end-work transaction should roll back and
@@ -433,6 +553,12 @@ Required live Autotask values include:
   service-desk role.
 - Time entry type.
 - Tenant-specific ticket status picklist IDs for each selectable local status.
+- Tenant-specific `New` and `Customer Note Added` status IDs used only to
+  recognize server-verified ticket state.
+- Current `Tasks.status` picklist metadata for project-task status validation.
+- One unambiguous role assignment for the submitting resource on a project
+  task, either the task's primary assigned role or the matching
+  `TaskSecondaryResources.roleID`.
 
 Ticket `TimeEntries` creation must query the selected `Tickets` row by
 `ticketNumber` and use `assignedResourceroleID` for `TimeEntries.roleID` when
@@ -465,18 +591,44 @@ into `work_location` before building the final payload, while still accepting
 older `Remote`, `Remote:`, `Remote -`, and matching On-Site prefixes.
 
 Ticket `TicketNotes` creation must query the selected `Tickets` row by
-`ticketNumber` to get `ticketID`. The payload must use the local note title as
-`title`, the unprefixed note description as `description`, the configured
-customer-visible publish value, the default ticket-note type value, and the
-local append-to-resolution setting. TicketPilot ticket notes must never be
-internal. Ticket-note submission and submitted-note updates do not require or
-send start time, end time, hours worked, work location, role ID, billing code,
-or time-entry type.
+`ticketNumber` to get `ticketID`, then create the note through the child
+`/Tickets/{ticketID}/Notes` endpoint. Submitted-note updates must patch that
+same child endpoint with the stored TicketNotes ID in the request body. Keep
+bounded reads on `/TicketNotes/query`. The mutation payload must use the local
+note title as `title`, the unprefixed note description as `description`, the
+configured customer-visible publish value, and the default ticket-note type
+value; the child endpoint supplies the parent ticket identity.
+TicketPilot ticket notes must never be internal. Ticket-note submission and
+submitted-note updates do not require or send append-to-resolution, start time,
+end time, hours worked, work location, role ID, billing code, or time-entry
+type. Autotask documents `appendToResolution` for `TimeEntries`, but not for
+`TicketNotes`, so the ticket-note payload must omit it.
 
-Both time entries and ticket notes must include the local
-append-to-resolution checkbox value in the Autotask payload. The local setting
-defaults on for newly created jobs and for restored legacy rows that did not
-have the column.
+Project-task `TimeEntries` creation must send `taskID`, omit `ticketID`, and
+use `timeEntryType=6` (`ProjectTask`). The resource ID is still the owning
+managed user's Autotask resource ID. The role ID must be that user's primary
+task role when the user is the primary resource, or the one unambiguous
+matching `TaskSecondaryResources.roleID` when the user is secondary. Fail
+clearly if neither source supplies a valid task role.
+
+Project-task note mode creates or patches `TaskNotes` through
+`/Tasks/{taskID}/Notes`; it must never create `ProjectNotes`. Use the local note
+title and description, the configured TaskNotes publish/type values, and omit
+time-entry-only and ticket-only fields. The Autotask TaskNotes description is
+limited to 3,200 characters.
+
+For any non-complete task status, apply `Tasks.status` before creating the
+external record. For Complete status ID `5`, create or patch the `TimeEntries`
+or `TaskNotes` row first and patch `Tasks.status` last. Before either create or
+submitted-entry update, globally block Complete while any other Active, Ready
+for Review, or Submission Failed local job for the same task ID exists,
+regardless of owner or record type. Task status mutations use the
+`/Projects/{projectID}/Tasks` child endpoint and must never update
+`Projects.status`.
+
+Time entries must include the local append-to-resolution checkbox value in the
+Autotask payload. The local setting defaults on for newly created jobs and for
+restored legacy rows that did not have the column.
 
 User-scoped live calls must use the owning managed web user's Autotask resource
 ID for local `resourceID` payloads and resource filters. They must not send the
@@ -489,25 +641,30 @@ records for the same accepted job.
 
 Both Review acceptance and direct Work in Progress submission must call
 `submit_job_to_autotask()` so idempotency keys, submission attempts, safe error
-handling, required submission ticket status updates, role lookup, and summary construction
+handling, required target-status updates, role lookup, and summary construction
 remain centralized.
 
-After a provider reports successful submission, ticket identity and destructive
+After a provider reports successful submission, target identity and destructive
 workflow actions remain protected. Do not allow later review save, ticket
-selection, accept/resend, retry, local delete actions, or entry-type conversion
+or project-task selection, accept/resend, retry, local delete actions, or entry-type conversion
 for that job. Supported submitted-job mutations are limited to audited external
 record actions: time-entry **Submit changes** validates one job date,
 start/end times, summary notes, work location, append-to-resolution, and ticket
 status, then patches the existing Autotask `TimeEntries` row by its stored
 external ID. Ticket-note **Submit changes** validates note title, note
-description, append-to-resolution, and ticket status, then patches the existing
-Autotask `TicketNotes` row by its stored external ID. Both paths reassert the
-selected local ticket status on `Tickets.status`. A previously submitted
-`Complete` ticket may be moved to `In progress` before patching the external
-record, then moved to the selected final status after the record patch when
-needed. **Delete From Autotask** deletes `TimeEntries/{id}` or
-`TicketNotes/{id}` and returns the local job to review only after Autotask
-confirms the delete. If the delete fails, the selected review detail may offer
+description and ticket status, then patches the existing
+Autotask `TicketNotes` row by its stored external ID. Project-task Time entries
+and notes use the same editable field categories while patching the existing
+`TimeEntries` or `TaskNotes` row and reasserting the validated Task status.
+Ticket paths reassert the selected local ticket status on `Tickets.status`;
+task paths reassert only `Tasks.status`. A previously submitted Complete target
+may be moved to In progress before patching the external record, then moved to
+the selected final status after the record patch when needed. **Delete From
+Autotask** deletes `TimeEntries/{id}` and returns the
+local job to review only after Autotask confirms the delete. Autotask does not
+support deleting `TicketNotes` through this REST entity, so submitted ticket
+notes must not expose or call that action. If a time-entry delete fails, the
+selected review detail may offer
 a session-scoped, local-only purge fallback that removes the TicketPilot row
 while warning that the Autotask record may still exist. If either action fails,
 keep local state aligned with the last known successful Autotask state and

@@ -23,11 +23,13 @@ const reviewCompanyInputs = document.querySelectorAll("[data-review-company-inpu
 const confirmationForms = document.querySelectorAll("[data-confirm-message]");
 const reviewTaskForms = document.querySelectorAll("[data-review-task-form]");
 const submittedDeleteFallbackDialog = document.querySelector("[data-submitted-delete-fallback-dialog]");
+const reviewListPreferencesForm = document.querySelector("[data-review-list-preferences]");
 const reviewPageLoadingOverlay = document.querySelector("[data-review-page-loading]");
 const reviewPageLoadingMessage = document.querySelector("[data-review-page-loading-message]");
 const reviewEntryTypeInputs = document.querySelectorAll("[data-review-entry-type-input]");
 const reviewNoteTitleInput = document.querySelector("[data-review-note-title-input]");
 const reviewAppendResolutionInput = document.querySelector("[data-review-append-resolution-input]");
+const reviewTaskStatusInput = document.querySelector("[data-review-task-status-input]");
 
 let reviewAutosaveTimer = null;
 let lastReviewAutosaveSnapshot = "";
@@ -505,6 +507,42 @@ function findReviewSummaryTextarea() {
   return document.querySelector('textarea[name="summary_notes"]');
 }
 
+function focusReviewSummaryForContinuedWork() {
+  const summaryTextarea = findReviewSummaryTextarea();
+  if (!summaryTextarea || summaryTextarea.disabled || summaryTextarea.readOnly) {
+    return false;
+  }
+
+  summaryTextarea.focus();
+  if (typeof summaryTextarea.setSelectionRange === "function") {
+    const cursorPosition = toSafeMapString(summaryTextarea.value).length;
+    summaryTextarea.setSelectionRange(cursorPosition, cursorPosition);
+  }
+  return true;
+}
+
+function reviewSummaryFocusUrl() {
+  const focusUrl = new URL(window.location.pathname, window.location.origin);
+  focusUrl.searchParams.set("focus_target", "summary");
+  return `${focusUrl.pathname}${focusUrl.search}`;
+}
+
+function applyRequestedReviewFocus() {
+  try {
+    const currentUrl = new URL(window.location.href);
+    if (currentUrl.searchParams.get("focus_target") !== "summary") {
+      return;
+    }
+    currentUrl.searchParams.delete("focus_target");
+    if (window.history && typeof window.history.replaceState === "function") {
+      window.history.replaceState({}, "", `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+    }
+    window.setTimeout(focusReviewSummaryForContinuedWork, 0);
+  } catch (_error) {
+    // Focus progression is a convenience and must never block Review.
+  }
+}
+
 function setReviewRecordingStatus(jobId, message, isError = false) {
   const statusElement = findReviewRecordingStatus(jobId);
   setInlineLoadingStatus(statusElement, message, {isError});
@@ -758,6 +796,11 @@ function syncReviewEntryMode({syncSummaryPrefix = false} = {}) {
   if (reviewNoteTitleInput) {
     reviewNoteTitleInput.disabled = !isTicketNote;
     reviewNoteTitleInput.required = isTicketNote;
+  }
+
+  const appendResolutionField = document.querySelector("[data-review-append-resolution-field]");
+  if (appendResolutionField) {
+    appendResolutionField.classList.toggle("is-hidden", isTicketNote);
   }
 
   const summaryLabel = document.querySelector("[data-review-summary-label]");
@@ -1484,11 +1527,54 @@ function bindReviewWorkLocationControls() {
   }
 }
 
+async function loadReviewTaskStatusOptions() {
+  if (!reviewTaskStatusInput) {
+    return;
+  }
+  const statusUrl = reviewTaskStatusInput.dataset.taskStatusUrl || "";
+  if (!statusUrl) {
+    return;
+  }
+  const selectedStatusId = toSafeMapString(reviewTaskStatusInput.value);
+  try {
+    const response = await fetch(statusUrl, {headers: {Accept: "application/json"}});
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.detail || "Task statuses could not be loaded.");
+    }
+    const statusOptions = Array.isArray(payload.task_statuses) ? payload.task_statuses : [];
+    if (!statusOptions.length) {
+      throw new Error("Autotask did not return any active task statuses.");
+    }
+    reviewTaskStatusInput.replaceChildren();
+    for (const statusOption of statusOptions) {
+      const option = document.createElement("option");
+      option.value = toSafeMapString(statusOption.status_id);
+      option.textContent = statusOption.label || option.value;
+      option.selected = option.value === selectedStatusId;
+      reviewTaskStatusInput.append(option);
+    }
+  } catch (error) {
+    reviewTaskStatusInput.title = error.message || "Task statuses could not be loaded.";
+  }
+}
+
 function createTicketOptionSpan(className, textContent) {
   const spanElement = document.createElement("span");
   spanElement.className = className;
   spanElement.textContent = textContent;
   return spanElement;
+}
+
+function appendCustomerNoteIndicator(container, hasCustomerNotes) {
+  if (
+    hasCustomerNotes !== true
+    || !window.TicketPilotTicketNotes
+    || typeof window.TicketPilotTicketNotes.createCustomerNoteIndicator !== "function"
+  ) {
+    return;
+  }
+  container.append(window.TicketPilotTicketNotes.createCustomerNoteIndicator());
 }
 
 function renderTicketOptionButton(optionButton, ticketOption) {
@@ -1506,13 +1592,69 @@ function renderTicketOptionButton(optionButton, ticketOption) {
     createTicketOptionSpan("ticket-option-number", ticketNumber),
     createTicketOptionSpan("ticket-location-badge", locationLabel),
   );
+  const ticketTitleRow = createTicketOptionSpan("ticket-title-with-note-indicator", "");
+  ticketTitleRow.append(createTicketOptionSpan("ticket-option-title", ticketTitle));
+  appendCustomerNoteIndicator(ticketTitleRow, ticketOption.has_customer_notes);
   optionButton.className = `ticket-option-button ${locationClass}`;
   optionButton.replaceChildren(
     cardHeader,
-    createTicketOptionSpan("ticket-option-title", ticketTitle),
+    ticketTitleRow,
     createTicketOptionSpan("ticket-option-dates", `Start ${startDate} · Due by ${dueByDate}`),
     createTicketOptionSpan("ticket-option-meta", `${ticketStatus} | ${companyName}`),
   );
+}
+
+function renderProjectTaskOptionButton(optionButton, taskOption) {
+  const taskNumber = taskOption.task_number || `Task ${taskOption.task_id || ""}`.trim();
+  const taskTitle = taskOption.title || "Untitled project task";
+  const taskStatus = taskOption.status_label || "Unknown status";
+  const projectName = taskOption.project_name || "Unknown project";
+  const startDate = toSafeMapString(taskOption.start_date).trim() || "Not set";
+  const dueByDate = toSafeMapString(taskOption.due_by_date).trim() || "Not set";
+  const locationLabel = taskOption.work_location_label || "Not specified";
+  const locationClass = taskOption.work_location_class || "ticket-location-unknown";
+  const cardHeader = document.createElement("span");
+  cardHeader.className = "ticket-option-card-header";
+  cardHeader.append(
+    createTicketOptionSpan("ticket-option-number", taskNumber),
+    createTicketOptionSpan("ticket-location-badge", locationLabel),
+  );
+  const titleRow = createTicketOptionSpan("ticket-title-with-note-indicator", "");
+  titleRow.append(createTicketOptionSpan("ticket-option-title", taskTitle));
+  appendCustomerNoteIndicator(titleRow, taskOption.has_customer_notes);
+  optionButton.className = `ticket-option-button ${locationClass}`;
+  optionButton.replaceChildren(
+    cardHeader,
+    titleRow,
+    createTicketOptionSpan("ticket-option-dates", `Start ${startDate} · Due by ${dueByDate}`),
+    createTicketOptionSpan("ticket-option-meta", `${taskStatus} | ${projectName}`),
+  );
+}
+
+function appendTicketPickerSectionHeading(resultsElement, label) {
+  const heading = document.createElement("p");
+  heading.className = "ticket-picker-section-label";
+  heading.textContent = label;
+  resultsElement.append(heading);
+}
+
+function appendTicketPickerWarning(resultsElement, message) {
+  const warning = document.createElement("p");
+  warning.className = "ticket-picker-section-warning";
+  warning.setAttribute("role", "status");
+  warning.textContent = message;
+  resultsElement.append(warning);
+}
+
+function setTicketPickerHeading(ticketPicker, optionCount = null) {
+  const headingElement = ticketPicker.querySelector("[data-ticket-picker-heading]");
+  if (!headingElement) {
+    return;
+  }
+
+  headingElement.textContent = Number.isInteger(optionCount)
+    ? `Open Tickets (${optionCount})`
+    : "Open Tickets";
 }
 
 function setTicketLookupStatus(statusElement, message, {isError = false, isLoading = false} = {}) {
@@ -1603,7 +1745,7 @@ function bindTicketLookup() {
     ticketPicker.removeAttribute("aria-disabled");
   }
 
-  async function persistSelectedTicket(ticketOption) {
+  async function persistSelectedTicket(ticketOption, workTargetType = "ticket") {
     const response = await fetch(ticketSelectUrl, {
       method: "POST",
       headers: {
@@ -1611,7 +1753,11 @@ function bindTicketLookup() {
         "Content-Type": "application/json",
         "X-CSRF-Token": csrfToken,
       },
-      body: JSON.stringify({ticket_number: ticketOption.ticket_number || ""}),
+      body: JSON.stringify({
+        work_target_type: workTargetType,
+        ticket_number: ticketOption.ticket_number || "",
+        project_task_id: ticketOption.task_id || "",
+      }),
     });
     const payload = await response.json();
     if (!response.ok) {
@@ -1656,8 +1802,15 @@ function bindTicketLookup() {
     }
     for (const ticketNotesButton of ticketNotesButtons) {
       ticketNotesButton.dataset.ticketNotesTicketNumber = selectedTicketNumber;
-      if (window.TicketPilotTicketNotes) {
-        window.TicketPilotTicketNotes.refreshButton(ticketNotesButton);
+    }
+    if (ticketNotesButtons.length && window.TicketPilotTicketNotes) {
+      if (
+        selectedTicket.open_customer_note_overlay
+        && typeof window.TicketPilotTicketNotes.openNewestForButton === "function"
+      ) {
+        window.TicketPilotTicketNotes.openNewestForButton(ticketNotesButtons[0]);
+      } else {
+        window.TicketPilotTicketNotes.refreshButton(ticketNotesButtons[0]);
       }
     }
     for (const ticketTimeEntriesButton of ticketTimeEntriesButtons) {
@@ -1703,14 +1856,25 @@ function bindTicketLookup() {
       }
 
       const ticketOptions = Array.isArray(payload.tickets) ? payload.tickets : [];
-      if (ticketOptions.length === 0) {
-        setTicketLookupStatus(statusElement, "No open tickets found. Click this box to try again.");
+      const taskOptions = Array.isArray(payload.project_tasks) ? payload.project_tasks : [];
+      const projectTasksWarning = toSafeMapString(payload.project_tasks_warning).trim();
+      const optionCount = ticketOptions.length + taskOptions.length;
+      if (optionCount === 0 && !projectTasksWarning) {
+        setTicketLookupStatus(statusElement, "No tickets or assigned project tasks found. Click this box to try again.");
         setTicketPickerClickable(true);
         return;
       }
 
-      hasLoadedTicketOptions = true;
-      setTicketLookupStatus(statusElement, `${ticketOptions.length} open ticket(s) found.`);
+      if (optionCount > 0) {
+        hasLoadedTicketOptions = true;
+        setTicketPickerHeading(ticketPicker, optionCount);
+        setTicketLookupStatus(statusElement, "");
+      } else {
+        setTicketLookupStatus(statusElement, "No open tickets found. Project tasks are unavailable.");
+      }
+      if (ticketOptions.length) {
+        appendTicketPickerSectionHeading(resultsElement, "Tickets");
+      }
       for (const ticketOption of ticketOptions) {
         const optionButton = document.createElement("button");
         optionButton.type = "button";
@@ -1725,6 +1889,7 @@ function bindTicketLookup() {
             const selectedTicket = await persistSelectedTicket(ticketOption);
             updateSelectedTicketDisplay(selectedTicket);
             ticketPicker.hidden = true;
+            focusReviewSummaryForContinuedWork();
           } catch (error) {
             ticketPicker.classList.remove("is-loading");
             ticketPicker.removeAttribute("aria-busy");
@@ -1736,6 +1901,43 @@ function bindTicketLookup() {
           }
         });
         resultsElement.append(optionButton);
+      }
+      if (taskOptions.length || projectTasksWarning) {
+        appendTicketPickerSectionHeading(resultsElement, "Project tasks");
+      }
+      if (projectTasksWarning) {
+        appendTicketPickerWarning(resultsElement, projectTasksWarning);
+      }
+      for (const taskOption of taskOptions) {
+        const optionButton = document.createElement("button");
+        optionButton.type = "button";
+        renderProjectTaskOptionButton(optionButton, taskOption);
+        optionButton.addEventListener("click", async () => {
+          optionButton.disabled = true;
+          ticketPicker.classList.add("is-loading");
+          ticketPicker.setAttribute("aria-busy", "true");
+          setTicketLookupStatus(statusElement, "Saving selected project task...", {isLoading: true});
+          resultsElement.replaceChildren();
+          try {
+            await persistSelectedTicket(taskOption, "project_task");
+            window.location.assign(reviewSummaryFocusUrl());
+          } catch (error) {
+            ticketPicker.classList.remove("is-loading");
+            ticketPicker.removeAttribute("aria-busy");
+            optionButton.disabled = false;
+            hasLoadedTicketOptions = false;
+            setTicketLookupStatus(
+              statusElement,
+              error.message || "Selected project task could not be saved.",
+              {isError: true},
+            );
+            setTicketPickerClickable(true);
+          }
+        });
+        resultsElement.append(optionButton);
+      }
+      if (optionCount === 0) {
+        setTicketPickerClickable(true);
       }
     } catch (error) {
       setTicketLookupStatus(statusElement, error.message || "Autotask ticket lookup failed.", {isError: true});
@@ -1791,9 +1993,11 @@ for (const reviewRow of reviewRows) {
 bindTimeStepButtons();
 bindReviewDurationInputs();
 bindTicketLookup();
+loadReviewTaskStatusOptions();
 syncReviewEntryMode();
 bindReviewAutosave();
 bindReviewWorkLocationControls();
+applyRequestedReviewFocus();
 
 for (const reviewEntryTypeInput of reviewEntryTypeInputs) {
   reviewEntryTypeInput.addEventListener("change", () => {
@@ -1869,6 +2073,29 @@ if (confirmationForms.length > 0) {
 
 if (reviewTaskForms.length > 0) {
   document.addEventListener("submit", handleReviewTaskFormSubmit);
+}
+
+if (reviewListPreferencesForm) {
+  const pageSizeInput = reviewListPreferencesForm.querySelector('select[name="page_size"]');
+  const hideSubmittedInput = reviewListPreferencesForm.querySelector(
+    'input[type="checkbox"][name="hide_submitted_entries"]',
+  );
+  const hasExplicitPageSize = reviewListPreferencesForm.dataset.reviewPageSizeExplicit === "true";
+  const navigationApi = window.TicketPilotNavigation;
+  if (
+    pageSizeInput
+    && !hasExplicitPageSize
+    && navigationApi
+    && typeof navigationApi.isMobileDevice === "function"
+  ) {
+    const deviceDefaultPageSize = navigationApi.isMobileDevice() ? "10" : "20";
+    if (pageSizeInput.value !== deviceDefaultPageSize) {
+      pageSizeInput.value = deviceDefaultPageSize;
+      reviewListPreferencesForm.requestSubmit();
+    }
+  }
+  pageSizeInput?.addEventListener("change", () => reviewListPreferencesForm.requestSubmit());
+  hideSubmittedInput?.addEventListener("change", () => reviewListPreferencesForm.requestSubmit());
 }
 
 showSubmittedDeleteFallbackDialog();

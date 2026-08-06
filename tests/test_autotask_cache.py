@@ -13,19 +13,21 @@ import httpx
 import pytest
 
 from ticket_pilot.config import settings
-from ticket_pilot.enums import EntryType, JobStatus, TicketStatus, WorkLocation
+from ticket_pilot.enums import EntryType, JobStatus, TicketStatus, WorkLocation, WorkTargetType
 from ticket_pilot.models import Job
 from ticket_pilot.services import system_health
 from ticket_pilot.services.autotask import (
     _COMPANY_ID_CACHE,
     _COMPANY_SEARCH_CACHE,
     _OPEN_TICKET_SELECTION_CACHE,
+    _PROJECT_TYPE_CACHE,
     _RESOURCE_SEARCH_CACHE,
     _SERVICE_CALL_SELECTION_CACHE,
     _TICKET_SOURCE_CACHE,
     _TICKET_STATUS_CACHE,
     AutotaskConnectivityResult,
     AutotaskSubmissionError,
+    AutotaskTaskStatusOption,
     AutotaskTicketNote,
     LiveAutotaskProvider,
     filter_displayable_ticket_notes,
@@ -131,6 +133,12 @@ def test_ticket_note_context_filter_removes_system_generated_notes() -> None:
             description="Generated Autotask action-status noise.",
             note_type="Task Update",
         ),
+        AutotaskTicketNote(
+            note_id=91005,
+            title="System workflow note",
+            description="Generated Autotask task workflow context.",
+            note_type="13",
+        ),
     ]
 
     assert [note.note_id for note in filter_displayable_ticket_notes(notes)] == [91003]
@@ -219,6 +227,9 @@ class FakeOpenTicketLookupClient:
         # source_lookup_count counts ticket source picklist metadata requests.
         self.source_lookup_count = 0
 
+        # note_lookup_count proves customer-note availability is batched and cached.
+        self.note_lookup_count = 0
+
     def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
         """Return company or ticket query responses based on the requested endpoint."""
 
@@ -254,6 +265,7 @@ class FakeOpenTicketLookupClient:
                 {
                     "items": [
                         {
+                            "id": 11001,
                             "ticketNumber": "T20260616.0001",
                             "title": "Cached open ticket",
                             "description": "Cached open ticket description.",
@@ -263,9 +275,40 @@ class FakeOpenTicketLookupClient:
                             "dueDateTime": "2026-06-18T21:00:00Z",
                         },
                         {
+                            "id": 11002,
                             "ticketNumber": "T20260616.0002",
+                            "title": "System-note-only open ticket",
+                            "description": "Open ticket with only filtered system notes.",
+                            "status": 1,
+                            "source": 11,
+                        },
+                        {
+                            "id": 11003,
+                            "ticketNumber": "T20260616.9999",
                             "title": "Completed ticket should not be returned",
                             "status": 5,
+                        },
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/TicketNotes/query":
+            assert json["IncludeFields"] == ["ticketID", "title", "noteType"]
+            assert json["filter"] == [{"op": "in", "field": "ticketID", "value": [11001, 11002]}]
+            self.note_lookup_count += 1
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "ticketID": 11001,
+                            "title": "Customer update",
+                            "noteType": "Customer",
+                        },
+                        {
+                            "ticketID": 11002,
+                            "title": "Workflow Rule: notification",
+                            "noteType": "Workflow Rule",
                         },
                     ],
                     "pageDetails": {},
@@ -573,6 +616,13 @@ class FakeServiceCallLookupClient:
                 }
             )
 
+        if endpoint_path == "/ServiceCallTasks/query":
+            assert json["IncludeFields"] == ["id", "serviceCallID", "taskID"]
+            assert json["filter"] == [
+                {"op": "in", "field": "serviceCallID", "value": [7001, 7002]}
+            ]
+            return FakeAutotaskResponse({"items": [], "pageDetails": {}})
+
         if endpoint_path == "/ServiceCallTicketResources/query":
             assert json["IncludeFields"] == ["id", "resourceID", "serviceCallTicketID"]
             assert {"op": "eq", "field": "resourceID", "value": 1} in json["filter"]
@@ -608,6 +658,22 @@ class FakeServiceCallLookupClient:
                             "companylocationID": 5002,
                             "status": 1,
                             "source": "Datto Alert",
+                        }
+                    ],
+                    "pageDetails": {},
+                }
+            )
+
+        if endpoint_path == "/TicketNotes/query":
+            assert json["IncludeFields"] == ["ticketID", "title", "noteType"]
+            assert json["filter"] == [{"op": "in", "field": "ticketID", "value": [9001]}]
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "ticketID": 9001,
+                            "title": "Customer confirmed the appointment",
+                            "noteType": "Customer",
                         }
                     ],
                     "pageDetails": {},
@@ -871,7 +937,7 @@ class FakeTimeEntryCreateClient:
 
 
 class FakeTicketNoteCreateClient:
-    """Fake Autotask client that captures the TicketNotes create payload."""
+    """Fake Autotask client that captures the child TicketNotes create payload."""
 
     def __init__(self) -> None:
         """Initialize payload capture used by the TicketNotes create test."""
@@ -881,7 +947,7 @@ class FakeTicketNoteCreateClient:
     def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
         """Capture one TicketNotes POST and return a successful response."""
 
-        assert endpoint_path == "/TicketNotes"
+        assert endpoint_path == "/Tickets/123456/Notes"
         self.posted_payload = dict(json)
         return FakeAutotaskResponse({"itemId": 456789})
 
@@ -1147,7 +1213,7 @@ class FakeTimeEntryUpdateClient:
 
 
 class FakeTicketNoteUpdateClient:
-    """Fake Autotask client that captures the TicketNotes update payload."""
+    """Fake Autotask client that captures the child TicketNotes update payload."""
 
     def __init__(self) -> None:
         """Initialize payload capture used by the TicketNotes update test."""
@@ -1157,7 +1223,7 @@ class FakeTicketNoteUpdateClient:
     def patch(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
         """Capture one TicketNotes PATCH and return a successful response."""
 
-        assert endpoint_path == "/TicketNotes"
+        assert endpoint_path == "/Tickets/123456/Notes"
         self.patched_payload = dict(json)
         return FakeAutotaskResponse({})
 
@@ -1255,7 +1321,7 @@ class FakeTicketNoteCompleteSubmissionClient:
                     "pageDetails": {},
                 }
             )
-        if endpoint_path == "/TicketNotes":
+        if endpoint_path == "/Tickets/123456/Notes":
             self.posted_payload = dict(json)
             return FakeAutotaskResponse({"itemId": 456789})
 
@@ -1444,21 +1510,6 @@ class FakeTimeEntryDeleteClient:
         return FakeAutotaskResponse({})
 
 
-class FakeTicketNoteDeleteClient:
-    """Fake Autotask client that captures the TicketNotes delete endpoint."""
-
-    def __init__(self) -> None:
-        """Initialize endpoint capture used by the TicketNotes delete test."""
-
-        self.deleted_endpoint: str | None = None
-
-    def delete(self, endpoint_path: str) -> FakeAutotaskResponse:
-        """Capture one TicketNotes DELETE request and return success."""
-
-        self.deleted_endpoint = endpoint_path
-        return FakeAutotaskResponse({})
-
-
 class FakeAutotaskClientContext:
     """Context manager that lets provider tests inject a fake Autotask client."""
 
@@ -1511,13 +1562,28 @@ def _live_test_provider() -> LiveAutotaskProvider:
         autotask_username="api-user-key",
         autotask_secret="api-secret",
         autotask_api_integration_code="integration-code",
+        autotask_status_new_id=7,
         autotask_status_in_progress_id=1,
         autotask_status_waiting_customer_id=2,
         autotask_status_waiting_parts_id=3,
+        autotask_status_mfg_trouble_ticket_id=6,
         autotask_status_follow_up_id=4,
         autotask_status_complete_id=5,
+        autotask_status_customer_note_added_id=8,
     )
     return LiveAutotaskProvider(test_settings)
+
+
+def test_live_provider_resolves_mfg_trouble_ticket_status_id() -> None:
+    """The new local status should resolve to its tenant-specific Autotask ID."""
+
+    provider = _live_test_provider()
+
+    assert provider._ticket_status_id(TicketStatus.MFG_TROUBLE_TICKET, required=True) == 6
+    assert provider.application_settings.autotask_observed_status_id_map == {
+        "new": 7,
+        "customer_note_added": 8,
+    }
 
 
 def _clear_autotask_lookup_caches() -> None:
@@ -1694,16 +1760,19 @@ def test_open_ticket_lookup_reuses_recent_server_verified_list(monkeypatch: pyte
     first_lookup = provider.list_open_tickets_for_client("Fast Client", autotask_company_id=1001)
     second_lookup = provider.list_open_tickets_for_client("Fast Client", autotask_company_id=1001)
 
-    assert [ticket.ticket_number for ticket in first_lookup] == ["T20260616.0001"]
+    assert [ticket.ticket_number for ticket in first_lookup] == ["T20260616.0001", "T20260616.0002"]
     assert first_lookup[0].detected_work_location == WorkLocation.REMOTE
     assert first_lookup[0].work_location_label == "Remote"
     assert first_lookup[0].created_at_utc == datetime(2026, 6, 16, 12, 0, tzinfo=UTC)
     assert first_lookup[0].due_at_utc == datetime(2026, 6, 18, 21, 0, tzinfo=UTC)
+    assert first_lookup[0].has_customer_notes is True
+    assert first_lookup[1].has_customer_notes is False
     assert second_lookup == first_lookup
     assert fake_client.company_query_count == 1
     assert fake_client.ticket_query_count == 1
     assert fake_client.status_lookup_count == 1
     assert fake_client.source_lookup_count == 1
+    assert fake_client.note_lookup_count == 1
 
 
 def test_live_ticket_notes_lookup_uses_selected_ticket_id(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1820,14 +1889,17 @@ def test_todays_service_call_lookup_uses_resource_assignment_and_cache(monkeypat
     assert service_call_option.start_datetime_utc == datetime(2026, 6, 16, 13, 0, tzinfo=UTC)
     assert service_call_option.end_datetime_utc == datetime(2026, 6, 16, 14, 0, tzinfo=UTC)
     assert service_call_option.navigation_address == "500 Service Call Lane, Detroit, MI 48205"
+    assert service_call_option.has_customer_notes is True
     assert second_lookup == first_lookup
     assert fake_client.status_lookup_count == 1
     assert fake_client.source_lookup_count == 1
     assert [endpoint_path for endpoint_path, _payload in fake_client.post_requests] == [
         "/ServiceCalls/query",
         "/ServiceCallTickets/query",
+        "/ServiceCallTasks/query",
         "/ServiceCallTicketResources/query",
         "/Tickets/query",
+        "/TicketNotes/query",
         "/Companies/query",
         "/CompanyLocations/query",
         "/CompanyLocations/query",
@@ -2280,9 +2352,8 @@ def test_ticket_note_creation_uses_customer_visible_payload() -> None:
         "description": "This customer-visible note should be sent to Autotask.",
         "publish": 1,
         "noteType": 1,
-        "appendToResolution": False,
-        "ticketID": 123456,
     }
+    assert "ticketID" not in fake_client.posted_payload
     assert "internal" not in fake_client.posted_payload
 
 
@@ -2373,7 +2444,7 @@ def test_complete_ticket_note_submission_updates_status_after_note_create(monkey
     assert fake_client.posted_payload is not None
     assert fake_client.posted_payload["title"] == "Complete note"
     assert fake_client.posted_payload["publish"] == 1
-    assert fake_client.posted_payload["appendToResolution"] is True
+    assert "appendToResolution" not in fake_client.posted_payload
     assert fake_client.operations == [
         (
             "/Tickets/query",
@@ -2384,7 +2455,7 @@ def test_complete_ticket_note_submission_updates_status_after_note_create(monkey
             },
         ),
         ("/Tickets", {"id": 123456, "status": 1}),
-        ("/TicketNotes", fake_client.posted_payload),
+        ("/Tickets/123456/Notes", fake_client.posted_payload),
         ("/Tickets", {"id": 123456, "status": 5}),
     ]
 
@@ -2799,14 +2870,13 @@ def test_ticket_note_update_patches_existing_note_fields_only() -> None:
         rounded_start_utc=rounded_start_utc,
     )
 
-    provider._update_ticket_note(fake_client, job, external_id="456789")
+    provider._update_ticket_note(fake_client, job, external_id="456789", ticket_id=123456)
 
     assert fake_client.patched_payload == {
         "title": "Updated customer note",
         "description": "Updated customer-visible note body.",
         "publish": 1,
         "noteType": 1,
-        "appendToResolution": True,
         "id": 456789,
     }
     assert "ticketID" not in fake_client.patched_payload
@@ -2915,17 +2985,6 @@ def test_time_entry_delete_uses_existing_entry_endpoint() -> None:
     assert fake_client.deleted_endpoint == "/TimeEntries/987654"
 
 
-def test_ticket_note_delete_uses_existing_note_endpoint() -> None:
-    """Submitted note deletes must target the existing TicketNotes row."""
-
-    provider = _live_test_provider()
-    fake_client = FakeTicketNoteDeleteClient()
-
-    provider._delete_ticket_note(fake_client, external_id="456789")
-
-    assert fake_client.deleted_endpoint == "/TicketNotes/456789"
-
-
 def test_time_entry_summary_notes_use_hidden_work_location_prefix() -> None:
     """Autotask summary notes receive the stored work-location prefix only at submission."""
 
@@ -2968,3 +3027,369 @@ def test_summary_prefix_parser_accepts_new_and_legacy_work_location_formats() ->
         WorkLocation.REMOTE,
         "Verified backups.",
     )
+
+
+class FakeProjectTaskSubmissionClient:
+    """Capture project-task TimeEntries, TaskNotes, and status call ordering."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, dict[str, Any] | None]] = []
+
+    def get(self, endpoint_path: str) -> FakeAutotaskResponse:
+        self.calls.append(("GET", endpoint_path, None))
+        if endpoint_path == "/Tasks/entityInformation/fields/status":
+            return FakeAutotaskResponse(
+                {
+                    "picklistValues": [
+                        {"value": "2", "label": "In Progress", "isActive": True},
+                        {"value": "5", "label": "Complete", "isActive": True},
+                    ]
+                }
+            )
+        raise AssertionError(f"Unexpected project-task GET endpoint: {endpoint_path}")
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        self.calls.append(("POST", endpoint_path, dict(json)))
+        if endpoint_path == "/Tasks/query":
+            return FakeAutotaskResponse(
+                {
+                    "items": [
+                        {
+                            "id": 7001,
+                            "projectID": 6001,
+                            "assignedResourceID": 42,
+                            "assignedResourceroleID": 18,
+                            "status": 2,
+                        }
+                    ],
+                    "pageDetails": {},
+                }
+            )
+        if endpoint_path == "/TimeEntries":
+            return FakeAutotaskResponse({"itemId": 88001})
+        if endpoint_path == "/Tasks/7001/Notes":
+            return FakeAutotaskResponse({"itemId": 89001})
+        raise AssertionError(f"Unexpected project-task POST endpoint: {endpoint_path}")
+
+    def patch(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        self.calls.append(("PATCH", endpoint_path, dict(json)))
+        if endpoint_path == "/Projects/6001/Tasks":
+            return FakeAutotaskResponse({"itemId": 7001})
+        raise AssertionError(f"Unexpected project-task PATCH endpoint: {endpoint_path}")
+
+
+class FakeProjectLookupContractClient:
+    """Capture Projects metadata and query fields used by task discovery."""
+
+    def __init__(
+        self,
+        *,
+        deny_project_type_metadata: bool = False,
+        deny_project_type_query: bool = False,
+    ) -> None:
+        """Initialize captured GET and POST requests."""
+
+        self.get_paths: list[str] = []
+        self.post_requests: list[tuple[str, dict[str, Any]]] = []
+        self.deny_project_type_metadata = deny_project_type_metadata
+        self.deny_project_type_query = deny_project_type_query
+
+    def get(self, endpoint_path: str) -> FakeAutotaskResponse:
+        """Return or deny the Projects.projectType picklist metadata."""
+
+        self.get_paths.append(endpoint_path)
+        if endpoint_path == "/Projects/entityInformation/fields/projectType":
+            if self.deny_project_type_metadata:
+                return FakeAutotaskResponse(
+                    {
+                        "errors": [
+                            "The logged in Resource does not have the adequate permissions "
+                            "to query this entity projectType."
+                        ]
+                    },
+                    status_code=500,
+                )
+            return FakeAutotaskResponse(
+                {
+                    "picklistValues": [
+                        {"value": "1", "label": "Client"},
+                        {"value": "5", "label": "Template"},
+                    ]
+                }
+            )
+        raise AssertionError(f"Unexpected project lookup GET endpoint: {endpoint_path}")
+
+    def post(self, endpoint_path: str, json: dict[str, Any]) -> FakeAutotaskResponse:
+        """Return no projects while preserving the exact query for assertions."""
+
+        self.post_requests.append((endpoint_path, dict(json)))
+        if endpoint_path == "/Projects/query":
+            if self.deny_project_type_query and "projectType" in json["IncludeFields"]:
+                return FakeAutotaskResponse(
+                    {"errors": ["Unable to query projectType in the Project Entity."]},
+                    status_code=500,
+                )
+            return FakeAutotaskResponse(
+                {
+                    "items": [{"id": 6001, "companyID": 1001, "status": 1}],
+                    "pageDetails": {},
+                }
+            )
+        raise AssertionError(f"Unexpected project lookup POST endpoint: {endpoint_path}")
+
+
+def _project_task_job(*, entry_type: EntryType) -> Job:
+    """Return one complete project-task job for live provider payload tests."""
+
+    rounded_start_utc = datetime(2026, 7, 30, 13, 0, tzinfo=UTC)
+    return Job(
+        id=f"project-task-{entry_type.value}-submit-test",
+        status=JobStatus.READY_FOR_REVIEW,
+        work_target_type=WorkTargetType.PROJECT_TASK,
+        project_task_id=7001,
+        project_task_number="PT-001",
+        project_task_title="Deploy customer network",
+        project_id=6001,
+        project_number="P-1001",
+        project_name="Customer rollout",
+        task_status_id=5,
+        task_status_label="Complete",
+        entry_type=entry_type,
+        note_title="Project task progress" if entry_type == EntryType.TICKET_NOTE else None,
+        summary_notes="Completed the assigned project task.",
+        description_text="Completed the assigned project task.",
+        work_location=WorkLocation.REMOTE,
+        rounded_start_utc=rounded_start_utc,
+        rounded_end_utc=rounded_start_utc + timedelta(minutes=30),
+    )
+
+
+def test_project_lookup_uses_documented_project_type_when_available() -> None:
+    """Project discovery should use projectType when tenant metadata permits it."""
+
+    provider = _live_test_provider()
+    fake_client = FakeProjectLookupContractClient()
+    _PROJECT_TYPE_CACHE.clear()
+
+    assert provider._query_project_type_labels_without_blocking_lookup(fake_client) == {
+        1: "Client",
+        5: "Template",
+    }
+    provider._query_projects_for_company(
+        fake_client,
+        1001,
+        include_project_type=True,
+    )
+    provider._query_projects_by_ids(
+        fake_client,
+        [6001],
+        include_project_type=True,
+    )
+
+    assert fake_client.get_paths == ["/Projects/entityInformation/fields/projectType"]
+    assert len(fake_client.post_requests) == 2
+    for endpoint_path, query_payload in fake_client.post_requests:
+        assert endpoint_path == "/Projects/query"
+        assert "projectType" in query_payload["IncludeFields"]
+
+    eligible_projects = provider._eligible_project_records(
+        [
+            {"id": 6001, "status": 1, "projectType": 1},
+            {"id": 6002, "status": 1, "projectType": 5},
+        ],
+        project_status_labels={1: "In Progress"},
+        project_type_labels={1: "Client", 5: "Template"},
+    )
+    assert [project["id"] for project in eligible_projects] == [6001]
+
+
+def test_project_lookup_continues_when_project_type_metadata_is_denied() -> None:
+    """Optional projectType denial must not hide tickets or assigned project tasks."""
+
+    provider = _live_test_provider()
+    fake_client = FakeProjectLookupContractClient(
+        deny_project_type_metadata=True,
+    )
+    _PROJECT_TYPE_CACHE.clear()
+
+    project_type_labels = provider._query_project_type_labels_without_blocking_lookup(
+        fake_client
+    )
+    assert provider._query_project_type_labels_without_blocking_lookup(fake_client) == {}
+    project_records = provider._query_projects_for_company(
+        fake_client,
+        1001,
+        include_project_type=bool(project_type_labels),
+    )
+
+    assert project_type_labels == {}
+    assert fake_client.get_paths == ["/Projects/entityInformation/fields/projectType"]
+    assert [project["id"] for project in project_records] == [6001]
+    assert len(fake_client.post_requests) == 1
+    assert "projectType" not in fake_client.post_requests[0][1]["IncludeFields"]
+
+
+def test_project_lookup_retries_without_project_type_when_query_denies_field() -> None:
+    """A query-level projectType denial should retry once with core fields only."""
+
+    provider = _live_test_provider()
+    fake_client = FakeProjectLookupContractClient(deny_project_type_query=True)
+
+    project_records = provider._query_projects_for_company(
+        fake_client,
+        1001,
+        include_project_type=True,
+    )
+
+    assert [project["id"] for project in project_records] == [6001]
+    assert len(fake_client.post_requests) == 2
+    assert "projectType" in fake_client.post_requests[0][1]["IncludeFields"]
+    assert "projectType" not in fake_client.post_requests[1][1]["IncludeFields"]
+    assert provider._query_project_type_labels_without_blocking_lookup(fake_client) == {}
+    assert fake_client.get_paths == []
+
+
+def test_project_task_time_entry_uses_task_id_type_six_and_completes_last(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Project task time writes must precede Tasks.status Complete."""
+
+    provider = _live_test_provider()
+    fake_client = FakeProjectTaskSubmissionClient()
+    monkeypatch.setattr(
+        provider,
+        "_client",
+        lambda timeout_seconds=30.0: FakeConnectivityContext(fake_client),
+    )
+
+    result = provider.submit_job(_project_task_job(entry_type=EntryType.TIME_ENTRY), resource_id=42)
+
+    assert result.succeeded is True
+    time_entry_call = next(
+        call for call in fake_client.calls if call[0:2] == ("POST", "/TimeEntries")
+    )
+    assert time_entry_call[2]["taskID"] == 7001
+    assert time_entry_call[2]["timeEntryType"] == 6
+    assert time_entry_call[2]["resourceID"] == 42
+    assert time_entry_call[2]["roleID"] == 18
+    assert "ticketID" not in time_entry_call[2]
+    time_entry_index = fake_client.calls.index(time_entry_call)
+    complete_call = next(
+        call
+        for call in fake_client.calls
+        if call[0:2] == ("PATCH", "/Projects/6001/Tasks")
+    )
+    assert complete_call[2] == {"id": 7001, "status": 5}
+    assert time_entry_index < fake_client.calls.index(complete_call)
+    assert all(call[1] != "/Projects" for call in fake_client.calls)
+
+
+def test_project_task_note_uses_tasknotes_and_completes_last(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Project task Note mode creates TaskNotes, never whole-project notes."""
+
+    provider = _live_test_provider()
+    fake_client = FakeProjectTaskSubmissionClient()
+    monkeypatch.setattr(
+        provider,
+        "_client",
+        lambda timeout_seconds=30.0: FakeConnectivityContext(fake_client),
+    )
+
+    result = provider.submit_job(
+        _project_task_job(entry_type=EntryType.TICKET_NOTE),
+        resource_id=42,
+    )
+
+    assert result.succeeded is True
+    note_call = next(
+        call for call in fake_client.calls if call[0:2] == ("POST", "/Tasks/7001/Notes")
+    )
+    assert note_call[2]["title"] == "Project task progress"
+    assert note_call[2]["publish"] == 1
+    assert "appendToResolution" not in note_call[2]
+    complete_call = next(
+        call
+        for call in fake_client.calls
+        if call[0:2] == ("PATCH", "/Projects/6001/Tasks")
+    )
+    assert fake_client.calls.index(note_call) < fake_client.calls.index(complete_call)
+    assert all(call[1] != "/Projects/6001/Notes" for call in fake_client.calls)
+
+
+def test_project_task_picker_includes_primary_and_secondary_assignments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Task choices exclude unrelated and Complete tasks while retaining both assignment kinds."""
+
+    provider = _live_test_provider()
+    project_records = [
+        {
+            "id": 6001,
+            "projectName": "Customer rollout",
+            "projectNumber": "P-1001",
+            "status": 1,
+        }
+    ]
+    task_records = [
+        {
+            "id": 7001,
+            "taskNumber": "PT-001",
+            "title": "Primary task",
+            "projectID": 6001,
+            "assignedResourceID": 42,
+            "status": 2,
+        },
+        {
+            "id": 7002,
+            "taskNumber": "PT-002",
+            "title": "Secondary task",
+            "projectID": 6001,
+            "assignedResourceID": 99,
+            "status": 2,
+        },
+        {
+            "id": 7003,
+            "taskNumber": "PT-003",
+            "title": "Unrelated task",
+            "projectID": 6001,
+            "assignedResourceID": 99,
+            "status": 2,
+        },
+        {
+            "id": 7004,
+            "taskNumber": "PT-004",
+            "title": "Complete task",
+            "projectID": 6001,
+            "assignedResourceID": 42,
+            "status": 5,
+        },
+    ]
+    monkeypatch.setattr(provider, "_query_tasks_for_projects", lambda client, project_ids: task_records)
+    monkeypatch.setattr(
+        provider,
+        "_query_secondary_task_ids_for_resource",
+        lambda client, resource_id, task_ids: {7002},
+    )
+    monkeypatch.setattr(
+        provider,
+        "_query_task_ids_with_displayable_notes",
+        lambda client, task_ids: {7002},
+    )
+
+    options = provider._build_project_task_options(
+        object(),
+        client_name="Acme Services",
+        resource_id=42,
+        project_records=project_records,
+        task_status_options=[
+            AutotaskTaskStatusOption(status_id=2, label="In Progress"),
+            AutotaskTaskStatusOption(status_id=5, label="Complete"),
+        ],
+        project_status_labels={1: "In Progress"},
+    )
+
+    assert [option.task_id for option in options] == [7001, 7002]
+    assert options[0].has_customer_notes is False
+    assert options[1].has_customer_notes is True

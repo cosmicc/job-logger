@@ -20,7 +20,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ticket_pilot import database
 from ticket_pilot.config import Settings, settings
-from ticket_pilot.enums import EntryType, TicketStatus, WorkLocation
+from ticket_pilot.enums import EntryType, TicketStatus, WorkLocation, WorkTargetType
 from ticket_pilot.models import Job
 from ticket_pilot.services.system_health import (
     record_autotask_api_failure,
@@ -45,9 +45,20 @@ MAX_TICKET_NOTE_BODY_LENGTH = 12000
 MAX_TICKET_NOTE_AUTHOR_LENGTH = 160
 MAX_TICKET_TIME_ENTRY_LOOKUP_RESULTS = 100
 MAX_TICKET_TIME_ENTRY_SUMMARY_LENGTH = 12000
+MAX_PROJECT_TASK_LOOKUP_RESULTS = 50
+MAX_PROJECT_TASK_TITLE_LENGTH = 255
+MAX_PROJECT_TASK_DESCRIPTION_LENGTH = 8000
+MAX_PROJECT_NAME_LENGTH = 100
+MAX_PROJECT_NUMBER_LENGTH = 50
+MAX_TASK_STATUS_LABEL_LENGTH = 120
+MAX_TASK_NOTE_BODY_LENGTH = 3200
 MAX_AUTOTASK_IN_FILTER_VALUES = 500
 CUSTOMER_VISIBLE_TICKET_NOTE_PUBLISH_VALUE = 1
 DEFAULT_TICKET_NOTE_TYPE = 1
+PROJECT_TASK_NOTE_PUBLISH_VALUE = 1
+DEFAULT_TASK_NOTE_TYPE = 1
+PROJECT_TASK_TIME_ENTRY_TYPE = 6
+COMPLETE_TASK_STATUS_ID = 5
 
 WORK_LOCATION_DISPLAY_LABELS = {
     WorkLocation.REMOTE: "Remote",
@@ -62,6 +73,7 @@ TICKET_STATUS_DISPLAY_LABELS = {
     TicketStatus.IN_PROGRESS: "In progress",
     TicketStatus.WAITING_CUSTOMER: "Waiting customer",
     TicketStatus.WAITING_PARTS: "Waiting parts",
+    TicketStatus.MFG_TROUBLE_TICKET: "Mfg Trouble Ticket",
     TicketStatus.FOLLOW_UP: "Follow up",
     TicketStatus.COMPLETE: "Complete",
 }
@@ -260,9 +272,21 @@ _TICKET_STATUS_CACHE: dict[str, _AutotaskCacheEntry] = {}
 # _TICKET_SOURCE_CACHE stores ticket source picklist labels keyed by tenant URL.
 _TICKET_SOURCE_CACHE: dict[str, _AutotaskCacheEntry] = {}
 
+# _TASK_STATUS_CACHE stores tenant Tasks.status picklist labels keyed by tenant URL.
+_TASK_STATUS_CACHE: dict[str, _AutotaskCacheEntry] = {}
+
+# Project metadata is used only to exclude complete/inactive and baseline or
+# template projects from task selection.
+_PROJECT_STATUS_CACHE: dict[str, _AutotaskCacheEntry] = {}
+_PROJECT_TYPE_CACHE: dict[str, _AutotaskCacheEntry] = {}
+
 # _OPEN_TICKET_SELECTION_CACHE stores recently displayed open-ticket options
 # keyed by tenant URL, selected client text, and selected Autotask company ID.
 _OPEN_TICKET_SELECTION_CACHE: dict[tuple[str, str, int | None], _AutotaskCacheEntry] = {}
+
+# _OPEN_PROJECT_TASK_SELECTION_CACHE stores recently displayed project tasks
+# keyed by tenant, company, and managed-user resource ID.
+_OPEN_PROJECT_TASK_SELECTION_CACHE: dict[tuple[str, int, int], _AutotaskCacheEntry] = {}
 
 # _SERVICE_CALL_SELECTION_CACHE stores today's rendered service-call options
 # keyed by tenant URL, resource, and local-day UTC bounds. It contains only
@@ -433,6 +457,48 @@ class AutotaskTicketOption:
     # on a Job, copied into audit events, or written to application logs.
     navigation_address: str | None = None
 
+    # has_customer_notes is display-only metadata derived from the same
+    # system-note filtering used by the authenticated Ticket notes overlay.
+    has_customer_notes: bool = False
+
+
+@dataclass(frozen=True)
+class AutotaskTaskStatusOption:
+    """Safe tenant-specific Tasks.status choice."""
+
+    status_id: int
+    label: str
+    is_active: bool = True
+
+    @property
+    def is_complete(self) -> bool:
+        """Return whether Autotask documents this as the Complete task status."""
+
+        return self.status_id == COMPLETE_TASK_STATUS_ID
+
+
+@dataclass(frozen=True)
+class AutotaskProjectTaskOption:
+    """Safe project-task option returned to an authenticated managed user."""
+
+    task_id: int
+    task_number: str | None
+    title: str
+    description: str | None
+    status_id: int
+    status_label: str
+    project_id: int
+    project_number: str | None
+    project_name: str
+    project_status_label: str
+    company_name: str
+    start_at_utc: datetime | None = None
+    end_at_utc: datetime | None = None
+    detected_work_location: WorkLocation | None = None
+    work_location_label: str = "Not specified"
+    navigation_address: str | None = None
+    has_customer_notes: bool = False
+
 
 @dataclass(frozen=True)
 class AutotaskTicketNote:
@@ -475,14 +541,21 @@ def _normalized_ticket_note_context_type(value: str | None) -> str:
 def is_displayable_ticket_note_context(ticket_note: AutotaskTicketNote) -> bool:
     """Return whether an Autotask note should be shown in ticket context overlays."""
 
-    note_type = _normalized_ticket_note_context_type(ticket_note.note_type)
-    note_title = _normalized_ticket_note_context_type(ticket_note.title)
+    return _is_displayable_ticket_note_fields(ticket_note.note_type, ticket_note.title)
+
+
+def _is_displayable_ticket_note_fields(note_type_value: object, note_title_value: object) -> bool:
+    """Apply the shared system-note exclusions to raw or normalized note fields."""
+
+    note_type = _normalized_ticket_note_context_type(str(note_type_value or ""))
+    note_title = _normalized_ticket_note_context_type(str(note_title_value or ""))
     has_system_title_prefix = any(
         note_title.startswith(system_title_prefix)
         for system_title_prefix in SYSTEM_TICKET_NOTE_CONTEXT_TITLE_PREFIXES
     )
     return (
-        note_type not in SYSTEM_TICKET_NOTE_CONTEXT_TYPES
+        note_type != "13"
+        and note_type not in SYSTEM_TICKET_NOTE_CONTEXT_TYPES
         and note_title not in SYSTEM_TICKET_NOTE_CONTEXT_TYPES
         and not has_system_title_prefix
     )
@@ -492,6 +565,19 @@ def filter_displayable_ticket_notes(ticket_notes: list[AutotaskTicketNote]) -> l
     """Remove system-generated Autotask notes from authenticated ticket context."""
 
     return [ticket_note for ticket_note in ticket_notes if is_displayable_ticket_note_context(ticket_note)]
+
+
+def is_customer_note_added_ticket_status(
+    status_id: int | None,
+    configured_customer_note_added_status_id: int | None,
+) -> bool:
+    """Return whether a server-verified ticket has the configured customer-note status."""
+
+    return (
+        status_id is not None
+        and configured_customer_note_added_status_id is not None
+        and status_id == configured_customer_note_added_status_id
+    )
 
 
 @dataclass(frozen=True)
@@ -548,6 +634,17 @@ class AutotaskTicketTimeEntryContext:
 
 
 @dataclass(frozen=True)
+class AutotaskProjectTaskTimeEntryContext:
+    """Project-task fields required to create a matching TimeEntries row."""
+
+    task_id: int
+    project_id: int
+    role_id: int
+    role_id_source: str
+    assigned_resource_id: int | None
+
+
+@dataclass(frozen=True)
 class AutotaskServiceCallOption:
     """Safe service-call data returned to the mobile start-work panel."""
 
@@ -594,8 +691,45 @@ class AutotaskServiceCallOption:
     start_datetime_utc: datetime | None
     end_datetime_utc: datetime | None
 
+    # ticket_status_id is the current read-only Autotask status picklist value.
+    ticket_status_id: int | None = None
+
     # navigation_address follows service-call, ticket, then company priority.
     navigation_address: str | None = None
+
+    # has_customer_notes is display-only metadata derived from the same
+    # system-note filtering used by the authenticated Ticket notes overlay.
+    has_customer_notes: bool = False
+
+    # Project-task associations use the same service-call card shape while
+    # retaining distinct verified task and project identity.
+    work_target_type: WorkTargetType = WorkTargetType.TICKET
+    service_call_task_id: int | None = None
+    project_task_id: int | None = None
+    project_task_number: str | None = None
+    project_task_title: str | None = None
+    project_task_description: str | None = None
+    project_id: int | None = None
+    project_number: str | None = None
+    project_name: str | None = None
+    task_status_id: int | None = None
+    task_status_label: str | None = None
+
+    @property
+    def service_call_association_id(self) -> int:
+        """Return the clicked ticket/task association ID."""
+
+        if self.work_target_type == WorkTargetType.PROJECT_TASK:
+            return self.service_call_task_id or 0
+        return self.service_call_ticket_id
+
+    @property
+    def target_title(self) -> str:
+        """Return the user-facing title for this service-call target."""
+
+        if self.work_target_type == WorkTargetType.PROJECT_TASK:
+            return self.project_task_title or "Untitled project task"
+        return self.ticket_title
 
 
 class AutotaskSubmissionError(RuntimeError):
@@ -631,6 +765,7 @@ class BaseAutotaskProvider:
         *,
         resource_id: int,
         previous_ticket_status: TicketStatus | None = None,
+        previous_task_status_id: int | None = None,
     ) -> AutotaskSubmissionResult:
         """Update an existing external time entry for a submitted job."""
 
@@ -643,6 +778,7 @@ class BaseAutotaskProvider:
         *,
         resource_id: int,
         previous_ticket_status: TicketStatus | None = None,
+        previous_task_status_id: int | None = None,
     ) -> AutotaskSubmissionResult:
         """Update an existing external ticket note for a submitted job."""
 
@@ -650,11 +786,6 @@ class BaseAutotaskProvider:
 
     def delete_time_entry(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
         """Delete an existing external time entry for a submitted job."""
-
-        raise NotImplementedError
-
-    def delete_ticket_note(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
-        """Delete an existing external ticket note for a submitted job."""
 
         raise NotImplementedError
 
@@ -674,6 +805,22 @@ class BaseAutotaskProvider:
 
         raise NotImplementedError
 
+    def list_open_project_tasks_for_client(
+        self,
+        client_name: str,
+        autotask_company_id: int,
+        *,
+        resource_id: int,
+    ) -> list[AutotaskProjectTaskOption]:
+        """Return non-complete project tasks assigned to one managed user."""
+
+        raise NotImplementedError
+
+    def list_task_status_options(self) -> list[AutotaskTaskStatusOption]:
+        """Return active tenant Tasks.status picklist options."""
+
+        raise NotImplementedError
+
     def get_ticket_navigation_address(
         self,
         ticket_number: str,
@@ -685,6 +832,18 @@ class BaseAutotaskProvider:
 
         raise NotImplementedError
 
+    def get_project_task_navigation_address(
+        self,
+        task_id: int,
+        project_id: int,
+        autotask_company_id: int,
+        *,
+        resource_id: int | None = None,
+    ) -> str | None:
+        """Return a transient destination for one verified project task."""
+
+        raise NotImplementedError
+
     def list_ticket_notes(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketNote]:
         """Return safe read-only notes for one selected Autotask ticket."""
 
@@ -692,6 +851,26 @@ class BaseAutotaskProvider:
 
     def list_ticket_time_entries(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketTimeEntry]:
         """Return safe read-only time entries for one selected Autotask ticket."""
+
+        raise NotImplementedError
+
+    def list_project_task_notes(
+        self,
+        task_id: int,
+        *,
+        resource_id: int | None = None,
+    ) -> list[AutotaskTicketNote]:
+        """Return safe read-only TaskNotes for one selected project task."""
+
+        raise NotImplementedError
+
+    def list_project_task_time_entries(
+        self,
+        task_id: int,
+        *,
+        resource_id: int | None = None,
+    ) -> list[AutotaskTicketTimeEntry]:
+        """Return safe read-only TimeEntries for one selected project task."""
 
         raise NotImplementedError
 
@@ -755,6 +934,18 @@ def _work_location_for_job(job: Job) -> WorkLocation:
     """Return the stored work-location mode, defaulting old in-memory jobs to Remote."""
 
     return _coerce_work_location(getattr(job, "work_location", None))
+
+
+def _work_target_type_for_job(job: Job) -> WorkTargetType:
+    """Return the target type, defaulting legacy and direct test jobs to ticket."""
+
+    raw_target_type = getattr(job, "work_target_type", None) or WorkTargetType.TICKET
+    if isinstance(raw_target_type, WorkTargetType):
+        return raw_target_type
+    try:
+        return WorkTargetType(str(raw_target_type))
+    except ValueError:
+        return WorkTargetType.TICKET
 
 
 def split_autotask_summary_notes(
@@ -1106,19 +1297,27 @@ def _append_to_resolution_for_job(job: Job) -> bool:
 
 
 def build_safe_ticket_note_snapshot(job: Job) -> dict[str, Any]:
-    """Build a non-secret snapshot of local ticket-note data used for submission."""
+    """Build a non-secret snapshot of local ticket/task-note submission data."""
 
     note_description = build_ticket_note_description(job)
+    work_target_type = _work_target_type_for_job(job)
+    is_project_task = work_target_type == WorkTargetType.PROJECT_TASK
     return {
         "job_id": job.id,
         "entry_type": EntryType.TICKET_NOTE.value,
-        "ticket_number": job.ticket_number,
-        "ticket_status": job.ticket_status.value if job.ticket_status else None,
+        "work_target_type": work_target_type.value,
+        "ticket_number": job.ticket_number if not is_project_task else None,
+        "ticket_status": job.ticket_status.value if job.ticket_status and not is_project_task else None,
+        "taskID": job.project_task_id if is_project_task else None,
+        "taskStatusID": job.task_status_id if is_project_task else None,
         "noteTitleLength": len((job.note_title or "").strip()),
         "noteDescriptionLength": len(note_description),
-        "publish": CUSTOMER_VISIBLE_TICKET_NOTE_PUBLISH_VALUE,
-        "noteType": DEFAULT_TICKET_NOTE_TYPE,
-        "appendToResolution": _append_to_resolution_for_job(job),
+        "publish": (
+            PROJECT_TASK_NOTE_PUBLISH_VALUE
+            if is_project_task
+            else CUSTOMER_VISIBLE_TICKET_NOTE_PUBLISH_VALUE
+        ),
+        "noteType": DEFAULT_TASK_NOTE_TYPE if is_project_task else DEFAULT_TICKET_NOTE_TYPE,
     }
 
 
@@ -1129,11 +1328,16 @@ def build_safe_submission_snapshot(job: Job) -> dict[str, Any]:
         return build_safe_ticket_note_snapshot(job)
 
     summary_notes_for_autotask = build_autotask_summary_notes(job)
+    work_target_type = _work_target_type_for_job(job)
+    is_project_task = work_target_type == WorkTargetType.PROJECT_TASK
     return {
         "job_id": job.id,
         "entry_type": EntryType.TIME_ENTRY.value,
-        "ticket_number": job.ticket_number,
-        "ticket_status": job.ticket_status.value if job.ticket_status else None,
+        "work_target_type": work_target_type.value,
+        "ticket_number": job.ticket_number if not is_project_task else None,
+        "ticket_status": job.ticket_status.value if job.ticket_status and not is_project_task else None,
+        "taskID": job.project_task_id if is_project_task else None,
+        "taskStatusID": job.task_status_id if is_project_task else None,
         "startDateTime": format_autotask_datetime(job.rounded_start_utc),
         "endDateTime": format_autotask_datetime(job.rounded_end_utc) if job.rounded_end_utc else None,
         "hoursWorked": str(_job_duration_hours(job)) if job.rounded_end_utc else None,
@@ -1176,6 +1380,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         *,
         resource_id: int,
         previous_ticket_status: TicketStatus | None = None,
+        previous_task_status_id: int | None = None,
     ) -> AutotaskSubmissionResult:
         """Return a deterministic success for submitted-entry update tests."""
 
@@ -1184,7 +1389,18 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         snapshot["external_id"] = external_id
         snapshot["resourceID"] = resource_id
         snapshot["previous_ticket_status"] = previous_ticket_status.value if previous_ticket_status else None
-        snapshot["ticketStatusUpdateAttempted"] = job.ticket_status is not None
+        snapshot["previous_task_status_id"] = previous_task_status_id
+        target_status_update_attempted = (
+            job.task_status_id is not None
+            if _work_target_type_for_job(job) == WorkTargetType.PROJECT_TASK
+            else job.ticket_status is not None
+        )
+        snapshot["targetStatusUpdateAttempted"] = target_status_update_attempted
+        snapshot["ticketStatusUpdateAttempted"] = (
+            target_status_update_attempted
+            if _work_target_type_for_job(job) == WorkTargetType.TICKET
+            else False
+        )
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,
@@ -1218,6 +1434,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         *,
         resource_id: int,
         previous_ticket_status: TicketStatus | None = None,
+        previous_task_status_id: int | None = None,
     ) -> AutotaskSubmissionResult:
         """Return a deterministic success for submitted-note update tests."""
 
@@ -1226,25 +1443,18 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         snapshot["external_id"] = external_id
         snapshot["resourceID"] = resource_id
         snapshot["previous_ticket_status"] = previous_ticket_status.value if previous_ticket_status else None
-        snapshot["ticketStatusUpdateAttempted"] = job.ticket_status is not None
-        return AutotaskSubmissionResult(
-            provider=self.provider_name,
-            succeeded=True,
-            external_id=external_id,
-            safe_error=None,
-            request_snapshot=snapshot,
+        snapshot["previous_task_status_id"] = previous_task_status_id
+        target_status_update_attempted = (
+            job.task_status_id is not None
+            if _work_target_type_for_job(job) == WorkTargetType.PROJECT_TASK
+            else job.ticket_status is not None
         )
-
-    def delete_ticket_note(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
-        """Return a deterministic success for submitted-note delete tests."""
-
-        snapshot = {
-            "operation": "delete_ticket_note",
-            "job_id": job.id,
-            "ticket_number": job.ticket_number,
-            "external_id": external_id,
-            "resourceID": resource_id,
-        }
+        snapshot["targetStatusUpdateAttempted"] = target_status_update_attempted
+        snapshot["ticketStatusUpdateAttempted"] = (
+            target_status_update_attempted
+            if _work_target_type_for_job(job) == WorkTargetType.TICKET
+            else False
+        )
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,
@@ -1290,6 +1500,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 work_location_label=WORK_LOCATION_DISPLAY_LABELS[WorkLocation.REMOTE],
                 status_id=1,
                 navigation_address="100 Mock Avenue, Detroit, MI 48201",
+                has_customer_notes=True,
             ),
             AutotaskTicketOption(
                 ticket_number="T20260616.0002",
@@ -1303,7 +1514,52 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 work_location_label=WORK_LOCATION_DISPLAY_LABELS[WorkLocation.ON_SITE],
                 status_id=4,
                 navigation_address="200 Mock Boulevard, Detroit, MI 48202",
+                has_customer_notes=False,
             ),
+        ]
+
+    def list_task_status_options(self) -> list[AutotaskTaskStatusOption]:
+        """Return deterministic project-task status choices."""
+
+        return [
+            AutotaskTaskStatusOption(status_id=1, label="New"),
+            AutotaskTaskStatusOption(status_id=2, label="In Progress"),
+            AutotaskTaskStatusOption(status_id=5, label="Complete"),
+        ]
+
+    def list_open_project_tasks_for_client(
+        self,
+        client_name: str,
+        autotask_company_id: int,
+        *,
+        resource_id: int,
+    ) -> list[AutotaskProjectTaskOption]:
+        """Return deterministic assigned project tasks for local testing."""
+
+        safe_client_name = client_name.strip()
+        if not safe_client_name or autotask_company_id <= 0 or resource_id <= 0:
+            raise AutotaskSubmissionError(
+                "A verified client and managed web-user resource are required before searching project tasks."
+            )
+        return [
+            AutotaskProjectTaskOption(
+                task_id=7001,
+                task_number="PT-001",
+                title=f"Mock assigned project task for {safe_client_name}",
+                description="Mock project task description.",
+                status_id=2,
+                status_label="In Progress",
+                project_id=6001,
+                project_number="P-1001",
+                project_name="Mock client project",
+                project_status_label="In Progress",
+                company_name=safe_client_name,
+                start_at_utc=datetime(2026, 6, 16, 4, 0, tzinfo=UTC),
+                end_at_utc=datetime(2026, 6, 30, 4, 0, tzinfo=UTC),
+                detected_work_location=WorkLocation.REMOTE,
+                work_location_label="Remote",
+                has_customer_notes=True,
+            )
         ]
 
     def get_ticket_navigation_address(
@@ -1320,12 +1576,30 @@ class MockAutotaskProvider(BaseAutotaskProvider):
             raise AutotaskSubmissionError("A verified ticket and client are required for navigation.")
         return "200 Mock Boulevard, Detroit, MI 48202"
 
+    def get_project_task_navigation_address(
+        self,
+        task_id: int,
+        project_id: int,
+        autotask_company_id: int,
+        *,
+        resource_id: int | None = None,
+    ) -> str | None:
+        """Return a deterministic project-task destination for local testing."""
+
+        if task_id <= 0 or project_id <= 0 or autotask_company_id <= 0:
+            raise AutotaskSubmissionError(
+                "A verified project task, project, and client are required for navigation."
+            )
+        return "200 Mock Project Boulevard, Detroit, MI 48202"
+
     def list_ticket_notes(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketNote]:
         """Return deterministic ticket notes for local overlay testing."""
 
         safe_ticket_number = ticket_number.strip().upper()
         if not safe_ticket_number:
             raise AutotaskSubmissionError("Ticket number is required before searching Autotask ticket notes.")
+        if safe_ticket_number == "T20260616.0002":
+            return []
 
         return [
             AutotaskTicketNote(
@@ -1373,6 +1647,49 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 hours_worked=Decimal("0.5000"),
                 summary_notes=f"Remote. Initial triage for {safe_ticket_number}.",
             ),
+        ]
+
+    def list_project_task_notes(
+        self,
+        task_id: int,
+        *,
+        resource_id: int | None = None,
+    ) -> list[AutotaskTicketNote]:
+        """Return deterministic project-task notes for local overlay testing."""
+
+        if task_id <= 0:
+            raise AutotaskSubmissionError("Project task is required before searching project task notes.")
+        return [
+            AutotaskTicketNote(
+                note_id=92001,
+                title="Mock project task note",
+                description="Progress update for the selected project task.",
+                created_by="Project Technician",
+                created_at_utc=datetime(2026, 6, 16, 12, 0, tzinfo=UTC),
+                note_type="General",
+                publish=1,
+            )
+        ]
+
+    def list_project_task_time_entries(
+        self,
+        task_id: int,
+        *,
+        resource_id: int | None = None,
+    ) -> list[AutotaskTicketTimeEntry]:
+        """Return deterministic project-task time entries for local testing."""
+
+        if task_id <= 0:
+            raise AutotaskSubmissionError("Project task is required before searching time entries.")
+        return [
+            AutotaskTicketTimeEntry(
+                time_entry_id=82001,
+                resource_name="Project Technician",
+                start_at_utc=datetime(2026, 6, 29, 17, 30, tzinfo=UTC),
+                end_at_utc=datetime(2026, 6, 29, 18, 30, tzinfo=UTC),
+                hours_worked=Decimal("1.0000"),
+                summary_notes="Remote. Continued work on the assigned project task.",
+            )
         ]
 
     def search_companies(self, query_text: str, *, resource_id: int | None = None) -> list[AutotaskCompanyOption]:
@@ -1469,6 +1786,8 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         first_end_utc = first_start_utc + timedelta(hours=1)
         second_start_utc = local_day_start_utc + timedelta(hours=14)
         second_end_utc = second_start_utc + timedelta(hours=1)
+        third_start_utc = local_day_start_utc + timedelta(hours=16)
+        third_end_utc = third_start_utc + timedelta(hours=1)
         onsite_details = "Onsite service call for scheduled firewall replacement."
         remote_details = "Remote follow-up service call for backup verification."
         onsite_work_location = detect_work_location_from_service_call_details(onsite_details)
@@ -1489,7 +1808,9 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 autotask_company_id=1001,
                 start_datetime_utc=first_start_utc,
                 end_datetime_utc=first_end_utc,
+                ticket_status_id=1,
                 navigation_address="300 Mock On-Site Road, Detroit, MI 48203",
+                has_customer_notes=True,
             ),
             AutotaskServiceCallOption(
                 service_call_id=6002,
@@ -1506,7 +1827,38 @@ class MockAutotaskProvider(BaseAutotaskProvider):
                 autotask_company_id=1001,
                 start_datetime_utc=second_start_utc,
                 end_datetime_utc=second_end_utc,
+                ticket_status_id=1,
                 navigation_address="400 Mock Remote Road, Detroit, MI 48204",
+                has_customer_notes=False,
+            ),
+            AutotaskServiceCallOption(
+                service_call_id=6003,
+                service_call_ticket_id=0,
+                service_call_name="Mock project task service call",
+                service_call_details="Onsite project implementation work.",
+                detected_work_location=WorkLocation.ON_SITE,
+                work_location_label="On-Site",
+                ticket_number="",
+                ticket_title="Mock assigned project task",
+                ticket_description="Mock project task scheduled through a service call.",
+                ticket_status_label="In Progress",
+                client_name="Scheduled Service Client",
+                autotask_company_id=1001,
+                start_datetime_utc=third_start_utc,
+                end_datetime_utc=third_end_utc,
+                navigation_address="500 Mock Project Road, Detroit, MI 48205",
+                has_customer_notes=True,
+                work_target_type=WorkTargetType.PROJECT_TASK,
+                service_call_task_id=6203,
+                project_task_id=7001,
+                project_task_number="PT-001",
+                project_task_title="Mock assigned project task",
+                project_task_description="Mock project task scheduled through a service call.",
+                project_id=6001,
+                project_number="P-1001",
+                project_name="Mock client project",
+                task_status_id=2,
+                task_status_label="In Progress",
             ),
         ]
 
@@ -1851,6 +2203,65 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return service_call_ticket_resource_records
 
+    def _query_service_call_tasks_for_service_calls(
+        self,
+        client: httpx.Client,
+        service_call_ids: list[int],
+    ) -> list[dict[str, Any]]:
+        """Return project-task links for the supplied service-call IDs."""
+
+        records: list[dict[str, Any]] = []
+        for service_call_id_chunk in _chunked_autotask_ids(service_call_ids):
+            records.extend(
+                self._query_paginated_items(
+                    client,
+                    endpoint_path="/ServiceCallTasks/query",
+                    query_payload={
+                        "IncludeFields": ["id", "serviceCallID", "taskID"],
+                        "filter": [
+                            {
+                                "op": "in",
+                                "field": "serviceCallID",
+                                "value": service_call_id_chunk,
+                            }
+                        ],
+                    },
+                    action_description="Autotask service-call project task lookup",
+                )
+            )
+        return records
+
+    def _query_service_call_task_resources(
+        self,
+        client: httpx.Client,
+        *,
+        resource_id: int,
+        service_call_task_ids: list[int],
+    ) -> list[dict[str, Any]]:
+        """Return service-call task assignments for one Autotask resource."""
+
+        records: list[dict[str, Any]] = []
+        for service_call_task_id_chunk in _chunked_autotask_ids(service_call_task_ids):
+            records.extend(
+                self._query_paginated_items(
+                    client,
+                    endpoint_path="/ServiceCallTaskResources/query",
+                    query_payload={
+                        "IncludeFields": ["id", "resourceID", "serviceCallTaskID"],
+                        "filter": [
+                            {"op": "eq", "field": "resourceID", "value": resource_id},
+                            {
+                                "op": "in",
+                                "field": "serviceCallTaskID",
+                                "value": service_call_task_id_chunk,
+                            },
+                        ],
+                    },
+                    action_description="Autotask service-call project task resource lookup",
+                )
+            )
+        return records
+
     def _query_tickets_by_ids(self, client: httpx.Client, ticket_ids: list[int]) -> dict[int, dict[str, Any]]:
         """Return safe ticket records keyed by Autotask ticket ID."""
 
@@ -1887,6 +2298,92 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     ticket_records_by_id[ticket_id] = ticket_record
 
         return ticket_records_by_id
+
+    def _query_tasks_by_ids(
+        self,
+        client: httpx.Client,
+        task_ids: list[int],
+    ) -> dict[int, dict[str, Any]]:
+        """Return safe project-task records keyed by Autotask task ID."""
+
+        task_records_by_id: dict[int, dict[str, Any]] = {}
+        for task_id_chunk in _chunked_autotask_ids(task_ids):
+            records = self._query_paginated_items(
+                client,
+                endpoint_path="/Tasks/query",
+                query_payload={
+                    "IncludeFields": [
+                        "id",
+                        "taskNumber",
+                        "title",
+                        "description",
+                        "projectID",
+                        "companylocationID",
+                        "status",
+                        "startDateTime",
+                        "endDateTime",
+                    ],
+                    "filter": [{"op": "in", "field": "id", "value": task_id_chunk}],
+                },
+                action_description="Autotask service-call project task detail lookup",
+            )
+            for record in records:
+                task_id = _coerce_positive_autotask_id(record.get("id"))
+                if task_id is not None:
+                    task_records_by_id[task_id] = record
+        return task_records_by_id
+
+    def _query_projects_by_ids(
+        self,
+        client: httpx.Client,
+        project_ids: list[int],
+        *,
+        include_project_type: bool,
+    ) -> dict[int, dict[str, Any]]:
+        """Return safe project records keyed by Autotask project ID."""
+
+        project_records_by_id: dict[int, dict[str, Any]] = {}
+        for project_id_chunk in _chunked_autotask_ids(project_ids):
+            include_fields = [
+                "id",
+                "companyID",
+                "projectName",
+                "projectNumber",
+                "status",
+            ]
+            if include_project_type:
+                include_fields.insert(4, "projectType")
+            query_payload = {
+                "IncludeFields": include_fields,
+                "filter": [{"op": "in", "field": "id", "value": project_id_chunk}],
+            }
+            try:
+                records = self._query_paginated_items(
+                    client,
+                    endpoint_path="/Projects/query",
+                    query_payload=query_payload,
+                    action_description="Autotask service-call project detail lookup",
+                )
+            except AutotaskSubmissionError as exc:
+                if not include_project_type or not self._is_project_type_field_error(exc):
+                    raise
+                self._cache_project_type_unavailable()
+                query_payload["IncludeFields"] = [
+                    field_name
+                    for field_name in include_fields
+                    if field_name != "projectType"
+                ]
+                records = self._query_paginated_items(
+                    client,
+                    endpoint_path="/Projects/query",
+                    query_payload=query_payload,
+                    action_description="Autotask service-call project detail lookup",
+                )
+            for record in records:
+                project_id = _coerce_positive_autotask_id(record.get("id"))
+                if project_id is not None:
+                    project_records_by_id[project_id] = record
+        return project_records_by_id
 
     def _query_companies_by_ids(
         self,
@@ -2032,9 +2529,11 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         primary_locations_by_company_id: dict[int, dict[str, Any]],
         status_labels: dict[int, str],
         source_labels: dict[int, str],
+        ticket_ids_with_customer_notes: set[int] | None = None,
     ) -> list[AutotaskServiceCallOption]:
         """Build mobile-safe service-call choices from related Autotask rows."""
 
+        note_ticket_ids = ticket_ids_with_customer_notes or set()
         service_call_records_by_id = {
             service_call_id: service_call_record
             for service_call_record in service_call_records
@@ -2152,7 +2651,9 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                         autotask_company_id=company_id,
                         start_datetime_utc=start_datetime_utc,
                         end_datetime_utc=end_datetime_utc,
+                        ticket_status_id=status_id if status_id >= 0 else None,
                         navigation_address=navigation_address,
+                        has_customer_notes=ticket_id in note_ticket_ids,
                     )
                 )
                 if len(service_call_options) >= MAX_SERVICE_CALL_LOOKUP_RESULTS:
@@ -2160,15 +2661,186 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return service_call_options
 
+    def _build_service_call_task_options(
+        self,
+        *,
+        service_call_records: list[dict[str, Any]],
+        service_call_task_records: list[dict[str, Any]],
+        service_call_task_resource_records: list[dict[str, Any]],
+        task_records_by_id: dict[int, dict[str, Any]],
+        project_records_by_id: dict[int, dict[str, Any]],
+        company_records_by_id: dict[int, dict[str, Any]],
+        location_records_by_id: dict[int, dict[str, Any]],
+        primary_locations_by_company_id: dict[int, dict[str, Any]],
+        task_status_labels: dict[int, str],
+        task_ids_with_customer_notes: set[int] | None = None,
+    ) -> list[AutotaskServiceCallOption]:
+        """Build mobile-safe service-call choices for project-task associations."""
+
+        service_calls_by_id = {
+            service_call_id: record
+            for record in service_call_records
+            if (service_call_id := _coerce_positive_autotask_id(record.get("id"))) is not None
+        }
+        assigned_association_ids = {
+            association_id
+            for record in service_call_task_resource_records
+            if (
+                association_id := _coerce_positive_autotask_id(record.get("serviceCallTaskID"))
+            )
+            is not None
+        }
+        note_task_ids = task_ids_with_customer_notes or set()
+        options: list[AutotaskServiceCallOption] = []
+        for association in service_call_task_records:
+            association_id = _coerce_positive_autotask_id(association.get("id"))
+            service_call_id = _coerce_positive_autotask_id(association.get("serviceCallID"))
+            task_id = _coerce_positive_autotask_id(association.get("taskID"))
+            if (
+                association_id is None
+                or service_call_id is None
+                or task_id is None
+                or association_id not in assigned_association_ids
+            ):
+                continue
+            service_call = service_calls_by_id.get(service_call_id)
+            task = task_records_by_id.get(task_id)
+            if service_call is None or task is None:
+                continue
+            task_status_id = _coerce_positive_autotask_id(task.get("status"))
+            if task_status_id == COMPLETE_TASK_STATUS_ID:
+                continue
+            project_id = _coerce_positive_autotask_id(task.get("projectID"))
+            project = project_records_by_id.get(project_id or -1)
+            company_id = (
+                _coerce_positive_autotask_id(service_call.get("companyID"))
+                or _coerce_positive_autotask_id(project.get("companyID") if project else None)
+            )
+            if project_id is None or project is None or company_id is None or task_status_id is None:
+                continue
+            company = company_records_by_id.get(company_id)
+            task_title = _safe_service_call_text(
+                task.get("title"),
+                f"Project task {task_id}",
+                MAX_PROJECT_TASK_TITLE_LENGTH,
+            )
+            task_description = _safe_service_call_text(
+                task.get("description"),
+                "",
+                MAX_PROJECT_TASK_DESCRIPTION_LENGTH,
+            ) or None
+            service_call_details = _safe_service_call_text(
+                service_call.get("description"),
+                "",
+                MAX_SERVICE_CALL_DETAIL_LENGTH,
+            ) or None
+            detected_work_location = detect_work_location_from_service_call_details(
+                "\n".join(
+                    value
+                    for value in (service_call_details, task_title, task_description)
+                    if value
+                )
+            )
+            navigation_address = None
+            for location_id in (
+                _coerce_positive_autotask_id(service_call.get("companylocationID")),
+                _coerce_positive_autotask_id(task.get("companylocationID")),
+            ):
+                location = location_records_by_id.get(location_id or -1)
+                if (
+                    location is not None
+                    and _coerce_positive_autotask_id(location.get("companyID")) == company_id
+                ):
+                    navigation_address = _format_navigation_address(location)
+                if navigation_address:
+                    break
+            if navigation_address is None:
+                navigation_address = _format_navigation_address(
+                    primary_locations_by_company_id.get(company_id)
+                )
+            if navigation_address is None:
+                navigation_address = _format_navigation_address(company)
+            options.append(
+                AutotaskServiceCallOption(
+                    service_call_id=service_call_id,
+                    service_call_ticket_id=0,
+                    service_call_name=_safe_service_call_text(
+                        service_call.get("name")
+                        or service_call.get("title")
+                        or service_call_details,
+                        f"Service call {service_call_id}",
+                        MAX_SERVICE_CALL_NAME_LENGTH,
+                    ),
+                    service_call_details=service_call_details,
+                    detected_work_location=detected_work_location,
+                    work_location_label=work_location_label_for_detection(
+                        detected_work_location
+                    ),
+                    ticket_number="",
+                    ticket_title=task_title,
+                    ticket_description=task_description,
+                    ticket_status_label=task_status_labels.get(
+                        task_status_id,
+                        str(task_status_id),
+                    ),
+                    client_name=_safe_service_call_text(
+                        company.get("companyName") if company else None,
+                        f"Company {company_id}",
+                        120,
+                    ),
+                    autotask_company_id=company_id,
+                    start_datetime_utc=_parse_autotask_datetime(
+                        service_call.get("startDateTime")
+                    ),
+                    end_datetime_utc=_parse_autotask_datetime(
+                        service_call.get("endDateTime")
+                    ),
+                    navigation_address=navigation_address,
+                    has_customer_notes=task_id in note_task_ids,
+                    work_target_type=WorkTargetType.PROJECT_TASK,
+                    service_call_task_id=association_id,
+                    project_task_id=task_id,
+                    project_task_number=_safe_optional_resource_text(
+                        task.get("taskNumber"),
+                        max_length=MAX_PROJECT_NUMBER_LENGTH,
+                    ),
+                    project_task_title=task_title,
+                    project_task_description=task_description,
+                    project_id=project_id,
+                    project_number=_safe_optional_resource_text(
+                        project.get("projectNumber"),
+                        max_length=MAX_PROJECT_NUMBER_LENGTH,
+                    ),
+                    project_name=_safe_service_call_text(
+                        project.get("projectName"),
+                        f"Project {project_id}",
+                        MAX_PROJECT_NAME_LENGTH,
+                    ),
+                    task_status_id=task_status_id,
+                    task_status_label=task_status_labels.get(
+                        task_status_id,
+                        str(task_status_id),
+                    ),
+                )
+            )
+        return options
+
     def _workflow_configuration_gaps(self) -> list[str]:
         """Return missing settings that would prevent the full Autotask workflow."""
 
         required_workflow_values = {
+            "AUTOTASK_STATUS_NEW_ID": self.application_settings.autotask_status_new_id,
             "AUTOTASK_STATUS_IN_PROGRESS_ID": self.application_settings.autotask_status_in_progress_id,
             "AUTOTASK_STATUS_WAITING_CUSTOMER_ID": self.application_settings.autotask_status_waiting_customer_id,
             "AUTOTASK_STATUS_WAITING_PARTS_ID": self.application_settings.autotask_status_waiting_parts_id,
+            "AUTOTASK_STATUS_MFG_TROUBLE_TICKET_ID": (
+                self.application_settings.autotask_status_mfg_trouble_ticket_id
+            ),
             "AUTOTASK_STATUS_FOLLOW_UP_ID": self.application_settings.autotask_status_follow_up_id,
             "AUTOTASK_STATUS_COMPLETE_ID": self.application_settings.autotask_status_complete_id,
+            "AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID": (
+                self.application_settings.autotask_status_customer_note_added_id
+            ),
         }
         return [setting_name for setting_name, setting_value in required_workflow_values.items() if setting_value is None]
 
@@ -2351,8 +3023,9 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         field_name: str,
         cache_store: dict[str, _AutotaskCacheEntry],
         action_description: str,
+        entity_name: str = "Tickets",
     ) -> dict[int, str]:
-        """Return one Autotask Tickets picklist field as ID-to-label mappings."""
+        """Return one Autotask entity picklist field as ID-to-label mappings."""
 
         cache_key = self._cache_namespace()
         cached_picklist_labels = _get_cached_value(cache_store, cache_key)
@@ -2362,14 +3035,14 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         response = self._api_request(
             client,
             "GET",
-            f"/Tickets/entityInformation/fields/{field_name}",
+            f"/{entity_name}/entityInformation/fields/{field_name}",
             action_description,
         )
         if response.status_code == 404:
             response = self._api_request(
                 client,
                 "GET",
-                "/Tickets/entityInformation/fields",
+                f"/{entity_name}/entityInformation/fields",
                 action_description,
             )
         self._raise_for_safe_response(response, action_description)
@@ -2423,6 +3096,86 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             action_description="Autotask ticket status metadata query",
         )
 
+    def _query_task_status_options(self, client: httpx.Client) -> list[AutotaskTaskStatusOption]:
+        """Return active tenant Tasks.status choices from entity metadata."""
+
+        cache_key = self._cache_namespace()
+        cached_options = _get_cached_value(_TASK_STATUS_CACHE, cache_key)
+        if isinstance(cached_options, list):
+            return cached_options
+
+        action_description = "Autotask task status metadata query"
+        response = self._api_request(
+            client,
+            "GET",
+            "/Tasks/entityInformation/fields/status",
+            action_description,
+        )
+        if response.status_code == 404:
+            response = self._api_request(
+                client,
+                "GET",
+                "/Tasks/entityInformation/fields",
+                action_description,
+            )
+        self._raise_for_safe_response(response, action_description)
+        response_payload = response.json()
+        status_field: dict[str, Any] | None = None
+        if isinstance(response_payload, dict) and (
+            "picklistValues" in response_payload or "PicklistValues" in response_payload
+        ):
+            status_field = response_payload
+        else:
+            fields = response_payload.get("fields") if isinstance(response_payload, dict) else response_payload
+            if isinstance(fields, list):
+                status_field = next(
+                    (
+                        field_record
+                        for field_record in fields
+                        if isinstance(field_record, dict) and field_record.get("name") == "status"
+                    ),
+                    None,
+                )
+
+        options: list[AutotaskTaskStatusOption] = []
+        picklist_values = (
+            status_field.get("picklistValues") or status_field.get("PicklistValues") or []
+            if status_field is not None
+            else []
+        )
+        if isinstance(picklist_values, list):
+            for picklist_value in picklist_values:
+                if not isinstance(picklist_value, dict):
+                    continue
+                status_id = _coerce_positive_autotask_id(
+                    picklist_value.get("value") or picklist_value.get("id")
+                )
+                label = _safe_optional_resource_text(
+                    picklist_value.get("label") or picklist_value.get("name"),
+                    max_length=MAX_TASK_STATUS_LABEL_LENGTH,
+                )
+                is_active = not _is_autotask_truthy(picklist_value.get("isInactive"))
+                if "isActive" in picklist_value:
+                    is_active = _is_autotask_truthy(picklist_value.get("isActive"))
+                if status_id is None or label is None or not is_active:
+                    continue
+                options.append(
+                    AutotaskTaskStatusOption(
+                        status_id=status_id,
+                        label=label,
+                        is_active=True,
+                    )
+                )
+        options.sort(key=lambda option: (option.is_complete, option.status_id))
+        _set_cached_value(_TASK_STATUS_CACHE, cache_key, options)
+        return options
+
+    def list_task_status_options(self) -> list[AutotaskTaskStatusOption]:
+        """Return active task statuses without exposing raw metadata."""
+
+        with self._client() as client:
+            return self._query_task_status_options(client)
+
     def _query_ticket_source_labels(self, client: httpx.Client) -> dict[int, str]:
         """Return Autotask Tickets.source picklist values as ID-to-label mappings."""
 
@@ -2440,6 +3193,61 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             return self._query_ticket_source_labels(client)
         except AutotaskSubmissionError:
             return {}
+
+    def _query_project_status_labels(self, client: httpx.Client) -> dict[int, str]:
+        """Return Projects.status picklist values."""
+
+        return self._query_ticket_picklist_labels(
+            client,
+            field_name="status",
+            cache_store=_PROJECT_STATUS_CACHE,
+            action_description="Autotask project status metadata query",
+            entity_name="Projects",
+        )
+
+    def _query_project_type_labels(self, client: httpx.Client) -> dict[int, str]:
+        """Return Projects.projectType picklist values."""
+
+        return self._query_ticket_picklist_labels(
+            client,
+            field_name="projectType",
+            cache_store=_PROJECT_TYPE_CACHE,
+            action_description="Autotask project type metadata query",
+            entity_name="Projects",
+        )
+
+    @staticmethod
+    def _is_project_type_field_error(exc: AutotaskSubmissionError) -> bool:
+        """Return whether Autotask rejected optional Project type access."""
+
+        normalized_error = " ".join(str(exc).split()).casefold()
+        return "projecttype" in normalized_error or (
+            "unable to find type" in normalized_error
+            and "project entity" in normalized_error
+        )
+
+    def _query_project_type_labels_without_blocking_lookup(
+        self,
+        client: httpx.Client,
+    ) -> dict[int, str]:
+        """Return optional Project type labels without blocking task discovery."""
+
+        try:
+            return self._query_project_type_labels(client)
+        except AutotaskSubmissionError as exc:
+            if self._is_project_type_field_error(exc):
+                self._cache_project_type_unavailable()
+                return {}
+            raise
+
+    def _cache_project_type_unavailable(self) -> None:
+        """Temporarily remember that optional Project type data is unavailable."""
+
+        _set_cached_value(
+            _PROJECT_TYPE_CACHE,
+            self._cache_namespace(),
+            {},
+        )
 
     def _query_companies_by_name(
         self,
@@ -2694,11 +3502,29 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
     ) -> list[AutotaskTicketOption]:
         """Return safe open-ticket options for one Autotask company."""
 
-        ticket_options: list[AutotaskTicketOption] = []
-        for ticket in self._query_tickets_for_company(client, company_id):
-            if not self._is_open_ticket(ticket, status_labels):
-                continue
+        open_ticket_records = [
+            ticket
+            for ticket in self._query_tickets_for_company(client, company_id)
+            if self._is_open_ticket(ticket, status_labels)
+        ]
+        open_ticket_ids = [
+            ticket_id
+            for ticket in open_ticket_records
+            if (ticket_id := _coerce_positive_autotask_id(ticket.get("id"))) is not None
+        ]
+        try:
+            ticket_ids_with_customer_notes = self._query_ticket_ids_with_displayable_notes(
+                client,
+                open_ticket_ids,
+            )
+        except AutotaskSubmissionError:
+            # Note indicators are optional context. A note-permission or
+            # transient lookup failure must not block the open-ticket picker.
+            ticket_ids_with_customer_notes = set()
 
+        ticket_options: list[AutotaskTicketOption] = []
+        for ticket in open_ticket_records:
+            ticket_id = _coerce_positive_autotask_id(ticket.get("id"))
             ticket_number = str(ticket.get("ticketNumber") or "").strip()
             if not ticket_number:
                 continue
@@ -2727,10 +3553,325 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     detected_work_location=detected_work_location,
                     work_location_label=work_location_label_for_detection(detected_work_location),
                     status_id=status_id if status_id >= 0 else None,
+                    has_customer_notes=ticket_id in ticket_ids_with_customer_notes,
                 )
             )
 
         return ticket_options
+
+    def _query_projects_for_company(
+        self,
+        client: httpx.Client,
+        company_id: int,
+        *,
+        include_project_type: bool,
+    ) -> list[dict[str, Any]]:
+        """Return projects for one verified company."""
+
+        include_fields = [
+            "id",
+            "companyID",
+            "projectName",
+            "projectNumber",
+            "status",
+            "startDateTime",
+            "endDateTime",
+        ]
+        if include_project_type:
+            include_fields.insert(4, "projectType")
+        query_payload = {
+            "IncludeFields": include_fields,
+            "filter": [{"op": "eq", "field": "companyID", "value": company_id}],
+        }
+        try:
+            return self._query_paginated_items(
+                client,
+                endpoint_path="/Projects/query",
+                query_payload=query_payload,
+                action_description="Autotask project lookup",
+            )
+        except AutotaskSubmissionError as exc:
+            if not include_project_type or not self._is_project_type_field_error(exc):
+                raise
+            self._cache_project_type_unavailable()
+            query_payload["IncludeFields"] = [
+                field_name
+                for field_name in include_fields
+                if field_name != "projectType"
+            ]
+            return self._query_paginated_items(
+                client,
+                endpoint_path="/Projects/query",
+                query_payload=query_payload,
+                action_description="Autotask project lookup",
+            )
+
+    def _eligible_project_records(
+        self,
+        project_records: list[dict[str, Any]],
+        *,
+        project_status_labels: dict[int, str],
+        project_type_labels: dict[int, str],
+    ) -> list[dict[str, Any]]:
+        """Exclude complete, inactive, baseline, and template projects."""
+
+        eligible_projects: list[dict[str, Any]] = []
+        for project_record in project_records:
+            project_status_id = _coerce_positive_autotask_id(project_record.get("status"))
+            project_type_id = _coerce_positive_autotask_id(project_record.get("projectType"))
+            status_label = " ".join(project_status_labels.get(project_status_id or -1, "").split()).casefold()
+            type_label = " ".join(project_type_labels.get(project_type_id or -1, "").split()).casefold()
+            if status_label in {"complete", "completed", "inactive"}:
+                continue
+            if type_label in {"baseline", "template"}:
+                continue
+            eligible_projects.append(project_record)
+        return eligible_projects
+
+    def _query_tasks_for_projects(
+        self,
+        client: httpx.Client,
+        project_ids: list[int],
+    ) -> list[dict[str, Any]]:
+        """Return task identity and assignment context for selected projects."""
+
+        task_records: list[dict[str, Any]] = []
+        for project_id_chunk in _chunked_autotask_ids(project_ids):
+            task_records.extend(
+                self._query_paginated_items(
+                    client,
+                    endpoint_path="/Tasks/query",
+                    query_payload={
+                        "IncludeFields": [
+                            "id",
+                            "taskNumber",
+                            "title",
+                            "description",
+                            "projectID",
+                            "assignedResourceID",
+                            "assignedResourceroleID",
+                            "companylocationID",
+                            "status",
+                            "startDateTime",
+                            "endDateTime",
+                        ],
+                        "filter": [{"op": "in", "field": "projectID", "value": project_id_chunk}],
+                    },
+                    action_description="Autotask project task lookup",
+                )
+            )
+        return task_records
+
+    def _query_secondary_task_ids_for_resource(
+        self,
+        client: httpx.Client,
+        *,
+        resource_id: int,
+        task_ids: list[int],
+    ) -> set[int]:
+        """Return selected task IDs where the user is a secondary resource."""
+
+        assigned_task_ids: set[int] = set()
+        for task_id_chunk in _chunked_autotask_ids(task_ids):
+            records = self._query_paginated_items(
+                client,
+                endpoint_path="/TaskSecondaryResources/query",
+                query_payload={
+                    "IncludeFields": ["taskID", "resourceID", "roleID"],
+                    "filter": [
+                        {"op": "eq", "field": "resourceID", "value": resource_id},
+                        {"op": "in", "field": "taskID", "value": task_id_chunk},
+                    ],
+                },
+                action_description="Autotask project task secondary-resource lookup",
+            )
+            assigned_task_ids.update(
+                task_id
+                for record in records
+                if (task_id := _coerce_positive_autotask_id(record.get("taskID"))) is not None
+            )
+        return assigned_task_ids
+
+    def _query_task_ids_with_displayable_notes(
+        self,
+        client: httpx.Client,
+        task_ids: list[int],
+    ) -> set[int]:
+        """Return task IDs having at least one displayable TaskNotes row."""
+
+        task_ids_with_notes: set[int] = set()
+        for task_id_chunk in _chunked_autotask_ids(task_ids):
+            records = self._query_paginated_items(
+                client,
+                endpoint_path="/TaskNotes/query",
+                query_payload={
+                    "IncludeFields": ["taskID", "title", "noteType"],
+                    "filter": [{"op": "in", "field": "taskID", "value": task_id_chunk}],
+                },
+                action_description="Autotask project task note availability lookup",
+            )
+            for record in records:
+                task_id = _coerce_positive_autotask_id(record.get("taskID"))
+                if task_id is not None and _is_displayable_ticket_note_fields(
+                    record.get("noteType"),
+                    record.get("title"),
+                ):
+                    task_ids_with_notes.add(task_id)
+        return task_ids_with_notes
+
+    def _build_project_task_options(
+        self,
+        client: httpx.Client,
+        *,
+        client_name: str,
+        resource_id: int,
+        project_records: list[dict[str, Any]],
+        task_status_options: list[AutotaskTaskStatusOption],
+        project_status_labels: dict[int, str],
+        include_navigation: bool = False,
+    ) -> list[AutotaskProjectTaskOption]:
+        """Build assigned, non-complete project-task choices."""
+
+        project_records_by_id = {
+            project_id: project_record
+            for project_record in project_records
+            if (project_id := _coerce_positive_autotask_id(project_record.get("id"))) is not None
+        }
+        task_records = self._query_tasks_for_projects(client, list(project_records_by_id))
+        task_ids = [
+            task_id
+            for task_record in task_records
+            if (task_id := _coerce_positive_autotask_id(task_record.get("id"))) is not None
+        ]
+        secondary_task_ids = self._query_secondary_task_ids_for_resource(
+            client,
+            resource_id=resource_id,
+            task_ids=task_ids,
+        )
+        assigned_task_records = [
+            task_record
+            for task_record in task_records
+            if (
+                (task_id := _coerce_positive_autotask_id(task_record.get("id"))) is not None
+                and (
+                    _coerce_positive_autotask_id(task_record.get("assignedResourceID")) == resource_id
+                    or task_id in secondary_task_ids
+                )
+                and _coerce_positive_autotask_id(task_record.get("status")) != COMPLETE_TASK_STATUS_ID
+            )
+        ]
+        try:
+            task_ids_with_notes = self._query_task_ids_with_displayable_notes(
+                client,
+                [
+                    task_id
+                    for task_record in assigned_task_records
+                    if (task_id := _coerce_positive_autotask_id(task_record.get("id"))) is not None
+                ],
+            )
+        except AutotaskSubmissionError:
+            task_ids_with_notes = set()
+
+        task_status_labels = {option.status_id: option.label for option in task_status_options}
+        task_options: list[AutotaskProjectTaskOption] = []
+        for task_record in assigned_task_records:
+            task_id = _coerce_positive_autotask_id(task_record.get("id"))
+            project_id = _coerce_positive_autotask_id(task_record.get("projectID"))
+            status_id = _coerce_positive_autotask_id(task_record.get("status"))
+            project_record = project_records_by_id.get(project_id or -1)
+            if task_id is None or project_id is None or status_id is None or project_record is None:
+                continue
+            task_title = _safe_service_call_text(
+                task_record.get("title"),
+                f"Project task {task_id}",
+                MAX_PROJECT_TASK_TITLE_LENGTH,
+            )
+            task_description = _safe_service_call_text(
+                task_record.get("description"),
+                "",
+                MAX_PROJECT_TASK_DESCRIPTION_LENGTH,
+            ) or None
+            detected_work_location = detect_work_location_from_service_call_details(
+                "\n".join(value for value in (task_title, task_description) if value)
+            )
+            project_status_id = _coerce_positive_autotask_id(project_record.get("status"))
+            project_name = _safe_service_call_text(
+                project_record.get("projectName"),
+                f"Project {project_id}",
+                MAX_PROJECT_NAME_LENGTH,
+            )
+            task_options.append(
+                AutotaskProjectTaskOption(
+                    task_id=task_id,
+                    task_number=_safe_optional_resource_text(
+                        task_record.get("taskNumber"),
+                        max_length=MAX_PROJECT_NUMBER_LENGTH,
+                    ),
+                    title=task_title,
+                    description=task_description,
+                    status_id=status_id,
+                    status_label=task_status_labels.get(status_id, str(status_id)),
+                    project_id=project_id,
+                    project_number=_safe_optional_resource_text(
+                        project_record.get("projectNumber"),
+                        max_length=MAX_PROJECT_NUMBER_LENGTH,
+                    ),
+                    project_name=project_name,
+                    project_status_label=project_status_labels.get(
+                        project_status_id or -1,
+                        str(project_status_id or "Unknown"),
+                    ),
+                    company_name=client_name,
+                    start_at_utc=_parse_autotask_datetime(task_record.get("startDateTime")),
+                    end_at_utc=_parse_autotask_datetime(task_record.get("endDateTime")),
+                    detected_work_location=detected_work_location,
+                    work_location_label=work_location_label_for_detection(detected_work_location),
+                    navigation_address=None,
+                    has_customer_notes=task_id in task_ids_with_notes,
+                )
+            )
+        task_options.sort(
+            key=lambda option: (
+                option.start_at_utc or datetime.max.replace(tzinfo=UTC),
+                option.project_name.casefold(),
+                option.title.casefold(),
+                option.task_id,
+            )
+        )
+        return task_options[:MAX_PROJECT_TASK_LOOKUP_RESULTS]
+
+    def _query_ticket_ids_with_displayable_notes(
+        self,
+        client: httpx.Client,
+        ticket_ids: list[int],
+    ) -> set[int]:
+        """Return ticket IDs having at least one note accepted by the overlay filter."""
+
+        ticket_ids_with_customer_notes: set[int] = set()
+        for ticket_id_chunk in _chunked_autotask_ids(ticket_ids):
+            if not ticket_id_chunk:
+                continue
+            query_payload = {
+                "IncludeFields": ["ticketID", "title", "noteType"],
+                "filter": [{"op": "in", "field": "ticketID", "value": ticket_id_chunk}],
+            }
+            note_records = self._query_paginated_items(
+                client,
+                endpoint_path="/TicketNotes/query",
+                query_payload=query_payload,
+                action_description="Autotask ticket note availability lookup",
+            )
+            for note_record in note_records:
+                ticket_id = _coerce_positive_autotask_id(note_record.get("ticketID"))
+                if ticket_id is None:
+                    continue
+                if _is_displayable_ticket_note_fields(
+                    note_record.get("noteType"),
+                    note_record.get("title"),
+                ):
+                    ticket_ids_with_customer_notes.add(ticket_id)
+
+        return ticket_ids_with_customer_notes
 
     def _query_ticket_notes_for_ticket_id(self, client: httpx.Client, ticket_id: int) -> list[dict[str, Any]]:
         """Return a bounded set of read-only TicketNotes rows for one ticket."""
@@ -2920,6 +4061,77 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             reverse=True,
         )
 
+    def _query_task_notes_for_task_id(self, client: httpx.Client, task_id: int) -> list[dict[str, Any]]:
+        """Return a bounded set of read-only TaskNotes rows for one task."""
+
+        return self._query_paginated_items(
+            client,
+            endpoint_path="/TaskNotes/query",
+            query_payload={
+                "IncludeFields": [
+                    "id",
+                    "taskID",
+                    "title",
+                    "description",
+                    "createDateTime",
+                    "lastActivityDate",
+                    "createdByContactID",
+                    "creatorResourceID",
+                    "noteType",
+                    "publish",
+                ],
+                "filter": [{"op": "eq", "field": "taskID", "value": task_id}],
+            },
+            action_description="Autotask project task note lookup",
+            max_records=MAX_TICKET_NOTE_LOOKUP_RESULTS,
+            follow_pagination=False,
+        )
+
+    def _build_task_notes_for_task_id(
+        self,
+        client: httpx.Client,
+        task_id: int,
+    ) -> list[AutotaskTicketNote]:
+        """Return safe TaskNotes view models for one selected project task."""
+
+        notes: list[AutotaskTicketNote] = []
+        note_records = self._query_task_notes_for_task_id(client, task_id)
+        author_names = self._query_ticket_note_author_names(client, note_records)
+        for note_record in note_records:
+            note_id = _coerce_positive_autotask_id(note_record.get("id"))
+            if note_id is None:
+                continue
+            raw_publish = note_record.get("publish")
+            try:
+                publish = int(raw_publish) if raw_publish is not None else None
+            except (TypeError, ValueError):
+                publish = None
+            author_key = _ticket_note_author_key(note_record)
+            notes.append(
+                AutotaskTicketNote(
+                    note_id=note_id,
+                    title=_safe_optional_ticket_note_text(
+                        note_record.get("title"),
+                        MAX_TICKET_NOTE_TITLE_LENGTH,
+                    )
+                    or f"Project task note {note_id}",
+                    description=_safe_optional_ticket_note_text(
+                        note_record.get("description"),
+                        MAX_TASK_NOTE_BODY_LENGTH,
+                    ),
+                    created_by=author_names.get(author_key) or _ticket_note_author_fallback(author_key),
+                    created_at_utc=_parse_autotask_datetime(note_record.get("createDateTime")),
+                    updated_at_utc=_parse_autotask_datetime(note_record.get("lastActivityDate")),
+                    note_type=_safe_optional_ticket_note_text(note_record.get("noteType"), 80),
+                    publish=publish,
+                )
+            )
+        return sorted(
+            notes,
+            key=lambda note: note.created_at_utc or datetime.min.replace(tzinfo=UTC),
+            reverse=True,
+        )
+
     def _query_ticket_time_entries_for_ticket_id(self, client: httpx.Client, ticket_id: int) -> list[dict[str, Any]]:
         """Return a bounded set of read-only TimeEntries rows for one ticket."""
 
@@ -3007,6 +4219,67 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             reverse=True,
         )
 
+    def _query_task_time_entries_for_task_id(
+        self,
+        client: httpx.Client,
+        task_id: int,
+    ) -> list[dict[str, Any]]:
+        """Return bounded TimeEntries rows attached to one project task."""
+
+        return self._query_paginated_items(
+            client,
+            endpoint_path="/TimeEntries/query",
+            query_payload={
+                "IncludeFields": [
+                    "id",
+                    "taskID",
+                    "resourceID",
+                    "startDateTime",
+                    "endDateTime",
+                    "hoursWorked",
+                    "summaryNotes",
+                ],
+                "filter": [{"op": "eq", "field": "taskID", "value": task_id}],
+            },
+            action_description="Autotask project task time-entry lookup",
+            max_records=MAX_TICKET_TIME_ENTRY_LOOKUP_RESULTS,
+            follow_pagination=False,
+        )
+
+    def _build_task_time_entries_for_task_id(
+        self,
+        client: httpx.Client,
+        task_id: int,
+    ) -> list[AutotaskTicketTimeEntry]:
+        """Return safe time-entry view models for one project task."""
+
+        records = self._query_task_time_entries_for_task_id(client, task_id)
+        resource_names = self._query_ticket_time_entry_resource_names(client, records)
+        time_entries: list[AutotaskTicketTimeEntry] = []
+        for record in records:
+            time_entry_id = _coerce_positive_autotask_id(record.get("id"))
+            if time_entry_id is None:
+                continue
+            resource_id = _coerce_positive_autotask_id(record.get("resourceID"))
+            time_entries.append(
+                AutotaskTicketTimeEntry(
+                    time_entry_id=time_entry_id,
+                    resource_name=resource_names.get(resource_id or 0) or f"Resource {resource_id or 'unknown'}",
+                    start_at_utc=_parse_autotask_datetime(record.get("startDateTime")),
+                    end_at_utc=_parse_autotask_datetime(record.get("endDateTime")),
+                    hours_worked=_coerce_time_entry_hours(record.get("hoursWorked")),
+                    summary_notes=_safe_optional_ticket_time_entry_text(
+                        record.get("summaryNotes"),
+                        MAX_TICKET_TIME_ENTRY_SUMMARY_LENGTH,
+                    ),
+                )
+            )
+        return sorted(
+            time_entries,
+            key=lambda time_entry: time_entry.start_at_utc or datetime.min.replace(tzinfo=UTC),
+            reverse=True,
+        )
+
     def list_open_tickets_for_client(
         self,
         client_name: str,
@@ -3069,6 +4342,61 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return selected_ticket_options
 
+    def list_open_project_tasks_for_client(
+        self,
+        client_name: str,
+        autotask_company_id: int,
+        *,
+        resource_id: int,
+    ) -> list[AutotaskProjectTaskOption]:
+        """Return assigned, non-complete, time-entry-eligible project tasks."""
+
+        safe_client_name = client_name.strip()
+        if not safe_client_name or autotask_company_id <= 0 or resource_id <= 0:
+            raise AutotaskSubmissionError(
+                "A verified client and managed web-user resource are required before searching project tasks."
+            )
+        cache_key = (self._cache_namespace(), autotask_company_id, resource_id)
+        cached_task_options = _get_cached_value(_OPEN_PROJECT_TASK_SELECTION_CACHE, cache_key)
+        if isinstance(cached_task_options, list):
+            return cached_task_options[:MAX_PROJECT_TASK_LOOKUP_RESULTS]
+
+        with self._client() as client:
+            company_record = self._query_company_by_id(client, autotask_company_id)
+            if company_record is None:
+                return []
+            company_name = str(company_record.get("companyName") or "").strip()
+            if company_name.casefold() != safe_client_name.casefold():
+                raise AutotaskSubmissionError(
+                    "The selected Autotask company no longer matches the stored client name."
+                )
+            project_status_labels = self._query_project_status_labels(client)
+            project_type_labels = self._query_project_type_labels_without_blocking_lookup(client)
+            project_records = self._eligible_project_records(
+                self._query_projects_for_company(
+                    client,
+                    autotask_company_id,
+                    include_project_type=bool(project_type_labels),
+                ),
+                project_status_labels=project_status_labels,
+                project_type_labels=project_type_labels,
+            )
+            task_options = self._build_project_task_options(
+                client,
+                client_name=company_name,
+                resource_id=resource_id,
+                project_records=project_records,
+                task_status_options=self._query_task_status_options(client),
+                project_status_labels=project_status_labels,
+            )
+        _set_cached_value(
+            _OPEN_PROJECT_TASK_SELECTION_CACHE,
+            cache_key,
+            task_options,
+            OPEN_TICKET_SELECTION_CACHE_TTL_SECONDS,
+        )
+        return task_options
+
     def get_ticket_navigation_address(
         self,
         ticket_number: str,
@@ -3123,6 +4451,70 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 self._query_company_by_id(client, autotask_company_id)
             )
 
+    def get_project_task_navigation_address(
+        self,
+        task_id: int,
+        project_id: int,
+        autotask_company_id: int,
+        *,
+        resource_id: int | None = None,
+    ) -> str | None:
+        """Resolve task-location then company-main address without storing it."""
+
+        if task_id <= 0 or project_id <= 0 or autotask_company_id <= 0:
+            raise AutotaskSubmissionError(
+                "A verified project task, project, and client are required for navigation."
+            )
+        with self._client() as client:
+            tasks = self._query_paginated_items(
+                client,
+                endpoint_path="/Tasks/query",
+                query_payload={
+                    "IncludeFields": ["id", "projectID", "companylocationID"],
+                    "filter": [{"op": "eq", "field": "id", "value": task_id}],
+                },
+                action_description="Autotask project task navigation lookup",
+                max_records=1,
+                follow_pagination=False,
+            )
+            projects = self._query_projects_by_ids(
+                client,
+                [project_id],
+                include_project_type=False,
+            )
+            task = tasks[0] if tasks else None
+            project = projects.get(project_id)
+            if (
+                task is None
+                or project is None
+                or _coerce_positive_autotask_id(task.get("projectID")) != project_id
+                or _coerce_positive_autotask_id(project.get("companyID"))
+                != autotask_company_id
+            ):
+                raise AutotaskSubmissionError(
+                    "The selected project task no longer belongs to the saved client and project."
+                )
+            task_location_id = _coerce_positive_autotask_id(task.get("companylocationID"))
+            location = self._query_company_locations_by_ids(
+                client,
+                [task_location_id] if task_location_id is not None else [],
+            ).get(task_location_id or -1)
+            if (
+                location is not None
+                and _coerce_positive_autotask_id(location.get("companyID"))
+                == autotask_company_id
+            ):
+                navigation_address = _format_navigation_address(location)
+                if navigation_address:
+                    return navigation_address
+            primary_location = self._query_primary_company_locations(
+                client,
+                [autotask_company_id],
+            ).get(autotask_company_id)
+            return _format_navigation_address(primary_location) or _format_navigation_address(
+                self._query_company_by_id(client, autotask_company_id)
+            )
+
     def list_ticket_notes(self, ticket_number: str, *, resource_id: int | None = None) -> list[AutotaskTicketNote]:
         """Return safe read-only TicketNotes rows for one selected ticket number."""
 
@@ -3144,6 +4536,34 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         with self._client() as client:
             ticket_id = self._query_ticket_id(client, safe_ticket_number)
             return self._build_ticket_time_entries_for_ticket_id(client, ticket_id)[:MAX_TICKET_TIME_ENTRY_LOOKUP_RESULTS]
+
+    def list_project_task_notes(
+        self,
+        task_id: int,
+        *,
+        resource_id: int | None = None,
+    ) -> list[AutotaskTicketNote]:
+        """Return safe read-only TaskNotes rows for one selected project task."""
+
+        if task_id <= 0:
+            raise AutotaskSubmissionError("Project task is required before searching project task notes.")
+        with self._client() as client:
+            return self._build_task_notes_for_task_id(client, task_id)[:MAX_TICKET_NOTE_LOOKUP_RESULTS]
+
+    def list_project_task_time_entries(
+        self,
+        task_id: int,
+        *,
+        resource_id: int | None = None,
+    ) -> list[AutotaskTicketTimeEntry]:
+        """Return safe read-only TimeEntries rows for one selected project task."""
+
+        if task_id <= 0:
+            raise AutotaskSubmissionError("Project task is required before searching time entries.")
+        with self._client() as client:
+            return self._build_task_time_entries_for_task_id(client, task_id)[
+                :MAX_TICKET_TIME_ENTRY_LOOKUP_RESULTS
+            ]
 
     def search_companies(self, query_text: str, *, resource_id: int | None = None) -> list[AutotaskCompanyOption]:
         """Return active Autotask companies matching a user-entered query."""
@@ -3292,24 +4712,44 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 return []
 
             service_call_ticket_records = self._query_service_call_tickets_for_service_calls(client, service_call_ids)
+            try:
+                service_call_task_records = self._query_service_call_tasks_for_service_calls(
+                    client,
+                    service_call_ids,
+                )
+            except AutotaskSubmissionError:
+                # Some Autotask security levels expose ticket-linked service
+                # calls without ServiceCallTasks. Keep those ticket choices
+                # usable while Diagnostics reports the narrower API access.
+                service_call_task_records = []
             service_call_ticket_ids = [
                 service_call_ticket_id
                 for service_call_ticket_record in service_call_ticket_records
                 if (service_call_ticket_id := _coerce_positive_autotask_id(service_call_ticket_record.get("id"))) is not None
             ]
-            if not service_call_ticket_ids:
-                _set_cached_value(
-                    _SERVICE_CALL_SELECTION_CACHE,
-                    cache_key,
-                    [],
-                    SERVICE_CALL_SELECTION_CACHE_TTL_SECONDS,
+            service_call_task_ids = [
+                service_call_task_id
+                for service_call_task_record in service_call_task_records
+                if (service_call_task_id := _coerce_positive_autotask_id(service_call_task_record.get("id")))
+                is not None
+            ]
+            service_call_ticket_resource_records = (
+                self._query_service_call_ticket_resources(
+                    client,
+                    resource_id=resource_id,
+                    service_call_ticket_ids=service_call_ticket_ids,
                 )
-                return []
-
-            service_call_ticket_resource_records = self._query_service_call_ticket_resources(
-                client,
-                resource_id=resource_id,
-                service_call_ticket_ids=service_call_ticket_ids,
+                if service_call_ticket_ids
+                else []
+            )
+            service_call_task_resource_records = (
+                self._query_service_call_task_resources(
+                    client,
+                    resource_id=resource_id,
+                    service_call_task_ids=service_call_task_ids,
+                )
+                if service_call_task_ids
+                else []
             )
             assigned_service_call_ticket_ids = {
                 service_call_ticket_id
@@ -3322,16 +4762,78 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 if _coerce_positive_autotask_id(service_call_ticket_record.get("id")) in assigned_service_call_ticket_ids
                 if (ticket_id := _coerce_positive_autotask_id(service_call_ticket_record.get("ticketID"))) is not None
             ]
-            if not assigned_ticket_ids:
-                _set_cached_value(
-                    _SERVICE_CALL_SELECTION_CACHE,
-                    cache_key,
-                    [],
-                    SERVICE_CALL_SELECTION_CACHE_TTL_SECONDS,
-                )
-                return []
-
             ticket_records_by_id = self._query_tickets_by_ids(client, assigned_ticket_ids)
+            assigned_service_call_task_ids = {
+                service_call_task_id
+                for resource_record in service_call_task_resource_records
+                if (
+                    service_call_task_id := _coerce_positive_autotask_id(
+                        resource_record.get("serviceCallTaskID")
+                    )
+                )
+                is not None
+            }
+            assigned_task_ids = [
+                task_id
+                for service_call_task_record in service_call_task_records
+                if _coerce_positive_autotask_id(service_call_task_record.get("id"))
+                in assigned_service_call_task_ids
+                if (task_id := _coerce_positive_autotask_id(service_call_task_record.get("taskID")))
+                is not None
+            ]
+            task_records_by_id = self._query_tasks_by_ids(client, assigned_task_ids)
+            project_records_by_id: dict[int, dict[str, Any]] = {}
+            if task_records_by_id:
+                project_ids = [
+                    project_id
+                    for task_record in task_records_by_id.values()
+                    if (project_id := _coerce_positive_autotask_id(task_record.get("projectID")))
+                    is not None
+                ]
+                project_status_labels = self._query_project_status_labels(client)
+                project_type_labels = self._query_project_type_labels_without_blocking_lookup(client)
+                project_records_by_id = self._query_projects_by_ids(
+                    client,
+                    project_ids,
+                    include_project_type=bool(project_type_labels),
+                )
+                eligible_project_ids = {
+                    project_id
+                    for project_record in self._eligible_project_records(
+                        list(project_records_by_id.values()),
+                        project_status_labels=project_status_labels,
+                        project_type_labels=project_type_labels,
+                    )
+                    if (project_id := _coerce_positive_autotask_id(project_record.get("id")))
+                    is not None
+                }
+                project_records_by_id = {
+                    project_id: project_record
+                    for project_id, project_record in project_records_by_id.items()
+                    if project_id in eligible_project_ids
+                }
+                task_records_by_id = {
+                    task_id: task_record
+                    for task_id, task_record in task_records_by_id.items()
+                    if _coerce_positive_autotask_id(task_record.get("projectID"))
+                    in eligible_project_ids
+                }
+            try:
+                ticket_ids_with_customer_notes = self._query_ticket_ids_with_displayable_notes(
+                    client,
+                    list(ticket_records_by_id),
+                )
+            except AutotaskSubmissionError:
+                # Customer-note badges are optional context. Service calls
+                # remain usable when TicketNotes cannot be queried.
+                ticket_ids_with_customer_notes = set()
+            try:
+                task_ids_with_customer_notes = self._query_task_ids_with_displayable_notes(
+                    client,
+                    list(task_records_by_id),
+                )
+            except AutotaskSubmissionError:
+                task_ids_with_customer_notes = set()
             company_ids = [
                 company_id
                 for service_call_record in service_call_records
@@ -3342,13 +4844,23 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 for ticket_record in ticket_records_by_id.values()
                 if (company_id := _coerce_positive_autotask_id(ticket_record.get("companyID"))) is not None
             )
+            company_ids.extend(
+                company_id
+                for project_record in project_records_by_id.values()
+                if (company_id := _coerce_positive_autotask_id(project_record.get("companyID")))
+                is not None
+            )
             company_records_by_id = self._query_companies_by_ids(
                 client,
                 company_ids,
             )
             location_ids = [
                 location_id
-                for source_record in [*service_call_records, *ticket_records_by_id.values()]
+                for source_record in [
+                    *service_call_records,
+                    *ticket_records_by_id.values(),
+                    *task_records_by_id.values(),
+                ]
                 if (location_id := _coerce_positive_autotask_id(source_record.get("companylocationID")))
                 is not None
             ]
@@ -3366,7 +4878,15 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                     primary_locations_by_company_id = {}
             status_labels = self._query_ticket_status_labels(client)
             source_labels = self._query_ticket_source_labels_without_blocking_lookup(client)
-            service_call_options = self._build_service_call_options(
+            task_status_labels = (
+                {
+                    option.status_id: option.label
+                    for option in self._query_task_status_options(client)
+                }
+                if task_records_by_id
+                else {}
+            )
+            ticket_service_call_options = self._build_service_call_options(
                 service_call_records=service_call_records,
                 service_call_ticket_records=service_call_ticket_records,
                 service_call_ticket_resource_records=service_call_ticket_resource_records,
@@ -3376,6 +4896,28 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 primary_locations_by_company_id=primary_locations_by_company_id,
                 status_labels=status_labels,
                 source_labels=source_labels,
+                ticket_ids_with_customer_notes=ticket_ids_with_customer_notes,
+            )
+            task_service_call_options = self._build_service_call_task_options(
+                service_call_records=service_call_records,
+                service_call_task_records=service_call_task_records,
+                service_call_task_resource_records=service_call_task_resource_records,
+                task_records_by_id=task_records_by_id,
+                project_records_by_id=project_records_by_id,
+                company_records_by_id=company_records_by_id,
+                location_records_by_id=location_records_by_id,
+                primary_locations_by_company_id=primary_locations_by_company_id,
+                task_status_labels=task_status_labels,
+                task_ids_with_customer_notes=task_ids_with_customer_notes,
+            )
+            service_call_options = sorted(
+                [*ticket_service_call_options, *task_service_call_options],
+                key=lambda option: (
+                    option.start_datetime_utc or datetime.max.replace(tzinfo=UTC),
+                    option.work_target_type.value,
+                    option.target_title.casefold(),
+                    option.service_call_association_id,
+                ),
             )[:MAX_SERVICE_CALL_LOOKUP_RESULTS]
 
         _set_cached_value(
@@ -3639,6 +5181,103 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return ticket_id
 
+    def _query_project_task_record(
+        self,
+        client: httpx.Client,
+        job: Job,
+    ) -> dict[str, Any]:
+        """Return one verified task record without trusting stored browser data."""
+
+        if not job.project_task_id or not job.project_id:
+            raise AutotaskSubmissionError("Project task and project are required before Autotask submission.")
+        tasks = self._query_paginated_items(
+            client,
+            endpoint_path="/Tasks/query",
+            query_payload={
+                "IncludeFields": [
+                    "id",
+                    "projectID",
+                    "assignedResourceID",
+                    "assignedResourceroleID",
+                    "status",
+                ],
+                "filter": [{"op": "eq", "field": "id", "value": job.project_task_id}],
+            },
+            action_description="Autotask project task identity lookup",
+            max_records=1,
+            follow_pagination=False,
+        )
+        if not tasks:
+            raise AutotaskSubmissionError("The selected Autotask project task is no longer available.")
+        task = tasks[0]
+        task_id = _coerce_positive_autotask_id(task.get("id"))
+        project_id = _coerce_positive_autotask_id(task.get("projectID"))
+        if task_id != job.project_task_id or project_id != job.project_id:
+            raise AutotaskSubmissionError("The selected Autotask project task no longer matches the saved project.")
+        return task
+
+    def _query_project_task_time_entry_context(
+        self,
+        client: httpx.Client,
+        job: Job,
+        *,
+        resource_id: int,
+    ) -> AutotaskProjectTaskTimeEntryContext:
+        """Resolve the task-specific role required by a project time entry."""
+
+        task = self._query_project_task_record(client, job)
+        task_id = int(task["id"])
+        project_id = int(task["projectID"])
+        assigned_resource_id = _coerce_positive_autotask_id(task.get("assignedResourceID"))
+        raw_role_id = task.get("assignedResourceroleID")
+        if raw_role_id in (None, ""):
+            raw_role_id = task.get("assignedResourceRoleID")
+        role_id = (
+            _coerce_positive_autotask_id(raw_role_id)
+            if assigned_resource_id == resource_id
+            else None
+        )
+        role_id_source = "task.assignedResourceroleID"
+        if role_id is None:
+            secondary_records = self._query_paginated_items(
+                client,
+                endpoint_path="/TaskSecondaryResources/query",
+                query_payload={
+                    "IncludeFields": ["taskID", "resourceID", "roleID"],
+                    "filter": [
+                        {"op": "eq", "field": "taskID", "value": task_id},
+                        {"op": "eq", "field": "resourceID", "value": resource_id},
+                    ],
+                },
+                action_description="Autotask project task secondary-resource role lookup",
+                max_records=50,
+                follow_pagination=False,
+            )
+            role_ids = list(
+                dict.fromkeys(
+                    role_id
+                    for record in secondary_records
+                    if (role_id := _coerce_positive_autotask_id(record.get("roleID")))
+                    is not None
+                )
+            )
+            if len(role_ids) == 1:
+                role_id = role_ids[0]
+                role_id_source = "task.secondaryResource.roleID"
+
+        if role_id is None:
+            raise AutotaskSubmissionError(
+                "The selected project task does not contain one unambiguous Autotask role assignment "
+                "for the submitting user."
+            )
+        return AutotaskProjectTaskTimeEntryContext(
+            task_id=task_id,
+            project_id=project_id,
+            role_id=role_id,
+            role_id_source=role_id_source,
+            assigned_resource_id=assigned_resource_id,
+        )
+
     def _ticket_status_id(self, ticket_status: TicketStatus | None, *, required: bool = False) -> int | None:
         """Return the configured Autotask picklist ID for one local ticket status."""
 
@@ -3678,11 +5317,68 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         )
         self._raise_for_safe_response(response, "Autotask ticket status update")
 
+    def _task_status_id(
+        self,
+        job: Job,
+        *,
+        required: bool = False,
+        client: httpx.Client | None = None,
+    ) -> int | None:
+        """Validate one saved task status against current tenant metadata."""
+
+        status_id = _coerce_positive_autotask_id(job.task_status_id)
+        if status_id is None:
+            if required:
+                raise AutotaskSubmissionError("Task status is required before Autotask submission.")
+            return None
+        if client is None:
+            with self._client() as metadata_client:
+                valid_ids = {
+                    option.status_id
+                    for option in self._query_task_status_options(metadata_client)
+                }
+        else:
+            valid_ids = {option.status_id for option in self._query_task_status_options(client)}
+        if status_id not in valid_ids:
+            raise AutotaskSubmissionError("The selected task status is no longer available in Autotask.")
+        return status_id
+
+    def _in_progress_task_status_id(self, client: httpx.Client) -> int:
+        """Return the tenant task status labeled In Progress for safe reopening."""
+
+        for option in self._query_task_status_options(client):
+            normalized_label = re.sub(r"[^a-z0-9]+", "", option.label.casefold())
+            if normalized_label == "inprogress":
+                return option.status_id
+        raise AutotaskSubmissionError(
+            "Autotask task status metadata does not contain an active In Progress status."
+        )
+
+    def _update_task_status(
+        self,
+        client: httpx.Client,
+        *,
+        task_id: int,
+        project_id: int,
+        status_id: int,
+    ) -> None:
+        """Update Tasks.status without changing the parent Projects.status."""
+
+        response = self._api_request(
+            client,
+            "PATCH",
+            f"/Projects/{project_id}/Tasks",
+            "Autotask project task status update",
+            json={"id": task_id, "status": status_id},
+        )
+        self._raise_for_safe_response(response, "Autotask project task status update")
+
     def _time_entry_payload(
         self,
         job: Job,
         *,
         ticket_id: int | None = None,
+        task_id: int | None = None,
         resource_id: int | None = None,
         role_id: int | None = None,
     ) -> dict[str, Any]:
@@ -3698,19 +5394,28 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             "summaryNotes": build_autotask_summary_notes(job),
             "appendToResolution": _append_to_resolution_for_job(job),
         }
-        if ticket_id is not None:
+        if ticket_id is not None or task_id is not None:
+            if ticket_id is not None and task_id is not None:
+                raise AutotaskSubmissionError("An Autotask time entry cannot target both a ticket and a project task.")
             if resource_id is None or resource_id <= 0:
                 raise AutotaskSubmissionError("A managed web user's Autotask resource ID is required before Autotask submission.")
             if role_id is None or role_id <= 0:
                 raise AutotaskSubmissionError("An Autotask role ID is required before submission.")
             payload.update(
                 {
-                    "ticketID": ticket_id,
                     "resourceID": resource_id,
                     "roleID": role_id,
-                    "timeEntryType": self.application_settings.autotask_time_entry_type,
+                    "timeEntryType": (
+                        PROJECT_TASK_TIME_ENTRY_TYPE
+                        if task_id is not None
+                        else self.application_settings.autotask_time_entry_type
+                    ),
                 }
             )
+            if task_id is not None:
+                payload["taskID"] = task_id
+            else:
+                payload["ticketID"] = ticket_id
 
         return payload
 
@@ -3718,14 +5423,21 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         self,
         client: httpx.Client,
         job: Job,
-        ticket_id: int,
+        ticket_id: int | None,
         *,
+        task_id: int | None = None,
         resource_id: int,
         role_id: int,
     ) -> str:
         """Create the Autotask TimeEntries row for the accepted job."""
 
-        payload = self._time_entry_payload(job, ticket_id=ticket_id, resource_id=resource_id, role_id=role_id)
+        payload = self._time_entry_payload(
+            job,
+            ticket_id=ticket_id,
+            task_id=task_id,
+            resource_id=resource_id,
+            role_id=role_id,
+        )
         response = self._api_request(
             client,
             "POST",
@@ -3774,7 +5486,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         )
         self._raise_for_safe_response(response, "Autotask time entry deletion")
 
-    def _ticket_note_payload(self, job: Job, *, ticket_id: int | None = None) -> dict[str, Any]:
+    def _ticket_note_payload(self, job: Job) -> dict[str, Any]:
         """Build customer-visible TicketNotes fields shared by create and update."""
 
         note_title = str(job.note_title or "").strip()
@@ -3785,26 +5497,21 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         if not note_description:
             raise AutotaskSubmissionError("Ticket note description is required before Autotask submission.")
 
-        payload: dict[str, Any] = {
+        return {
             "title": note_title[:MAX_TICKET_NOTE_TITLE_LENGTH],
             "description": note_description,
             "publish": CUSTOMER_VISIBLE_TICKET_NOTE_PUBLISH_VALUE,
             "noteType": DEFAULT_TICKET_NOTE_TYPE,
-            "appendToResolution": _append_to_resolution_for_job(job),
         }
-        if ticket_id is not None:
-            payload["ticketID"] = ticket_id
-
-        return payload
 
     def _create_ticket_note(self, client: httpx.Client, job: Job, ticket_id: int) -> str:
         """Create the customer-visible Autotask TicketNotes row for the accepted job."""
 
-        payload = self._ticket_note_payload(job, ticket_id=ticket_id)
+        payload = self._ticket_note_payload(job)
         response = self._api_request(
             client,
             "POST",
-            "/TicketNotes",
+            f"/Tickets/{ticket_id}/Notes",
             "Autotask ticket note creation",
             json=payload,
         )
@@ -3816,7 +5523,14 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
 
         return str(item_id)
 
-    def _update_ticket_note(self, client: httpx.Client, job: Job, external_id: str) -> None:
+    def _update_ticket_note(
+        self,
+        client: httpx.Client,
+        job: Job,
+        external_id: str,
+        *,
+        ticket_id: int,
+    ) -> None:
         """Patch editable fields on an existing Autotask TicketNotes row."""
 
         ticket_note_id = _coerce_positive_autotask_id(external_id)
@@ -3828,26 +5542,232 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         response = self._api_request(
             client,
             "PATCH",
-            "/TicketNotes",
+            f"/Tickets/{ticket_id}/Notes",
             "Autotask ticket note update",
             json=payload,
         )
         self._raise_for_safe_response(response, "Autotask ticket note update")
 
-    def _delete_ticket_note(self, client: httpx.Client, external_id: str) -> None:
-        """Delete an existing Autotask TicketNotes row by remote ID."""
+    def _task_note_payload(self, job: Job) -> dict[str, Any]:
+        """Build TaskNotes fields shared by create and update."""
 
-        ticket_note_id = _coerce_positive_autotask_id(external_id)
-        if ticket_note_id is None:
-            raise AutotaskSubmissionError("Existing Autotask ticket note ID is required before deleting.")
+        note_title = str(job.note_title or "").strip()
+        if not note_title:
+            raise AutotaskSubmissionError("Project task note title is required before Autotask submission.")
+        note_description = build_ticket_note_description(job)
+        if not note_description:
+            raise AutotaskSubmissionError(
+                "Project task note description is required before Autotask submission."
+            )
+        return {
+            "title": note_title[:MAX_TICKET_NOTE_TITLE_LENGTH],
+            "description": note_description[:MAX_TASK_NOTE_BODY_LENGTH],
+            "publish": PROJECT_TASK_NOTE_PUBLISH_VALUE,
+            "noteType": DEFAULT_TASK_NOTE_TYPE,
+        }
+
+    def _create_task_note(
+        self,
+        client: httpx.Client,
+        job: Job,
+        *,
+        task_id: int,
+    ) -> str:
+        """Create a TaskNotes row for one project task."""
 
         response = self._api_request(
             client,
-            "DELETE",
-            f"/TicketNotes/{ticket_note_id}",
-            "Autotask ticket note deletion",
+            "POST",
+            f"/Tasks/{task_id}/Notes",
+            "Autotask project task note creation",
+            json=self._task_note_payload(job),
         )
-        self._raise_for_safe_response(response, "Autotask ticket note deletion")
+        self._raise_for_safe_response(response, "Autotask project task note creation")
+        response_payload = response.json()
+        item_id = response_payload.get("itemId") or response_payload.get("id") or response_payload.get("ItemId")
+        return str(item_id) if item_id is not None else "created-without-id"
+
+    def _update_task_note(
+        self,
+        client: httpx.Client,
+        job: Job,
+        external_id: str,
+        *,
+        task_id: int,
+    ) -> None:
+        """Patch editable fields on an existing TaskNotes row."""
+
+        task_note_id = _coerce_positive_autotask_id(external_id)
+        if task_note_id is None:
+            raise AutotaskSubmissionError(
+                "Existing Autotask project task note ID is required before updating."
+            )
+        payload = self._task_note_payload(job)
+        payload["id"] = task_note_id
+        response = self._api_request(
+            client,
+            "PATCH",
+            f"/Tasks/{task_id}/Notes",
+            "Autotask project task note update",
+            json=payload,
+        )
+        self._raise_for_safe_response(response, "Autotask project task note update")
+
+    def _submit_project_task_note_job(
+        self,
+        job: Job,
+        *,
+        resource_id: int,
+    ) -> AutotaskSubmissionResult:
+        """Create TaskNotes first and apply Complete status only afterward."""
+
+        snapshot = build_safe_submission_snapshot(job)
+        snapshot.update(
+            {
+                "resourceID": resource_id,
+                "resourceIDSource": "managed_web_user.autotask_resource_id",
+                "taskStatusUpdatePolicy": "required_on_submit",
+                "taskStatusUpdateAttempted": False,
+                "taskStatusPreUpdate": None,
+                "taskStatusPostUpdate": None,
+            }
+        )
+        try:
+            with self._client() as client:
+                task = self._query_project_task_record(client, job)
+                task_id = int(task["id"])
+                project_id = int(task["projectID"])
+                status_id = self._task_status_id(job, required=True, client=client)
+                snapshot.update(
+                    {
+                        "taskID": task_id,
+                        "projectID": project_id,
+                        "taskStatusUpdateAttempted": True,
+                    }
+                )
+                if status_id != COMPLETE_TASK_STATUS_ID:
+                    snapshot["taskStatusPreUpdate"] = status_id
+                    self._update_task_status(
+                        client,
+                        task_id=task_id,
+                        project_id=project_id,
+                        status_id=status_id,
+                    )
+                external_id = self._create_task_note(client, job, task_id=task_id)
+                if status_id == COMPLETE_TASK_STATUS_ID:
+                    snapshot["taskStatusPostUpdate"] = status_id
+                    self._update_task_status(
+                        client,
+                        task_id=task_id,
+                        project_id=project_id,
+                        status_id=status_id,
+                    )
+        except (httpx.HTTPError, AutotaskSubmissionError) as exc:
+            record_autotask_api_failure(
+                "Autotask project task note submission failed.",
+                operation="Autotask project task note submission",
+            )
+            return AutotaskSubmissionResult(
+                provider=self.provider_name,
+                succeeded=False,
+                external_id=None,
+                safe_error=str(exc),
+                request_snapshot=snapshot,
+            )
+
+        record_autotask_api_success(operation="Autotask project task note submission")
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=True,
+            external_id=external_id,
+            safe_error=None,
+            request_snapshot=snapshot,
+        )
+
+    def _submit_project_task_time_entry_job(
+        self,
+        job: Job,
+        *,
+        resource_id: int,
+    ) -> AutotaskSubmissionResult:
+        """Create a task TimeEntries row, setting Complete only after success."""
+
+        snapshot = build_safe_submission_snapshot(job)
+        snapshot.update(
+            {
+                "resourceID": resource_id,
+                "resourceIDSource": "managed_web_user.autotask_resource_id",
+                "roleIDSource": "task primary or secondary resource assignment",
+                "timeEntryType": PROJECT_TASK_TIME_ENTRY_TYPE,
+                "taskStatusUpdatePolicy": "required_on_submit",
+                "taskStatusUpdateAttempted": False,
+                "taskStatusPreUpdate": None,
+                "taskStatusPostUpdate": None,
+            }
+        )
+        try:
+            with self._client() as client:
+                task_context = self._query_project_task_time_entry_context(
+                    client,
+                    job,
+                    resource_id=resource_id,
+                )
+                status_id = self._task_status_id(job, required=True, client=client)
+                snapshot.update(
+                    {
+                        "taskID": task_context.task_id,
+                        "projectID": task_context.project_id,
+                        "roleID": task_context.role_id,
+                        "roleIDSource": task_context.role_id_source,
+                        "taskAssignedResourceID": task_context.assigned_resource_id,
+                        "taskStatusUpdateAttempted": True,
+                    }
+                )
+                if status_id != COMPLETE_TASK_STATUS_ID:
+                    snapshot["taskStatusPreUpdate"] = status_id
+                    self._update_task_status(
+                        client,
+                        task_id=task_context.task_id,
+                        project_id=task_context.project_id,
+                        status_id=status_id,
+                    )
+                external_id = self._create_time_entry(
+                    client,
+                    job,
+                    None,
+                    task_id=task_context.task_id,
+                    resource_id=resource_id,
+                    role_id=task_context.role_id,
+                )
+                if status_id == COMPLETE_TASK_STATUS_ID:
+                    snapshot["taskStatusPostUpdate"] = status_id
+                    self._update_task_status(
+                        client,
+                        task_id=task_context.task_id,
+                        project_id=task_context.project_id,
+                        status_id=status_id,
+                    )
+        except (httpx.HTTPError, AutotaskSubmissionError) as exc:
+            record_autotask_api_failure(
+                "Autotask project task time entry submission failed.",
+                operation="Autotask project task time entry submission",
+            )
+            return AutotaskSubmissionResult(
+                provider=self.provider_name,
+                succeeded=False,
+                external_id=None,
+                safe_error=str(exc),
+                request_snapshot=snapshot,
+            )
+
+        record_autotask_api_success(operation="Autotask project task time entry submission")
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=True,
+            external_id=external_id,
+            safe_error=None,
+            request_snapshot=snapshot,
+        )
 
     def _submit_ticket_note_job(self, job: Job, *, resource_id: int) -> AutotaskSubmissionResult:
         """Submit a reviewed job as a customer-visible Autotask ticket note."""
@@ -3912,6 +5832,11 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         default_service_desk_role_id: int | None = None,
     ) -> AutotaskSubmissionResult:
         """Submit a reviewed job to the Autotask REST API."""
+
+        if _work_target_type_for_job(job) == WorkTargetType.PROJECT_TASK:
+            if job.entry_type == EntryType.TICKET_NOTE:
+                return self._submit_project_task_note_job(job, resource_id=resource_id)
+            return self._submit_project_task_time_entry_job(job, resource_id=resource_id)
 
         if job.entry_type == EntryType.TICKET_NOTE:
             return self._submit_ticket_note_job(job, resource_id=resource_id)
@@ -3991,6 +5916,182 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             request_snapshot=snapshot,
         )
 
+    def _project_task_status_edit_plan(
+        self,
+        client: httpx.Client,
+        *,
+        desired_status_id: int,
+        previous_status_id: int | None,
+    ) -> tuple[int | None, int | None]:
+        """Return status updates required before and after an external edit."""
+
+        if previous_status_id == COMPLETE_TASK_STATUS_ID:
+            reopen_status_id = self._in_progress_task_status_id(client)
+            final_status_id = (
+                desired_status_id
+                if desired_status_id != reopen_status_id
+                else None
+            )
+            return reopen_status_id, final_status_id
+        if desired_status_id == COMPLETE_TASK_STATUS_ID:
+            return None, desired_status_id
+        return desired_status_id, None
+
+    def _update_project_task_time_entry_job(
+        self,
+        job: Job,
+        external_id: str,
+        *,
+        resource_id: int,
+        previous_task_status_id: int | None,
+    ) -> AutotaskSubmissionResult:
+        """Update a project-task TimeEntries row and its Tasks.status."""
+
+        snapshot = build_safe_submission_snapshot(job)
+        snapshot.update(
+            {
+                "operation": "update_project_task_time_entry",
+                "external_id": external_id,
+                "resourceID": resource_id,
+                "previousTaskStatusID": previous_task_status_id,
+                "taskStatusUpdatePolicy": "required_on_edit",
+            }
+        )
+        try:
+            with self._client() as client:
+                task = self._query_project_task_record(client, job)
+                task_id = int(task["id"])
+                project_id = int(task["projectID"])
+                desired_status_id = self._task_status_id(job, required=True, client=client)
+                before_status_id, after_status_id = self._project_task_status_edit_plan(
+                    client,
+                    desired_status_id=desired_status_id,
+                    previous_status_id=previous_task_status_id,
+                )
+                snapshot.update(
+                    {
+                        "taskID": task_id,
+                        "projectID": project_id,
+                        "taskStatusPreUpdate": before_status_id,
+                        "taskStatusPostUpdate": after_status_id,
+                    }
+                )
+                if before_status_id is not None:
+                    self._update_task_status(
+                        client,
+                        task_id=task_id,
+                        project_id=project_id,
+                        status_id=before_status_id,
+                    )
+                self._update_time_entry(client, job, external_id)
+                if after_status_id is not None:
+                    self._update_task_status(
+                        client,
+                        task_id=task_id,
+                        project_id=project_id,
+                        status_id=after_status_id,
+                    )
+        except (httpx.HTTPError, AutotaskSubmissionError) as exc:
+            record_autotask_api_failure(
+                "Autotask project task time entry update failed.",
+                operation="Autotask project task time entry update",
+            )
+            return AutotaskSubmissionResult(
+                provider=self.provider_name,
+                succeeded=False,
+                external_id=external_id,
+                safe_error=str(exc),
+                request_snapshot=snapshot,
+            )
+        record_autotask_api_success(operation="Autotask project task time entry update")
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=True,
+            external_id=external_id,
+            safe_error=None,
+            request_snapshot=snapshot,
+        )
+
+    def _update_project_task_note_job(
+        self,
+        job: Job,
+        external_id: str,
+        *,
+        resource_id: int,
+        previous_task_status_id: int | None,
+    ) -> AutotaskSubmissionResult:
+        """Update a TaskNotes row and its parent Tasks.status."""
+
+        snapshot = build_safe_submission_snapshot(job)
+        snapshot.update(
+            {
+                "operation": "update_project_task_note",
+                "external_id": external_id,
+                "resourceID": resource_id,
+                "previousTaskStatusID": previous_task_status_id,
+                "taskStatusUpdatePolicy": "required_on_edit",
+            }
+        )
+        try:
+            with self._client() as client:
+                task = self._query_project_task_record(client, job)
+                task_id = int(task["id"])
+                project_id = int(task["projectID"])
+                desired_status_id = self._task_status_id(job, required=True, client=client)
+                before_status_id, after_status_id = self._project_task_status_edit_plan(
+                    client,
+                    desired_status_id=desired_status_id,
+                    previous_status_id=previous_task_status_id,
+                )
+                snapshot.update(
+                    {
+                        "taskID": task_id,
+                        "projectID": project_id,
+                        "taskStatusPreUpdate": before_status_id,
+                        "taskStatusPostUpdate": after_status_id,
+                    }
+                )
+                if before_status_id is not None:
+                    self._update_task_status(
+                        client,
+                        task_id=task_id,
+                        project_id=project_id,
+                        status_id=before_status_id,
+                    )
+                self._update_task_note(
+                    client,
+                    job,
+                    external_id,
+                    task_id=task_id,
+                )
+                if after_status_id is not None:
+                    self._update_task_status(
+                        client,
+                        task_id=task_id,
+                        project_id=project_id,
+                        status_id=after_status_id,
+                    )
+        except (httpx.HTTPError, AutotaskSubmissionError) as exc:
+            record_autotask_api_failure(
+                "Autotask project task note update failed.",
+                operation="Autotask project task note update",
+            )
+            return AutotaskSubmissionResult(
+                provider=self.provider_name,
+                succeeded=False,
+                external_id=external_id,
+                safe_error=str(exc),
+                request_snapshot=snapshot,
+            )
+        record_autotask_api_success(operation="Autotask project task note update")
+        return AutotaskSubmissionResult(
+            provider=self.provider_name,
+            succeeded=True,
+            external_id=external_id,
+            safe_error=None,
+            request_snapshot=snapshot,
+        )
+
     def update_time_entry(
         self,
         job: Job,
@@ -3998,8 +6099,17 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         *,
         resource_id: int,
         previous_ticket_status: TicketStatus | None = None,
+        previous_task_status_id: int | None = None,
     ) -> AutotaskSubmissionResult:
         """Update an existing Autotask time entry from reviewed submitted fields."""
+
+        if _work_target_type_for_job(job) == WorkTargetType.PROJECT_TASK:
+            return self._update_project_task_time_entry_job(
+                job,
+                external_id,
+                resource_id=resource_id,
+                previous_task_status_id=previous_task_status_id,
+            )
 
         if not job.ticket_number:
             raise AutotaskSubmissionError("Ticket number is required before Autotask time entry updates.")
@@ -4074,8 +6184,17 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         *,
         resource_id: int,
         previous_ticket_status: TicketStatus | None = None,
+        previous_task_status_id: int | None = None,
     ) -> AutotaskSubmissionResult:
         """Update an existing Autotask ticket note from reviewed submitted fields."""
+
+        if _work_target_type_for_job(job) == WorkTargetType.PROJECT_TASK:
+            return self._update_project_task_note_job(
+                job,
+                external_id,
+                resource_id=resource_id,
+                previous_task_status_id=previous_task_status_id,
+            )
 
         if not job.ticket_number:
             raise AutotaskSubmissionError("Ticket number is required before Autotask ticket note updates.")
@@ -4109,19 +6228,14 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             if should_reopen_complete_ticket:
                 self._ticket_status_id(TicketStatus.IN_PROGRESS, required=True)
             with self._client() as client:
-                ticket_id: int | None = None
-                if should_reopen_complete_ticket or should_update_ticket_status:
-                    ticket_id = self._query_ticket_id(client, job.ticket_number)
-                    snapshot["ticketID"] = ticket_id
-                if should_reopen_complete_ticket and ticket_id is not None:
+                ticket_id = self._query_ticket_id(client, job.ticket_number)
+                snapshot["ticketID"] = ticket_id
+                if should_reopen_complete_ticket:
                     self._update_ticket_status(client, ticket_id, TicketStatus.IN_PROGRESS, required=True)
-                elif should_update_ticket_status and job.ticket_status != TicketStatus.COMPLETE and ticket_id is not None:
+                elif should_update_ticket_status and job.ticket_status != TicketStatus.COMPLETE:
                     self._update_ticket_status(client, ticket_id, job.ticket_status, required=True)
-                self._update_ticket_note(client, job, external_id)
+                self._update_ticket_note(client, job, external_id, ticket_id=ticket_id)
                 if should_update_status_after_note and job.ticket_status is not None:
-                    if ticket_id is None:
-                        ticket_id = self._query_ticket_id(client, job.ticket_number)
-                        snapshot["ticketID"] = ticket_id
                     self._update_ticket_status(client, ticket_id, job.ticket_status, required=True)
         except (httpx.HTTPError, AutotaskSubmissionError) as exc:
             record_autotask_api_failure(
@@ -4137,42 +6251,6 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             )
 
         record_autotask_api_success(operation="Autotask ticket note update")
-        return AutotaskSubmissionResult(
-            provider=self.provider_name,
-            succeeded=True,
-            external_id=external_id,
-            safe_error=None,
-            request_snapshot=snapshot,
-        )
-
-    def delete_ticket_note(self, job: Job, external_id: str, *, resource_id: int) -> AutotaskSubmissionResult:
-        """Delete an existing Autotask ticket note from a submitted job."""
-
-        snapshot = {
-            "operation": "delete_ticket_note",
-            "job_id": job.id,
-            "ticket_number": job.ticket_number,
-            "external_id": external_id,
-            "resourceID": resource_id,
-            "resourceIDSource": "managed_web_user.autotask_resource_id",
-        }
-        try:
-            with self._client() as client:
-                self._delete_ticket_note(client, external_id)
-        except (httpx.HTTPError, AutotaskSubmissionError) as exc:
-            record_autotask_api_failure(
-                "Autotask ticket note deletion failed.",
-                operation="Autotask ticket note deletion",
-            )
-            return AutotaskSubmissionResult(
-                provider=self.provider_name,
-                succeeded=False,
-                external_id=external_id,
-                safe_error=str(exc),
-                request_snapshot=snapshot,
-            )
-
-        record_autotask_api_success(operation="Autotask ticket note deletion")
         return AutotaskSubmissionResult(
             provider=self.provider_name,
             succeeded=True,

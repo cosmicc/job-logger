@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1060" viewBox="0 0 1200 1060" role="img" aria-labelledby="title description">
-  <title id="title">TicketPilot background and highlight profiles</title>
-  <desc id="description">Eight selectable background profiles and ten independent highlight colors with contrast-adjusted light and dark shades.</desc>
+  <title id="title">TicketPilot background, highlight, and counterpart profiles</title>
+  <desc id="description">Eight selectable backgrounds and ten independent highlight colors, each paired with an automatic complementary workflow color and contrast-adjusted light and dark shades.</desc>
   <rect width="1200" height="1060" fill="#eef2f6"/>
   <g font-family="Inter, Segoe UI, sans-serif">
     <text x="64" y="66" fill="#132033" font-size="34" font-weight="700">TicketPilot Appearance Profiles</text>
-    <text x="64" y="101" fill="#617089" font-size="18">8 background profiles · 10 independent highlight colors · Version 2.0.0</text>
+    <text x="64" y="101" fill="#617089" font-size="18">8 backgrounds · 10 highlight and counterpart pairs · Version 2.1.0</text>
 
     <text x="64" y="151" fill="#132033" font-size="24" font-weight="700">Backgrounds</text>
     <text x="64" y="177" fill="#617089" font-size="15">Choose one surface profile independently from the highlight color.</text>
@@ -75,57 +75,67 @@
     </g>
 
     <text x="64" y="735" fill="#132033" font-size="24" font-weight="700">Highlights</text>
-    <text x="64" y="761" fill="#617089" font-size="15">Each profile has a brighter dark-background shade and a darker light-background shade.</text>
+    <text x="64" y="761" fill="#617089" font-size="15">Each card shows dark highlight + counterpart, then light highlight + counterpart.</text>
 
     <g transform="translate(64 787)">
       <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
-      <circle cx="38" cy="36" r="18" fill="#2dd4bf"/><circle cx="71" cy="36" r="13" fill="#0f766e"/>
-      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Teal</text>
+      <circle cx="24" cy="36" r="11" fill="#2dd4bf"/><circle cx="47" cy="36" r="11" fill="#fb7185"/>
+      <circle cx="70" cy="36" r="11" fill="#0f766e"/><circle cx="93" cy="36" r="11" fill="#b42346"/>
+      <text x="112" y="42" fill="#132033" font-size="17" font-weight="700">Teal</text>
     </g>
     <g transform="translate(281 787)">
       <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
-      <circle cx="38" cy="36" r="18" fill="#9fca9f"/><circle cx="71" cy="36" r="13" fill="#557a5b"/>
-      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Sage</text>
+      <circle cx="24" cy="36" r="11" fill="#9fca9f"/><circle cx="47" cy="36" r="11" fill="#d8a8d8"/>
+      <circle cx="70" cy="36" r="11" fill="#557a5b"/><circle cx="93" cy="36" r="11" fill="#804780"/>
+      <text x="112" y="42" fill="#132033" font-size="17" font-weight="700">Sage</text>
     </g>
     <g transform="translate(498 787)">
       <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
-      <circle cx="38" cy="36" r="18" fill="#76b9e8"/><circle cx="71" cy="36" r="13" fill="#356f9f"/>
-      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Sky Blue</text>
+      <circle cx="24" cy="36" r="11" fill="#76b9e8"/><circle cx="47" cy="36" r="11" fill="#f3a46f"/>
+      <circle cx="70" cy="36" r="11" fill="#356f9f"/><circle cx="93" cy="36" r="11" fill="#a64f18"/>
+      <text x="112" y="42" fill="#132033" font-size="17" font-weight="700">Sky Blue</text>
     </g>
     <g transform="translate(715 787)">
       <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
-      <circle cx="38" cy="36" r="18" fill="#6699e8"/><circle cx="71" cy="36" r="13" fill="#3267b1"/>
-      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Blue</text>
+      <circle cx="24" cy="36" r="11" fill="#6699e8"/><circle cx="47" cy="36" r="11" fill="#e8b866"/>
+      <circle cx="70" cy="36" r="11" fill="#3267b1"/><circle cx="93" cy="36" r="11" fill="#94620a"/>
+      <text x="112" y="42" fill="#132033" font-size="17" font-weight="700">Blue</text>
     </g>
     <g transform="translate(932 787)">
       <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
-      <circle cx="38" cy="36" r="18" fill="#8b8ff0"/><circle cx="71" cy="36" r="13" fill="#5558b7"/>
-      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Indigo</text>
+      <circle cx="24" cy="36" r="11" fill="#8b8ff0"/><circle cx="47" cy="36" r="11" fill="#d0d56f"/>
+      <circle cx="70" cy="36" r="11" fill="#5558b7"/><circle cx="93" cy="36" r="11" fill="#68750e"/>
+      <text x="112" y="42" fill="#132033" font-size="17" font-weight="700">Indigo</text>
     </g>
     <g transform="translate(64 891)">
       <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
-      <circle cx="38" cy="36" r="18" fill="#f2b84b"/><circle cx="71" cy="36" r="13" fill="#a85f05"/>
-      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Amber</text>
+      <circle cx="24" cy="36" r="11" fill="#f2b84b"/><circle cx="47" cy="36" r="11" fill="#6b9df2"/>
+      <circle cx="70" cy="36" r="11" fill="#a85f05"/><circle cx="93" cy="36" r="11" fill="#3267b1"/>
+      <text x="112" y="42" fill="#132033" font-size="17" font-weight="700">Amber</text>
     </g>
     <g transform="translate(281 891)">
       <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
-      <circle cx="38" cy="36" r="18" fill="#f59a56"/><circle cx="71" cy="36" r="13" fill="#b45309"/>
-      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Orange</text>
+      <circle cx="24" cy="36" r="11" fill="#f59a56"/><circle cx="47" cy="36" r="11" fill="#67b8f2"/>
+      <circle cx="70" cy="36" r="11" fill="#b45309"/><circle cx="93" cy="36" r="11" fill="#236eaa"/>
+      <text x="112" y="42" fill="#132033" font-size="17" font-weight="700">Orange</text>
     </g>
     <g transform="translate(498 891)">
       <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
-      <circle cx="38" cy="36" r="18" fill="#7fc29a"/><circle cx="71" cy="36" r="13" fill="#367b55"/>
-      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Mint</text>
+      <circle cx="24" cy="36" r="11" fill="#7fc29a"/><circle cx="47" cy="36" r="11" fill="#d58bb7"/>
+      <circle cx="70" cy="36" r="11" fill="#367b55"/><circle cx="93" cy="36" r="11" fill="#98436f"/>
+      <text x="112" y="42" fill="#132033" font-size="17" font-weight="700">Mint</text>
     </g>
     <g transform="translate(715 891)">
       <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
-      <circle cx="38" cy="36" r="18" fill="#c49ad7"/><circle cx="71" cy="36" r="13" fill="#80539a"/>
-      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Lavender</text>
+      <circle cx="24" cy="36" r="11" fill="#c49ad7"/><circle cx="47" cy="36" r="11" fill="#9dce7f"/>
+      <circle cx="70" cy="36" r="11" fill="#80539a"/><circle cx="93" cy="36" r="11" fill="#3d7c2b"/>
+      <text x="112" y="42" fill="#132033" font-size="17" font-weight="700">Lavender</text>
     </g>
     <g transform="translate(932 891)">
       <rect width="205" height="88" rx="12" fill="#ffffff" stroke="#cbd5e1"/>
-      <circle cx="38" cy="36" r="18" fill="#e990ad"/><circle cx="71" cy="36" r="13" fill="#a93f67"/>
-      <text x="99" y="42" fill="#132033" font-size="17" font-weight="700">Rose</text>
+      <circle cx="24" cy="36" r="11" fill="#e990ad"/><circle cx="47" cy="36" r="11" fill="#6fd4b4"/>
+      <circle cx="70" cy="36" r="11" fill="#a93f67"/><circle cx="93" cy="36" r="11" fill="#14785e"/>
+      <text x="112" y="42" fill="#132033" font-size="17" font-weight="700">Rose</text>
     </g>
   </g>
 </svg>

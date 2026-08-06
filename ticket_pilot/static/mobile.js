@@ -7,6 +7,8 @@ const RECORDING_CHUNK_INTERVAL_MS = 2500;
 const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024;
 const ROUNDING_INTERVAL_MINUTES = 15;
 const LIVE_ROUNDED_STOP_UPDATE_MS = 30000;
+const AUTO_OPEN_CUSTOMER_NOTE_JOB_STORAGE_KEY = "ticketPilot.autoOpenCustomerNoteJobId";
+const NATURAL_WORK_FOCUS_STORAGE_KEY = "ticketPilot.naturalWorkFocus";
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
 const RECORD_AUDIO_LABEL = "Record";
 const STOP_RECORDING_LABEL = "Stop recording";
@@ -27,6 +29,7 @@ const activeEntryTypeInputs = document.querySelectorAll("[data-entry-type-input]
 const activeNoteTitleInputs = document.querySelectorAll("[data-note-title-input]");
 const activeAppendResolutionInputs = document.querySelectorAll("[data-append-resolution-input]");
 const activeTicketStatusInputs = document.querySelectorAll("[data-active-ticket-status-input]");
+const activeTaskStatusInputs = document.querySelectorAll("[data-active-task-status-input]");
 const activeJobDateInputs = document.querySelectorAll("[data-active-job-date-input]");
 const activeTimeForms = document.querySelectorAll("[data-active-time-form]");
 const serviceCallPanels = document.querySelectorAll("[data-service-call-panel]");
@@ -64,6 +67,176 @@ let activeAudioStopRequested = false;
 
 function toSafeMapString(value) {
   return String(value || "");
+}
+
+function customerNoteSessionStorage() {
+  try {
+    return window.sessionStorage || null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function rememberCustomerNoteOverlayForJob(jobId) {
+  const normalizedJobId = toSafeMapString(jobId).trim();
+  const sessionStorage = customerNoteSessionStorage();
+  if (!normalizedJobId || !sessionStorage) {
+    return;
+  }
+
+  try {
+    sessionStorage.setItem(AUTO_OPEN_CUSTOMER_NOTE_JOB_STORAGE_KEY, normalizedJobId);
+  } catch (_error) {
+    // Navigation may still continue when private browsing blocks session storage.
+  }
+}
+
+function consumeCustomerNoteOverlayJobId() {
+  const sessionStorage = customerNoteSessionStorage();
+  if (!sessionStorage) {
+    return "";
+  }
+
+  try {
+    const jobId = toSafeMapString(
+      sessionStorage.getItem(AUTO_OPEN_CUSTOMER_NOTE_JOB_STORAGE_KEY),
+    ).trim();
+    sessionStorage.removeItem(AUTO_OPEN_CUSTOMER_NOTE_JOB_STORAGE_KEY);
+    return jobId;
+  } catch (_error) {
+    return "";
+  }
+}
+
+function rememberNaturalWorkFocus(jobId, target) {
+  const normalizedJobId = toSafeMapString(jobId).trim();
+  const normalizedTarget = toSafeMapString(target).trim();
+  const sessionStorage = customerNoteSessionStorage();
+  if (!normalizedJobId || normalizedTarget !== "summary" || !sessionStorage) {
+    return;
+  }
+
+  try {
+    sessionStorage.setItem(
+      NATURAL_WORK_FOCUS_STORAGE_KEY,
+      JSON.stringify({jobId: normalizedJobId, target: normalizedTarget}),
+    );
+  } catch (_error) {
+    // The explicit redirect query remains a fallback when storage is blocked.
+  }
+}
+
+function consumeNaturalWorkFocus() {
+  const sessionStorage = customerNoteSessionStorage();
+  if (!sessionStorage) {
+    return null;
+  }
+
+  try {
+    const storedValue = sessionStorage.getItem(NATURAL_WORK_FOCUS_STORAGE_KEY) || "null";
+    sessionStorage.removeItem(NATURAL_WORK_FOCUS_STORAGE_KEY);
+    const storedRequest = JSON.parse(storedValue);
+    if (
+      !storedRequest
+      || toSafeMapString(storedRequest.target).trim() !== "summary"
+      || !toSafeMapString(storedRequest.jobId).trim()
+    ) {
+      return null;
+    }
+    return {
+      jobId: toSafeMapString(storedRequest.jobId).trim(),
+      target: "summary",
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
+function naturalWorkFocusUrl(baseUrl, jobId, target) {
+  const focusUrl = new URL(baseUrl, window.location.origin);
+  focusUrl.searchParams.set("focus_target", toSafeMapString(target).trim());
+  focusUrl.searchParams.set("focus_job", toSafeMapString(jobId).trim());
+  return `${focusUrl.pathname}${focusUrl.search}${focusUrl.hash}`;
+}
+
+function focusNaturalTextEntry(control) {
+  if (!control || control.disabled || control.readOnly || typeof control.focus !== "function") {
+    return false;
+  }
+
+  control.focus();
+  if (typeof control.setSelectionRange === "function") {
+    const cursorPosition = toSafeMapString(control.value).length;
+    control.setSelectionRange(cursorPosition, cursorPosition);
+  }
+  return true;
+}
+
+function findActiveJobCard(jobId) {
+  const normalizedJobId = toSafeMapString(jobId).trim();
+  return Array.from(document.querySelectorAll("[data-active-job-card]"))
+    .find((card) => toSafeMapString(card.dataset.activeJobCard).trim() === normalizedJobId) || null;
+}
+
+function focusNaturalWorkControl(jobId, target) {
+  const normalizedTarget = toSafeMapString(target).trim();
+  const activeJobCard = findActiveJobCard(jobId);
+  if (!activeJobCard) {
+    return false;
+  }
+
+  const control = normalizedTarget === "company"
+    ? activeJobCard.querySelector("[data-active-client-source]")
+    : normalizedTarget === "summary"
+      ? findDescriptionTextarea(jobId)
+      : null;
+  return focusNaturalTextEntry(control);
+}
+
+function applyRequestedNaturalWorkFocus() {
+  let requestedFocus = null;
+  try {
+    const currentUrl = new URL(window.location.href);
+    const queryTarget = toSafeMapString(currentUrl.searchParams.get("focus_target")).trim();
+    const queryJobId = toSafeMapString(currentUrl.searchParams.get("focus_job")).trim();
+    if ((queryTarget === "company" || queryTarget === "summary") && queryJobId) {
+      requestedFocus = {jobId: queryJobId, target: queryTarget};
+    }
+    if (currentUrl.searchParams.has("focus_target") || currentUrl.searchParams.has("focus_job")) {
+      currentUrl.searchParams.delete("focus_target");
+      currentUrl.searchParams.delete("focus_job");
+      if (window.history && typeof window.history.replaceState === "function") {
+        window.history.replaceState({}, "", `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+      }
+    }
+  } catch (_error) {
+    // A browser without the URL API can still use the same-tab storage handoff.
+  }
+
+  const storedFocus = consumeNaturalWorkFocus();
+  const focusRequest = requestedFocus || storedFocus;
+  if (!focusRequest) {
+    return;
+  }
+  window.setTimeout(() => {
+    focusNaturalWorkControl(focusRequest.jobId, focusRequest.target);
+  }, 0);
+}
+
+function openNewestCustomerNoteForActiveJob(jobId) {
+  const normalizedJobId = toSafeMapString(jobId).trim();
+  const activeJobCard = Array.from(document.querySelectorAll("[data-active-job-card]"))
+    .find((card) => toSafeMapString(card.dataset.activeJobCard).trim() === normalizedJobId);
+  const ticketNotesButton = activeJobCard
+    ? activeJobCard.querySelector("[data-ticket-notes-button]")
+    : null;
+  if (
+    ticketNotesButton
+    && window.TicketPilotTicketNotes
+    && typeof window.TicketPilotTicketNotes.openNewestForButton === "function"
+  ) {
+    window.TicketPilotTicketNotes.openNewestForButton(ticketNotesButton);
+  }
 }
 
 function formDataBooleanValue(formData, fieldName) {
@@ -255,6 +428,7 @@ function resetActiveTicketPickerForClientChange(
   if (resultsElement) {
     resultsElement.replaceChildren();
   }
+  setTicketPickerHeading(ticketPicker);
   if (statusElement) {
     setTicketLookupStatus(statusElement, statusMessage);
   }
@@ -313,6 +487,7 @@ function syncEndJobClientFields(endJobForm) {
   const endNoteTitleField = endJobForm.querySelector(".end-note-title");
   const endAppendResolutionField = endJobForm.querySelector(".end-append-to-resolution");
   const endTicketStatusField = endJobForm.querySelector(".end-ticket-status");
+  const endTaskStatusField = endJobForm.querySelector(".end-task-status");
 
   if (endClientNameField) {
     endClientNameField.value = clientFields.clientName;
@@ -340,6 +515,38 @@ function syncEndJobClientFields(endJobForm) {
 
   if (endTicketStatusField && activeFormData) {
     endTicketStatusField.value = toSafeMapString(activeFormData.get("ticket_status") || endTicketStatusField.value);
+  }
+  if (endTaskStatusField && activeFormData) {
+    endTaskStatusField.value = toSafeMapString(activeFormData.get("task_status_id") || endTaskStatusField.value);
+  }
+}
+
+async function loadTaskStatusOptions(statusInput) {
+  const statusUrl = statusInput.dataset.taskStatusUrl || "";
+  if (!statusUrl) {
+    return;
+  }
+  const selectedStatusId = toSafeMapString(statusInput.value);
+  try {
+    const response = await fetch(statusUrl, {headers: {Accept: "application/json"}});
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.detail || "Task statuses could not be loaded.");
+    }
+    const statusOptions = Array.isArray(payload.task_statuses) ? payload.task_statuses : [];
+    if (!statusOptions.length) {
+      throw new Error("Autotask did not return any active task statuses.");
+    }
+    statusInput.replaceChildren();
+    for (const statusOption of statusOptions) {
+      const option = document.createElement("option");
+      option.value = toSafeMapString(statusOption.status_id);
+      option.textContent = statusOption.label || option.value;
+      option.selected = option.value === selectedStatusId;
+      statusInput.append(option);
+    }
+  } catch (error) {
+    statusInput.title = error.message || "Task statuses could not be loaded.";
   }
 }
 
@@ -400,6 +607,11 @@ function syncActiveEntryMode(activeJobCard) {
   if (noteTitleInput) {
     noteTitleInput.disabled = !isTicketNote;
     noteTitleInput.required = isTicketNote;
+  }
+
+  const appendResolutionField = activeJobCard.querySelector("[data-append-resolution-field]");
+  if (appendResolutionField) {
+    appendResolutionField.classList.toggle("is-hidden", isTicketNote);
   }
 
   const summaryLabel = activeJobCard.querySelector("[data-summary-label]");
@@ -1721,6 +1933,17 @@ function createTicketOptionSpan(className, textContent) {
   return spanElement;
 }
 
+function appendCustomerNoteIndicator(container, hasCustomerNotes) {
+  if (
+    hasCustomerNotes !== true
+    || !window.TicketPilotTicketNotes
+    || typeof window.TicketPilotTicketNotes.createCustomerNoteIndicator !== "function"
+  ) {
+    return;
+  }
+  container.append(window.TicketPilotTicketNotes.createCustomerNoteIndicator());
+}
+
 function renderTicketOptionButton(optionButton, ticketOption) {
   const ticketNumber = ticketOption.ticket_number || "No ticket number";
   const ticketTitle = ticketOption.title || "Untitled ticket";
@@ -1736,13 +1959,69 @@ function renderTicketOptionButton(optionButton, ticketOption) {
     createTicketOptionSpan("ticket-option-number", ticketNumber),
     createTicketOptionSpan("ticket-location-badge", locationLabel),
   );
+  const ticketTitleRow = createTicketOptionSpan("ticket-title-with-note-indicator", "");
+  ticketTitleRow.append(createTicketOptionSpan("ticket-option-title", ticketTitle));
+  appendCustomerNoteIndicator(ticketTitleRow, ticketOption.has_customer_notes);
   optionButton.className = `ticket-option-button ${locationClass}`;
   optionButton.replaceChildren(
     cardHeader,
-    createTicketOptionSpan("ticket-option-title", ticketTitle),
+    ticketTitleRow,
     createTicketOptionSpan("ticket-option-dates", `Start ${startDate} · Due by ${dueByDate}`),
     createTicketOptionSpan("ticket-option-meta", `${ticketStatus} | ${companyName}`),
   );
+}
+
+function renderProjectTaskOptionButton(optionButton, taskOption) {
+  const taskNumber = taskOption.task_number || `Task ${taskOption.task_id || ""}`.trim();
+  const taskTitle = taskOption.title || "Untitled project task";
+  const taskStatus = taskOption.status_label || "Unknown status";
+  const projectName = taskOption.project_name || "Unknown project";
+  const startDate = toSafeMapString(taskOption.start_date).trim() || "Not set";
+  const dueByDate = toSafeMapString(taskOption.due_by_date).trim() || "Not set";
+  const locationLabel = taskOption.work_location_label || "Not specified";
+  const locationClass = taskOption.work_location_class || "ticket-location-unknown";
+  const cardHeader = document.createElement("span");
+  cardHeader.className = "ticket-option-card-header";
+  cardHeader.append(
+    createTicketOptionSpan("ticket-option-number", taskNumber),
+    createTicketOptionSpan("ticket-location-badge", locationLabel),
+  );
+  const titleRow = createTicketOptionSpan("ticket-title-with-note-indicator", "");
+  titleRow.append(createTicketOptionSpan("ticket-option-title", taskTitle));
+  appendCustomerNoteIndicator(titleRow, taskOption.has_customer_notes);
+  optionButton.className = `ticket-option-button ${locationClass}`;
+  optionButton.replaceChildren(
+    cardHeader,
+    titleRow,
+    createTicketOptionSpan("ticket-option-dates", `Start ${startDate} · Due by ${dueByDate}`),
+    createTicketOptionSpan("ticket-option-meta", `${taskStatus} | ${projectName}`),
+  );
+}
+
+function appendTicketPickerSectionHeading(resultsElement, label) {
+  const heading = document.createElement("p");
+  heading.className = "ticket-picker-section-label";
+  heading.textContent = label;
+  resultsElement.append(heading);
+}
+
+function appendTicketPickerWarning(resultsElement, message) {
+  const warning = document.createElement("p");
+  warning.className = "ticket-picker-section-warning";
+  warning.setAttribute("role", "status");
+  warning.textContent = message;
+  resultsElement.append(warning);
+}
+
+function setTicketPickerHeading(ticketPicker, optionCount = null) {
+  const headingElement = ticketPicker.querySelector("[data-ticket-picker-heading]");
+  if (!headingElement) {
+    return;
+  }
+
+  headingElement.textContent = Number.isInteger(optionCount)
+    ? `Open Tickets (${optionCount})`
+    : "Open Tickets";
 }
 
 function setTicketLookupStatus(statusElement, message, {isError = false, isLoading = false} = {}) {
@@ -1892,8 +2171,15 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
 
   const serviceCallTicketInput = document.createElement("input");
   serviceCallTicketInput.type = "hidden";
-  serviceCallTicketInput.name = "service_call_ticket_id";
-  serviceCallTicketInput.value = toSafeMapString(serviceCallOption.service_call_ticket_id);
+  serviceCallTicketInput.name = "service_call_association_id";
+  serviceCallTicketInput.value = toSafeMapString(
+    serviceCallOption.service_call_association_id || serviceCallOption.service_call_ticket_id,
+  );
+
+  const workTargetTypeInput = document.createElement("input");
+  workTargetTypeInput.type = "hidden";
+  workTargetTypeInput.name = "work_target_type";
+  workTargetTypeInput.value = toSafeMapString(serviceCallOption.work_target_type || "ticket");
 
   const serviceCallDateInput = document.createElement("input");
   serviceCallDateInput.type = "hidden";
@@ -1917,7 +2203,13 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
 
   const ticketTitle = document.createElement("span");
   ticketTitle.className = "service-call-ticket";
-  ticketTitle.textContent = serviceCallOption.ticket_title || "Untitled ticket";
+  const targetTypeLabel = serviceCallOption.work_target_type === "project_task" ? "Project task" : "Ticket";
+  const targetTitle = serviceCallOption.target_title || serviceCallOption.ticket_title || "Untitled work item";
+  ticketTitle.textContent = `${targetTypeLabel}: ${targetTitle}`;
+  const ticketTitleRow = document.createElement("span");
+  ticketTitleRow.className = "ticket-title-with-note-indicator";
+  ticketTitleRow.append(ticketTitle);
+  appendCustomerNoteIndicator(ticketTitleRow, serviceCallOption.has_customer_notes);
 
   const scheduledTimeRange = toSafeMapString(serviceCallOption.scheduled_time_range).trim();
   const scheduledDate = toSafeMapString(serviceCallOption.scheduled_date).trim();
@@ -1930,8 +2222,14 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
   if (timeRange.textContent) {
     optionButton.append(timeRange);
   }
-  optionButton.append(ticketTitle);
-  serviceCallForm.append(csrfInput, serviceCallTicketInput, serviceCallDateInput, optionButton);
+  optionButton.append(ticketTitleRow);
+  serviceCallForm.append(
+    csrfInput,
+    serviceCallTicketInput,
+    workTargetTypeInput,
+    serviceCallDateInput,
+    optionButton,
+  );
   serviceCallForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     optionButton.disabled = true;
@@ -1946,6 +2244,10 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
       const payload = await response.json();
       if (!response.ok) {
         throw new Error(payload.detail || "The service call could not be started.");
+      }
+      rememberNaturalWorkFocus(payload.job_id, "summary");
+      if (payload.open_customer_note_overlay) {
+        rememberCustomerNoteOverlayForJob(payload.job_id);
       }
       if (
         payload.navigation_requested
@@ -1965,7 +2267,7 @@ function createServiceCallStartForm(serviceCallOption, selectedDate) {
       if (payload.navigation_requested && !payload.navigation_address) {
         window.alert("Work started, but Autotask did not provide a navigation address for this client.");
       }
-      window.location.assign("/work");
+      window.location.assign(naturalWorkFocusUrl("/work", payload.job_id, "summary"));
     } catch (error) {
       optionButton.disabled = false;
       optionButton.classList.remove("is-loading");
@@ -2135,7 +2437,14 @@ function updateActiveTicketDisplay(jobId, selectedTicket) {
     ticketNotesButton.dataset.ticketNotesTicketNumber = ticketNumber;
   }
   if (ticketNotesButtons.length && window.TicketPilotTicketNotes) {
-    window.TicketPilotTicketNotes.refreshButton(ticketNotesButtons[0]);
+    if (
+      selectedTicket.open_customer_note_overlay
+      && typeof window.TicketPilotTicketNotes.openNewestForButton === "function"
+    ) {
+      window.TicketPilotTicketNotes.openNewestForButton(ticketNotesButtons[0]);
+    } else {
+      window.TicketPilotTicketNotes.refreshButton(ticketNotesButtons[0]);
+    }
   }
   for (const ticketTimeEntriesButton of ticketTimeEntriesButtons) {
     ticketTimeEntriesButton.dataset.ticketTimeEntriesTicketNumber = ticketNumber;
@@ -2253,14 +2562,25 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
     }
 
     const ticketOptions = Array.isArray(payload.tickets) ? payload.tickets : [];
-    if (ticketOptions.length === 0) {
-      setTicketLookupStatus(statusElement, "No open tickets found. Click this box to try again.");
+    const taskOptions = Array.isArray(payload.project_tasks) ? payload.project_tasks : [];
+    const projectTasksWarning = toSafeMapString(payload.project_tasks_warning).trim();
+    const optionCount = ticketOptions.length + taskOptions.length;
+    if (optionCount === 0 && !projectTasksWarning) {
+      setTicketLookupStatus(statusElement, "No tickets or assigned project tasks found. Click this box to try again.");
       setActiveTicketPickerClickable(ticketPicker, true);
       return;
     }
 
-    activeTicketLookupLoaded.add(ticketPicker);
-    setTicketLookupStatus(statusElement, `${ticketOptions.length} open ticket(s) found.`);
+    if (optionCount > 0) {
+      activeTicketLookupLoaded.add(ticketPicker);
+      setTicketPickerHeading(ticketPicker, optionCount);
+      setTicketLookupStatus(statusElement, "");
+    } else {
+      setTicketLookupStatus(statusElement, "No open tickets found. Project tasks are unavailable.");
+    }
+    if (ticketOptions.length) {
+      appendTicketPickerSectionHeading(resultsElement, "Tickets");
+    }
     for (const ticketOption of ticketOptions) {
       const optionButton = document.createElement("button");
       optionButton.type = "button";
@@ -2294,6 +2614,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
             ticketPicker.hidden = true;
             ticketPicker.classList.add("is-hidden");
             hideMobilePageLoading();
+            focusNaturalWorkControl(jobId, "summary");
             return;
           }
 
@@ -2305,6 +2626,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
             ticketDescriptionInput.value = toSafeMapString(ticketOption.description).trim();
           }
           updateActiveTicketDisplay(jobId, ticketOption);
+          rememberNaturalWorkFocus(jobId, "summary");
           submitFormWithCurrentFields(activeTicketForm);
         } catch (error) {
           activeTicketLookupLoaded.delete(ticketPicker);
@@ -2320,6 +2642,48 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
       });
       resultsElement.append(optionButton);
     }
+    if (taskOptions.length || projectTasksWarning) {
+      appendTicketPickerSectionHeading(resultsElement, "Project tasks");
+    }
+    if (projectTasksWarning) {
+      appendTicketPickerWarning(resultsElement, projectTasksWarning);
+    }
+    for (const taskOption of taskOptions) {
+      const optionButton = document.createElement("button");
+      optionButton.type = "button";
+      renderProjectTaskOptionButton(optionButton, taskOption);
+      optionButton.addEventListener("click", async () => {
+        optionButton.disabled = true;
+        ticketPicker.classList.add("is-loading");
+        ticketPicker.setAttribute("aria-busy", "true");
+        showMobilePageLoading("Selecting project task...");
+        setTicketLookupStatus(statusElement, "Selecting project task...", {isLoading: true});
+        resultsElement.replaceChildren();
+        try {
+          await persistActiveSelectedTicket(ticketSelectUrl, taskOption, "project_task");
+          rememberNaturalWorkFocus(jobId, "summary");
+          window.location.assign(naturalWorkFocusUrl("/work", jobId, "summary"));
+        } catch (error) {
+          activeTicketLookupLoaded.delete(ticketPicker);
+          hideMobilePageLoading();
+          ticketPicker.classList.remove("is-loading");
+          ticketPicker.removeAttribute("aria-busy");
+          ticketPicker.hidden = false;
+          ticketPicker.classList.remove("is-hidden");
+          optionButton.disabled = false;
+          setTicketLookupStatus(
+            statusElement,
+            error.message || "Selected project task could not be saved.",
+            {isError: true},
+          );
+          setActiveTicketPickerClickable(ticketPicker, true);
+        }
+      });
+      resultsElement.append(optionButton);
+    }
+    if (optionCount === 0) {
+      setActiveTicketPickerClickable(ticketPicker, true);
+    }
   } catch (error) {
     setTicketLookupStatus(statusElement, error.message || "Autotask ticket lookup failed.", {isError: true});
     setActiveTicketPickerClickable(ticketPicker, true);
@@ -2332,7 +2696,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
   }
 }
 
-async function persistActiveSelectedTicket(ticketSelectUrl, ticketOption) {
+async function persistActiveSelectedTicket(ticketSelectUrl, ticketOption, workTargetType = "ticket") {
   const response = await fetch(ticketSelectUrl, {
     method: "POST",
     headers: {
@@ -2340,7 +2704,11 @@ async function persistActiveSelectedTicket(ticketSelectUrl, ticketOption) {
       "Content-Type": "application/json",
       "X-CSRF-Token": csrfToken,
     },
-    body: JSON.stringify({ticket_number: ticketOption.ticket_number || ""}),
+    body: JSON.stringify({
+      work_target_type: workTargetType,
+      ticket_number: ticketOption.ticket_number || "",
+      project_task_id: ticketOption.task_id || "",
+    }),
   });
   const payload = await response.json();
   if (!response.ok) {
@@ -2613,6 +2981,14 @@ for (const activeTicketStatusInput of activeTicketStatusInputs) {
   });
 }
 
+for (const activeTaskStatusInput of activeTaskStatusInputs) {
+  loadTaskStatusOptions(activeTaskStatusInput);
+  activeTaskStatusInput.addEventListener("change", () => {
+    const activeTicketForm = document.getElementById(activeTaskStatusInput.getAttribute("form") || "");
+    queueActiveJobFormSave(activeTicketForm, true);
+  });
+}
+
 for (const activeJobDateInput of activeJobDateInputs) {
   activeJobDateInput.addEventListener("change", () => {
     const activeJobCard = activeJobDateInput.closest ? activeJobDateInput.closest("[data-active-job-card]") : null;
@@ -2719,6 +3095,8 @@ initializeLiveRoundedStopDisplays();
 initializeActiveDurationDisplays();
 initializeActiveEntryModes();
 markMobilePasskeyPromptSeen();
+applyRequestedNaturalWorkFocus();
+openNewestCustomerNoteForActiveJob(consumeCustomerNoteOverlayJobId());
 
 if (document.readyState === "complete") {
   window.setTimeout(loadServiceCallPanelsAfterPageLoad, 0);

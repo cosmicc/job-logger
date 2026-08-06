@@ -24,6 +24,10 @@ DEFAULT_SUBMIT_FROM_WORK_IN_PROGRESS = False
 DEFAULT_NAVIGATION_APP = NavigationApp.NONE
 DEFAULT_ALLOW_NAVIGATION_ON_FULL_WEB = False
 DEFAULT_HIDE_HOME_OFFICE_NAVIGATION_BUTTONS = False
+DEFAULT_AUTOMATICALLY_OPEN_ONSITE_NAVIGATION = True
+DEFAULT_REVIEW_HIDE_SUBMITTED_ENTRIES = False
+DEFAULT_REVIEW_PAGE_SIZE: int | None = None
+REVIEW_PAGE_SIZE_OPTIONS = (10, 20, 50, 100)
 MAX_NAVIGATION_ADDRESS_LENGTH = 300
 THEME_META_COLORS = {
     ThemeMode.DARK: "#0b1220",
@@ -155,6 +159,15 @@ class NavigationPreferences:
     effective_office_address: str | None
     allow_navigation_on_full_web: bool
     hide_home_office_navigation_buttons: bool
+    automatically_open_onsite_navigation: bool
+
+
+@dataclass(frozen=True)
+class ReviewPreferences:
+    """Resolved Review list preferences for one authenticated user."""
+
+    hide_submitted_entries: bool
+    page_size: int | None
 
 
 def normalize_theme(raw_theme: str | None) -> ThemeMode:
@@ -230,6 +243,50 @@ def normalize_hide_home_office_navigation_buttons(raw_enabled: bool | str | None
         return False
 
     raise UserPreferenceError("Hide Home and Office navigation buttons must be on or off.")
+
+
+def normalize_automatically_open_onsite_navigation(raw_enabled: bool | str | None) -> bool:
+    """Return whether On-Site service-call starts may automatically open directions."""
+
+    if isinstance(raw_enabled, bool):
+        return raw_enabled
+
+    normalized_enabled = (raw_enabled or "").strip().casefold()
+    if normalized_enabled in {"1", "true", "yes", "on"}:
+        return True
+    if normalized_enabled in {"", "0", "false", "no", "off"}:
+        return False
+
+    raise UserPreferenceError("Automatically open On-Site navigation must be on or off.")
+
+
+def normalize_review_hide_submitted_entries(raw_enabled: bool | str | None) -> bool:
+    """Return whether Review should hide successfully submitted entries."""
+
+    if isinstance(raw_enabled, bool):
+        return raw_enabled
+
+    normalized_enabled = (raw_enabled or "").strip().casefold()
+    if normalized_enabled in {"1", "true", "yes", "on"}:
+        return True
+    if normalized_enabled in {"", "0", "false", "no", "off"}:
+        return False
+
+    raise UserPreferenceError("Hide submitted Review entries must be on or off.")
+
+
+def normalize_review_page_size(raw_page_size: int | str | None) -> int | None:
+    """Return an allowed explicit Review page size or the device-default sentinel."""
+
+    if raw_page_size is None or str(raw_page_size).strip() == "":
+        return DEFAULT_REVIEW_PAGE_SIZE
+    try:
+        normalized_page_size = int(raw_page_size)
+    except (TypeError, ValueError) as exc:
+        raise UserPreferenceError("Select a supported Review page size.") from exc
+    if normalized_page_size not in REVIEW_PAGE_SIZE_OPTIONS:
+        raise UserPreferenceError("Select a supported Review page size.")
+    return normalized_page_size
 
 
 def normalize_navigation_address(raw_address: str | None, *, field_label: str) -> str | None:
@@ -329,6 +386,11 @@ def get_navigation_preferences_for_principal(
         if user_preference
         else DEFAULT_HIDE_HOME_OFFICE_NAVIGATION_BUTTONS
     )
+    automatically_open_onsite_navigation = (
+        bool(user_preference.automatically_open_onsite_navigation)
+        if user_preference
+        else DEFAULT_AUTOMATICALLY_OPEN_ONSITE_NAVIGATION
+    )
     return NavigationPreferences(
         navigation_app=navigation_app,
         home_address=home_address,
@@ -336,6 +398,25 @@ def get_navigation_preferences_for_principal(
         effective_office_address=office_override or application_settings.navigation_office_address or None,
         allow_navigation_on_full_web=allow_navigation_on_full_web,
         hide_home_office_navigation_buttons=hide_home_office_navigation_buttons,
+        automatically_open_onsite_navigation=automatically_open_onsite_navigation,
+    )
+
+
+def get_review_preferences_for_principal(
+    database_session: Session,
+    principal_key: str | None,
+) -> ReviewPreferences:
+    """Return one user's persisted Review list preferences."""
+
+    user_preference = get_user_preference(database_session, principal_key) if principal_key else None
+    if user_preference is None:
+        return ReviewPreferences(
+            hide_submitted_entries=DEFAULT_REVIEW_HIDE_SUBMITTED_ENTRIES,
+            page_size=DEFAULT_REVIEW_PAGE_SIZE,
+        )
+    return ReviewPreferences(
+        hide_submitted_entries=bool(user_preference.review_hide_submitted_entries),
+        page_size=normalize_review_page_size(user_preference.review_page_size),
     )
 
 
@@ -374,6 +455,9 @@ def _new_user_preference(principal_key: str) -> UserPreference:
         navigation_app=DEFAULT_NAVIGATION_APP,
         allow_navigation_on_full_web=DEFAULT_ALLOW_NAVIGATION_ON_FULL_WEB,
         hide_home_office_navigation_buttons=DEFAULT_HIDE_HOME_OFFICE_NAVIGATION_BUTTONS,
+        automatically_open_onsite_navigation=DEFAULT_AUTOMATICALLY_OPEN_ONSITE_NAVIGATION,
+        review_hide_submitted_entries=DEFAULT_REVIEW_HIDE_SUBMITTED_ENTRIES,
+        review_page_size=DEFAULT_REVIEW_PAGE_SIZE,
     )
 
 
@@ -426,6 +510,7 @@ def save_navigation_preferences_for_principal(
     office_address: str | None,
     allow_navigation_on_full_web: bool | str | None,
     hide_home_office_navigation_buttons: bool | str | None,
+    automatically_open_onsite_navigation: bool | str | None,
 ) -> UserPreference:
     """Validate and persist private navigation settings for one managed user."""
 
@@ -435,6 +520,9 @@ def save_navigation_preferences_for_principal(
     normalized_allow_full_web = normalize_allow_navigation_on_full_web(allow_navigation_on_full_web)
     normalized_hide_home_office_buttons = normalize_hide_home_office_navigation_buttons(
         hide_home_office_navigation_buttons
+    )
+    normalized_automatic_onsite_navigation = normalize_automatically_open_onsite_navigation(
+        automatically_open_onsite_navigation
     )
     if normalized_app != NavigationApp.NONE and normalized_home is None:
         raise UserPreferenceError("Home address is required when navigation is enabled.")
@@ -452,4 +540,26 @@ def save_navigation_preferences_for_principal(
     user_preference.office_address = normalized_office
     user_preference.allow_navigation_on_full_web = normalized_allow_full_web
     user_preference.hide_home_office_navigation_buttons = normalized_hide_home_office_buttons
+    user_preference.automatically_open_onsite_navigation = normalized_automatic_onsite_navigation
+    return user_preference
+
+
+def save_review_preferences_for_principal(
+    database_session: Session,
+    *,
+    principal_key: str,
+    hide_submitted_entries: bool | str | None,
+    page_size: int | str | None,
+) -> UserPreference:
+    """Validate and persist Review list controls for one managed user."""
+
+    user_preference = get_user_preference(database_session, principal_key)
+    if user_preference is None:
+        user_preference = _new_user_preference(principal_key)
+        database_session.add(user_preference)
+
+    user_preference.review_hide_submitted_entries = normalize_review_hide_submitted_entries(
+        hide_submitted_entries
+    )
+    user_preference.review_page_size = normalize_review_page_size(page_size)
     return user_preference

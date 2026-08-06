@@ -453,12 +453,15 @@ class Settings:
     # AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS bounds waits for a limiter slot.
     autotask_request_slot_timeout_seconds: float
 
-    # AUTOTASK_STATUS_* values map local review statuses to tenant picklist IDs.
+    # AUTOTASK_STATUS_* values map local or observed ticket statuses to tenant picklist IDs.
+    autotask_status_new_id: int | None
     autotask_status_in_progress_id: int | None
     autotask_status_waiting_customer_id: int | None
     autotask_status_waiting_parts_id: int | None
+    autotask_status_mfg_trouble_ticket_id: int | None
     autotask_status_follow_up_id: int | None
     autotask_status_complete_id: int | None
+    autotask_status_customer_note_added_id: int | None
 
     # WEBAUTHN_RP_NAME is the browser-facing passkey relying-party label.
     webauthn_rp_name: str
@@ -477,7 +480,7 @@ class Settings:
 
     @property
     def autotask_status_id_map(self) -> dict[str, int]:
-        """Return configured Autotask ticket-status picklist IDs."""
+        """Return configured Autotask IDs for user-selectable local statuses."""
 
         status_mapping: dict[str, int] = {}
         if self.autotask_status_in_progress_id is not None:
@@ -486,10 +489,23 @@ class Settings:
             status_mapping["waiting_customer"] = self.autotask_status_waiting_customer_id
         if self.autotask_status_waiting_parts_id is not None:
             status_mapping["waiting_parts"] = self.autotask_status_waiting_parts_id
+        if self.autotask_status_mfg_trouble_ticket_id is not None:
+            status_mapping["mfg_trouble_ticket"] = self.autotask_status_mfg_trouble_ticket_id
         if self.autotask_status_follow_up_id is not None:
             status_mapping["follow_up"] = self.autotask_status_follow_up_id
         if self.autotask_status_complete_id is not None:
             status_mapping["complete"] = self.autotask_status_complete_id
+        return status_mapping
+
+    @property
+    def autotask_observed_status_id_map(self) -> dict[str, int]:
+        """Return configured IDs for read-only Autotask status recognition."""
+
+        status_mapping: dict[str, int] = {}
+        if self.autotask_status_new_id is not None:
+            status_mapping["new"] = self.autotask_status_new_id
+        if self.autotask_status_customer_note_added_id is not None:
+            status_mapping["customer_note_added"] = self.autotask_status_customer_note_added_id
         return status_mapping
 
     @property
@@ -717,11 +733,18 @@ def load_settings() -> Settings:
             maximum=3,
         ),
         autotask_request_slot_timeout_seconds=_get_positive_float("AUTOTASK_REQUEST_SLOT_TIMEOUT_SECONDS", 30.0),
+        autotask_status_new_id=_get_optional_integer("AUTOTASK_STATUS_NEW_ID"),
         autotask_status_in_progress_id=_get_optional_integer("AUTOTASK_STATUS_IN_PROGRESS_ID"),
         autotask_status_waiting_customer_id=_get_optional_integer("AUTOTASK_STATUS_WAITING_CUSTOMER_ID"),
         autotask_status_waiting_parts_id=_get_optional_integer("AUTOTASK_STATUS_WAITING_PARTS_ID"),
+        autotask_status_mfg_trouble_ticket_id=_get_optional_integer(
+            "AUTOTASK_STATUS_MFG_TROUBLE_TICKET_ID"
+        ),
         autotask_status_follow_up_id=_get_optional_integer("AUTOTASK_STATUS_FOLLOW_UP_ID"),
         autotask_status_complete_id=_get_optional_integer("AUTOTASK_STATUS_COMPLETE_ID"),
+        autotask_status_customer_note_added_id=_get_optional_integer(
+            "AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID"
+        ),
         webauthn_rp_name=os.getenv("WEBAUTHN_RP_NAME", "TicketPilot").strip() or "TicketPilot",
         webauthn_rp_id=(os.getenv("WEBAUTHN_RP_ID") or "").strip() or None,
         webauthn_origin=(os.getenv("WEBAUTHN_ORIGIN") or "").strip().rstrip("/") or None,

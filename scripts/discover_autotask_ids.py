@@ -31,11 +31,14 @@ REQUIRED_AUTOTASK_SETTINGS = (
 # STATUS_ENVIRONMENT_VARIABLES maps the local TicketPilot status keys to the
 # labels expected in the Autotask Tickets.status picklist metadata.
 STATUS_ENVIRONMENT_VARIABLES = {
+    "AUTOTASK_STATUS_NEW_ID": "New",
     "AUTOTASK_STATUS_IN_PROGRESS_ID": "In progress",
     "AUTOTASK_STATUS_WAITING_CUSTOMER_ID": "Waiting customer",
     "AUTOTASK_STATUS_WAITING_PARTS_ID": "Waiting parts",
+    "AUTOTASK_STATUS_MFG_TROUBLE_TICKET_ID": "Mfg Trouble Ticket",
     "AUTOTASK_STATUS_FOLLOW_UP_ID": "Follow up",
     "AUTOTASK_STATUS_COMPLETE_ID": "Complete",
+    "AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID": "Customer Note Added",
 }
 
 # SAFE_ERROR_TEXT_LIMIT bounds remote error text printed by this script. The

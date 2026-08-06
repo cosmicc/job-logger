@@ -347,6 +347,10 @@ The optional Pushover health monitor is best-effort and in-process. It sends an
 initial degraded message, immediate changed-state messages, hourly
 still-degraded reminders by default, and one restored message. Configure the
 repeat cadence with `PUSHOVER_REMINDER_INTERVAL_SECONDS`, defaulting to 3600.
+Diagnostics-authorized administrators may globally acknowledge the exact
+current health issue fingerprint for the running process. Suppress only
+unchanged reminders; clear the acknowledgement when health changes or recovers.
+Process restart persistence is not required.
 It can send only while the app process is running; full
 host/container/process-down detection still belongs to an external monitor
 against `/health/live`. `DEV_BUILD=true` must suppress Pushover notifications
@@ -399,6 +403,9 @@ AI Help is an external AI integration for authenticated end-user support. Keep
 `GEMINI_API_KEY` in runtime environment or secrets, never in source control.
 Use `AI_HELP_INSTRUCTIONS` for the server-side setup prompt that tells Gemini
 how to answer TicketPilot support questions before the user's question is sent.
+Use source-controlled `AI_HELPER.md` as the primary comprehensive end-user
+knowledge base. Keep it non-technical, free of secrets and private deployment
+values, and synchronized with visible workflows and troubleshooting guidance.
 Do not put secrets, private URLs, or environment-specific credentials in that
 prompt. The `/help/ask` route must require local authentication and a CSRF
 header, cap submitted question and instruction length, send only bounded local
@@ -542,48 +549,59 @@ The initial mobile page and blank Start Work route must not run Autotask
 contactability checks. This keeps the mobile screen responsive and lets the
 operator begin local work even if provider data is slow. Server-side validation
 still applies when a workflow actually uses Autotask data, including service
-call starts, company lookup, ticket selection, direct Work in Progress
+call starts, company lookup, ticket/project-task selection, direct Work in Progress
 submission, review submission, submitted-entry edit, and submitted-entry delete.
 The debug API test must remain a fresh live diagnostic check.
 
-Service-call starts and open-ticket selection may query Autotask for verified
-metadata, but they must not patch Autotask ticket status or perform another
-remote write. They only store local job metadata and default the editable local
-ticket status to In progress until the time entry or ticket note is submitted.
+Service-call starts and work-target selection may query Autotask for verified
+metadata, but they must not patch Autotask ticket, task, or project status or
+perform another remote write. They only store local job metadata. Ticket
+selection defaults the editable local ticket status to In progress; task
+selection stores its server-verified current status.
 
 Review detail may save a first client/company selection only when an active job
-has no client name, company ID, or ticket number yet. That route must require
+has no client name, company ID, ticket number, or project-task ID yet. That route must require
 managed-user authentication, CSRF, job ownership, provider verification that
 the submitted display name matches the selected Autotask company ID, and an
 audit event. Typed-only client names, missing company IDs, and mismatched names
 must be rejected without persistence. Review client search must not reuse the
 generic review autosave path because typed search text is not trusted client
-identity. Once any client/company/ticket identity exists, review
-save/accept/ticket routes must continue to use the database row as authoritative
+identity. Once any client/company/work-target identity exists, review
+save/accept/target routes must continue to use the database row as authoritative
 instead of trusting browser fields.
 Active Work in Progress saves and end-work requests must also treat client
 identity as a selected Autotask company before it can be saved or used for
-ticket lookup. A saved Work in Progress client may be replaced by another
-verified Autotask company until an open ticket is selected. After a ticket
-exists, the database row is authoritative and crafted requests must not be able
-to change the stored client name or attach a different company ID. Readonly
-inputs and hidden client fields are only convenience values for normal form
-flow after that ticket-selected lock.
+work-target lookup. A saved Work in Progress client may be replaced by another
+verified Autotask company until a ticket or project task is selected. After a
+target exists, the database row is authoritative and crafted requests must not
+be able to change the stored client name, target identity, parent project, or
+company ID. Readonly inputs and hidden fields are only convenience values for
+normal form flow after that selection lock.
 
-Autotask ticket descriptions are remote provider data shown as read-only job
-context. Store only the bounded description returned by the server-side verified
-open-ticket lookup, render it escaped, and keep review save/accept handlers
-from trusting browser-submitted description values.
+Autotask ticket and project-task descriptions are remote provider data shown as
+read-only job context. Store only the bounded description returned by the
+server-side verified target lookup, render it escaped, and keep review
+save/accept handlers from trusting browser-submitted description or
+parent-project values.
 
-Autotask ticket notes and past time entries are also remote provider data. The
+Autotask TicketNotes, TaskNotes, and past time entries are also remote provider data. The
 shared overlay must load through authenticated server routes that enforce
-review ownership rules, use the database ticket number, return bounded safe
+review ownership rules, use the database ticket number or project-task ID, return bounded safe
 fields, and render text through normal escaping or `textContent`. Keep note
 list cards title-only, put safe author/date/type metadata in the selected note
 detail, clamp long note-card titles to two visible lines, and show time-entry
 resource/range metadata in list cards while keeping summary notes in the
 selected detail pane. Do not expose raw Autotask responses, credentials, or
 direct provider URLs to browser JavaScript.
+
+Automatic opening for the **Customer Note Added** Autotask status must be
+decided by comparing the server-verified numeric status ID with
+`AUTOTASK_STATUS_CUSTOMER_NOTE_ADDED_ID`. Do not trust display labels, hidden
+fields, or browser-supplied status. The browser may receive only a boolean
+presentation flag. A service-call redirect may store only the created local job
+ID in same-tab session storage and must consume it once; modified browser state
+cannot select provider data because the rendered job match and authenticated,
+owner-checked notes endpoint remain authoritative.
 
 Navigation destinations are sensitive location data. Store only bounded
 single-line home and optional office values in the owning user's preference
@@ -595,30 +613,36 @@ current launch. Do not store customer addresses on Job rows or expose raw
 Autotask location records.
 
 Autotask service-call starts must also be server verified. The mobile browser
-may submit only the service-call ticket association ID and CSRF token; the
-server must confirm the association is in today's service-call list for the
+may submit only the target type, service-call ticket/task association ID, local
+date, and CSRF token; the server must confirm that exact typed association is in
+the selected day's service-call list for the
 logged-in managed web user's Autotask resource ID before it creates a job or
-stores any ticket/client details.
+stores any target/client details.
 
-Successfully submitted Autotask jobs keep protected ticket/client identity,
+Successfully submitted Autotask jobs keep protected target/client identity,
 entry type, and local audit history for the external Autotask record. The
-server must reject later local review save, ticket selection, local delete,
+server must reject later local review save, target selection, local delete,
 accept/resend, retry, and entry-type conversion requests even if a crafted
 request bypasses the review UI. This applies whether the external record was
 created from Review acceptance or direct Work in Progress submission. The
 allowed exception is the CSRF-protected **Submit changes** route. For submitted
 time entries, it may update only job date, start time, end time, summary notes,
-work location, append-to-resolution, and ticket status for the same submitted
+work location, append-to-resolution, and target status for the same submitted
 job, and it must patch the existing Autotask `TimeEntries` row instead of
 creating a new time entry. For submitted ticket notes, it may update only note
-title, note description, append-to-resolution, and ticket status, and it must
+title, note description, and ticket status, and it must
 patch the existing Autotask `TicketNotes` row instead of creating a new note.
-If the previous ticket status was Complete, the provider may temporarily move
-the ticket to In progress before the external-record patch and then apply the
-selected final status. Submit changes must always reassert the selected local
-ticket status in Autotask. A second CSRF-protected submitted action, **Delete
-From Autotask**, may delete the external `TimeEntries` or `TicketNotes` row and
-return the local job to review, but it must not delete the local job, audit
+For submitted project-task notes, it may update only note title, description,
+and Task status and must patch the existing `TaskNotes` row. If the previous
+target status was Complete, the provider may temporarily move that ticket or
+task to In progress before the external-record patch and then apply the selected
+final status. Task work must never patch `Projects.status`. Submit changes must
+always reassert the selected local target status in Autotask. A second
+CSRF-protected submitted action, **Delete
+From Autotask**, may delete the external `TimeEntries` row and return the local
+job to review. TicketNotes and TaskNotes deletion are unsupported and must
+remain blocked.
+The time-entry action must not delete the local job, audit
 events, or submission attempts unless that remote delete fails and the user
 confirms the session-scoped local-only purge fallback.
 

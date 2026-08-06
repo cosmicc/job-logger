@@ -19,6 +19,7 @@ from ticket_pilot.enums import (
     TicketStatus,
     TranscriptionStatus,
     WorkLocation,
+    WorkTargetType,
 )
 
 
@@ -263,6 +264,25 @@ class UserPreference(Base):
         default=False,
         server_default="false",
         comment="Whether the Work page hides only the user's Home and Office quick-navigation buttons.",
+    )
+    automatically_open_onsite_navigation: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+        comment="Whether starting an On-Site service call automatically opens its navigation destination.",
+    )
+    review_hide_submitted_entries: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="Whether Review hides successfully submitted entries from the list.",
+    )
+    review_page_size: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Explicit Review list page size; null uses the browser device default.",
     )
 
     created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
@@ -607,6 +627,16 @@ class Job(Base):
         comment="Managed web-user UUID that owns this job.",
     )
 
+    # work_target_type distinguishes ordinary Service Desk tickets from
+    # project tasks. Existing rows and restored legacy data remain tickets.
+    work_target_type: Mapped[WorkTargetType] = enum_column(
+        WorkTargetType,
+        24,
+        "Autotask entity that owns this job: ticket or project task.",
+        default=WorkTargetType.TICKET,
+        server_default=WorkTargetType.TICKET.value,
+    )
+
     # ticket_number is the human Autotask ticket number entered during review.
     ticket_number: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Autotask ticket number.")
 
@@ -624,6 +654,55 @@ class Job(Base):
         Text,
         nullable=True,
         comment="Selected Autotask ticket description shown as read-only job context.",
+    )
+
+    # Project-task identity is deliberately separate from ticket identity.
+    # This prevents a task number from being mistaken for a Tickets.ticketNumber
+    # during server-side verification, retries, completion ordering, or audit.
+    project_task_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Selected Autotask Tasks.id for a project-task job.",
+    )
+    project_task_number: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Selected Autotask Tasks.taskNumber for display.",
+    )
+    project_task_title: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Selected Autotask project-task title shown in Work and Review.",
+    )
+    project_task_description: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Bounded read-only description from the selected Autotask project task.",
+    )
+    project_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Autotask Projects.id that owns the selected project task.",
+    )
+    project_number: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="Selected Autotask project number shown as read-only context.",
+    )
+    project_name: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Selected Autotask project name shown as read-only context.",
+    )
+    task_status_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Requested tenant-specific Autotask Tasks.status picklist ID.",
+    )
+    task_status_label: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+        comment="Display label verified for the selected Autotask task status ID.",
     )
 
     # job_slot identifies the job position while one or two jobs are active concurrently.
@@ -686,9 +765,9 @@ class Job(Base):
         comment="Customer-visible Autotask ticket-note title when this job submits as a note.",
     )
 
-    # append_to_resolution mirrors the Autotask checkbox for both TimeEntries
-    # and TicketNotes. It defaults on because technicians usually want accepted
-    # work notes copied into the ticket resolution.
+    # append_to_resolution mirrors the Autotask TimeEntries checkbox. The local
+    # value is retained while switching entry types, but Ticket note mode hides
+    # the control and never sends it because TicketNotes does not support it.
     append_to_resolution: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -847,8 +926,33 @@ class Job(Base):
     __table_args__ = (
         Index("ix_jobs_status_created_at", "status", "created_at_utc"),
         Index("ix_jobs_ticket_number", "ticket_number"),
+        Index("ix_jobs_project_task_id", "project_task_id"),
         Index("ix_jobs_web_user_status_created_at", "web_user_id", "status", "created_at_utc"),
     )
+
+    @property
+    def is_project_task(self) -> bool:
+        """Return whether this job targets an Autotask project task."""
+
+        return self.work_target_type == WorkTargetType.PROJECT_TASK
+
+    @property
+    def target_number(self) -> str | None:
+        """Return the display identifier for the selected Autotask target."""
+
+        return self.project_task_number if self.is_project_task else self.ticket_number
+
+    @property
+    def target_title(self) -> str | None:
+        """Return the display title for the selected Autotask target."""
+
+        return self.project_task_title if self.is_project_task else self.ticket_title
+
+    @property
+    def target_description(self) -> str | None:
+        """Return bounded read-only context for the selected Autotask target."""
+
+        return self.project_task_description if self.is_project_task else self.ticket_description
 
 
 class AuditEvent(Base):

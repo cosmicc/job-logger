@@ -29,7 +29,7 @@ def test_open_ticket_renderers_share_dates_status_and_company_metadata() -> None
 
 
 def test_ticket_note_mode_disables_work_type_instead_of_hiding_it() -> None:
-    """Ticket note mode should grey out Work type without removing the card."""
+    """Ticket note mode greys out Work type and fully hides append-to-resolution."""
 
     repository_root = Path(__file__).resolve().parents[1]
     mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
@@ -45,6 +45,10 @@ def test_ticket_note_mode_disables_work_type_instead_of_hiding_it() -> None:
     assert 'review-work-location-card{% if is_ticket_note %} is-hidden' not in review_template
     assert "work-location-card-disabled" in mobile_template
     assert "work-location-card-disabled" in review_template
+    assert 'appendResolutionField.classList.toggle("is-hidden", isTicketNote);' in mobile_script
+    assert 'appendResolutionField.classList.toggle("is-hidden", isTicketNote);' in review_script
+    assert 'appendResolutionField.hidden = isTicketNote;' not in mobile_script
+    assert 'appendResolutionField.hidden = isTicketNote;' not in review_script
 
 
 def test_ticket_notes_overlay_list_cards_show_titles_only() -> None:
@@ -103,6 +107,9 @@ def test_ticket_context_buttons_show_disabled_empty_states() -> None:
     assert "ticketContextRequestCacheKey(notesUrl, ticketNumber)" in ticket_notes_script
     assert "ticketContextRequestCacheKey(timeEntriesUrl, ticketNumber)" in ticket_notes_script
     assert "button.disabled = !hasNotes;" in ticket_notes_script
+    assert "function createCustomerNoteIndicator()" in ticket_notes_script
+    assert 'button.classList.toggle("has-customer-notes", hasCustomerNotes);' in ticket_notes_script
+    assert 'querySelectorAll("[data-selected-ticket-note-indicator]")' in ticket_notes_script
     assert "button.disabled = !hasTimeEntries;" in ticket_notes_script
     assert "function ticketContextButtonIsUnavailable(button)" in ticket_notes_script
     assert "ticketContextButtonIsUnavailable(notesButton)" in ticket_notes_script
@@ -117,10 +124,19 @@ def test_ticket_context_buttons_show_disabled_empty_states() -> None:
     assert empty_button_hover_selector in stylesheet
     assert "data-ticket-context-label" in mobile_template
     assert "data-ticket-context-label" in review_template
+    assert "data-selected-ticket-note-indicator" in mobile_template
+    assert "data-selected-ticket-note-indicator" in review_template
     assert 'querySelectorAll("[data-ticket-notes-button]")' in mobile_script
     assert 'querySelectorAll("[data-ticket-notes-button]")' in review_script
     assert 'querySelectorAll("[data-ticket-time-entries-button]")' in mobile_script
     assert 'querySelectorAll("[data-ticket-time-entries-button]")' in review_script
+    assert "function appendCustomerNoteIndicator(container, hasCustomerNotes)" in mobile_script
+    assert "function appendCustomerNoteIndicator(container, hasCustomerNotes)" in review_script
+    assert "ticketOption.has_customer_notes" in mobile_script
+    assert "ticketOption.has_customer_notes" in review_script
+    assert "serviceCallOption.has_customer_notes" in mobile_script
+    assert ".ticket-notes-button.has-customer-notes {" in stylesheet
+    assert ".customer-note-indicator {" in stylesheet
 
 
 def test_ticket_context_refreshes_matching_peer_buttons() -> None:
@@ -141,6 +157,45 @@ def test_ticket_context_refreshes_matching_peer_buttons() -> None:
     assert 'uniqueTicketContextButtons(ticketNoteButtons, "ticketNotesUrl", "ticketNotesTicketNumber")' in ticket_notes_script
     assert "for (const peerButton of peerButtons) {\n      ticketTimeEntryButtonCache.set(peerButton, payload);" in ticket_notes_script
     assert "setTicketTimeEntriesButtonReady(peerButton, payload.time_entries);" in ticket_notes_script
+
+
+def test_customer_note_added_selection_reuses_existing_newest_first_overlay() -> None:
+    """Status-triggered notes should reuse the normal overlay without a new modal."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
+    ticket_notes_script = (repository_root / "ticket_pilot" / "static" / "ticket-notes.js").read_text(encoding="utf-8")
+
+    assert "async function openNewestTicketNoteForButton(button)" in ticket_notes_script
+    assert "await refreshTicketNotesButton(button);" in ticket_notes_script
+    assert "openTicketNotesOverlay(button);" in ticket_notes_script
+    assert "openNewestForButton: openNewestTicketNoteForButton" in ticket_notes_script
+    assert "selectedTicket.open_customer_note_overlay" in mobile_script
+    assert "selectedTicket.open_customer_note_overlay" in review_script
+    assert "window.TicketPilotTicketNotes.openNewestForButton(ticketNotesButtons[0]);" in mobile_script
+    assert "window.TicketPilotTicketNotes.openNewestForButton(ticketNotesButtons[0]);" in review_script
+    assert "AUTO_OPEN_CUSTOMER_NOTE_JOB_STORAGE_KEY" in mobile_script
+    assert "rememberCustomerNoteOverlayForJob(payload.job_id);" in mobile_script
+    assert "openNewestCustomerNoteForActiveJob(consumeCustomerNoteOverlayJobId());" in mobile_script
+
+
+def test_work_target_selection_focuses_the_next_summary_field() -> None:
+    """Blank, ticket, project-task, and service-call paths should advance focus."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    mobile_routes = (repository_root / "ticket_pilot" / "routes" / "mobile.py").read_text(encoding="utf-8")
+    mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
+
+    assert 'redirect_url = f"/work?focus_target=company&focus_job={job.id}"' in mobile_routes
+    assert 'focusNaturalWorkControl(jobId, "summary");' in mobile_script
+    assert 'rememberNaturalWorkFocus(payload.job_id, "summary");' in mobile_script
+    assert 'rememberNaturalWorkFocus(jobId, "summary");' in mobile_script
+    assert "applyRequestedNaturalWorkFocus();" in mobile_script
+    assert "focusReviewSummaryForContinuedWork();" in review_script
+    assert "window.location.assign(reviewSummaryFocusUrl());" in review_script
+    assert "applyRequestedReviewFocus();" in review_script
 
 
 def test_shared_date_time_controls_replace_native_picker_and_add_time_dropdown() -> None:
@@ -194,6 +249,44 @@ def test_workflow_status_messages_share_one_line() -> None:
     assert "data-review-autosave-status" in review_template
     assert "data-review-recording-status" in review_template
     assert "data-ai-cleanup-status" in review_template
+
+
+def test_shared_work_item_pickers_render_project_task_warnings() -> None:
+    """Work and Review should render a non-blocking Project tasks warning."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
+    app_styles = (repository_root / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
+
+    for picker_script in (mobile_script, review_script):
+        assert "payload.project_tasks_warning" in picker_script
+        assert "function appendTicketPickerWarning" in picker_script
+        assert 'appendTicketPickerSectionHeading(resultsElement, "Project tasks")' in picker_script
+        assert "appendTicketPickerWarning(resultsElement, projectTasksWarning);" in picker_script
+    assert ".ticket-picker-section-warning" in app_styles
+    assert "background: var(--warning-soft);" in app_styles
+
+
+def test_shared_work_item_pickers_move_result_count_into_heading() -> None:
+    """Work and Review should use one compact combined-count heading."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    mobile_template = (repository_root / "ticket_pilot" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (repository_root / "ticket_pilot" / "templates" / "review.html").read_text(encoding="utf-8")
+    mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
+    app_styles = (repository_root / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
+
+    for picker_template in (mobile_template, review_template):
+        assert '<h3 data-ticket-picker-heading>Open Tickets</h3>' in picker_template
+        assert "Assigned project tasks are included." not in picker_template
+    for picker_script in (mobile_script, review_script):
+        assert "function setTicketPickerHeading" in picker_script
+        assert "`Open Tickets (${optionCount})`" in picker_script
+        assert "available work item(s) found." not in picker_script
+        assert 'setTicketLookupStatus(statusElement, "");' in picker_script
+    assert ".ticket-picker-status:empty" in app_styles
 
 
 def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:

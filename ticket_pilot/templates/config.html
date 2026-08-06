@@ -31,7 +31,7 @@
                 <p class="muted-text">Choose the background and highlight color for this login.</p>
               </div>
             </div>
-            <form method="post" action="/config" class="stack-form config-form" data-config-form>
+            <form method="post" action="/config" class="stack-form config-form config-appearance-form" data-config-form>
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <fieldset class="segmented-fieldset theme-card-fieldset">
                 <legend>Background</legend>
@@ -114,7 +114,7 @@
                     {% endfor %}
                   </div>
                 </details>
-                <p class="field-help">Shades adjust automatically for readable contrast on light and dark backgrounds.</p>
+                <p class="field-help">Shades and the automatic counterpart color adjust for readable contrast on light and dark backgrounds.</p>
               </fieldset>
               <p class="config-save-status muted-text" data-config-status aria-live="polite">Changes save automatically.</p>
             </form>
@@ -230,6 +230,33 @@
                   </small>
                 </label>
               </div>
+              <label
+                class="toggle-setting-card{% if selected_navigation_app == 'none' %} is-disabled{% endif %}"
+                data-automatic-onsite-navigation-setting
+              >
+                <span class="toggle-setting-copy">
+                  <strong>Automatically open On-Site directions</strong>
+                  <small>
+                    Turn this off to start On-Site work without opening navigation. You can still use the destination navigation button.
+                  </small>
+                </span>
+                <span class="setting-toggle">
+                  <input
+                    type="checkbox"
+                    name="automatically_open_onsite_navigation"
+                    value="true"
+                    data-automatic-onsite-navigation-option
+                    {% if automatically_open_onsite_navigation %}checked{% endif %}
+                    {% if selected_navigation_app == "none" %}disabled{% endif %}
+                  >
+                  <span class="setting-toggle-track" aria-hidden="true">
+                    <span class="setting-toggle-knob"></span>
+                  </span>
+                  <span class="setting-toggle-state" data-automatic-onsite-navigation-state>
+                    {% if automatically_open_onsite_navigation %}On{% else %}Off{% endif %}
+                  </span>
+                </span>
+              </label>
               <label
                 class="toggle-setting-card{% if selected_navigation_app == 'none' %} is-disabled{% endif %}"
                 data-full-web-navigation-setting
