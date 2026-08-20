@@ -800,6 +800,7 @@ class BaseAutotaskProvider:
         autotask_company_id: int | None = None,
         *,
         resource_id: int | None = None,
+        force_refresh: bool = False,
     ) -> list[AutotaskTicketOption]:
         """Return open ticket options for the supplied client name."""
 
@@ -811,6 +812,7 @@ class BaseAutotaskProvider:
         autotask_company_id: int,
         *,
         resource_id: int,
+        force_refresh: bool = False,
     ) -> list[AutotaskProjectTaskOption]:
         """Return non-complete project tasks assigned to one managed user."""
 
@@ -1480,6 +1482,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         autotask_company_id: int | None = None,
         *,
         resource_id: int | None = None,
+        force_refresh: bool = False,
     ) -> list[AutotaskTicketOption]:
         """Return deterministic open ticket options for local review testing."""
 
@@ -1533,6 +1536,7 @@ class MockAutotaskProvider(BaseAutotaskProvider):
         autotask_company_id: int,
         *,
         resource_id: int,
+        force_refresh: bool = False,
     ) -> list[AutotaskProjectTaskOption]:
         """Return deterministic assigned project tasks for local testing."""
 
@@ -4286,6 +4290,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         autotask_company_id: int | None = None,
         *,
         resource_id: int | None = None,
+        force_refresh: bool = False,
     ) -> list[AutotaskTicketOption]:
         """Return open Autotask tickets for a selected company or client-name match."""
 
@@ -4294,6 +4299,8 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
             raise AutotaskSubmissionError("Client name is required before searching Autotask tickets.")
 
         cache_key = self._open_ticket_selection_cache_key(safe_client_name, autotask_company_id)
+        if force_refresh:
+            _OPEN_TICKET_SELECTION_CACHE.pop(cache_key, None)
         cached_ticket_options = _get_cached_value(_OPEN_TICKET_SELECTION_CACHE, cache_key)
         if isinstance(cached_ticket_options, list) and cached_ticket_options:
             return cached_ticket_options[:MAX_TICKET_LOOKUP_RESULTS]
@@ -4348,6 +4355,7 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
         autotask_company_id: int,
         *,
         resource_id: int,
+        force_refresh: bool = False,
     ) -> list[AutotaskProjectTaskOption]:
         """Return assigned, non-complete, time-entry-eligible project tasks."""
 
@@ -4357,6 +4365,8 @@ class LiveAutotaskProvider(BaseAutotaskProvider):
                 "A verified client and managed web-user resource are required before searching project tasks."
             )
         cache_key = (self._cache_namespace(), autotask_company_id, resource_id)
+        if force_refresh:
+            _OPEN_PROJECT_TASK_SELECTION_CACHE.pop(cache_key, None)
         cached_task_options = _get_cached_value(_OPEN_PROJECT_TASK_SELECTION_CACHE, cache_key)
         if isinstance(cached_task_options, list):
             return cached_task_options[:MAX_PROJECT_TASK_LOOKUP_RESULTS]

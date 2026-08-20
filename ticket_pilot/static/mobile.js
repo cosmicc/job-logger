@@ -42,8 +42,10 @@ const mobilePasskeyPrompt = document.querySelector("[data-mobile-passkey-prompt]
 const descriptionSaveTimers = new Map();
 const activeFormSaveTimers = new WeakMap();
 const lastSavedActiveFormSnapshots = new WeakMap();
+const activeFormSaveRequestsInFlight = new WeakSet();
 const activeTimeSaveTimers = new WeakMap();
 const lastSavedActiveTimeSnapshots = new WeakMap();
+const activeTimeSaveRequestsInFlight = new WeakSet();
 const companySearchTimers = new Map();
 const lastSavedDescriptions = new Map();
 const pendingDescriptionSaves = new Set();
@@ -425,10 +427,14 @@ function resetActiveTicketPickerForClientChange(
   activeTicketLookupRequests.delete(ticketPicker);
   const statusElement = ticketPicker.querySelector("[data-active-ticket-lookup-status]");
   const resultsElement = ticketPicker.querySelector("[data-active-ticket-lookup-results]");
+  const refreshButton = ticketPicker.querySelector("[data-ticket-picker-refresh]");
   if (resultsElement) {
     resultsElement.replaceChildren();
   }
   setTicketPickerHeading(ticketPicker);
+  if (refreshButton) {
+    refreshButton.hidden = true;
+  }
   if (statusElement) {
     setTicketLookupStatus(statusElement, statusMessage);
   }
@@ -1047,51 +1053,51 @@ function clearActiveFormSaveTimer(activeTicketForm) {
 }
 
 function persistActiveJobFormSnapshot(activeTicketForm, queuedSnapshot) {
+  if (activeFormSaveRequestsInFlight.has(activeTicketForm)) {
+    return;
+  }
+
+  activeFormSaveRequestsInFlight.add(activeTicketForm);
   const jobId = toSafeMapString(activeTicketForm.dataset.jobId);
   setActiveSaveStatus(jobId, "Saving changes...");
   saveActiveJobFormInBackground(activeTicketForm)
     .then((payload) => {
-      const activeJobCard = document.querySelector(`[data-active-job-card="${jobId}"]`);
-      const stopTimeForm = activeJobCard
-        ? activeJobCard.querySelector('[data-active-time-form][data-active-time-kind="stop"]')
-        : null;
-      if (stopTimeForm && payload && payload.rounded_stop_time) {
-        markActiveTimeFormsSaved(updateActiveTimeDisplays(stopTimeForm, payload));
-      }
-
-      if (payload && payload.job_date) {
-        updateActiveJobDateWeekday(
-          document.querySelector(`[data-active-job-card="${jobId}"]`),
-          payload.job_date,
-        );
-      }
-
-      const endJobForm = document.querySelector(`.end-job-form[data-job-id="${jobId}"]`);
-      if (endJobForm) {
-        syncEndJobClientFields(endJobForm);
-      }
-
       const latestSnapshot = buildActiveJobFormSnapshot(activeTicketForm);
       if (latestSnapshot === queuedSnapshot) {
+        if (payload && payload.job_date) {
+          updateActiveJobDateWeekday(
+            document.querySelector(`[data-active-job-card="${jobId}"]`),
+            payload.job_date,
+          );
+        }
+
+        const endJobForm = document.querySelector(`.end-job-form[data-job-id="${jobId}"]`);
+        if (endJobForm) {
+          syncEndJobClientFields(endJobForm);
+        }
+
         lastSavedActiveFormSnapshots.set(activeTicketForm, latestSnapshot);
         setActiveSaveStatus(jobId, "Changes saved.");
-        return;
       }
-
-      queueActiveJobFormSave(activeTicketForm, true);
     })
     .catch((error) => {
       setActiveSaveStatus(jobId, error.message || "Active job changes could not be saved.", true);
+    })
+    .finally(() => {
+      activeFormSaveRequestsInFlight.delete(activeTicketForm);
+      if (buildActiveJobFormSnapshot(activeTicketForm) !== queuedSnapshot) {
+        queueActiveJobFormSave(activeTicketForm, true, true);
+      }
     });
 }
 
-function queueActiveJobFormSave(activeTicketForm, immediate = false) {
+function queueActiveJobFormSave(activeTicketForm, immediate = false, force = false) {
   if (!activeTicketForm) {
     return;
   }
 
   const nextSnapshot = buildActiveJobFormSnapshot(activeTicketForm);
-  if (nextSnapshot === lastSavedActiveFormSnapshots.get(activeTicketForm)) {
+  if (!force && nextSnapshot === lastSavedActiveFormSnapshots.get(activeTicketForm)) {
     return;
   }
 
@@ -1162,6 +1168,7 @@ function updateActiveTimeDisplays(activeTimeForm, payload) {
   const visibleJobDateInput = activeJobCard.querySelector("[data-active-job-date-input]");
   const hiddenJobDateInputs = activeJobCard.querySelectorAll("[data-active-time-job-date]");
   const payloadJobDate = toSafeMapString(payload.job_date).trim();
+  const savedTimeKind = toSafeMapString(activeTimeForm.dataset.activeTimeKind);
 
   if (payloadJobDate && visibleJobDateInput) {
     visibleJobDateInput.value = payloadJobDate;
@@ -1174,13 +1181,15 @@ function updateActiveTimeDisplays(activeTimeForm, payload) {
   if (payloadJobDate) {
     updateActiveJobDateWeekday(activeJobCard, payloadJobDate);
   }
-  if (startTimeInput && payload.rounded_start_time) {
+  if (savedTimeKind === "start" && startTimeInput && payload.rounded_start_time) {
     startTimeInput.value = payload.rounded_start_time;
   }
-  if (stopTimeInput && payload.rounded_stop_time) {
+  if (savedTimeKind === "start" && stopTimeInput && payload.rounded_start_utc) {
+    stopTimeInput.dataset.roundedStartUtc = toSafeMapString(payload.rounded_start_utc);
+  }
+  if (savedTimeKind === "stop" && stopTimeInput && payload.rounded_stop_time) {
     stopTimeInput.value = payload.rounded_stop_time;
     stopTimeInput.dataset.roundedStopOverridden = payload.rounded_stop_overridden ? "true" : "false";
-    stopTimeInput.dataset.roundedStartUtc = toSafeMapString(payload.rounded_start_utc);
     stopTimeInput.dataset.initialRoundedStopUtc = toSafeMapString(payload.rounded_stop_utc);
     stopTimeInput.dataset.initialRoundedStopLocalTime = toSafeMapString(payload.rounded_stop_time);
     if (payload.minimum_duration_minutes) {
@@ -1195,17 +1204,6 @@ function updateActiveTimeDisplays(activeTimeForm, payload) {
   return activeJobCard;
 }
 
-function markActiveTimeFormsSaved(activeJobCard) {
-  if (!activeJobCard) {
-    return;
-  }
-
-  const savedActiveTimeForms = activeJobCard.querySelectorAll("[data-active-time-form]");
-  for (const savedActiveTimeForm of savedActiveTimeForms) {
-    lastSavedActiveTimeSnapshots.set(savedActiveTimeForm, buildActiveTimeFormSnapshot(savedActiveTimeForm));
-  }
-}
-
 function clearActiveTimeSaveTimer(activeTimeForm) {
   const timerId = activeTimeSaveTimers.get(activeTimeForm);
   if (timerId) {
@@ -1215,32 +1213,42 @@ function clearActiveTimeSaveTimer(activeTimeForm) {
 }
 
 function persistActiveTimeFormSnapshot(activeTimeForm, queuedSnapshot) {
+  if (activeTimeSaveRequestsInFlight.has(activeTimeForm)) {
+    return;
+  }
+
+  activeTimeSaveRequestsInFlight.add(activeTimeForm);
   const jobId = toSafeMapString(activeTimeForm.dataset.jobId);
   setActiveSaveStatus(jobId, "Saving changes...");
   saveActiveTimeFormInBackground(activeTimeForm)
     .then((payload) => {
       const currentSnapshot = buildActiveTimeFormSnapshot(activeTimeForm);
       if (currentSnapshot !== queuedSnapshot) {
-        queueActiveTimeFormSave(activeTimeForm, true);
         return;
       }
 
-      const activeJobCard = updateActiveTimeDisplays(activeTimeForm, payload);
-      markActiveTimeFormsSaved(activeJobCard);
+      updateActiveTimeDisplays(activeTimeForm, payload);
+      lastSavedActiveTimeSnapshots.set(activeTimeForm, currentSnapshot);
       setActiveSaveStatus(jobId, "Changes saved.");
     })
     .catch((error) => {
       setActiveSaveStatus(jobId, error.message || "Active time could not be saved.", true);
+    })
+    .finally(() => {
+      activeTimeSaveRequestsInFlight.delete(activeTimeForm);
+      if (buildActiveTimeFormSnapshot(activeTimeForm) !== queuedSnapshot) {
+        queueActiveTimeFormSave(activeTimeForm, true, true);
+      }
     });
 }
 
-function queueActiveTimeFormSave(activeTimeForm, immediate = false) {
+function queueActiveTimeFormSave(activeTimeForm, immediate = false, force = false) {
   if (!activeTimeForm) {
     return;
   }
 
   const nextSnapshot = buildActiveTimeFormSnapshot(activeTimeForm);
-  if (nextSnapshot === lastSavedActiveTimeSnapshots.get(activeTimeForm)) {
+  if (!force && nextSnapshot === lastSavedActiveTimeSnapshots.get(activeTimeForm)) {
     return;
   }
 
@@ -2500,10 +2508,11 @@ function lockActiveClientInputForSelectedTicket(jobId) {
 }
 
 async function loadActiveTicketOptions(ticketPicker, options = {}) {
+  const forceRefresh = Boolean(options.forceRefresh);
   const lookupGeneration = activeTicketLookupGenerations.get(ticketPicker) || 0;
   if (
     activeTicketLookupRequests.get(ticketPicker) === lookupGeneration
-    || activeTicketLookupLoaded.has(ticketPicker)
+    || (!forceRefresh && activeTicketLookupLoaded.has(ticketPicker))
   ) {
     return;
   }
@@ -2515,6 +2524,7 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
   const activeTicketForm = findActiveTicketForm(jobId);
   const statusElement = ticketPicker.querySelector("[data-active-ticket-lookup-status]");
   const resultsElement = ticketPicker.querySelector("[data-active-ticket-lookup-results]");
+  const refreshButton = ticketPicker.querySelector("[data-ticket-picker-refresh]");
   if (!lookupUrl || !statusElement || !resultsElement) {
     return;
   }
@@ -2528,7 +2538,14 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
     return;
   }
 
+  if (forceRefresh) {
+    activeTicketLookupLoaded.delete(ticketPicker);
+  }
   activeTicketLookupRequests.set(ticketPicker, lookupGeneration);
+  if (refreshButton) {
+    refreshButton.disabled = true;
+    refreshButton.setAttribute("aria-busy", "true");
+  }
   ticketPicker.classList.add("is-loading");
   ticketPicker.setAttribute("aria-busy", "true");
   setActiveTicketPickerClickable(ticketPicker, false);
@@ -2552,7 +2569,10 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
     }
 
     setTicketLookupStatus(statusElement, "Loading open tickets...", {isLoading: true});
-    const response = await fetch(lookupUrl, {headers: {Accept: "application/json"}});
+    const requestUrl = forceRefresh
+      ? `${lookupUrl}${lookupUrl.includes("?") ? "&" : "?"}refresh=true`
+      : lookupUrl;
+    const response = await fetch(requestUrl, {headers: {Accept: "application/json"}});
     const payload = await response.json();
     if ((activeTicketLookupGenerations.get(ticketPicker) || 0) !== lookupGeneration) {
       return;
@@ -2574,6 +2594,9 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
     if (optionCount > 0) {
       activeTicketLookupLoaded.add(ticketPicker);
       setTicketPickerHeading(ticketPicker, optionCount);
+      if (refreshButton) {
+        refreshButton.hidden = false;
+      }
       setTicketLookupStatus(statusElement, "");
     } else {
       setTicketLookupStatus(statusElement, "No open tickets found. Project tasks are unavailable.");
@@ -2692,6 +2715,10 @@ async function loadActiveTicketOptions(ticketPicker, options = {}) {
       activeTicketLookupRequests.delete(ticketPicker);
       ticketPicker.classList.remove("is-loading");
       ticketPicker.removeAttribute("aria-busy");
+    }
+    if (refreshButton) {
+      refreshButton.disabled = false;
+      refreshButton.removeAttribute("aria-busy");
     }
   }
 }
@@ -3037,6 +3064,15 @@ for (const companyInput of companyInputs) {
 
 for (const ticketPicker of activeTicketPickers) {
   setActiveTicketPickerClickable(ticketPicker, true);
+
+  const refreshButton = ticketPicker.querySelector("[data-ticket-picker-refresh]");
+  if (refreshButton) {
+    refreshButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      loadActiveTicketOptions(ticketPicker, {forceRefresh: true});
+    });
+  }
 
   ticketPicker.addEventListener("click", (event) => {
     if (event.target.closest("button, a, input, select, textarea")) {

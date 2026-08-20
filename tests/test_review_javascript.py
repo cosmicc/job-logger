@@ -289,6 +289,39 @@ def test_shared_work_item_pickers_move_result_count_into_heading() -> None:
     assert ".ticket-picker-status:empty" in app_styles
 
 
+def test_shared_work_item_pickers_offer_a_forced_refresh() -> None:
+    """Loaded Work and Review listings should be able to bypass lookup caches."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    mobile_template = (repository_root / "ticket_pilot" / "templates" / "mobile.html").read_text(encoding="utf-8")
+    review_template = (repository_root / "ticket_pilot" / "templates" / "review.html").read_text(encoding="utf-8")
+    mobile_script = (repository_root / "ticket_pilot" / "static" / "mobile.js").read_text(encoding="utf-8")
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
+    app_styles = (repository_root / "ticket_pilot" / "static" / "app.css").read_text(encoding="utf-8")
+
+    for picker_template in (mobile_template, review_template):
+        assert "data-ticket-picker-refresh" in picker_template
+        assert ">Refresh<" in picker_template
+    for picker_script in (mobile_script, review_script):
+        assert "refresh=true" in picker_script
+        assert "forceRefresh: true" in picker_script
+    assert ".ticket-picker-refresh-button" in app_styles
+
+
+def test_review_autosaves_are_serialized_and_duration_uses_visible_times() -> None:
+    """Older Review responses must not overwrite newer time edits or duration text."""
+
+    repository_root = Path(__file__).resolve().parents[1]
+    review_script = (repository_root / "ticket_pilot" / "static" / "review.js").read_text(encoding="utf-8")
+
+    assert "let reviewAutosaveRequestInFlight = false;" in review_script
+    assert "if (reviewAutosaveRequestInFlight)" in review_script
+    assert "reviewAutosaveRequestInFlight = true;" in review_script
+    assert "reviewAutosaveRequestInFlight = false;" in review_script
+    assert "updateReviewDurationDisplay();" in review_script
+    assert "updateReviewDurationDisplay(payload.duration_label" not in review_script
+
+
 def test_review_field_input_posts_autosave_request(tmp_path: Path) -> None:
     """Review edits must save through the background save endpoint without a button."""
 

@@ -2201,6 +2201,12 @@ a:focus-visible {
   margin: 0;
 }
 
+.ticket-picker-refresh-button {
+  min-height: 36px;
+  padding: 7px 14px;
+  white-space: nowrap;
+}
+
 .service-call-panel-header {
   display: grid;
   gap: 10px;

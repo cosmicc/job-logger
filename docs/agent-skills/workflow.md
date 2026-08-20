@@ -192,8 +192,8 @@ Active jobs support these updates before completion:
   unsupported field for Ticket notes and Project task notes.
 - Work location mode, either Remote or On-Site, which is stored separately from
   the visible notes. Changing this mode for an active time entry must preserve
-  the start and recalculate only the stop to the later of the work-location
-  minimum or the current rounded 15-minute block.
+  the selected start time, stop time, and duration. The location minimum is a
+  submission validation rule, not an editing-time correction.
 - Local job date through the Work in Progress **Job date** calendar field. The
   selector shows `(Today)`, `(Yesterday)`, or `(Tomorrow)` inside the date box
   when the selected date is adjacent to the current app-local date. The date
@@ -213,18 +213,17 @@ Active jobs support these updates before completion:
   server-validated `-15` and `+15` minute buttons on either side of the field.
   These controls must not use the full-page status overlay because the
   adjustment should feel immediate.
-- Active Remote work must always show and persist a stop at least 15 rounded
-  minutes after start. Active On-Site work must always show and persist a stop
-  at least 1 rounded hour after start. When the job has already run beyond that
-  minimum, a work-location change uses the current rounded block. The active
-  save response must return the canonical start, stop, minimum, and duration so
-  browser JavaScript updates the visible End time and Work Duration together.
+- Active time edits must preserve the exact positive rounded span selected by
+  the user, even when it is shorter than the Remote or On-Site submission
+  minimum. Work-location autosaves must not return stale time values that
+  replace visible time-control edits.
 - A centered **Work Duration** label on its own row under the Work in Progress
   start/end time controls, such as `Work Duration: 15 Minutes`,
   `Work Duration: 1 Hour`, or `Work Duration: 1.25 Hours`. The server returns
   the canonical value after active time saves, and browser JavaScript should
-  update the visible value immediately when the visible start or stop time
-  changes.
+  derive it from the visible start and stop fields immediately whenever either
+  field changes. Serialize time and work-location saves so an older response
+  cannot replace newer state.
 - Full-browser Work in Progress cards should order editable workflow cards as
   **Entry type** with **Work type**, **Job date** with **Ticket status**,
   **Start time** with **End time**, then **Work Duration** centered under the
@@ -309,6 +308,10 @@ as the editable work status. Once the grouped options are visible, show their
 combined count only in the picker heading as **Open Tickets (N)**. Do not keep
 a separate available-work-items success message or the redundant assigned-task
 helper sentence.
+Both Work and Review open-ticket pickers provide **Refresh** after a client is
+selected. Refresh must call the authenticated lookup with `refresh=true`,
+bypass both the open-ticket and assigned-project-task selection caches, and
+leave the verified client selection unchanged.
 If the server-verified selected ticket status ID matches the configured
 **Customer Note Added** observed status, automatically refresh and open the
 existing Ticket notes overlay once with the newest note selected. This applies
@@ -704,10 +707,11 @@ Review supports:
   The **Ticket notes** and **Past time entries** buttons should sit at the
   bottom of that **Ticket name** card, directly above **Ticket description**.
 - Showing the rounded duration on a centered **Work Duration** row under the
-  selected detail start/end time controls and updating the value from the
-  server-normalized autosave response or the browser's current visible time
-  values. Do not nest the duration inside the end-time label on full-browser
-  layout because that makes the start and end time controls misalign.
+  selected detail start/end time controls and always deriving the value from
+  the browser's current visible time fields. Do not let a delayed autosave
+  response replace a newer duration. Do not nest the duration inside the
+  end-time label on full-browser layout because that makes the start and end
+  time controls misalign.
 - Recording additional audio notes on review detail before successful Autotask
   submission.
 - Automatically saving edits without a ticket number.
@@ -839,13 +843,13 @@ time is not after the start time on that same date. Keep the audit timeline
 collapsed by default with an expandable detail section.
 Time-entry duration validation must also enforce the selected work-location
 minimum: Remote requires at least 15 rounded minutes, while On-Site requires at
-least 1 rounded hour. Enforce this in `ticket_pilot/services/jobs.py` for active
-end-work, active time edits with an end override, Review saves, Review
-submission/retry, submitted-entry edits, and final Autotask submission
-readiness. Ticket notes do not use start/stop time fields and are exempt.
-Active Work time edits clamp the stop to the selected minimum; Review and
-submitted-entry edits remain manual and reject an undersized duration instead
-of silently changing it.
+least 1 rounded hour. Enforce this in `ticket_pilot/services/jobs.py` only when
+the app is about to create or update an Autotask time entry: direct Work in
+Progress submission, Review submission/retry, submitted-entry edits, and final
+submission readiness. Review saves and review-first End Work may preserve a
+shorter positive duration for manual correction. Ticket notes do not use
+start/stop time fields and are exempt. Never clamp an edited stop to the
+selected minimum or rewrite time fields after a work-location change.
 
 ## Job Status Expectations
 

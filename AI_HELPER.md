@@ -309,10 +309,11 @@ Time entries use **Remote** or **On-Site**.
 - Ticket note and Project task note modes keep the Work type card visible but
   disabled because notes do not use work location.
 
-Changing work type on an active time entry keeps the start time and
-recalculates only the end time. Remote requires at least 15 minutes. On-Site
-requires at least 1 hour. If the current rounded time is later than the minimum,
-TicketPilot uses that later time.
+Changing work type on an active time entry does not change the selected start
+time, end time, or displayed duration. Remote requires at least 15 minutes and
+On-Site requires at least 1 hour when the time entry is submitted to Autotask.
+TicketPilot preserves shorter selected times while the user edits or ends work
+for Review, then explains the minimum if submission is attempted too soon.
 
 ### Ticket Status Or Task Status
 
@@ -363,6 +364,11 @@ Use the `-15` and `+15` controls or the time list to adjust them.
 - On-Site requires at least 1 hour.
 - The end must be after the start on the same date.
 
+The duration updates from the visible start and end fields after `-15`, `+15`,
+time-list, or work-type changes. Work-type changes do not rewrite either time.
+Minimum-duration validation occurs when the Time entry is submitted or updated
+in Autotask.
+
 Note mode hides start, end, and duration because those values are not sent with
 an Autotask TicketNote or TaskNote. Switching back to Time entry restores the
 preserved time fields.
@@ -381,7 +387,8 @@ selected. After target selection, the client becomes read-only for that record.
 After selecting a verified client, load the grouped **Tickets** and **Project
 tasks** choices and select the correct work target. Once loaded, the **Open
 Tickets (N)** heading shows the combined number of ticket and project-task
-choices.
+choices. **Refresh** queries Autotask again for the current selected company
+without requiring the user to choose that client again.
 
 Ticket choices can show:
 
@@ -793,11 +800,12 @@ Work type is disabled in Ticket note or Project task note mode because an
 Autotask note does not use Remote or On-Site work location. Switch back to Time
 entry to edit it.
 
-### Why Did My End Time Change When I Selected On-Site?
+### Why Does On-Site Say The Duration Is Too Short?
 
-An active On-Site Time entry requires at least one rounded hour. TicketPilot
-keeps the start time and moves only the end time to the later of that minimum
-or the current rounded 15-minute block.
+On-Site Time entries require at least one rounded hour when submitted to
+Autotask. TicketPilot does not change the selected start or end time when Work
+type changes, so adjust the times manually before submitting. Remote Time
+entries require at least 15 rounded minutes.
 
 ### Why Can I Not Submit A Complete Entry?
 
@@ -1021,9 +1029,9 @@ verified company selection.
 
 ### No Open Tickets
 
-Confirm the selected client. Then check the ticket or project-task assignment,
-project type, and Autotask Projects permission. Contact the app administrator
-if expected work is missing.
+Confirm the selected client and use **Refresh** to check Autotask again. Then
+check the ticket or project-task assignment, project type, and Autotask
+Projects permission. Contact the app administrator if expected work is missing.
 
 If the picker says **Project tasks are unavailable because the Autotask API
 user lacks Projects access**, regular ticket selection still works. Ask the app

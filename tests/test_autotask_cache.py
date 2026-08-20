@@ -1759,6 +1759,11 @@ def test_open_ticket_lookup_reuses_recent_server_verified_list(monkeypatch: pyte
     provider._query_companies_by_name(fake_client, "Fast Client")
     first_lookup = provider.list_open_tickets_for_client("Fast Client", autotask_company_id=1001)
     second_lookup = provider.list_open_tickets_for_client("Fast Client", autotask_company_id=1001)
+    refreshed_lookup = provider.list_open_tickets_for_client(
+        "Fast Client",
+        autotask_company_id=1001,
+        force_refresh=True,
+    )
 
     assert [ticket.ticket_number for ticket in first_lookup] == ["T20260616.0001", "T20260616.0002"]
     assert first_lookup[0].detected_work_location == WorkLocation.REMOTE
@@ -1768,11 +1773,12 @@ def test_open_ticket_lookup_reuses_recent_server_verified_list(monkeypatch: pyte
     assert first_lookup[0].has_customer_notes is True
     assert first_lookup[1].has_customer_notes is False
     assert second_lookup == first_lookup
+    assert refreshed_lookup == first_lookup
     assert fake_client.company_query_count == 1
-    assert fake_client.ticket_query_count == 1
+    assert fake_client.ticket_query_count == 2
     assert fake_client.status_lookup_count == 1
     assert fake_client.source_lookup_count == 1
-    assert fake_client.note_lookup_count == 1
+    assert fake_client.note_lookup_count == 2
 
 
 def test_live_ticket_notes_lookup_uses_selected_ticket_id(monkeypatch: pytest.MonkeyPatch) -> None:

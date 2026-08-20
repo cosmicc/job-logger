@@ -2,6 +2,27 @@
 
 All notable changes to TicketPilot are documented in this file.
 
+## 2.1.1 - 08.19.2026 - Time controls and open-ticket refresh
+
+### Added
+
+- Added a **Refresh** button to the Work and Review open-ticket pickers so the
+  selected company's current tickets and assigned project tasks can be queried
+  again without changing the client.
+
+### Changed
+
+- Remote and On-Site changes now preserve the selected start time, end time,
+  and duration. Their 15-minute and 1-hour minimums are enforced only when a
+  time entry is submitted to or updated in Autotask, not while editing or
+  ending work for Review.
+
+### Fixed
+
+- Serialized Work and Review time autosaves, prevented older responses from
+  replacing newer edits, and made **Work Duration** derive from the current
+  visible start and end times so the `-15` and `+15` controls remain accurate.
+
 ## 2.1.0 - 08.05.2026 - Project tasks, Review controls, theme contrast, AI support, alerts, and Autotask compatibility
 
 ### Added

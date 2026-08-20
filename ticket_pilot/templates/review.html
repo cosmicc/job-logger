@@ -613,6 +613,12 @@
                     <h3 data-ticket-picker-heading>Open Tickets</h3>
                     <p class="muted-text" data-ticket-client-label>{{ selected_job.client_name or "No client name set" }}</p>
                   </div>
+                  <button
+                    type="button"
+                    class="secondary-button ticket-picker-refresh-button"
+                    data-ticket-picker-refresh
+                    hidden
+                  >Refresh</button>
                 </div>
                 <p class="ticket-picker-status muted-text" data-ticket-lookup-status aria-live="polite">
                   {% if selected_job.client_name %}Click this box to load open tickets.{% else %}Client name is required before open tickets can load.{% endif %}

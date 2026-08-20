@@ -54,8 +54,9 @@ def test_authenticated_help_page_renders_version_and_changelog(
     assert ">Operational Status<" in response.text
     assert ">Operational<" in response.text
     assert "All monitored app checks are fully operational." in response.text
-    assert ">v2.1.0<" in response.text
-    assert '<p class="help-version-release-date">Released: 08.05.2026</p>' in response.text
+    assert ">v2.1.1<" in response.text
+    assert '<p class="help-version-release-date">Released: 08.19.2026</p>' in response.text
+    assert "Released: 08.19.2026" in response.text
     assert "Released: 08.05.2026" in response.text
     assert "Released: 07.20.2026" in response.text
     assert "Released: 07.13.2026" in response.text
@@ -411,4 +412,4 @@ def test_help_page_marks_dev_build(authenticated_client: TestClient) -> None:
     response = authenticated_client.get("/help")
 
     assert response.status_code == 200
-    assert ">v2.1.0 DEV<" in response.text
+    assert ">v2.1.1 DEV<" in response.text

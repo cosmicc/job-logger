@@ -2,6 +2,24 @@
 
 Short release notes shown on the authenticated `/changelog` page.
 
+## 2.1.1 - 08.19.2026 - Time controls and open-ticket refresh
+
+### Added
+
+- Open Tickets now has a **Refresh** button that checks Autotask again for the
+  selected company's tickets and assigned project tasks.
+
+### Changed
+
+- Changing between Remote and On-Site now leaves the selected start time, end
+  time, and duration unchanged. Minimum durations are checked when the time
+  entry is submitted.
+
+### Fixed
+
+- The `-15` and `+15` time controls and rapid edits now keep **Work Duration**
+  matched to the visible start and end times.
+
 ## 2.1.0 - 08.05.2026 - Project tasks, Review controls, theme contrast, AI support, alerts, and Autotask compatibility
 
 ### Added

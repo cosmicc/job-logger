@@ -354,8 +354,8 @@ def test_work_in_progress_can_submit_directly_to_autotask(authenticated_client: 
     assert f'formaction="/review/{active_job_id}/accept"' not in review_page_response.text
 
 
-def test_on_site_active_work_clamps_to_one_hour_before_end(authenticated_client: TestClient) -> None:
-    """Ending new On-Site work should move only the stop to at least one hour."""
+def test_on_site_active_work_keeps_selected_times_until_submission(authenticated_client: TestClient) -> None:
+    """Ending On-Site work for Review must not rewrite a short selected duration."""
 
     mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -370,6 +370,10 @@ def test_on_site_active_work_clamps_to_one_hour_before_end(authenticated_client:
         active_job = get_active_job(database_session)
         assert active_job is not None
         active_job_id = active_job.id
+        active_job.rounded_start_utc = datetime(2026, 6, 16, 12, 0, tzinfo=UTC)
+        active_job.rounded_end_utc = datetime(2026, 6, 16, 12, 15, tzinfo=UTC)
+        active_job.local_work_date = local_date_for(active_job.rounded_start_utc)
+        database_session.commit()
 
     end_response = authenticated_client.post(
         f"/jobs/{active_job_id}/end",
@@ -389,12 +393,12 @@ def test_on_site_active_work_clamps_to_one_hour_before_end(authenticated_client:
         assert active_job is not None
         assert active_job.status == JobStatus.READY_FOR_REVIEW
         assert active_job.raw_end_utc is not None
-        assert active_job.rounded_end_utc >= active_job.rounded_start_utc + timedelta(hours=1)
+        assert active_job.rounded_end_utc == datetime(2026, 6, 16, 12, 15)
         assert active_job.work_location == WorkLocation.ON_SITE
 
 
 def test_review_rejects_on_site_time_entry_shorter_than_one_hour(authenticated_client: TestClient) -> None:
-    """Review validation blocks On-Site time entries shorter than one hour."""
+    """Review may save a short On-Site duration but must reject its submission."""
 
     mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -437,6 +441,21 @@ def test_review_rejects_on_site_time_entry_shorter_than_one_hour(authenticated_c
 
     review_page_response = authenticated_client.get(f"/review/{active_job_id}")
     review_csrf_token = extract_csrf_token(review_page_response.text)
+
+    save_response = authenticated_client.post(
+        f"/review/{active_job_id}/save",
+        headers={"Accept": "application/json"},
+        data={
+            "csrf_token": review_csrf_token,
+            "ticket_status": "complete",
+            "job_date": "2026-06-16",
+            "start_time": "08:00",
+            "end_time": "08:15",
+            "summary_notes": "On-Site. Replaced the switch.",
+        },
+    )
+    assert save_response.status_code == 200
+    assert save_response.json()["duration_label"] == "15 Minutes"
 
     accept_response = authenticated_client.post(
         f"/review/{active_job_id}/accept",
@@ -2939,6 +2958,58 @@ def test_review_ticket_lookup_returns_open_tickets_for_job_client(authenticated_
     assert response_payload["tickets"][0]["work_location_class"] == "ticket-location-remote"
 
 
+def test_open_ticket_refresh_requests_fresh_ticket_and_project_task_lists(
+    authenticated_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The shared picker refresh must explicitly bypass both short-lived caches."""
+
+    work_page = authenticated_client.get("/work")
+    csrf_token = extract_csrf_token(work_page.text)
+    assert authenticated_client.post(
+        "/jobs/start",
+        data={"csrf_token": csrf_token},
+        follow_redirects=False,
+    ).status_code == 303
+
+    with database.SessionLocal() as database_session:
+        active_job = get_active_job(database_session)
+        assert active_job is not None
+        job_id = active_job.id
+
+    assert authenticated_client.post(
+        f"/jobs/{job_id}/ticket-number",
+        data={
+            "csrf_token": csrf_token,
+            "client_name": "Acme Services",
+            "autotask_company_id": "1001",
+        },
+        follow_redirects=False,
+    ).status_code == 303
+
+    provider = review_routes.get_autotask_provider()
+    original_ticket_lookup = provider.list_open_tickets_for_client
+    original_task_lookup = provider.list_open_project_tasks_for_client
+    refresh_flags: list[tuple[str, bool]] = []
+
+    def track_ticket_lookup(*args, force_refresh: bool = False, **kwargs):
+        refresh_flags.append(("tickets", force_refresh))
+        return original_ticket_lookup(*args, force_refresh=force_refresh, **kwargs)
+
+    def track_task_lookup(*args, force_refresh: bool = False, **kwargs):
+        refresh_flags.append(("project_tasks", force_refresh))
+        return original_task_lookup(*args, force_refresh=force_refresh, **kwargs)
+
+    monkeypatch.setattr(provider, "list_open_tickets_for_client", track_ticket_lookup)
+    monkeypatch.setattr(provider, "list_open_project_tasks_for_client", track_task_lookup)
+    monkeypatch.setattr(review_routes, "get_autotask_provider", lambda: provider)
+
+    response = authenticated_client.get(f"/review/{job_id}/tickets?refresh=true")
+
+    assert response.status_code == 200
+    assert refresh_flags == [("tickets", True), ("project_tasks", True)]
+
+
 def test_review_detail_can_select_client_when_identity_is_empty(authenticated_client: TestClient) -> None:
     """Blank active jobs opened in Review can save a first Autotask client selection."""
 
@@ -3593,11 +3664,10 @@ def test_mobile_active_job_background_save_returns_ticket_lookup_context(authent
     assert ticket_lookup_response.json()["tickets"][0]["ticket_number"] == "T20260616.0001"
 
 
-def test_active_work_location_change_recalculates_only_stop_time(
+def test_active_work_location_change_preserves_start_stop_and_duration(
     authenticated_client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Work type changes should use the location minimum or later current block."""
+    """Work type changes must not rewrite either selected time or the duration."""
 
     mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -3614,12 +3684,9 @@ def test_active_work_location_change_recalculates_only_stop_time(
         assert active_job is not None
         active_job_id = active_job.id
         active_job.rounded_start_utc = rounded_start
-        active_job.rounded_end_utc = None
+        active_job.rounded_end_utc = rounded_start + timedelta(minutes=30)
         active_job.local_work_date = local_date_for(rounded_start)
         database_session.commit()
-
-    clock = {"now": datetime(2026, 6, 16, 12, 20, tzinfo=UTC)}
-    monkeypatch.setattr("ticket_pilot.services.jobs.now_utc", lambda: clock["now"])
 
     on_site_response = authenticated_client.post(
         f"/jobs/{active_job_id}/ticket-number",
@@ -3628,8 +3695,8 @@ def test_active_work_location_change_recalculates_only_stop_time(
     )
     assert on_site_response.status_code == 200
     assert on_site_response.json()["rounded_start_time"] == "8:00 am"
-    assert on_site_response.json()["rounded_stop_time"] == "9:00 am"
-    assert on_site_response.json()["duration_label"] == "1 Hour"
+    assert on_site_response.json()["rounded_stop_time"] == "8:30 am"
+    assert on_site_response.json()["duration_label"] == "30 Minutes"
     assert on_site_response.json()["minimum_duration_minutes"] == 60
 
     remote_response = authenticated_client.post(
@@ -3643,23 +3710,12 @@ def test_active_work_location_change_recalculates_only_stop_time(
     assert remote_response.json()["duration_label"] == "30 Minutes"
     assert remote_response.json()["minimum_duration_minutes"] == 15
 
-    clock["now"] = datetime(2026, 6, 16, 13, 8, tzinfo=UTC)
-    later_on_site_response = authenticated_client.post(
-        f"/jobs/{active_job_id}/ticket-number",
-        headers={"Accept": "application/json"},
-        data={"csrf_token": csrf_token, "work_location": "on_site"},
-    )
-    assert later_on_site_response.status_code == 200
-    assert later_on_site_response.json()["rounded_start_time"] == "8:00 am"
-    assert later_on_site_response.json()["rounded_stop_time"] == "9:15 am"
-    assert later_on_site_response.json()["duration_label"] == "1.25 Hours"
-
     with database.SessionLocal() as database_session:
         active_job = database_session.get(Job, active_job_id)
         assert active_job is not None
         assert active_job.rounded_start_utc == rounded_start.replace(tzinfo=None)
-        assert active_job.rounded_end_utc == datetime(2026, 6, 16, 13, 15)
-        assert active_job.work_location == WorkLocation.ON_SITE
+        assert active_job.rounded_end_utc == datetime(2026, 6, 16, 12, 30)
+        assert active_job.work_location == WorkLocation.REMOTE
 
 
 def test_mobile_audio_stream_requires_csrf(authenticated_client: TestClient) -> None:
@@ -4097,6 +4153,13 @@ def test_mobile_active_job_date_is_editable(authenticated_client: TestClient) ->
     updated_active_mobile_response = authenticated_client.get("/work")
     assert 'class="date-input-shell"' in updated_active_mobile_response.text
     assert 'class="date-display-text" data-date-display' in updated_active_mobile_response.text
+
+    stop_response = authenticated_client.post(
+        f"/jobs/{active_job_id}/stop-time/adjust",
+        headers={"Accept": "application/json"},
+        data={"csrf_token": csrf_token, "delta_minutes": "15"},
+    )
+    assert stop_response.status_code == 200
 
     end_response = authenticated_client.post(
         f"/jobs/{active_job_id}/end",
@@ -5234,8 +5297,10 @@ def test_mobile_active_job_rounded_stop_can_be_set_from_time_input(authenticated
         assert audit_event.job_id == active_job_id
 
 
-def test_mobile_active_job_rounded_stop_clamps_time_before_start(authenticated_client: TestClient) -> None:
-    """The editable active stop should clamp to the Remote minimum after start."""
+def test_mobile_active_job_rounded_stop_rejects_time_before_start_without_correction(
+    authenticated_client: TestClient,
+) -> None:
+    """An invalid active stop should be rejected rather than silently corrected."""
 
     mobile_page_response = authenticated_client.get("/work")
     csrf_token = extract_csrf_token(mobile_page_response.text)
@@ -5262,15 +5327,13 @@ def test_mobile_active_job_rounded_stop_clamps_time_before_start(authenticated_c
         data={"csrf_token": csrf_token, "job_date": "2026-06-16", "rounded_stop_time": "7:45 am"},
     )
 
-    assert save_response.status_code == 200
-    assert save_response.json()["rounded_stop_time"] == "8:15 am"
-    assert save_response.json()["duration_label"] == "15 Minutes"
+    assert save_response.status_code == 400
+    assert save_response.json()["detail"] == "End time must be after start time on the same job date."
     with database.SessionLocal() as database_session:
         active_job = database_session.get(Job, active_job_id)
         assert active_job is not None
-        assert active_job.rounded_end_utc == datetime(2026, 6, 16, 12, 15)
-        audit_event = database_session.query(AuditEvent).filter_by(action="job.rounded_stop.set").one()
-        assert audit_event.job_id == active_job_id
+        assert active_job.rounded_end_utc is None
+        assert database_session.query(AuditEvent).filter_by(action="job.rounded_stop.set").count() == 0
 
 
 def test_mobile_active_job_rounded_stop_rejects_selector_payload(authenticated_client: TestClient) -> None:
@@ -5586,6 +5649,10 @@ def test_project_task_can_be_selected_reviewed_and_submitted(
         active_job = get_active_job(database_session)
         assert active_job is not None
         job_id = active_job.id
+        active_job.rounded_start_utc = datetime(2026, 6, 16, 12, 0, tzinfo=UTC)
+        active_job.rounded_end_utc = datetime(2026, 6, 16, 12, 15, tzinfo=UTC)
+        active_job.local_work_date = local_date_for(active_job.rounded_start_utc)
+        database_session.commit()
 
     save_client_response = authenticated_client.post(
         f"/jobs/{job_id}/ticket-number",

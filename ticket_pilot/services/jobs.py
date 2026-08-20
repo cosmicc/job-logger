@@ -28,7 +28,6 @@ from ticket_pilot.services.autotask import (
 from ticket_pilot.services.transcription import TranscriptionError, TranscriptionResult, get_transcription_provider
 from ticket_pilot.time_utils import (
     LOCAL_TIMEZONE,
-    enforce_minimum_rounded_end,
     ensure_utc,
     format_duration_minutes,
     local_date_for,
@@ -1057,16 +1056,17 @@ def minimum_time_entry_duration_minutes(work_location: WorkLocation | str | None
     return MINIMUM_TIME_ENTRY_DURATION_MINUTES[normalized_work_location]
 
 
-def enforce_active_job_minimum_rounded_stop(job: Job, rounded_stop_utc: datetime) -> datetime:
-    """Clamp an active time-entry stop to its work-location minimum."""
+def ensure_time_entry_duration_is_positive(
+    *,
+    rounded_start_utc: datetime | None,
+    rounded_end_utc: datetime | None,
+) -> None:
+    """Reject a time range whose end is not after its start."""
 
-    if job.entry_type == EntryType.TICKET_NOTE:
-        return enforce_minimum_rounded_end(job.rounded_start_utc, rounded_stop_utc)
-
-    minimum_stop_utc = ensure_utc(job.rounded_start_utc) + timedelta(
-        minutes=minimum_time_entry_duration_minutes(job.work_location)
-    )
-    return max(ensure_utc(rounded_stop_utc), minimum_stop_utc)
+    if rounded_start_utc is None or rounded_end_utc is None:
+        raise JobWorkflowError("Start time and end time are required before Autotask submission.")
+    if ensure_utc(rounded_end_utc) <= ensure_utc(rounded_start_utc):
+        raise JobWorkflowError("End time must be after start time on the same job date.")
 
 
 def ensure_time_entry_duration_meets_minimum(
@@ -1080,6 +1080,11 @@ def ensure_time_entry_duration_meets_minimum(
     normalized_work_location = normalize_work_location(work_location)
     if rounded_start_utc is None or rounded_end_utc is None:
         raise JobWorkflowError("Start time and end time are required before Autotask submission.")
+
+    ensure_time_entry_duration_is_positive(
+        rounded_start_utc=rounded_start_utc,
+        rounded_end_utc=rounded_end_utc,
+    )
 
     minimum_minutes = MINIMUM_TIME_ENTRY_DURATION_MINUTES[normalized_work_location]
     actual_minutes = rounded_duration_minutes(rounded_start_utc, rounded_end_utc)
@@ -1296,11 +1301,8 @@ def update_active_job_ticket_number(
             autotask_company_id,
         )
 
-    work_location_changed = False
     if work_location is not None:
-        normalized_work_location = normalize_work_location(work_location)
-        work_location_changed = normalized_work_location != job.work_location
-        job.work_location = normalized_work_location
+        job.work_location = normalize_work_location(work_location)
 
     if ticket_status is not None:
         if job.work_target_type != WorkTargetType.TICKET:
@@ -1335,14 +1337,6 @@ def update_active_job_ticket_number(
     if job_date is not None:
         apply_active_job_local_work_date(job, job_date)
 
-    if work_location_changed and job.entry_type == EntryType.TIME_ENTRY:
-        # Recalculate only the stop when work type changes. Once the active job
-        # has run beyond the selected minimum, use the current rounded block.
-        job.rounded_end_utc = rounded_stop_for_active_job(job)
-    elif job.rounded_end_utc is not None:
-        job.rounded_end_utc = enforce_active_job_minimum_rounded_stop(job, job.rounded_end_utc)
-        ensure_job_time_entry_duration_meets_minimum(job)
-
     return job
 
 
@@ -1362,11 +1356,12 @@ def apply_active_job_local_work_date(job: Job, job_date: str) -> Job:
 
     job.rounded_start_utc = _replace_timestamp_local_date(job.rounded_start_utc, selected_local_date)
     if job.rounded_end_utc is not None:
-        job.rounded_end_utc = enforce_minimum_rounded_end(
-            job.rounded_start_utc,
-            _replace_timestamp_local_date(job.rounded_end_utc, selected_local_date),
+        selected_rounded_end_utc = _replace_timestamp_local_date(job.rounded_end_utc, selected_local_date)
+        ensure_time_entry_duration_is_positive(
+            rounded_start_utc=job.rounded_start_utc,
+            rounded_end_utc=selected_rounded_end_utc,
         )
-        ensure_job_time_entry_duration_meets_minimum(job)
+        job.rounded_end_utc = selected_rounded_end_utc
     job.local_work_date = selected_local_date
     return job
 
@@ -1436,12 +1431,16 @@ def adjust_active_job_rounded_start(database_session: Session, job_id: str, delt
         raise JobWorkflowError("Only active jobs can have rounded start times adjusted.")
 
     normalized_delta = normalize_start_time_delta_minutes(delta_minutes)
-    job.rounded_start_utc = round_start_for_technician(
+    requested_rounded_start_utc = round_start_for_technician(
         job.rounded_start_utc + timedelta(minutes=normalized_delta)
     )
     if job.rounded_end_utc is not None:
-        job.rounded_end_utc = enforce_active_job_minimum_rounded_stop(job, job.rounded_end_utc)
-    job.local_work_date = local_date_for(job.rounded_start_utc)
+        ensure_time_entry_duration_is_positive(
+            rounded_start_utc=requested_rounded_start_utc,
+            rounded_end_utc=job.rounded_end_utc,
+        )
+    job.rounded_start_utc = requested_rounded_start_utc
+    job.local_work_date = local_date_for(requested_rounded_start_utc)
     return job
 
 
@@ -1472,24 +1471,25 @@ def set_active_job_rounded_start(
     if str(local_date_for(rounded_start_utc)) != safe_job_date:
         raise JobWorkflowError("Rounded start time must stay on the selected job date.")
 
-    job.rounded_start_utc = rounded_start_utc
     if job.rounded_end_utc is not None:
-        job.rounded_end_utc = enforce_active_job_minimum_rounded_stop(job, job.rounded_end_utc)
-    job.local_work_date = local_date_for(job.rounded_start_utc)
+        ensure_time_entry_duration_is_positive(
+            rounded_start_utc=rounded_start_utc,
+            rounded_end_utc=job.rounded_end_utc,
+        )
+    job.rounded_start_utc = rounded_start_utc
+    job.local_work_date = local_date_for(rounded_start_utc)
     return job
 
 
 def rounded_stop_for_active_job(job: Job, timestamp: datetime | None = None) -> datetime:
-    """Return the current rounded stop with the active work-location minimum."""
+    """Return the current rounded stop without rewriting it to a location minimum."""
 
     if job.status != JobStatus.ACTIVE:
         raise JobWorkflowError("Only active jobs can have a live rounded stop time.")
 
     stop_timestamp = timestamp or now_utc()
     rounded_stop_timestamp = round_end_for_technician(stop_timestamp)
-    if local_date_for(rounded_stop_timestamp) != local_date_for(job.rounded_start_utc):
-        rounded_stop_timestamp = job.rounded_start_utc
-    return enforce_active_job_minimum_rounded_stop(job, rounded_stop_timestamp)
+    return rounded_stop_timestamp
 
 
 def adjust_active_job_rounded_stop(database_session: Session, job_id: str, delta_minutes: int | str) -> Job:
@@ -1504,7 +1504,11 @@ def adjust_active_job_rounded_stop(database_session: Session, job_id: str, delta
     requested_rounded_stop = round_end_for_technician(
         current_rounded_stop + timedelta(minutes=normalized_delta)
     )
-    job.rounded_end_utc = enforce_active_job_minimum_rounded_stop(job, requested_rounded_stop)
+    ensure_time_entry_duration_is_positive(
+        rounded_start_utc=job.rounded_start_utc,
+        rounded_end_utc=requested_rounded_stop,
+    )
+    job.rounded_end_utc = requested_rounded_stop
     return job
 
 
@@ -1536,7 +1540,11 @@ def set_active_job_rounded_stop(
     rounded_stop_utc = round_end_for_technician(requested_stop_utc)
     if str(local_date_for(rounded_stop_utc)) != safe_job_date:
         raise JobWorkflowError("Rounded stop time must stay on the selected job date.")
-    job.rounded_end_utc = enforce_active_job_minimum_rounded_stop(job, rounded_stop_utc)
+    ensure_time_entry_duration_is_positive(
+        rounded_start_utc=job.rounded_start_utc,
+        rounded_end_utc=rounded_stop_utc,
+    )
+    job.rounded_end_utc = rounded_stop_utc
     return job
 
 
@@ -1565,9 +1573,13 @@ def end_job(
 
     end_timestamp = now_utc()
     rounded_end_timestamp = job.rounded_end_utc or rounded_stop_for_active_job(job, timestamp=end_timestamp)
+    if job.entry_type == EntryType.TIME_ENTRY:
+        ensure_time_entry_duration_is_positive(
+            rounded_start_utc=job.rounded_start_utc,
+            rounded_end_utc=rounded_end_timestamp,
+        )
     job.raw_end_utc = end_timestamp
-    job.rounded_end_utc = enforce_active_job_minimum_rounded_stop(job, rounded_end_timestamp)
-    ensure_job_time_entry_duration_meets_minimum(job)
+    job.rounded_end_utc = rounded_end_timestamp
     job.local_work_date = local_date_for(job.rounded_start_utc)
     job.status = JobStatus.READY_FOR_REVIEW
     return job
@@ -1707,6 +1719,7 @@ def validate_review_fields(
     require_ticket_number: bool = False,
     require_end_time_fields: bool = True,
     require_note_title: bool = False,
+    enforce_minimum_duration: bool = True,
 ) -> ReviewFields:
     """Validate and normalize editable review form values."""
 
@@ -1807,11 +1820,12 @@ def validate_review_fields(
             raise JobWorkflowError("Rounded end time must stay on the selected job date.")
         if rounded_end_utc <= rounded_start_utc:
             raise JobWorkflowError("End time must be after start time on the same job date.")
-        ensure_time_entry_duration_meets_minimum(
-            work_location=work_location,
-            rounded_start_utc=rounded_start_utc,
-            rounded_end_utc=rounded_end_utc,
-        )
+        if enforce_minimum_duration:
+            ensure_time_entry_duration_meets_minimum(
+                work_location=work_location,
+                rounded_start_utc=rounded_start_utc,
+                rounded_end_utc=rounded_end_utc,
+            )
     return ReviewFields(
         ticket_number=ticket_number,
         ticket_title=ticket_title,
@@ -1869,13 +1883,10 @@ def apply_review_fields(job: Job, review_fields: ReviewFields) -> Job:
         job.rounded_start_utc = review_fields.rounded_start_utc
     if review_fields.rounded_end_utc is not None:
         job.rounded_end_utc = review_fields.rounded_end_utc
-    elif job.status == JobStatus.ACTIVE and job.rounded_end_utc is not None:
-        job.rounded_end_utc = enforce_minimum_rounded_end(job.rounded_start_utc, job.rounded_end_utc)
     if review_fields.local_work_date is not None:
         job.local_work_date = review_fields.local_work_date
     job.client_name = review_fields.client_name
     job.autotask_company_id = review_fields.autotask_company_id
-    ensure_job_time_entry_duration_meets_minimum(job)
     return job
 
 

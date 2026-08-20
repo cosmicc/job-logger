@@ -479,7 +479,11 @@ The cache is process-local. Multiple app containers do not share it.
 
 The open-ticket selection cache stores only positive, non-secret ticket options
 that the server already returned to the authenticated browser. It exists to keep
-the click-to-save path fast; it is not a durable authorization source.
+the click-to-save path fast; it is not a durable authorization source. The Work
+and Review **Refresh** action sends `refresh=true` to the authenticated lookup
+route and must evict both the selected company's open-ticket cache entry and
+the current resource's assigned-project-task cache entry before querying
+Autotask again. Refresh does not change the saved company selection.
 
 ## Pagination Rules
 

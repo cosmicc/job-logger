@@ -432,23 +432,25 @@ Job end times and job duration must also round to 15-minute intervals.
 Work in Progress and Review detail must show the rounded start-to-stop duration
 using labels such as `Work Duration: 15 Minutes`, `Work Duration: 1 Hour`, or
 `Work Duration: 1.25 Hours`, and must update the value as the visible rounded
-times change. Work in Progress and Review detail show the centered **Work
+times change. Derive the label from the browser's current visible start and
+end fields, and serialize background saves so an older response cannot replace
+a newer edit or duration. Work in Progress and Review detail show the centered **Work
 Duration** row under the start/end time controls so full-browser start and end
 fields stay aligned.
 Ticket-note mode hides this duration because start and stop times are not used
 for Autotask ticket notes.
 Time-entry duration validation must enforce the work-location minimum:
 Remote work requires at least 15 rounded minutes, and On-Site work requires at
-least 1 rounded hour. Apply the same server-side rule to active end-work,
-Review saves, Review submission/retry, submitted-entry edits, and direct
-Work in Progress Autotask submission. Ticket notes are exempt because they do
-not use start/stop time fields.
-On active Work only, selecting Remote or On-Site must recalculate only the stop
-time. Use the later of the selected location minimum or the current rounded
-15-minute block, keep the start unchanged, persist the canonical stop, and
-return it to the browser so Work Duration updates immediately. Review and
-submitted-entry edits remain manual and must continue to reject durations below
-the selected work-location minimum.
+least 1 rounded hour. Enforce this rule only when creating or updating the
+Autotask time entry, including Review submission/retry, submitted-entry edits,
+and direct Work in Progress Autotask submission. Review saves and review-first
+End Work may preserve a shorter positive duration so the user can correct it
+manually before submission. Ticket notes are exempt because they do not use
+start/stop time fields.
+Selecting Remote or On-Site must preserve the current rounded start time,
+rounded stop time, and duration on both Work and Review. Never rewrite either
+time to meet a work-location minimum; return a clear validation error only if
+the user attempts an Autotask submission with an undersized duration.
 
 Jobs do not span multiple work dates. Review forms must use one local job date
 with start and end times, and must reject edits where the end time is not after
@@ -528,8 +530,12 @@ query Autotask directly.
 The selected-company work picker must return separate **Tickets** and
 **Project tasks** groups. After options load, the **Open Tickets (N)** panel
 heading shows their combined count. Do not repeat that count in a separate
-success message or show a redundant project-task helper sentence. Project-task
-options come only from non-complete
+success message or show a redundant project-task helper sentence. Both Work
+and Review must provide a **Refresh** button that re-runs the selected company's
+ticket and project-task lookups while explicitly bypassing the short-lived
+selection caches.
+
+Project-task options come only from non-complete
 tasks on non-complete, non-inactive, non-template, non-baseline projects for the
 verified company, and only when the logged-in managed user's Autotask resource
 is the task's primary or secondary resource. Use the documented
@@ -793,7 +799,7 @@ must mark the Help navigation button in yellow so dev instances are visually
 distinct from production without adding a separate pill. Full-browser
 authenticated headers also show the version under the left-side TicketPilot
 title, using `vX.Y.Z-DEV` for dev builds. The Help page itself must show the
-current version with `DEV`, such as `v2.1.0 DEV`.
+current version with `DEV`, such as `v2.1.1 DEV`.
 
 On phone-sized authenticated layouts, the top bar hides the brand mark and the
 desktop logout control. It shows compact route and status icons on the left,
@@ -1427,8 +1433,9 @@ The normal workflow is:
    locked for that job in Work in Progress, Review, and server-side save/end
    handlers.
 9. User chooses whether the work is Remote or On-Site. On active Work, changing
-   this mode keeps the start time unchanged and recalculates the stop to the
-   later of the location minimum or the current rounded block. The mode is
+   this mode preserves the selected start time, stop time, and duration. The
+   location minimum is checked only if the time entry is submitted to or
+   updated in Autotask. The mode is
    stored on the job and appears as the leading `Remote. ` or `On-Site. ` prefix
    in the review summary textarea so it can be corrected before Autotask submission.
 10. User records notes during an active job from the Summary notes action row,

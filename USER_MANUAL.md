@@ -198,10 +198,10 @@ rounded duration that will be used for the time entry. Note mode hides these
 time fields because Ticket notes and Project task notes do not use start and
 end time.
 Remote time entries must be at least 15 minutes. On-Site time entries must be
-at least 1 hour. On the active Work page, changing the work type updates only
-the end time. TicketPilot uses the minimum duration unless the current rounded
-15-minute block is later. Review and submitted-entry edits remain manual and
-show a validation message when the selected duration is too short.
+at least 1 hour. Changing between Remote and On-Site does not change the start
+time, end time, or displayed duration. TicketPilot leaves the selected times
+unchanged while you edit or end work for Review, then shows a validation
+message if you try to submit an undersized time entry to Autotask.
 
 **Client name**
 
@@ -216,7 +216,8 @@ record.
 
 After selecting a verified client, load the grouped **Tickets** and **Project
 tasks** choices. When the choices appear, **Open Tickets (N)** shows their
-combined total. Ticket choices include **Start** and **Due by** dates when
+combined total. Use **Refresh** to check Autotask again for the selected
+company's current tickets and assigned project tasks. Ticket choices include **Start** and **Due by** dates when
 Autotask provides them. Project-task choices show the task and its parent
 project. Only non-complete tasks assigned to you as a primary or secondary
 Autotask resource are shown. TicketPilot saves the selected target's verified

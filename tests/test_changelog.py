@@ -16,10 +16,14 @@ from ticket_pilot.services.changelog import (
 )
 from ticket_pilot.version import APP_VERSION
 
-CURRENT_RELEASE_DATE = "08.05.2026"
-CURRENT_WEB_TITLE = "Project tasks, Review controls, theme contrast, AI support, alerts, and Autotask compatibility"
-CURRENT_DETAILED_HEADING = f"## 2.1.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
-CURRENT_WEB_HEADING = f"## 2.1.0 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+CURRENT_RELEASE_DATE = "08.19.2026"
+CURRENT_WEB_TITLE = "Time controls and open-ticket refresh"
+CURRENT_DETAILED_HEADING = f"## 2.1.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+CURRENT_WEB_HEADING = f"## 2.1.1 - {CURRENT_RELEASE_DATE} - {CURRENT_WEB_TITLE}"
+V210_HEADING = (
+    "## 2.1.0 - 08.05.2026 - "
+    "Project tasks, Review controls, theme contrast, AI support, alerts, and Autotask compatibility"
+)
 V200_HEADING = "## 2.0.0 - 07.26.2026 - TicketPilot rename, themes, workflow, navigation, and reliability"
 V140_DETAILED_HEADING = "## 1.4.0 - 07.20.2026 - Configurable navigation and Autotask destinations"
 V140_WEB_HEADING = "## 1.4.0 - 07.20.2026 - Navigation apps and quick destinations"
@@ -46,6 +50,7 @@ V120_RELEASE_DATE = "07.02.2026"
 RELEASE_HEADING_PATTERN = re.compile(r"^## \d+\.\d+\.\d+ - (?:\d{2}\.\d{2}\.\d{4} - .+|.+)")
 DETAILED_RELEASE_HEADINGS = (
     CURRENT_DETAILED_HEADING,
+    V210_HEADING,
     V200_HEADING,
     V140_DETAILED_HEADING,
     V131_DETAILED_HEADING,
@@ -68,6 +73,7 @@ DETAILED_RELEASE_HEADINGS = (
 )
 WEB_RELEASE_HEADINGS = (
     CURRENT_WEB_HEADING,
+    V210_HEADING,
     V200_HEADING,
     V140_WEB_HEADING,
     V131_WEB_HEADING,
@@ -140,7 +146,7 @@ def _assert_changelog_sections_are_non_empty(
 def test_app_version_matches_current_changelog_version() -> None:
     """The source-controlled version should match the current changelog entry."""
 
-    assert APP_VERSION == "2.1.0"
+    assert APP_VERSION == "2.1.1"
     version_file = Path(__file__).resolve().parents[1] / "VERSION"
     assert version_file.read_text(encoding="utf-8").strip() == APP_VERSION
 
@@ -254,98 +260,24 @@ def test_changelog_parser_reads_current_release() -> None:
     current_entry = current_changelog_entry(entries)
 
     assert current_entry == ChangelogEntry(
-        version="2.1.0",
+        version="2.1.1",
         release_date=CURRENT_RELEASE_DATE,
         title=CURRENT_WEB_TITLE,
         changes=(
             (
-                "Config can stop On-Site service calls from opening directions automatically while keeping the "
-                "navigation button available."
-            ),
-            "TicketPilot now supports the Autotask **Mfg Trouble Ticket** status.",
-            (
-                "Selecting or starting a **Customer Note Added** ticket now opens its newest existing customer note "
-                "automatically."
+                "Open Tickets now has a **Refresh** button that checks Autotask again for the selected company's "
+                "tickets and assigned project tasks."
             ),
             (
-                "Tickets with customer-note history now show a **Note** badge, and the selected ticket's "
-                "**Ticket notes** button is highlighted."
+                "Changing between Remote and On-Site now leaves the selected start time, end time, and duration "
+                "unchanged. Minimum durations are checked when the time entry is submitted."
             ),
             (
-                "Every highlight color now has a matching complementary color for On-Site, Ticket note, "
-                "customer-note, recording, and second-job treatments."
+                "The `-15` and `+15` time controls and rapid edits now keep **Work Duration** matched to the visible "
+                "start and end times."
             ),
-            (
-                "AI Help now uses a comprehensive end-user knowledge base with workflows, common questions, "
-                "messages, and troubleshooting guidance."
-            ),
-            "Review can hide submitted entries and show 10, 20, 50, or 100 entries per page.",
-                (
-                    "Administrators can acknowledge the current health alert to pause repeated Pushover reminders until "
-                    "the issue changes."
-                ),
-                (
-                    "Assigned Autotask project tasks now appear beside tickets in a separate picker group and can be "
-                    "used for time entries."
-                ),
-                (
-                    "Project tasks now support Task status, Project task notes, note indicators, past time entries, "
-                    "navigation, and service-call selections."
-                ),
-                (
-                    "Full-browser Config now balances the Appearance card with Background on the left and Highlight "
-                    "color on the right."
-                ),
-                (
-                    "Work and Review now show the combined target count in **Open Tickets (N)** without the repeated "
-                    "availability text."
-                ),
-                (
-                    "Start Work now moves the cursor to company search, and choosing a ticket, project task, or "
-                    "service call moves it to the matching summary field."
-                ),
-                (
-                    "Full-browser Review starts at the top beside the Today, Week, and Unsubmitted cards and now has "
-                    "First and Last page buttons."
-            ),
-            (
-                "Complete-status entries wait until every other unsubmitted entry for the same ticket has been sent "
-                "to Autotask."
-            ),
-            "Text boxes now start entered text on the left.",
-            (
-                "The automatically opened customer note stays closed after you close it or reload; the **Ticket notes** "
-                "button remains available whenever you need it."
-            ),
-            (
-                    "Alternate workflow controls now change to a complementary color that stays distinct from the "
-                    "selected highlight, including Amber and Orange."
-                ),
-                (
-                    "Completing a project task now waits for every other unsubmitted local entry for that task, submits "
-                    "the Time entry or Project task note first, and changes only the task status last."
-                ),
-                (
-                    "Regular tickets now remain selectable when Autotask denies Projects access; the Project tasks "
-                    "group shows a clear permission warning instead."
-                ),
-                "Ticket notes now submit through the correct Autotask ticket-note endpoint.",
-            "Work and Review now fully hide **Append to resolution** in Ticket note mode.",
-            "Ticket-note create and update requests now use only fields supported by Autotask.",
-            (
-                "Submitted ticket notes no longer show an Autotask delete action that the TicketNotes API does not "
-                "support."
-            ),
-            (
-                    "Amber and Orange appearance choices no longer blend into On-Site, Ticket note, customer-note, "
-                    "or recording controls."
-                ),
-                (
-                    "Project task notes now save directly on the selected task instead of using a ticket or whole-project "
-                    "note."
-                ),
-            ),
-        )
+        ),
+    )
 
 
 def test_changelog_route_requires_login(client: TestClient) -> None:
@@ -365,7 +297,7 @@ def test_authenticated_changelog_page_renders_current_version(authenticated_clie
     assert response.status_code == 200
     assert 'class="changelog-shell"' in response.text
     assert "Current version" in response.text
-    assert ">2.1.0<" in response.text
+    assert ">2.1.1<" in response.text
     assert ">1.4.0<" in response.text
     assert ">1.3.1<" in response.text
     assert ">1.3.0<" in response.text

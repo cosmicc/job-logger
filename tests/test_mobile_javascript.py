@@ -393,7 +393,7 @@ def test_mobile_duration_is_derived_from_the_visible_canonical_times(tmp_path: P
         startTimeInput.value = "8:00 am";
         const stopTimeInput = createFakeElement("input");
         stopTimeInput.dataset = {activeTimeKind: "stop"};
-        stopTimeInput.value = "8:15 am";
+        stopTimeInput.value = "10:00 am";
         const durationDisplay = createFakeElement("strong");
         durationDisplay.textContent = "15 Minutes";
         const activeJobCard = createFakeElement("section");
@@ -405,7 +405,7 @@ def test_mobile_duration_is_derived_from_the_visible_canonical_times(tmp_path: P
         };
         activeJobCard.querySelectorAll = () => [];
         const activeTimeForm = createFakeElement("form");
-        activeTimeForm.dataset = {jobId: "duration-job"};
+        activeTimeForm.dataset = {activeTimeKind: "start", jobId: "duration-job"};
         fakeDocument.querySelector = (selector) => (
           selector === '[data-active-job-card="duration-job"]' ? activeJobCard : null
         );
@@ -414,6 +414,22 @@ def test_mobile_duration_is_derived_from_the_visible_canonical_times(tmp_path: P
           job_id: "duration-job",
           rounded_start_time: "9:00 am",
           rounded_start_utc: "2026-06-16T13:00:00Z",
+          rounded_stop_time: "9:15 am",
+          rounded_stop_utc: "2026-06-16T13:15:00Z",
+          rounded_stop_overridden: true,
+          minimum_duration_minutes: 60,
+          duration_label: "9 Hours",
+        });
+
+        assert.strictEqual(startTimeInput.value, "9:00 am");
+        assert.strictEqual(stopTimeInput.value, "10:00 am");
+        assert.strictEqual(durationDisplay.textContent, "1 Hour");
+
+        activeTimeForm.dataset.activeTimeKind = "stop";
+        browserContext.__mobileTestApi.updateActiveTimeDisplays(activeTimeForm, {
+          job_id: "duration-job",
+          rounded_start_time: "7:00 am",
+          rounded_start_utc: "2026-06-16T11:00:00Z",
           rounded_stop_time: "10:30 am",
           rounded_stop_utc: "2026-06-16T14:30:00Z",
           rounded_stop_overridden: true,

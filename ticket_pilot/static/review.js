@@ -33,6 +33,7 @@ const reviewTaskStatusInput = document.querySelector("[data-review-task-status-i
 
 let reviewAutosaveTimer = null;
 let lastReviewAutosaveSnapshot = "";
+let reviewAutosaveRequestInFlight = false;
 let reviewAudioRecorder = null;
 let reviewAudioStream = null;
 let reviewAudioSocket = null;
@@ -1381,24 +1382,23 @@ async function cleanupReviewSummary(button) {
 }
 
 function persistReviewAutosaveSnapshot(queuedSnapshot) {
+  if (reviewAutosaveRequestInFlight) {
+    return;
+  }
+
+  reviewAutosaveRequestInFlight = true;
   setReviewAutosaveStatus("Saving changes...");
   saveReviewFormInBackground()
     .then((payload) => {
-      if (payload && payload.job_date) {
-        updateReviewDateWeekday(payload.job_date);
-      }
-      if (payload && Object.prototype.hasOwnProperty.call(payload, "duration_label")) {
-        updateReviewDurationDisplay(payload.duration_label || "");
-      }
-
       const latestSnapshot = buildReviewAutosaveSnapshot();
       if (latestSnapshot === queuedSnapshot) {
+        if (payload && payload.job_date) {
+          updateReviewDateWeekday(payload.job_date);
+        }
+        updateReviewDurationDisplay();
         lastReviewAutosaveSnapshot = latestSnapshot;
         setReviewAutosaveStatus("Changes saved.");
-        return;
       }
-
-      queueReviewAutosave(true);
     })
     .catch((error) => {
       const errorMessage = error.message || "Review changes could not be saved.";
@@ -1407,16 +1407,22 @@ function persistReviewAutosaveSnapshot(queuedSnapshot) {
         return;
       }
       setReviewAutosaveStatus(errorMessage, true);
+    })
+    .finally(() => {
+      reviewAutosaveRequestInFlight = false;
+      if (buildReviewAutosaveSnapshot() !== queuedSnapshot) {
+        queueReviewAutosave(true, true);
+      }
     });
 }
 
-function queueReviewAutosave(immediate = false) {
+function queueReviewAutosave(immediate = false, force = false) {
   if (!reviewAutosaveForm) {
     return;
   }
 
   const nextSnapshot = buildReviewAutosaveSnapshot();
-  if (nextSnapshot === lastReviewAutosaveSnapshot) {
+  if (!force && nextSnapshot === lastReviewAutosaveSnapshot) {
     return;
   }
 
@@ -1688,6 +1694,7 @@ function bindTicketLookup() {
   const ticketSelectUrl = ticketPicker.dataset.ticketSelectUrl;
   const statusElement = ticketPicker.querySelector("[data-ticket-lookup-status]");
   const resultsElement = ticketPicker.querySelector("[data-ticket-lookup-results]");
+  const refreshButton = ticketPicker.querySelector("[data-ticket-picker-refresh]");
   const ticketClientLabel = ticketPicker.querySelector("[data-ticket-client-label]");
   const reviewClientNameInput = document.querySelector("[data-review-client-name-input]");
   const ticketNumberInput = document.querySelector("[data-review-ticket-number-input]");
@@ -1725,6 +1732,9 @@ function bindTicketLookup() {
     }
     if (ticketClientLabel) {
       ticketClientLabel.textContent = savedClientName || "No client name set";
+    }
+    if (refreshButton) {
+      refreshButton.hidden = true;
     }
     hasLoadedTicketOptions = false;
     resultsElement.replaceChildren();
@@ -1831,8 +1841,9 @@ function bindTicketLookup() {
     }
   }
 
-  async function loadReviewTicketOptions() {
-    if (isLookupInProgress || hasLoadedTicketOptions) {
+  async function loadReviewTicketOptions(options = {}) {
+    const forceRefresh = Boolean(options.forceRefresh);
+    if (isLookupInProgress || (!forceRefresh && hasLoadedTicketOptions)) {
       return;
     }
 
@@ -1841,7 +1852,14 @@ function bindTicketLookup() {
       return;
     }
 
+    if (forceRefresh) {
+      hasLoadedTicketOptions = false;
+    }
     isLookupInProgress = true;
+    if (refreshButton) {
+      refreshButton.disabled = true;
+      refreshButton.setAttribute("aria-busy", "true");
+    }
     ticketPicker.classList.add("is-loading");
     ticketPicker.setAttribute("aria-busy", "true");
     setTicketPickerClickable(false);
@@ -1849,7 +1867,10 @@ function bindTicketLookup() {
     resultsElement.replaceChildren();
 
     try {
-      const response = await fetch(lookupUrl, {headers: {Accept: "application/json"}});
+      const requestUrl = forceRefresh
+        ? `${lookupUrl}${lookupUrl.includes("?") ? "&" : "?"}refresh=true`
+        : lookupUrl;
+      const response = await fetch(requestUrl, {headers: {Accept: "application/json"}});
       const payload = await response.json();
       if (!response.ok) {
         throw new Error(payload.detail || "Autotask ticket lookup failed.");
@@ -1868,6 +1889,9 @@ function bindTicketLookup() {
       if (optionCount > 0) {
         hasLoadedTicketOptions = true;
         setTicketPickerHeading(ticketPicker, optionCount);
+        if (refreshButton) {
+          refreshButton.hidden = false;
+        }
         setTicketLookupStatus(statusElement, "");
       } else {
         setTicketLookupStatus(statusElement, "No open tickets found. Project tasks are unavailable.");
@@ -1946,6 +1970,10 @@ function bindTicketLookup() {
       isLookupInProgress = false;
       ticketPicker.classList.remove("is-loading");
       ticketPicker.removeAttribute("aria-busy");
+      if (refreshButton) {
+        refreshButton.disabled = false;
+        refreshButton.removeAttribute("aria-busy");
+      }
     }
   }
 
@@ -1954,6 +1982,13 @@ function bindTicketLookup() {
     applySavedClientToPicker(event.detail || {});
     loadReviewTicketOptions();
   });
+  if (refreshButton) {
+    refreshButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      loadReviewTicketOptions({forceRefresh: true});
+    });
+  }
   ticketPicker.addEventListener("click", (event) => {
     if (event.target.closest("button, a, input, select, textarea")) {
       return;

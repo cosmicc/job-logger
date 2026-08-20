@@ -334,6 +334,7 @@ def selected_review_page(
 def review_ticket_options(
     job_id: str,
     request: Request,
+    refresh: bool = False,
     database_session: Session = Depends(get_database_session),
 ) -> JSONResponse:
     """Return ticket and assigned project-task choices for the saved client."""
@@ -351,6 +352,7 @@ def review_ticket_options(
             job.client_name,
             job.autotask_company_id,
             resource_id=web_user.autotask_resource_id,
+            force_refresh=refresh,
         )
         task_options: list[AutotaskProjectTaskOption] = []
         task_status_options: list[AutotaskTaskStatusOption] = []
@@ -360,6 +362,7 @@ def review_ticket_options(
                 job.client_name,
                 job.autotask_company_id,
                 resource_id=web_user.autotask_resource_id,
+                force_refresh=refresh,
             )
         except AutotaskSubmissionError as exc:
             # Project-task selection is an optional extension of the ticket
@@ -1070,6 +1073,7 @@ async def save_review(
             locked_form_values,
             require_ticket_number=False,
             require_end_time_fields=require_end_time_fields,
+            enforce_minimum_duration=False,
         )
         apply_review_fields(job, review_fields)
         database_session.commit()

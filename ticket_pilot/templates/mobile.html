@@ -668,6 +668,12 @@
               >
                 <div class="mobile-ticket-picker-header">
                   <h3 data-ticket-picker-heading>Open Tickets</h3>
+                  <button
+                    type="button"
+                    class="secondary-button ticket-picker-refresh-button"
+                    data-ticket-picker-refresh
+                    hidden
+                  >Refresh</button>
                 </div>
                 <p class="ticket-picker-status muted-text" data-active-ticket-lookup-status aria-live="polite">
                   {% if active_job.client_name %}Click this box to load open tickets.{% else %}Choose a client, then click this box to load open tickets.{% endif %}

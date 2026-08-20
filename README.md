@@ -723,7 +723,7 @@ Set these passkey variables for production when needed:
 
 TicketPilot uses source-controlled semantic versioning. The runtime version is
 defined in `ticket_pilot/version.py`, mirrored in `pyproject.toml` and the root
-`VERSION` file, and is currently `v2.1.0`. Version history starts at `v1.0.0`.
+`VERSION` file, and is currently `v2.1.1`. Version history starts at `v1.0.0`.
 
 Authenticated pages show a Help button in the shared header. `/help` starts
 with **Ask AI for help**, shows **Operational Status**, then shows the current
@@ -747,7 +747,7 @@ changelog views use the same authenticated session, shared theme variables,
 and responsive layout system as the rest of the app.
 When Docker/runtime `DEV_BUILD=true`, the authenticated Help button is yellow
 on desktop and phone layouts, and `/help` shows the current version with `DEV`,
-such as `v2.1.0 DEV`.
+such as `v2.1.1 DEV`.
 
 ## Provider Modes
 
@@ -1156,8 +1156,10 @@ from cache can still be queried from Autotask. Ticket status picklist labels and
 other Autotask lookup data remain on a 15-minute cache. Recently displayed
 open-ticket selection lists are cached server-side for two minutes so selecting
 a ticket that was just shown does not re-query Autotask on the critical tap
-path. The initial `/work` page and blank Start Work route do not run an
-Autotask contactability check. Live company and ticket queries request
+path. The Work and Review pickers also provide **Refresh**, which bypasses the
+open-ticket and assigned-project-task selection caches and queries Autotask
+again for the currently selected company. The initial `/work` page and blank
+Start Work route do not run an Autotask contactability check. Live company and ticket queries request
 `MaxRecords=500` and follow Autotask
 pagination links so larger tenants are not limited to the first page of results.
 Pagination is bounded and fails safely instead of silently showing partial
@@ -1639,6 +1641,10 @@ notes do not add to hour totals or the unsubmitted count.
 Time entries also enforce work-location minimums: Remote work must be at least
 15 rounded minutes, and On-Site work must be at least 1 rounded hour. Ticket
 notes do not use start and end times, so these minimums do not apply to notes.
+The minimum is checked only when a time entry is submitted to or updated in
+Autotask. Work and Review edits preserve the selected times, changing Remote or
+On-Site never rewrites them, and **Work Duration** is always derived from the
+visible rounded start and end values.
 Review detail shows the active Work in Progress rounded stop preview when an
 active job is selected, but review save ignores that displayed end time until
 the user actually ends the job. Ended review edits must explicitly choose a
